@@ -383,7 +383,24 @@ U3 is the safety gate, U5 decides whether injection can be commissioned at all.
 
 - Injection calibration: timing maps, quantity maps, rail pressure setpoint schedules.
   The hardware will be capable; the maps are a dyno programme, not a PCB deliverable.
-- Emissions certification.
+- Emissions certification. **But read this before planning deployment** — research memo
+  06 found, in primary sources, that the regulatory position is worse than "we simply
+  won't certify it." CPCB's RECD System & Procedure states that ECU characteristics
+  governing injection timing, air-mass metering and emission-reduction strategy must not
+  be altered even under CPCB's own sanctioned retrofit scheme, and excludes changes
+  limited to engine control from that scheme entirely. General Condition 3 of GSR 804(E)
+  states that no person shall use a genset lacking a valid Type Approval and CoP
+  certificate. No approval pathway for a third-party ECU replacement was found.
+
+  This does not block the engineering: designing the board, building it, and bench-testing
+  it against simulated signals are unaffected. It bears on **putting it into service on a
+  genset that is in use**, and it compounds the calibration risk in memo 04 — this engine
+  meets its limits partly through calibration, so a replacement ECU can move it out of
+  compliance without any hardware changing at all.
+
+  This is the project owners' decision to take to qualified counsel or to CPCB/ARAI
+  directly. It is recorded here because it is material and was not previously examined,
+  not to make the decision for them.
 - The GCU. We talk to the KG640C; we do not replace it.
 - Panel wiring, ATS, alternator metering.
 
