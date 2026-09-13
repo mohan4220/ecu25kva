@@ -111,8 +111,44 @@ lists them as two.
 
 ## 3. Safety position
 
-**Engine speed reaches the GCU over CAN only.** There is no independent overspeed path
-in this architecture.
+> **Revised 2026-09-13** after research memo 02 and a follow-up trace of the OEM diagram.
+> This section originally claimed engine speed reaches the GCU over CAN only, and that
+> the architecture therefore has no independent overspeed path. **That was wrong, and
+> wrong in the pessimistic direction.** The corrected picture is below; the gate it
+> imposes is relaxed but not removed.
+
+**There is no magnetic pickup.** Confirmed as far as desk research can: the OEM diagram
+labels every terminal in the KG640C's J1–J8 with no speed-pickup among them, and KOEL's
+manual for the sibling KG640 (`SED-MAN-KG640-002`) enumerates all 42 terminals with no
+MPU input.
+
+**But the GCU has an independent overspeed path anyway, and it is better than an MPU
+trip in one respect and worse in another.** Three findings combine:
+
+1. **The GCU senses speed from alternator frequency, not from CAN.** The KG640 manual's
+   sole `Engine Speed Sense Source` value is `Alternator frequency`; terminals 27–30
+   sample the genset's own AC output at 5 kHz over 3–75 Hz. On a 4-pole alternator with
+   no slip, 1500 rpm is rigidly 50 Hz. This path does not touch the engine ECU or the
+   CAN bus.
+2. **The GCU can cut fuel in hardware.** Its digital output B drives the ignition relay
+   `-13RB1`, which is rated **70 A** — a power contactor, not a signal relay. Dropping it
+   removes the supply feeding the ECU and the fuel metering unit rather than merely
+   signalling the ECU to stop.
+3. **So the whole chain bypasses this ECU.** Alternator frequency → GCU AC front-end →
+   GCU firmware → 70 A contactor → fuel system unpowered. A hung ECU or a dead CAN bus
+   does not defeat any link in it.
+
+**What this leaves.** The residual single point of failure is the GCU's own
+microcontroller. A GCU firmware hang defeats the path; an ECU hang does not. That is a
+materially different and much smaller risk than the one this section originally
+described.
+
+**The revised gate.** A standalone MPU-driven overspeed trip module is **recommended,
+not mandatory**, and the decision is now a judgement about GCU reliability rather than
+about a missing path. Two candidates are costed in memo 02 (GAC SSW675, Murphy HD9063).
+What remains **mandatory** before any build takes injection authority is confirming
+finding 2 by measurement — see U12 — because the whole relaxation rests on the ignition
+relay actually removing power from the fuel system rather than merely signalling.
 
 The Circuit Guide argued — correctly, as a matter of engineering — that overspeed
 protection should not depend on the same MCU and the same bus that could be the thing
@@ -122,17 +158,24 @@ inherit its interface, and adding an MPU requires a GCU input we have not confir
 The position for this design:
 
 1. The ECU implements overspeed shutdown in firmware as a **primary** function, with the
-   crank sensor as its input, at the highest scheduling priority.
-2. An independent hardware overspeed trip is treated as a **required addition**, not an
-   optional one, and is tracked in the unknowns register (§8) pending the KG640C manual.
-   If the KG640C has an MPU input, we wire one. If it does not, a standalone trip module
-   is added to the panel.
-3. **No build of this ECU takes injection authority over a running engine until item 2
-   is closed.** This is a gate, not a preference.
+   crank sensor as its input, at the highest scheduling priority. This is the first line,
+   and it is ours.
+2. The GCU's alternator-frequency path plus its 70 A ignition contactor is the **second
+   line**, independent of this ECU. We must not do anything that weakens it — in
+   particular, the ECU must not latch the fuel metering unit on in a way that survives
+   its supply being removed, and must fail safe when the ignition input at pin 71 drops.
+3. A standalone MPU trip module is the **optional third line**, covering GCU firmware
+   failure. Recommended; a judgement call for the project owners on cost against residual
+   risk, no longer a blocking requirement.
+4. **The gate that remains: U12 must be closed by measurement before any build takes
+   injection authority.** If the ignition relay turns out to signal the ECU rather than
+   remove power from the fuel system, the second line does not exist, item 3 reverts to
+   mandatory, and this section reverts with it.
 
 A 25 kVA set in runaway is a mechanical hazard to anyone near it. The failure mode that
-matters is the controller hanging with the fuel valve open, and a controller cannot be
-its own protection against that.
+matters is a controller hanging with fuel still flowing. What makes this architecture
+acceptable is that stopping the fuel does not require the hung controller's cooperation —
+which is exactly the property U12 verifies.
 
 ---
 
@@ -329,6 +372,7 @@ sheet that depends on it is drawn.
 | U9 | Catalyst temp sensor — connected where? | Whether an EGT front-end is in scope | Trace on the engine |
 | U10 | `SENT` in the colour legend — which signal? | Possible digital sensor front-end | Inspect harness; SENT is SAE J2716 |
 | U11 | Engine identity — "GK550" vs Kirloskar range | Emissions tier, sensor sourcing | Engine rating plate photograph |
+| U12 | **Does the 70 A ignition relay `-13RB1` remove power from the ECU and fuel metering unit, or only signal the ECU?** | **The §3 safety gate.** The entire relaxation from "mandatory trip module" to "recommended" rests on this | Measure at the machine: with the ignition relay de-energised, check for battery voltage at ECU pins 21, 04, 06 and at the fuel metering unit's supply pin. Voltage present ⇒ signal only ⇒ §3 reverts |
 
 **U1, U3 and U5 are the three that matter most.** U1 decides whether the board mates,
 U3 is the safety gate, U5 decides whether injection can be commissioned at all.
