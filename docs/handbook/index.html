@@ -1,0 +1,679 @@
+<title>Genset ECU Field Handbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+:root{
+  --paper:#f4f5f3; --surface:#ffffff; --surface-2:#eceeea; --surface-3:#e2e5e0;
+  --rule:#d2d6cf; --rule-firm:#b4bab1;
+  --ink:#171b1e; --ink-2:#4c5560; --ink-3:#7c8590;
+  --petrol:#1f5566; --petrol-2:#2e7f96; --petrol-wash:#e3edef;
+  --pass:#2f7d4f; --pass-wash:#e2f0e7;
+  --fail:#b8332a; --fail-wash:#f7e6e4;
+  --warn:#9a6410; --warn-wash:#f6eddc;
+  /* signal classes -- taken from the Kirloskar diagram's own wire legend */
+  --w-red:#c0392b; --w-black:#2b2f33; --w-magenta:#b24a8c;
+  --w-cyan:#1f8b99; --w-yellow:#b08a12; --w-green:#3f8145;
+  --f-disp:'Archivo',system-ui,sans-serif;
+  --f-body:'Source Serif 4',Georgia,serif;
+  --f-mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#12161a; --surface:#191e24; --surface-2:#212830; --surface-3:#2b333c;
+  --rule:#2e3740; --rule-firm:#43505c;
+  --ink:#e6eaee; --ink-2:#a7b2bd; --ink-3:#76828e;
+  --petrol:#5fb4cc; --petrol-2:#7ec9de; --petrol-wash:#152a33;
+  --pass:#5cc189; --pass-wash:#14301f;
+  --fail:#e8766c; --fail-wash:#361a18;
+  --warn:#d9a441; --warn-wash:#332714;
+  --w-red:#e2685a; --w-black:#9aa5b0; --w-magenta:#d983ba;
+  --w-cyan:#4fc3d1; --w-yellow:#dcb43f; --w-green:#6fbd77;
+}}
+:root[data-theme="dark"]{
+  --paper:#12161a; --surface:#191e24; --surface-2:#212830; --surface-3:#2b333c;
+  --rule:#2e3740; --rule-firm:#43505c;
+  --ink:#e6eaee; --ink-2:#a7b2bd; --ink-3:#76828e;
+  --petrol:#5fb4cc; --petrol-2:#7ec9de; --petrol-wash:#152a33;
+  --pass:#5cc189; --pass-wash:#14301f;
+  --fail:#e8766c; --fail-wash:#361a18;
+  --warn:#d9a441; --warn-wash:#332714;
+  --w-red:#e2685a; --w-black:#9aa5b0; --w-magenta:#d983ba;
+  --w-cyan:#4fc3d1; --w-yellow:#dcb43f; --w-green:#6fbd77;
+}
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);
+  font-size:17px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+.col{max-width:66ch}
+h1,h2,h3,h4{font-family:var(--f-disp);color:var(--ink);text-wrap:balance;margin:0;line-height:1.14}
+p{margin:0 0 1em}
+a{color:var(--petrol)}
+code,.m{font-family:var(--f-mono);font-size:.88em}
+strong{font-weight:600}
+
+/* ---------- masthead ---------- */
+header.mast{border-bottom:2px solid var(--ink);padding-block:44px 20px;margin-bottom:8px}
+.eyebrow{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--petrol);margin:0 0 14px;font-weight:500}
+header.mast h1{font-size:clamp(34px,6.2vw,62px);font-weight:700;letter-spacing:-.022em;max-width:16ch}
+header.mast .standfirst{font-size:19px;color:var(--ink-2);max-width:58ch;margin-top:16px}
+.meta{display:flex;flex-wrap:wrap;gap:10px 28px;margin-top:26px;
+  font-family:var(--f-mono);font-size:12px;color:var(--ink-3)}
+.meta b{color:var(--ink);font-weight:500}
+
+/* ---------- contents ---------- */
+nav.toc{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:2px 26px;
+  margin:26px 0 8px;padding:20px 0;border-block:1px solid var(--rule)}
+nav.toc a{display:grid;grid-template-columns:2.1em 1fr;gap:6px;font-family:var(--f-disp);
+  font-size:14px;font-weight:500;color:var(--ink-2);text-decoration:none;padding:5px 0}
+nav.toc a:hover{color:var(--petrol)}
+nav.toc a i{font-style:normal;font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3)}
+
+/* ---------- sections ---------- */
+section{margin-top:58px;scroll-margin-top:14px}
+.sechead{display:grid;grid-template-columns:2.1em 1fr;gap:6px;align-items:baseline;
+  border-bottom:1px solid var(--rule-firm);padding-bottom:11px;margin-bottom:22px}
+.sechead i{font-style:normal;font-family:var(--f-mono);font-size:13px;color:var(--petrol)}
+.sechead h2{font-size:26px;font-weight:600;letter-spacing:-.012em}
+h3{font-size:18.5px;font-weight:600;margin:32px 0 10px}
+h4{font-family:var(--f-mono);font-size:12px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-3);margin:24px 0 8px}
+ul,ol{margin:0 0 1em;padding-left:1.25em;max-width:66ch}
+li{margin-bottom:.4em}
+li::marker{color:var(--ink-3)}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;margin:18px 0 24px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:13.5px;font-family:var(--f-disp)}
+thead th{text-align:left;font-family:var(--f-mono);font-size:10.5px;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-3);background:var(--surface-2);
+  padding:9px 13px;border-bottom:1px solid var(--rule-firm);white-space:nowrap}
+tbody td{padding:8px 13px;border-bottom:1px solid var(--rule);color:var(--ink-2);vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+td.k{color:var(--ink);font-weight:600;white-space:nowrap}
+td.n,.tnum{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.pin{font-family:var(--f-mono);font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* wire-class dot: the diagram's own colour code, used as data not decoration */
+.w{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.w::before{content:"";width:9px;height:9px;border-radius:50%;flex:none;
+  border:1px solid color-mix(in srgb,var(--ink) 30%,transparent)}
+.w.red::before{background:var(--w-red)} .w.black::before{background:var(--w-black)}
+.w.magenta::before{background:var(--w-magenta)} .w.cyan::before{background:var(--w-cyan)}
+.w.yellow::before{background:var(--w-yellow)} .w.green::before{background:var(--w-green)}
+
+.legend{display:flex;flex-wrap:wrap;gap:9px 22px;padding:15px 17px;background:var(--surface);
+  border:1px solid var(--rule);border-radius:3px;margin:16px 0 22px;
+  font-family:var(--f-mono);font-size:12px;color:var(--ink-2)}
+
+/* ---------- circuit block ---------- */
+.blk{border:1px solid var(--rule);border-radius:3px;background:var(--surface);margin:20px 0;overflow:hidden}
+.blk>header{padding:15px 18px;border-bottom:1px solid var(--rule);background:var(--surface-2);
+  display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline}
+.blk>header h3{margin:0;font-size:16.5px}
+.blk>header .pins{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3)}
+.blk .body{padding:16px 18px}
+.blk .body p{font-size:15.5px;margin-bottom:.85em}
+.blk .body p:last-child{margin-bottom:0}
+
+.res{display:grid;grid-template-columns:1fr auto;gap:3px 16px;margin:14px 0 4px;
+  font-family:var(--f-mono);font-size:12.5px;border-top:1px solid var(--rule);padding-top:12px}
+.res dt{color:var(--ink-2);display:flex;align-items:baseline;gap:8px}
+.res dt::before{content:"PASS";font-size:9.5px;font-weight:700;letter-spacing:.06em;
+  color:var(--pass);background:var(--pass-wash);padding:1px 5px;border-radius:2px;flex:none}
+.res dd{margin:0;text-align:right;color:var(--ink);font-variant-numeric:tabular-nums;font-weight:500}
+
+.note{border-left:2px solid var(--petrol);background:var(--petrol-wash);padding:13px 16px;
+  margin:16px 0;border-radius:0 3px 3px 0}
+.note p{margin:0;font-size:15px}
+.note.warn{border-left-color:var(--warn);background:var(--warn-wash)}
+.note.stop{border-left-color:var(--fail);background:var(--fail-wash)}
+.note .lbl{font-family:var(--f-mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--petrol);display:block;margin-bottom:5px}
+.note.warn .lbl{color:var(--warn)} .note.stop .lbl{color:var(--fail)}
+
+pre{background:var(--surface-2);border:1px solid var(--rule);border-radius:3px;
+  padding:13px 15px;overflow-x:auto;font-family:var(--f-mono);font-size:12.5px;
+  line-height:1.5;color:var(--ink);margin:14px 0}
+
+figure{margin:22px 0}
+figure svg{display:block;width:100%;height:auto;max-width:100%}
+figcaption{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);margin-top:9px;line-height:1.5}
+
+.chain{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;margin:18px 0 6px}
+.chain .lk{flex:1 1 150px;border:1px solid var(--rule);border-radius:3px;background:var(--surface);
+  padding:12px 14px}
+.chain .lk b{display:block;font-family:var(--f-disp);font-size:14px;color:var(--ink);margin-bottom:3px}
+.chain .lk span{font-size:13px;color:var(--ink-2)}
+.chain .ar{align-self:center;font-family:var(--f-mono);color:var(--ink-3);flex:none}
+
+footer.doc{margin-top:64px;padding-top:20px;border-top:2px solid var(--ink);
+  font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);
+  display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between}
+
+@media (max-width:640px){
+  body{font-size:16px}
+  .res{grid-template-columns:1fr}
+  .res dd{text-align:left}
+  .chain .ar{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+html{scroll-behavior:smooth}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">Engine Control Unit · Kirloskar KG4-25WS1</p>
+  <h1>Genset ECU Field Handbook</h1>
+  <p class="standfirst">Everything known about replacing the engine control unit on a
+  25&nbsp;kVA diesel genset — the machine, the 94-pin interface, every circuit with its
+  simulated result, and the two risks that decide whether this ever runs.</p>
+  <div class="meta">
+    <span>Rev <b>1</b></span>
+    <span>13 Sep 2026</span>
+    <span><b>6</b> circuits verified</span>
+    <span><b>12</b> open unknowns</span>
+    <span>Source: <b>08-GP3-60-001</b></span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#machine"><i>01</i><span>The machine</span></a>
+  <a href="#interface"><i>02</i><span>The 94-pin interface</span></a>
+  <a href="#circuits"><i>03</i><span>The circuits</span></a>
+  <a href="#safety"><i>04</i><span>Stopping a runaway</span></a>
+  <a href="#risks"><i>05</i><span>The two real risks</span></a>
+  <a href="#unknowns"><i>06</i><span>What we don't know</span></a>
+  <a href="#running"><i>07</i><span>Running the simulations</span></a>
+</nav>
+
+<section id="machine">
+  <div class="sechead"><i>01</i><h2>The machine</h2></div>
+  <div class="col">
+  <p>The genset is a <strong>Kirloskar KG4-25WS1</strong>. Its engine is a
+  <strong>3R550ETA 4G1</strong> — three cylinders, 1.65 litres, turbocharged and
+  aftercooled, common-rail injection, cooled EGR with a diesel oxidation catalyst and
+  no SCR. It governs at a constant 1500&nbsp;rpm to make 50&nbsp;Hz.</p>
+
+  <p>That constant speed matters more than it first appears, and it comes up twice in
+  this handbook: once because it makes the timing problem easier than an automotive
+  engine's, and once because the genset's own output frequency is rigidly tied to shaft
+  speed, which turns out to be how a runaway gets stopped.</p>
+
+  <p>None of this was given to us. It was derived by taking five hardware constraints
+  from the wiring diagram — three cylinders, common rail, EGR fitted, one catalyst
+  temperature sensor and no urea, a 12&nbsp;V system — and finding the single engine in
+  Kirloskar's 25–58.5&nbsp;kVA range that satisfies all five. It is
+  <strong>inferred, not confirmed</strong>; a photograph of the engine rating plate
+  would settle it.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Parameter</th><th>Value</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Genset</td><td class="n">KG4-25WS1, 25 kVA prime, 415 V 3-phase, 50 Hz</td><td>Confirmed</td></tr>
+        <tr><td class="k">Engine</td><td class="n">3R550ETA 4G1</td><td>Inferred, high confidence</td></tr>
+        <tr><td class="k">Displacement</td><td class="n">1.65 L · 86 × 94 mm · 3 cyl · CR 19.7:1</td><td>Confirmed</td></tr>
+        <tr><td class="k">Rated output</td><td class="n">26.5 kW prime @ 1500 rpm</td><td>Confirmed</td></tr>
+        <tr><td class="k">Fuel system</td><td class="n">Common rail, metering unit + 3 injectors</td><td>Confirmed</td></tr>
+        <tr><td class="k">Aftertreatment</td><td class="n">Cooled EGR + DOC — no SCR, no DEF, no DPF</td><td>Confirmed</td></tr>
+        <tr><td class="k">Emissions tier</td><td class="n">CPCB IV+ · GSR 804(E), 3 Nov 2022 · 19–56 kW band</td><td>Confirmed</td></tr>
+        <tr><td class="k">Electrical</td><td class="n">12 V, 75 Ah</td><td>Confirmed</td></tr>
+        <tr><td class="k">Panel controller</td><td class="n">Kirloskar KG640C</td><td>Confirmed</td></tr>
+        <tr><td class="k">Controller MCU</td><td class="n">NXP FS32K148HAT0MLQT, 144-LQFP</td><td>Selected</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="lbl">On the name "GK550"</span>
+    <p>The engine was first described to us as a GK550. No Kirloskar document uses that
+    string. It is <strong>KG4</strong> — the genset model prefix — run together with
+    <strong>550</strong>, the engine family number inside <span class="m">3R<b>550</b>ETA</span>.
+    Use <span class="m">KG4-25WS1</span> and <span class="m">3R550ETA 4G1</span> when
+    ordering parts; "GK550" will find nothing.</p>
+  </div>
+</section>
+
+<section id="interface">
+  <div class="sechead"><i>02</i><h2>The 94-pin interface</h2></div>
+  <div class="col">
+  <p>The OEM ECU presents one 94-pin connector. The troubleshooting diagram traces
+  <strong>44 of those pins</strong>; the other 50 — power grounds, unused positions,
+  whatever drives the intake throttle — are simply not on a document written for field
+  technicians. A genuine drop-in replacement needs the connector part number to get
+  the rest.</p>
+
+  <p>Every wire in the diagram is colour-coded by signal class, and that code is
+  load-bearing rather than cosmetic: it is how we established that the discrete inputs
+  are switched-battery rather than switched-ground, and that the fuel metering unit is
+  driven low-side. The same colours are used below.</p>
+  </div>
+
+  <div class="legend">
+    <span class="w red">DC positive · sensor supply · injector high side</span>
+    <span class="w black">DC negative · sensor ground · injector low side</span>
+    <span class="w magenta">Analog in · PWM out</span>
+    <span class="w cyan">Digital in · frequency</span>
+    <span class="w yellow">CAN H</span>
+    <span class="w green">CAN L</span>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Pin</th><th>Signal</th><th>Class</th><th>Front-end</th></tr></thead>
+      <tbody>
+        <tr><td class="pin">21</td><td class="k">Battery + feed</td><td><span class="w red">supply</span></td><td>EMI filter → fuse → TVS → reverse-battery FET</td></tr>
+        <tr><td class="pin">04 / 06</td><td class="k">V_V_BAT_1R / 2R</td><td><span class="w red">supply</span></td><td>120 k / 10 k divider → ADC · 10 A fused each</td></tr>
+        <tr><td class="pin">09</td><td class="k">Synchronization ground</td><td><span class="w red">?</span></td><td>Function unresolved</td></tr>
+        <tr><td class="pin">11 / 41 / 79 / 34</td><td class="k">Boost pressure + air temp</td><td><span class="w magenta">analog</span></td><td>Combo sensor, 4-pin, shared supply and ground</td></tr>
+        <tr><td class="pin">33</td><td class="k">Coolant temperature</td><td><span class="w magenta">analog</span></td><td>NTC, pull-up divider · ground splices to 34</td></tr>
+        <tr><td class="pin">32 / 35 / 08</td><td class="k">Rail pressure</td><td><span class="w magenta">analog</span></td><td>Ratiometric · dedicated sensor ground</td></tr>
+        <tr><td class="pin">39 / 80</td><td class="k">Oil pressure</td><td><span class="w magenta">analog</span></td><td>Ratiometric · ground splices to 36</td></tr>
+        <tr><td class="pin">15 / 37 / 36</td><td class="k">EGR position</td><td><span class="w magenta">analog</span></td><td>Potentiometer, shares EGR connector</td></tr>
+        <tr><td class="pin">52 / 74 / 30</td><td class="k">Crankshaft speed</td><td><span class="w cyan">frequency</span></td><td>Variable reluctance, differential, twisted pair</td></tr>
+        <tr><td class="pin">45 / 46 / 44</td><td class="k">Camshaft position</td><td><span class="w cyan">frequency</span></td><td>Hall effect, already digital</td></tr>
+        <tr><td class="pin">43 / 23</td><td class="k">Coolant switch · droop switch</td><td><span class="w cyan">digital</span></td><td>Switch-to-return + debounce</td></tr>
+        <tr><td class="pin">20 / 24 / 71</td><td class="k">Audio abort · override · ignition</td><td><span class="w red">switched batt</span></td><td><strong>Active high</strong> — zener clamp, see §03</td></tr>
+        <tr><td class="pin">01 / 02</td><td class="k">G_G_B AT1 / AT2</td><td><span class="w black">ground</span></td><td>Switch returns, or main power grounds — unresolved</td></tr>
+        <tr><td class="pin">88</td><td class="k">Fuel metering unit</td><td><span class="w black">PWM low side</span></td><td>Low-side driver + current sense</td></tr>
+        <tr><td class="pin">59 / 81</td><td class="k">EGR high / low</td><td><span class="w magenta">PWM</span></td><td>H-bridge, position feedback on pin 37</td></tr>
+        <tr><td class="pin">03</td><td class="k">Injector high side — bank A</td><td><span class="w red">high side</span></td><td>Cylinders <strong>1 and 3</strong>, joined at splice V5</td></tr>
+        <tr><td class="pin">05</td><td class="k">Injector high side — bank B</td><td><span class="w red">high side</span></td><td>Cylinder 2</td></tr>
+        <tr><td class="pin">73 / 07 / 29</td><td class="k">Injector low side — cyl 1 / 3 / 2</td><td><span class="w black">low side</span></td><td>Current-controlled peak-and-hold</td></tr>
+        <tr><td class="pin">50 / 69</td><td class="k">Main relay · buzzer relay</td><td><span class="w black">low side</span></td><td>N-FET + flyback diode</td></tr>
+        <tr><td class="pin">55 / 77</td><td class="k">CAN channel 1</td><td><span class="w yellow">CAN H</span> <span class="w green">CAN L</span></td><td>To the KG640C</td></tr>
+        <tr><td class="pin">87 / 86</td><td class="k">CAN channel 2</td><td><span class="w yellow">CAN H</span> <span class="w green">CAN L</span></td><td>Also wired in the OEM system</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="lbl">Injectors share their high sides</span>
+    <p>Pin <span class="m">03</span> feeds cylinders 1 <em>and</em> 3. Only the low sides
+    are individual. That is five pins, not six, and two boost-fed bank switches rather
+    than three — which matters, because the boost stage is the expensive part of the
+    board. It is safe because on a three-cylinder four-stroke any two cylinders are
+    240&nbsp;crank degrees apart, or 26.7&nbsp;ms at 1500&nbsp;rpm, against an injection
+    lasting perhaps 3&nbsp;ms. That separation holds under either candidate firing order,
+    so the unknown firing order stops mattering.</p>
+  </div>
+
+  <h3>Signals that are not on this connector</h3>
+  <div class="col">
+  <p>The fuel level sender and the water-in-fuel switch both appear in the wiring
+  diagram, and neither reaches the ECU — they route through the XC11/XC1 harness to the
+  panel. They belong to the GCU. Earlier design passes had built front-ends for both.</p>
+  <p>Also absent from the entire system: any magnetic pickup, any DEF or urea sensor, any
+  LIN bus, any SCR, and any separate overspeed switch. What the diagram labels
+  <span class="m">OVERSIDE SWITCH</span> on pin 24 traces to <span class="m">-S7 Override
+  SS SW</span> — one component, not two.</p>
+  </div>
+</section>
+
+<section id="circuits">
+  <div class="sechead"><i>03</i><h2>The circuits</h2></div>
+  <div class="col">
+  <p>Every circuit below exists as a SPICE netlist that runs, with checks that are claims
+  about the circuit rather than about the simulator. A failing check means the design is
+  wrong. All six currently pass — but two of them only after simulation caught errors that
+  had survived four rounds of document review.</p>
+  </div>
+
+  <div class="blk">
+    <header><h3>Battery voltage sense</h3><span class="pins">pins 04, 06</span></header>
+    <div class="body">
+      <p>A plain resistive divider scaling the 6–40&nbsp;V rail into the ADC. Two channels,
+      one per fused rail, which doubles as fuse-integrity monitoring: voltage present
+      downstream means the fuse is intact.</p>
+      <p>The inherited value was <strong>75 k / 10 k</strong>, and it would have destroyed
+      an ADC pin. That ratio was sized for a 5&nbsp;V ADC; this MCU's analog supply is
+      3.3&nbsp;V. At the top of the input range it delivers 4.69&nbsp;V into a 3.3&nbsp;V
+      pin. Corrected to <strong>120 k / 10 k</strong>.</p>
+      <dl class="res">
+        <dt>Peak output at 40 V in</dt><dd>3.069 V</dd>
+        <dt>Headroom below the 3.3 V rail</dt><dd>0.231 V</dd>
+        <dt>Reading at the 6 V cranking dip</dt><dd>0.462 V · 573 LSB</dd>
+        <dt>Linearity residual</dt><dd>&lt; 1 µV</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="blk">
+    <header><h3>Discrete switch input</h3><span class="pins">pins 20, 24, 71 · active high</span></header>
+    <div class="body">
+      <p>These are switched-battery inputs: the switch connects the pin to battery, not to
+      ground. Earlier documents had them as pull-up-to-5&nbsp;V with the switch closing to
+      ground — the opposite sense, with a front-end that cannot survive battery voltage.</p>
+      <p><strong>This one cannot be built as a divider at all.</strong> Reading logic high
+      at a 6&nbsp;V cranking dip needs a ratio above 2.31/6 = 0.385. Staying under
+      3.3&nbsp;V at 40&nbsp;V needs it below 3.3/40 = 0.0825. Those do not overlap, so no
+      fixed ratio works at both ends — the original was impossible, not merely mis-valued.</p>
+      <p>A 3.0&nbsp;V zener sets the clamp level and the divider only biases into it, so
+      the logic level stops tracking the battery and goes flat.</p>
+      <dl class="res">
+        <dt>Level at 6 V cranking dip</dt><dd>2.863 V</dd>
+        <dt>Level at 40 V load dump</dt><dd>2.954 V</dd>
+        <dt>Spread across the whole range</dt><dd>92 mV</dd>
+        <dt>Threshold crossings during a 5-bounce contact</dt><dd>0</dd>
+        <dt>Debounce time constant</dt><dd>6.11 ms</dd>
+      </dl>
+      <p class="m" style="font-size:12.5px;color:var(--ink-3)">Debounce capacitor went from
+      100 nF to 220 nF after simulation showed the smaller value let two threshold crossings
+      through a bouncing contact — which firmware would have read as two button presses.</p>
+    </div>
+  </div>
+
+  <div class="blk">
+    <header><h3>Ratiometric sensor front-end</h3><span class="pins">pins 41, 35, 80, 37</span></header>
+    <div class="body">
+      <p>Boost pressure, rail pressure, oil pressure and EGR position are all 0.5–4.5&nbsp;V
+      ratiometric sensors — their output is a fraction of their own 5&nbsp;V supply, so the
+      ADC reference has to track that same rail or a drifting supply reads as a pressure
+      change.</p>
+      <p>Full scale is deliberately placed at 2.77&nbsp;V, below the 3.3&nbsp;V clamp rather
+      than hard against the ADC ceiling. That costs about 4% of span and buys a front-end
+      that a 40&nbsp;V harness short cannot damage.</p>
+      <dl class="res">
+        <dt>Sensor zero (0.5 V) maps to</dt><dd>0.308 V</dd>
+        <dt>Sensor full scale (4.5 V) maps to</dt><dd>2.769 V</dd>
+        <dt>ADC span used</dt><dd>74.6 %</dd>
+        <dt>Low-pass corner</dt><dd>1175 Hz</dd>
+        <dt>Loss at the sensor's own 100 Hz</dt><dd>0.03 dB</dd>
+        <dt>Attenuation at 100 kHz switching noise</dt><dd>38.6 dB</dd>
+        <dt>Pin voltage on a 40 V harness short</dt><dd>3.31 V · 3.7 mA</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="blk">
+    <header><h3>Transient clamp</h3><span class="pins">battery input · ISO 7637-2 pulse 2a</span></header>
+    <div class="body">
+      <p>This is the circuit that decides whether the board survives its electrical
+      environment, so it gets simulated rather than assumed. Pulse 2a models a sudden
+      current interruption in another device sharing the harness: <strong>+112&nbsp;V
+      through 2&nbsp;Ω for 50&nbsp;µs</strong>, at Level IV severity.</p>
+      <dl class="res">
+        <dt>Clamped voltage at the buck input</dt><dd>50.0 V</dd>
+        <dt>Margin inside the LM5164's 100 V rating</dt><dd>2.0 ×</dd>
+        <dt>Recovery after the pulse</dt><dd>12.98 V</dd>
+      </dl>
+      <div class="note warn" style="margin-bottom:0">
+        <span class="lbl">A spec target that should be dropped</span>
+        <p>Earlier documents asked for a clamp "under 42&nbsp;V". An SMBJ33CA cannot do
+        that — the real part is specified at 53.3&nbsp;V clamping at rated pulse current, so
+        50&nbsp;V here is the component behaving correctly. The 42&nbsp;V figure was never
+        derivable from a datasheet. Chasing it with a lower-voltage TVS would make the clamp
+        conduct during a legitimate suppressed load dump and force it to absorb that energy.
+        Drop the target; keep the part.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="blk">
+    <header><h3>Injector drive — why the boost stage exists</h3><span class="pins">pins 03, 05 · 73, 07, 29</span></header>
+    <div class="body">
+      <p>An injector is an inductor with resistance, so current through it cannot change
+      instantly — <span class="m">di/dt = V/L</span>. The needle does not lift until current
+      reaches its peak threshold, so every microsecond spent getting there is dead time in
+      series with every injection event.</p>
+      <p>This is the single most expensive stage on the board. Here is its justification as
+      a measurement rather than an assertion.</p>
+
+      <figure>
+        <svg viewBox="0 0 680 300" role="img" aria-label="Injector current against time. Driven from a 100 volt boost rail, current reaches the 18 amp peak threshold in 38 microseconds. Driven from the 13.5 volt battery it takes 439 microseconds, nearly twelve times longer.">
+          <g font-family="JetBrains Mono, monospace" font-size="10" fill="var(--ink-3)">
+            <line x1="56" y1="260" x2="662" y2="260" stroke="var(--rule-firm)" stroke-width="1"/>
+            <line x1="56" y1="18" x2="56" y2="260" stroke="var(--rule-firm)" stroke-width="1"/>
+            <line x1="56" y1="42.2" x2="662" y2="42.2" stroke="var(--warn)" stroke-width="1" stroke-dasharray="4 3"/>
+            <text x="50" y="264" text-anchor="end">0</text>
+            <text x="50" y="46" text-anchor="end">18</text>
+            <text x="50" y="145" text-anchor="end">9</text>
+            <text x="56" y="278" text-anchor="middle">0</text>
+            <text x="177" y="278" text-anchor="middle">100</text>
+            <text x="299" y="278" text-anchor="middle">200</text>
+            <text x="420" y="278" text-anchor="middle">300</text>
+            <text x="541" y="278" text-anchor="middle">400</text>
+            <text x="662" y="278" text-anchor="end">500 µs</text>
+            <text x="666" y="39" text-anchor="end" fill="var(--warn)">peak threshold 18 A</text>
+          </g>
+          <path fill="none" stroke="var(--w-cyan)" stroke-width="2.4" stroke-linecap="round"
+            d="M56.0,260.0 L58.5,247.4 L61.0,234.9 L63.6,222.5 L66.1,210.1 L68.6,197.8 L71.2,185.5 L73.7,173.4 L76.2,161.2 L78.7,149.2 L81.2,137.2 L83.8,125.3 L86.3,113.4 L88.8,101.6 L91.3,89.8 L93.9,78.1 L96.4,66.5 L98.9,54.9 L101.5,43.4 L101.7,42.2"/>
+          <path fill="none" stroke="var(--w-red)" stroke-width="2.4" stroke-linecap="round"
+            d="M56.0,260.0 L76.2,246.7 L96.4,233.9 L116.6,221.6 L136.8,209.8 L157.0,198.6 L177.2,187.7 L197.4,177.4 L217.6,167.4 L237.8,157.8 L258.0,148.7 L278.2,139.9 L298.4,131.5 L318.6,123.4 L338.8,115.6 L359.0,108.2 L379.2,101.0 L399.4,94.2 L419.6,87.6 L439.8,81.3 L460.0,75.3 L480.2,69.5 L500.4,63.9 L520.6,58.6 L540.8,53.5 L561.0,48.6 L581.2,43.9 L588.6,42.2"/>
+          <circle cx="101.7" cy="42.2" r="4" fill="var(--w-cyan)"/>
+          <circle cx="588.6" cy="42.2" r="4" fill="var(--w-red)"/>
+          <g font-family="JetBrains Mono, monospace" font-size="11" font-weight="500">
+            <text x="112" y="62" fill="var(--w-cyan)">100 V boost · 38 µs</text>
+            <text x="584" y="62" text-anchor="end" fill="var(--w-red)">13.5 V battery · 439 µs</text>
+          </g>
+        </svg>
+        <figcaption>Injector current reaching its 18 A peak threshold. Modelled at 200 µH /
+        0.5 Ω, the mid-range of the envelope for solenoid common-rail injectors of this class.</figcaption>
+      </figure>
+
+      <dl class="res">
+        <dt>Time to 18 A from a 100 V boost rail</dt><dd>37.8 µs</dd>
+        <dt>Time to 18 A from the 13.5 V battery</dt><dd>439.5 µs</dd>
+        <dt>Boost is faster by</dt><dd>11.6 ×</dd>
+        <dt>Boost drive, as a share of a 1 ms injection</dt><dd>3.8 %</dd>
+        <dt>Battery drive, as a share of a 1 ms injection</dt><dd>44.0 %</dd>
+      </dl>
+      <p>Without the boost stage, nearly half of the shortest injection event is spent
+      merely lifting the needle. That is why no production common-rail ECU drives injectors
+      from the battery rail, and why the boost converter is not optional.</p>
+    </div>
+  </div>
+
+  <div class="blk">
+    <header><h3>Relay driver</h3><span class="pins">pins 50, 69</span></header>
+    <div class="body">
+      <p>A low-side N-FET switching a relay coil. The flyback diode is the entire point: a
+      coil is an inductor, and interrupting its current generates
+      <span class="m">−L·di/dt</span> across it. The diode gives the collapsing field
+      somewhere to circulate.</p>
+      <dl class="res">
+        <dt>Drain peak with the flyback diode</dt><dd>14.3 V</dd>
+        <dt>Drain peak without it</dt><dd>unbounded</dd>
+      </dl>
+      <p class="m" style="font-size:12.5px;color:var(--ink-3)">The simulator reports
+      hundreds of kilovolts for the undiode case. Read that as a model artifact — an ideal
+      switch opening instantly across an inductor implies an unbounded voltage. A real
+      MOSFET avalanches at its breakdown rating and turns the coil's stored energy into heat
+      in the die, once per relay operation, until it fails. The magnitude is fictional; the
+      conclusion is not.</p>
+    </div>
+  </div>
+</section>
+
+<section id="safety">
+  <div class="sechead"><i>04</i><h2>Stopping a runaway</h2></div>
+  <div class="col">
+  <p>A 25&nbsp;kVA set in runaway is a mechanical hazard to anyone near it. The failure
+  that matters is a controller hanging with fuel still flowing — and a controller cannot
+  be its own protection against that.</p>
+
+  <p>Our first reading of this system was that engine speed reaches the panel over CAN
+  only, which would mean overspeed protection depended on the very microcontroller and bus
+  most likely to have failed. <strong>That was wrong, and wrong in the pessimistic
+  direction.</strong></p>
+
+  <p>There is no magnetic pickup anywhere — the diagram labels every terminal on the
+  KG640C and none is a speed input, and Kirloskar's manual for the sibling KG640 lists all
+  42 terminals with no MPU among them. But the panel controller gets engine speed another
+  way entirely, and it can act on it without asking the ECU anything.</p>
+  </div>
+
+  <div class="chain">
+    <div class="lk"><b>Alternator frequency</b><span>The GCU samples its own AC output at 5 kHz. On a 4-pole alternator with no slip, 1500 rpm <em>is</em> 50 Hz.</span></div>
+    <div class="ar">→</div>
+    <div class="lk"><b>GCU firmware</b><span>Over-frequency detected by the panel controller's own microcontroller.</span></div>
+    <div class="ar">→</div>
+    <div class="lk"><b>70 A contactor</b><span>Digital output B drives ignition relay <span class="m">-13RB1</span>. Seventy amps is a power contactor, not a signal relay.</span></div>
+    <div class="ar">→</div>
+    <div class="lk"><b>Fuel system unpowered</b><span>Supply removed, rather than the ECU being politely asked to stop.</span></div>
+  </div>
+
+  <div class="col">
+  <p>Not one link in that chain touches this ECU or the CAN bus. A hung ECU does not
+  defeat it. What remains is a smaller risk: the GCU's own microcontroller is now the
+  single point of failure, and a firmware hang there would defeat the path.</p>
+  <p>So a standalone magnetic-pickup trip module — a GAC SSW675 or a Murphy HD9063, both
+  with Indian distributors — moves from <strong>mandatory to recommended</strong>. It is a
+  judgement about how much you trust the GCU's firmware, not a missing safety path.</p>
+  </div>
+
+  <div class="note stop">
+    <span class="lbl">The gate that remains</span>
+    <p>All of that rests on one unverified fact: that the ignition relay <em>removes
+    power</em> from the fuel system rather than merely signalling the ECU. Confirm it by
+    measurement before any build takes injection authority — de-energise the relay and
+    check for battery voltage at ECU pins 21, 04, 06 and the metering unit's supply pin.
+    <strong>Voltage present means signal-only, and everything in this section reverts.</strong></p>
+  </div>
+</section>
+
+<section id="risks">
+  <div class="sechead"><i>05</i><h2>The two real risks</h2></div>
+  <div class="col">
+  <p>Neither is a hardware problem, and neither is solved by better circuit design. They
+  are the two things that decide whether this project ends with a working board on a bench
+  or a running genset.</p>
+  </div>
+
+  <h3>You cannot buy the injector calibration</h3>
+  <div class="col">
+  <p>The drive stage can be designed, built, and fully verified against a known inductive
+  load. That is real engineering progress and it should proceed.</p>
+  <p>What it cannot do is deliver the <em>right amount of fuel</em>. Producing an
+  electrically correct current pulse is not the same as knowing how much fuel that pulse
+  injected — and that mapping, fuel mass against pulse width across the rail pressure
+  range, is proprietary flow-bench data tied to a specific injector's hydraulic geometry.
+  Bosch and Denso ship it with their own ECUs and not otherwise.</p>
+  <p>It gets harder in the <strong>ballistic region</strong>, where pulses are too short
+  for the needle to reach full lift and delivery becomes steeply non-linear — which is
+  exactly where a genset at light load spends its time. And empirical tuning on a running
+  engine is not a fallback: at 19.7:1 compression, wrong fuelling risks combustion damage
+  and turbocharger overspeed long before trial and error converges.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Route to the data</th><th>Cost</th><th>Legality</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Supplier licence</td><td>Structured around OEM production volumes. Realistically out of reach at this scale.</td><td>The sanctioned route.</td></tr>
+        <tr><td class="k">Measure it yourself</td><td>Buy injectors, measure delivery directly on a rate-of-injection rig — Bosch tube or Zeuch method. Bounded and controllable with access to a fuel-injection lab.</td><td>Entirely legal. First-party measurement of purchased hardware.</td></tr>
+        <tr><td class="k">Extract the OEM calibration</td><td>Cheapest in engineering time if a donor ECU exists, but the binary is undocumented and likely protected.</td><td>Contested. Implicates the manufacturer's copyright. Not recommended without legal clearance.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="lbl">The one worth pursuing</span>
+    <p>Route two. It is legal, the cost is bounded, and a university with a fuel-injection
+    lab is a far more reachable thing than a Bosch development agreement.</p>
+  </div>
+
+  <h3>The regulatory position</h3>
+  <div class="col">
+  <p>This is an emissions-certified genset in service. CPCB IV+ type approval attaches to
+  an engine family at the manufacturer level — it is not a per-unit certificate that
+  travels with the machine regardless of what is done to it.</p>
+  </div>
+
+  <div class="note stop">
+    <span class="lbl">Read this before planning deployment</span>
+    <p>CPCB's own RECD System &amp; Procedure states that ECU characteristics governing
+    injection timing, air-mass metering and emission-reduction strategy <strong>must not be
+    altered</strong> — and that is under CPCB's own sanctioned retrofit scheme, which
+    separately excludes modifications limited to engine control. General Condition 3 of
+    GSR 804(E) states that no person shall use a genset lacking a valid Type Approval and
+    CoP certificate. No approval pathway for a third-party ECU replacement was found.</p>
+  </div>
+
+  <div class="col">
+  <p>This does not touch the engineering. Designing the board, building it, and
+  bench-testing it against simulated crank and cam signals are all unaffected. It bears on
+  putting it into service on a genset that is in use.</p>
+  <p>And it compounds the calibration problem in a way neither risk shows alone: this
+  engine meets its emissions limits <em>partly through calibration</em> — EGR scheduling
+  and injection timing — not through hardware alone. A replacement ECU can therefore move
+  it out of compliance without a single component changing.</p>
+  <p>This is a decision for the project's owners to take to qualified counsel or to
+  CPCB/ARAI directly. It is recorded here because it is material and had not previously
+  been examined — not to make the decision for anyone.</p>
+  </div>
+</section>
+
+<section id="unknowns">
+  <div class="sechead"><i>06</i><h2>What we don't know</h2></div>
+  <div class="col">
+  <p>Nothing on this list may be guessed into copper. Most of it needs somebody at the
+  machine with a multimeter and a camera rather than more research — which is worth
+  knowing, because it means one site visit closes most of it.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>#</th><th>Unknown</th><th>Blocks</th><th>How it closes</th></tr></thead>
+      <tbody>
+        <tr><td class="pin">U12</td><td class="k">Does the ignition relay remove power, or only signal?</td><td>The §04 safety gate</td><td>Measure with the relay de-energised</td></tr>
+        <tr><td class="pin">U1</td><td class="k">The other 50 of 94 connector pins</td><td>Whether the board mates at all</td><td>Photograph the connector housing</td></tr>
+        <tr><td class="pin">U5</td><td class="k">Injector part number</td><td>Commissioning, not design</td><td>Read the injector body</td></tr>
+        <tr><td class="pin">U4</td><td class="k">J1939 PGN set the GCU expects</td><td>CAN firmware</td><td>Log the live bus with the OEM ECU fitted</td></tr>
+        <tr><td class="pin">U2</td><td class="k">Boost air temp — NTC or ratiometric?</td><td>One sensor front-end</td><td>Measure resistance across the sensor, cold</td></tr>
+        <tr><td class="pin">U6</td><td class="k">What pin 09 "synchronization ground" does</td><td>Ground plan</td><td>Continuity, battery disconnected</td></tr>
+        <tr><td class="pin">U7</td><td class="k">Are pins 04/06 sense-only or load feeds?</td><td>Power sheet current rating</td><td>Measure current at the fuses</td></tr>
+        <tr><td class="pin">U8</td><td class="k">Is the 6-pin intake throttle on the ECU?</td><td>Whether a throttle driver is in scope</td><td>Trace on the engine</td></tr>
+        <tr><td class="pin">U9</td><td class="k">Where the catalyst temp sensor goes</td><td>Whether an EGT front-end is needed</td><td>Trace on the engine</td></tr>
+        <tr><td class="pin">U10</td><td class="k">Which signal uses SENT</td><td>Possible digital sensor front-end</td><td>Inspect the harness</td></tr>
+        <tr><td class="pin">U11</td><td class="k">Engine identity confirmation</td><td>Nothing — high confidence already</td><td>Photograph the rating plate</td></tr>
+        <tr><td class="pin">—</td><td class="k">Are pins 01/02 switch returns or power grounds?</td><td>Ground plan</td><td>Continuity to battery negative</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="lbl">One visit, most of the list</span>
+    <p>U12, U2, U6, U7 and the pin 01/02 question are all multimeter measurements. U1, U5
+    and U11 are photographs. U4 is a CAN log. Done together that is an afternoon, and it
+    unblocks nearly everything currently stalled.</p>
+  </div>
+</section>
+
+<section id="running">
+  <div class="sechead"><i>07</i><h2>Running the simulations</h2></div>
+  <div class="col">
+  <p>You already have a SPICE engine. KiCad ships <span class="m">libngspice</span>, and
+  the harness in the repository drives it directly, so the circuits run and check
+  themselves without installing anything further.</p>
+  </div>
+
+<pre>.venv/bin/python sim/run_sim.py              # every block
+.venv/bin/python sim/run_sim.py injector     # blocks matching "injector"</pre>
+
+  <div class="col">
+  <p>Output is one line per claim, green or red. Because the claims are about the circuit
+  — "reads logic high at a 6&nbsp;V cranking dip", "never exceeds the MCU's absolute
+  maximum" — a red line means the design is wrong, not that the simulator is unhappy.</p>
+  <p>The netlists are plain SPICE and are not tied to this harness. They open directly in
+  <strong>KiCad</strong>'s built-in simulator (Tools → Simulator), in <strong>LTspice</strong>,
+  or in a standalone <strong>ngspice</strong>. Each carries its own
+  <span class="m">.control</span> block, so it runs without further setup.</p>
+  <p>Read the comments inside each netlist before the netlist itself. They carry the
+  reasoning — why the discrete input is not a divider, why the sensor full scale sits below
+  the clamp, why the 42&nbsp;V clamp target should be abandoned — which the schematic alone
+  cannot tell you.</p>
+  </div>
+</section>
+
+<footer class="doc">
+  <span>Genset ECU Field Handbook · Rev 1 · 13 September 2026</span>
+  <span>Derived from Kirloskar 08-GP3-60-001</span>
+</footer>
+
+</div>
