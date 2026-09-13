@@ -15,6 +15,7 @@ runaway gets stopped, and the two risks that decide whether this ever runs.
 | Path | What it is |
 |---|---|
 | `docs/handbook/index.html` | The handbook. Read this first. |
+| `docs/handbook/sensors.html` | Sensor reference — every sensor, what it measures, how it's read, what the data drives |
 | `docs/superpowers/specs/` | The reconciled specification — the binding source of truth |
 | `docs/research/` | Six research memos: engine ID, GCU, connector, injector, MCU, standards |
 | `sim/` | Six SPICE circuits that run and check themselves |

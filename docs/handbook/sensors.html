@@ -1,0 +1,506 @@
+<title>Genset ECU Sensor Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+:root{
+  --paper:#f4f5f3; --surface:#ffffff; --surface-2:#eceeea; --surface-3:#e2e5e0;
+  --rule:#d2d6cf; --rule-firm:#b4bab1;
+  --ink:#171b1e; --ink-2:#4c5560; --ink-3:#7c8590;
+  --petrol:#1f5566; --petrol-2:#2e7f96; --petrol-wash:#e3edef;
+  --pass:#2f7d4f; --pass-wash:#e2f0e7;
+  --fail:#b8332a; --fail-wash:#f7e6e4;
+  --warn:#9a6410; --warn-wash:#f6eddc;
+  --w-red:#c0392b; --w-black:#2b2f33; --w-magenta:#b24a8c;
+  --w-cyan:#1f8b99; --w-yellow:#b08a12; --w-green:#3f8145;
+  --f-disp:'Archivo',system-ui,sans-serif;
+  --f-body:'Source Serif 4',Georgia,serif;
+  --f-mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#12161a; --surface:#191e24; --surface-2:#212830; --surface-3:#2b333c;
+  --rule:#2e3740; --rule-firm:#43505c;
+  --ink:#e6eaee; --ink-2:#a7b2bd; --ink-3:#76828e;
+  --petrol:#5fb4cc; --petrol-2:#7ec9de; --petrol-wash:#152a33;
+  --pass:#5cc189; --pass-wash:#14301f;
+  --fail:#e8766c; --fail-wash:#361a18;
+  --warn:#d9a441; --warn-wash:#332714;
+  --w-red:#e2685a; --w-black:#9aa5b0; --w-magenta:#d983ba;
+  --w-cyan:#4fc3d1; --w-yellow:#dcb43f; --w-green:#6fbd77;
+}}
+:root[data-theme="dark"]{
+  --paper:#12161a; --surface:#191e24; --surface-2:#212830; --surface-3:#2b333c;
+  --rule:#2e3740; --rule-firm:#43505c;
+  --ink:#e6eaee; --ink-2:#a7b2bd; --ink-3:#76828e;
+  --petrol:#5fb4cc; --petrol-2:#7ec9de; --petrol-wash:#152a33;
+  --pass:#5cc189; --pass-wash:#14301f;
+  --fail:#e8766c; --fail-wash:#361a18;
+  --warn:#d9a441; --warn-wash:#332714;
+  --w-red:#e2685a; --w-black:#9aa5b0; --w-magenta:#d983ba;
+  --w-cyan:#4fc3d1; --w-yellow:#dcb43f; --w-green:#6fbd77;
+}
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);
+  font-size:17px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+.col{max-width:66ch}
+h1,h2,h3,h4{font-family:var(--f-disp);color:var(--ink);text-wrap:balance;margin:0;line-height:1.14}
+p{margin:0 0 1em}
+a{color:var(--petrol)}
+code,.m{font-family:var(--f-mono);font-size:.88em}
+strong{font-weight:600}
+
+header.mast{border-bottom:2px solid var(--ink);padding-block:44px 20px;margin-bottom:8px}
+.eyebrow{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--petrol);margin:0 0 14px;font-weight:500}
+header.mast h1{font-size:clamp(32px,5.6vw,56px);font-weight:700;letter-spacing:-.022em;max-width:16ch}
+header.mast .standfirst{font-size:19px;color:var(--ink-2);max-width:58ch;margin-top:16px}
+.meta{display:flex;flex-wrap:wrap;gap:10px 28px;margin-top:26px;
+  font-family:var(--f-mono);font-size:12px;color:var(--ink-3)}
+.meta b{color:var(--ink);font-weight:500}
+
+nav.toc{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:2px 26px;
+  margin:26px 0 8px;padding:20px 0;border-block:1px solid var(--rule)}
+nav.toc a{display:grid;grid-template-columns:1.9em 1fr;gap:6px;font-family:var(--f-disp);
+  font-size:14px;font-weight:500;color:var(--ink-2);text-decoration:none;padding:5px 0}
+nav.toc a:hover{color:var(--petrol)}
+nav.toc a i{font-style:normal;font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3)}
+
+section{margin-top:56px;scroll-margin-top:14px}
+.sechead{display:grid;grid-template-columns:1.9em 1fr;gap:6px;align-items:baseline;
+  border-bottom:1px solid var(--rule-firm);padding-bottom:11px;margin-bottom:20px}
+.sechead i{font-style:normal;font-family:var(--f-mono);font-size:13px;color:var(--petrol)}
+.sechead h2{font-size:25px;font-weight:600;letter-spacing:-.012em}
+ul,ol{margin:0 0 1em;padding-left:1.25em;max-width:66ch}
+li{margin-bottom:.35em}
+li::marker{color:var(--ink-3)}
+
+/* ---- the sensor entry: the repeated object of this page ---- */
+.sensor{border:1px solid var(--rule);border-radius:3px;background:var(--surface);
+  margin:16px 0;overflow:hidden}
+.sensor>header{padding:13px 16px;border-bottom:1px solid var(--rule);background:var(--surface-2);
+  display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline}
+.sensor>header h3{font-size:16px;font-weight:600;margin:0}
+.sensor>header .pins{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3)}
+.sensor>header .tag{font-family:var(--f-mono);font-size:10px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;padding:2px 6px;border-radius:2px;margin-left:auto}
+.tag.live{background:var(--pass-wash);color:var(--pass)}
+.tag.panel{background:var(--surface-3);color:var(--ink-2)}
+.tag.future{background:var(--petrol-wash);color:var(--petrol)}
+.tag.open{background:var(--warn-wash);color:var(--warn)}
+
+.sensor dl{display:grid;grid-template-columns:8.5em 1fr;gap:0;margin:0;font-size:14.5px}
+.sensor dt{font-family:var(--f-mono);font-size:10.5px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--ink-3);padding:11px 0 11px 16px;
+  border-top:1px solid var(--rule)}
+.sensor dd{margin:0;padding:11px 16px 11px 0;color:var(--ink-2);border-top:1px solid var(--rule)}
+.sensor dl>dt:first-of-type,.sensor dl>dt:first-of-type+dd{border-top:none}
+.sensor dd b{color:var(--ink);font-weight:600}
+@media (max-width:620px){
+  .sensor dl{grid-template-columns:1fr}
+  .sensor dt{padding:11px 16px 0}
+  .sensor dd{padding:2px 16px 11px;border-top:none}
+}
+
+.w{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-family:var(--f-mono);font-size:12px}
+.w::before{content:"";width:9px;height:9px;border-radius:50%;flex:none;
+  border:1px solid color-mix(in srgb,var(--ink) 30%,transparent)}
+.w.red::before{background:var(--w-red)} .w.black::before{background:var(--w-black)}
+.w.magenta::before{background:var(--w-magenta)} .w.cyan::before{background:var(--w-cyan)}
+.w.yellow::before{background:var(--w-yellow)} .w.green::before{background:var(--w-green)}
+
+.tw{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;margin:18px 0 24px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:13.5px;font-family:var(--f-disp)}
+thead th{text-align:left;font-family:var(--f-mono);font-size:10.5px;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-3);background:var(--surface-2);
+  padding:9px 13px;border-bottom:1px solid var(--rule-firm);white-space:nowrap}
+tbody td{padding:8px 13px;border-bottom:1px solid var(--rule);color:var(--ink-2);vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+td.k{color:var(--ink);font-weight:600;white-space:nowrap}
+td.n{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.pin{font-family:var(--f-mono);font-weight:700;color:var(--ink)}
+
+.note{border-left:2px solid var(--petrol);background:var(--petrol-wash);padding:13px 16px;
+  margin:16px 0;border-radius:0 3px 3px 0}
+.note p{margin:0;font-size:15px}
+.note p+p{margin-top:.7em}
+.note.warn{border-left-color:var(--warn);background:var(--warn-wash)}
+.note .lbl{font-family:var(--f-mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--petrol);display:block;margin-bottom:5px}
+.note.warn .lbl{color:var(--warn)}
+
+footer.doc{margin-top:64px;padding-top:20px;border-top:2px solid var(--ink);
+  font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);
+  display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+html{scroll-behavior:smooth}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">Companion to the Field Handbook</p>
+  <h1>Sensor Reference</h1>
+  <p class="standfirst">Every sensor in the system — what it measures, how its signal
+  reaches the processor, and what the engine actually does with the number. Including the
+  ones that belong to the panel rather than the ECU, and the ones we would add.</p>
+  <div class="meta">
+    <span><b>14</b> on the ECU</span>
+    <span><b>6</b> panel-side</span>
+    <span><b>7</b> proposed</span>
+    <span>Rev <b>1</b> · 13 Sep 2026</span>
+    <span><a href="index.html">← Field Handbook</a></span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#reading"><i>00</i><span>How to read an entry</span></a>
+  <a href="#position"><i>01</i><span>Position &amp; speed</span></a>
+  <a href="#fuel"><i>02</i><span>Fuel system</span></a>
+  <a href="#air"><i>03</i><span>Air path</span></a>
+  <a href="#health"><i>04</i><span>Engine health</span></a>
+  <a href="#electrical"><i>05</i><span>Electrical</span></a>
+  <a href="#operator"><i>06</i><span>Operator inputs</span></a>
+  <a href="#panel"><i>07</i><span>Panel-side</span></a>
+  <a href="#future"><i>08</i><span>What we would add</span></a>
+  <a href="#budget"><i>09</i><span>Channel budget</span></a>
+</nav>
+
+<section id="reading">
+  <div class="sechead"><i>00</i><h2>How to read an entry</h2></div>
+  <div class="col">
+  <p>Every sensor below has the same five rows, because those are the five things you
+  need to know before you can either build its front-end or write its firmware:</p>
+  <ul>
+    <li><strong>Measures</strong> — the physical quantity and its useful range.</li>
+    <li><strong>Signal</strong> — the electrical form it arrives in, its ECU pins, and
+    its wire class from the Kirloskar diagram's own colour legend.</li>
+    <li><strong>Acquisition</strong> — the front-end circuit, which MCU peripheral reads
+    it, and how often.</li>
+    <li><strong>Used for</strong> — what the engine does with the number. This is the row
+    that matters and the one most sensor documentation leaves out.</li>
+    <li><strong>Fault detection</strong> — how firmware knows the reading is lying.</li>
+  </ul>
+  <p>Sampling rates are proposals, not measurements — they follow from each signal's own
+  bandwidth and from what the control loop using it needs. Marked <b>inferred</b> where
+  that is the case.</p>
+  </div>
+  <div class="note">
+    <span class="lbl">A note on sample rate</span>
+    <p>The instinct is to sample everything fast. Resist it. Coolant temperature has a
+    thermal time constant measured in tens of seconds, so sampling it at 1 kHz buys
+    nothing and costs ADC bandwidth that rail pressure genuinely needs. Rate should follow
+    the physics, and the physics here spans four orders of magnitude — from crank edges
+    every 667 µs to a fuel level that moves over hours.</p>
+  </div>
+</section>
+
+<section id="position">
+  <div class="sechead"><i>01</i><h2>Position &amp; speed</h2></div>
+  <div class="col">
+  <p>Everything angle-related derives from these two. Get them wrong and nothing else in
+  the system can be right, because injection timing is meaningless without knowing where
+  the crankshaft is.</p>
+  </div>
+
+  <div class="sensor">
+    <header><h3>Crankshaft speed</h3><span class="pins">pins 52 / 74 / 30</span><span class="tag live">on ECU</span></header>
+    <dl>
+      <dt>Measures</dt><dd>Crank angular position and speed, from a toothed wheel. Nominal running speed <b>1500 rpm</b>; must also resolve cranking speed, roughly 100–250 rpm.</dd>
+      <dt>Signal</dt><dd><b>Variable reluctance</b>, differential. <span class="w cyan">Frequency I/P High</span> on pin 52, <span class="w black">Frequency I/P Low</span> on pin 74, <span class="w black">sensor ground</span> on pin 30. Twisted pair. Output is AC whose amplitude scales with speed — near-zero while cranking, several volts at idle.</dd>
+      <dt>Acquisition</dt><dd>Zero-cross adaptive-threshold conditioner producing one clean digital edge per tooth, into a FlexTimer input capture channel. Every edge is timestamped; at 1500 rpm with a 60-tooth wheel that is an edge every <b>667 µs</b>. The missing-tooth gap gives the angular reference.</dd>
+      <dt>Used for</dt><dd><b>Speed governing</b> — the primary feedback for the metering unit loop. <b>Injection timing</b> — every injection event is scheduled against crank angle derived from here. <b>Overspeed shutdown</b> — the ECU's own first line of defence. <b>Crank sequencing</b> — the starter is disengaged the moment speed crosses the catch threshold. <b>Reported over CAN</b> in EEC1, PGN 61444.</dd>
+      <dt>Fault detection</dt><dd>Missing edges, implausible tooth intervals, or loss of the sync gap. Loss of crank signal on a running engine is a shutdown, not an alarm — the ECU can no longer time injection.</dd>
+    </dl>
+  </div>
+
+  <div class="sensor">
+    <header><h3>Camshaft position</h3><span class="pins">pins 45 / 46 / 44</span><span class="tag live">on ECU</span></header>
+    <dl>
+      <dt>Measures</dt><dd>Which half of the four-stroke cycle the crank angle refers to. One pulse per two crank revolutions.</dd>
+      <dt>Signal</dt><dd><b>Hall effect</b>, already a clean digital square wave — which is why it needs no conditioning IC and has no Low pin. <span class="w red">Switch Battery 5 V</span> on pin 45, <span class="w cyan">Frequency I/P</span> on pin 46, <span class="w black">sensor ground</span> on pin 44.</dd>
+      <dt>Acquisition</dt><dd>Pull-up to the protected sensor rail, straight into a second FlexTimer capture channel. One event per 80 ms at running speed.</dd>
+      <dt>Used for</dt><dd><b>Cylinder phase</b>, and only that. The crank sensor says the engine is at 15° before top dead centre; the cam sensor says whether that is cylinder 1's compression stroke or its exhaust stroke. Without it you can measure speed perfectly and still inject into the wrong cylinder.</dd>
+      <dt>Fault detection</dt><dd>Absent pulse, or a pulse at the wrong crank angle relative to the sync gap. Loss after sync is survivable for a while — the engine can run on the last known phase — but it must not be allowed to re-sync blind.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="fuel">
+  <div class="sechead"><i>02</i><h2>Fuel system</h2></div>
+
+  <div class="sensor">
+    <header><h3>Rail pressure</h3><span class="pins">pins 32 / 35 / 08</span><span class="tag live">on ECU</span></header>
+    <dl>
+      <dt>Measures</dt><dd>Common-rail fuel pressure. Typically <b>250–1800 bar</b> on an engine of this class — <b>inferred</b>, the exact range needs the sensor part number.</dd>
+      <dt>Signal</dt><dd>Ratiometric <b>0.5–4.5 V</b>. <span class="w red">Switch Battery 5 V</span> on pin 32, <span class="w magenta">Analog I/P</span> on pin 35, <span class="w black">sensor ground</span> on pin 08 — a <b>dedicated</b> ground, not spliced with any other sensor. That is deliberate: this is the most accuracy-critical analog channel on the engine, and a shared return would inject other sensors' currents into its reference.</dd>
+      <dt>Acquisition</dt><dd>Ratiometric front-end into the ADC. Sampled fast — <b>1 kHz</b> or better, <b>inferred</b> — because it is the feedback for a closed loop that has to reject the pressure ripple every injection event causes.</dd>
+      <dt>Used for</dt><dd><b>Closed-loop rail pressure control</b>: the error between measured and target pressure drives the fuel metering unit's PWM duty. Also sets the <b>injection quantity calculation</b> — the same pulse width delivers more fuel at higher rail pressure, so quantity is always a function of both. <b>Over-pressure protection</b> is a hard shutdown.</dd>
+      <dt>Fault detection</dt><dd>Out-of-range reading, or pressure that fails to follow a metering unit command — which distinguishes a dead sensor from a stuck metering unit. Loss of rail pressure feedback means injection quantity becomes unknown; treat as shutdown.</dd>
+    </dl>
+  </div>
+
+  <div class="sensor">
+    <header><h3>Fuel metering unit current</h3><span class="pins">pin 88, sensed on-board</span><span class="tag live">on ECU</span></header>
+    <dl>
+      <dt>Measures</dt><dd>Current through the metering unit solenoid — the actuator's own feedback, not an external sensor.</dd>
+      <dt>Signal</dt><dd>Shunt and amplifier on the ECU's low-side driver. The metering unit itself is only 2-pin: <span class="w red">battery</span> via the 20 A fuse, and <span class="w black">PWM low side</span> to pin 88.</dd>
+      <dt>Acquisition</dt><dd>ADC channel synchronised to the PWM cycle, so current is sampled at a consistent point in the switching period rather than at random phase.</dd>
+      <dt>Used for</dt><dd><b>Inner loop of the rail pressure cascade.</b> Rail pressure sets a target current; current control sets PWM duty. Two loops because solenoid force follows current, and current follows duty only loosely once coil temperature and battery voltage move. Also gives <b>open and short circuit detection</b> on the actuator.</dd>
+      <dt>Fault detection</dt><dd>Zero current with duty commanded means an open coil or blown fuse. Full current at zero duty means a shorted driver — which is dangerous, since it drives the rail to maximum pressure.</dd>
+    </dl>
+  </div>
+
+  <div class="sensor">
+    <header><h3>Injector current, ×3</h3><span class="pins">pins 73 / 07 / 29, sensed on-board</span><span class="tag live">on ECU</span></header>
+    <dl>
+      <dt>Measures</dt><dd>Current through each injector solenoid during its firing event. Peak <b>12–24 A</b>, hold <b>8–13 A</b>.</dd>
+      <dt>Signal</dt><dd>Sense resistor in each low-side leg, read by the driver IC's own current comparators.</dd>
+      <dt>Acquisition</dt><dd>The MC33816 regulates current in hardware against programmed thresholds — the MCU sets the profile, the driver enforces it microsecond by microsecond. Far too fast for firmware to close.</dd>
+      <dt>Used for</dt><dd><b>Peak-and-hold profile enforcement.</b> A high current opens the needle, then a lower current holds it, because holding at peak would cook the solenoid. Also <b>injector diagnosis</b>: a coil that fails open or short shows up immediately in the current trace.</dd>
+      <dt>Fault detection</dt><dd>Failure to reach peak within the expected time means an open coil or a collapsed boost rail. The handbook's injector chart shows why that timing is diagnostic — the rise time is set by the rail voltage and the coil, so a slow rise means one of them is wrong.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="air">
+  <div class="sechead"><i>03</i><h2>Air path</h2></div>
+
+  <div class="sensor">
+    <header><h3>Boost pressure</h3><span class="pins">pins 11 / 41 / 34</span><span class="tag live">on ECU</span></header>
+    <dl>
+      <dt>Measures</dt><dd>Absolute pressure in the intake manifold, downstream of the turbocharger and aftercooler. Typically <b>1–3 bar absolute</b> on a turbocharged engine of this size — <b>inferred</b>.</dd>
+      <dt>Signal</dt><dd>Ratiometric 0.5–4.5 V. One half of a <b>four-pin combination sensor</b> shared with manifold air temperature: <span class="w red">Switch Battery 5 V</span> on pin 11, <span class="w magenta">Analog I/P Pressure</span> on pin 41, <span class="w black">sensor ground</span> on pin 34 shared with both legs and with the coolant sensor.</dd>
+      <dt>Acquisition</dt><dd>Ratiometric front-end into the ADC. <b>100 Hz</b> is ample — manifold pressure changes with turbo speed, which has real inertia. <b>Inferred.</b></dd>
+      <dt>Used for</dt><dd><b>Air mass estimation</b>, with air temperature, via the ideal gas law — and air mass is what sets the <b>smoke-limit fuelling cap</b>. A diesel that injects more fuel than its air charge can burn produces visible smoke and heat rather than torque, so the fuelling limit tracks boost. Also <b>EGR control</b>, since EGR displaces fresh air, and <b>turbo overspeed protection</b>.</dd>
+      <dt>Fault detection</dt><dd>Range check, plus plausibility against barometric pressure at rest — with the engine stopped, manifold pressure must read close to ambient. A sensor that fails high would silently allow over-fuelling, so this one defaults conservative on fault.</dd>
+    </dl>
+  </div>
+
+  <div class="sensor">
+    <header><h3>Manifold air temperature</h3><span class="pins">pin 79</span><span class="tag open">topology open — U2</span></header>
+    <dl>
+      <dt>Measures</dt><dd>Intake charge temperature after the aftercooler. Roughly <b>−20 to +100 °C</b>.</dd>
+      <dt>Signal</dt><dd><span class="w magenta">Analog I/P Temperature</span> on pin 79, sharing the combination sensor's supply and ground. <b>Whether it is an NTC or a conditioned ratiometric output is unresolved.</b> The wire colour class cannot distinguish them — the coolant NTC uses the same magenta class. Industry convention for combination pressure-and-temperature sensors is an NTC element, so that is the working assumption.</dd>
+      <dt>Acquisition</dt><dd>Pull-up divider if NTC, ratiometric front-end if not. The board carries a <b>DNP pull-up footprint</b> so either works without a respin — the cheapest possible insurance against a question we cannot currently answer.</dd>
+      <dt>Used for</dt><dd><b>Air density correction.</b> Boost pressure alone does not give air mass; the same pressure at 20 °C and at 80 °C is meaningfully different charge. Feeds the same smoke-limit calculation. Also <b>intercooler diagnostics</b> — a rising delta over ambient means the aftercooler is fouling.</dd>
+      <dt>Fault detection</dt><dd>Range check, and plausibility against coolant temperature at cold start: on a machine that has stood overnight, intake air, coolant and ambient should all agree within a few degrees. That check is free and catches a surprising number of wiring errors.</dd>
+    </dl>
+  </div>
+
+  <div class="sensor">
+    <header><h3>EGR valve position</h3><span class="pins">pins 15 / 37 / 36</span><span class="tag live">on ECU</span></header>
+    <dl>
+      <dt>Measures</dt><dd>Actual position of the EGR valve, 0–100% travel.</dd>
+      <dt>Signal</dt><dd>Ratiometric potentiometer. <span class="w red">Switch Battery 5 V</span> on pin 15, <span class="w magenta">Analog I/P</span> wiper on pin 37, <span class="w black">sensor ground</span> on pin 36. Shares its five-pin connector with the actuator's own <span class="w magenta">EGR High</span> and <span class="w black">EGR Low</span> drive pins.</dd>
+      <dt>Acquisition</dt><dd>Ratiometric front-end into the ADC, <b>100 Hz</b>, matched to the valve's mechanical response. <b>Inferred.</b></dd>
+      <dt>Used for</dt><dd><b>Closed-loop EGR position control</b> — the H-bridge drives until measured position matches demand. EGR rate is one of the two things this engine uses to meet its NOx limit, the other being injection timing, which is exactly why the certification question in the handbook bites so hard. Also <b>stuck-valve detection</b>.</dd>
+      <dt>Fault detection</dt><dd>Position failing to follow demand within a timeout means a stuck valve, a failed motor, or a broken position sensor — distinguishable by whether current is flowing. A stuck-open EGR valve at load is a derate condition.</dd>
+    </dl>
+  </div>
+
+  <div class="sensor">
+    <header><h3>Intake throttle position</h3><span class="pins">6-pin connector, routing unknown</span><span class="tag open">unresolved — U8</span></header>
+    <dl>
+      <dt>Measures</dt><dd>Intake throttle plate position. On a CPCB IV+ diesel the throttle is not a power control — it creates intake depression to drive EGR flow when the pressure differential is otherwise insufficient.</dd>
+      <dt>Signal</dt><dd><b>Six pins</b>, which is two more than a motor pair plus a three-wire position sensor accounts for. The extra two are unexplained. It does not appear on any ECU pin traced in the wiring diagram — it may belong to a variant, or route somewhere we have not found.</dd>
+      <dt>Acquisition</dt><dd>Not designed. Blocked until the connector is traced on the engine.</dd>
+      <dt>Used for</dt><dd>If present: <b>EGR flow authority at low load</b>, and <b>a clean shutdown</b> — closing the throttle starves the engine of air and stops it smoothly.</dd>
+      <dt>Fault detection</dt><dd>Not designed.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="health">
+  <div class="sechead"><i>04</i><h2>Engine health</h2></div>
+  <div class="col">
+  <p>These are the sensors that stop the engine before it destroys itself. They earn
+  their place in an ECU that never optimises anything.</p>
+  </div>
+
+  <div class="sensor">
+    <header><h3>Coolant temperature</h3><span class="pins">pin 33</span><span class="tag live">on ECU</span></header>
+    <dl>
+      <dt>Measures</dt><dd>Engine coolant temperature, <b>−40 to +130 °C</b>. Normal running is roughly 80–95 °C.</dd>
+      <dt>Signal</dt><dd><b>NTC thermistor, two wires only</b> — no excitation pin, unlike the ratiometric sensors. <span class="w magenta">Analog I/P</span> on pin 33; its <span class="w black">sensor ground</span> does not get its own ECU pin but splices into the boost sensor's return at pin 34.</dd>
+      <dt>Acquisition</dt><dd>Pull-up divider into the ADC, linearised in firmware against the sensor's resistance-temperature table. <b>2 Hz is plenty</b> — an engine block's thermal time constant is tens of seconds. The pull-up is chosen to put maximum sensitivity around 85 °C, where the decisions are.</dd>
+      <dt>Used for</dt><dd><b>Cold-start fuelling enrichment</b> — a cold diesel needs more fuel and earlier injection to light off. <b>Overheat derate then shutdown.</b> <b>EGR inhibit when cold</b>, since EGR on a cold engine fouls the intake. <b>Reported over CAN</b> in ET1, PGN 65262.</dd>
+      <dt>Fault detection</dt><dd>Open circuit reads full pull-up voltage and short reads zero — both outside any physical temperature, so both are unambiguous. Critically, <b>an open circuit must not read as "very cold"</b>, which would trigger enrichment on a hot engine. The independent coolant switch below exists precisely because this channel can fail.</dd>
+    </dl>
+  </div>
+
+  <div class="sensor">
+    <header><h3>Coolant temperature switch</h3><span class="pins">pin 43, return on 01 / 02</span><span class="tag live">on ECU</span></header>
+    <dl>
+      <dt>Measures</dt><dd>A single over-temperature threshold. Not a measurement — a trip.</dd>
+      <dt>Signal</dt><dd><span class="w cyan">Digital I/P</span> on pin 43, switch-to-return. Its return leg is one of the <span class="m">G_G_B</span> pins.</dd>
+      <dt>Acquisition</dt><dd>Pull-up and RC debounce into a GPIO, polled at <b>10 ms</b>.</dd>
+      <dt>Used for</dt><dd><b>A second, independent path to overheat shutdown.</b> This is the same design instinct as the overspeed discussion in the handbook: the analog coolant channel and this switch fail in different ways, so requiring only one of them to trip means a single sensor failure cannot leave the engine cooking. It is cheap redundancy on the failure that quietly destroys engines.</dd>
+      <dt>Fault detection</dt><dd>Wired normally-closed where possible, so an open harness reads as tripped rather than as healthy.</dd>
+    </dl>
+  </div>
+
+  <div class="sensor">
+    <header><h3>Lubricating oil pressure</h3><span class="pins">pins 39 / 80</span><span class="tag live">on ECU</span></header>
+    <dl>
+      <dt>Measures</dt><dd>Engine oil gallery pressure, typically <b>0–10 bar</b>. Normal running above roughly 2 bar; idle above roughly 1 bar. <b>Inferred.</b></dd>
+      <dt>Signal</dt><dd>Ratiometric 0.5–4.5 V, three pins: <span class="w red">Switch Battery 5 V</span> on pin 39, <span class="w magenta">Analog I/P</span> on pin 80, and a <span class="w black">sensor ground</span> that splices with the EGR sensor's into pin 36.</dd>
+      <dt>Acquisition</dt><dd>Ratiometric front-end into the ADC at <b>10 Hz</b>. <b>Inferred</b> — oil pressure responds within a revolution, but no decision needs faster.</dd>
+      <dt>Used for</dt><dd><b>Low oil pressure shutdown</b>, the single most important protection on any engine — bearing damage from oil starvation happens in seconds. The threshold is <b>speed-dependent</b>: pressure that is normal at idle is a fault at rated speed, so the limit is a function of the crank sensor's reading. Also <b>start inhibit</b> until pressure builds, and reported over CAN in EFL/P1, PGN 65263.</dd>
+      <dt>Fault detection</dt><dd>Range check. The dangerous failure is reading high when pressure is actually low, so a plausibility check against engine state helps: with the engine stopped, oil pressure must read near zero. A sensor that reads 3 bar on a stopped engine is lying.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="electrical">
+  <div class="sechead"><i>05</i><h2>Electrical</h2></div>
+
+  <div class="sensor">
+    <header><h3>Battery voltage, ×2</h3><span class="pins">pins 04 / 06</span><span class="tag live">on ECU</span></header>
+    <dl>
+      <dt>Measures</dt><dd>Voltage on two separately fused battery rails, <b>6–40 V</b> covering cranking sag through clamped load dump. Nominal 12 V, charging 13.5–14.4 V.</dd>
+      <dt>Signal</dt><dd>Two <span class="w red">DC positive</span> feeds, <span class="m">V_V_BAT_1R</span> and <span class="m">V_V_BAT_2R</span>, each behind its own 10 A fuse.</dd>
+      <dt>Acquisition</dt><dd><b>120 kΩ / 10 kΩ</b> divider into the ADC — no active conditioning, this is a slow rail rather than a delicate signal. <b>10 Hz.</b> The divider value was corrected from an inherited 75 kΩ / 10 kΩ that would have put 4.69 V on a 3.3 V pin.</dd>
+      <dt>Used for</dt><dd><b>Low and high battery alarms.</b> <b>Charging system diagnosis</b> — voltage that never rises above resting means the alternator is not charging. <b>Injector timing compensation</b>, since boost converter recharge time depends on supply voltage. And because the two rails are separately fused, <b>comparing them infers a blown fuse</b> without a dedicated fuse-status circuit. Reported over CAN in VEP1, PGN 65271.</dd>
+      <dt>Fault detection</dt><dd>The two channels check each other: they should track within a volt. A persistent divergence means a fuse, a corroded connection, or a failed divider.</dd>
+    </dl>
+  </div>
+
+  <div class="sensor">
+    <header><h3>Ignition / run request</h3><span class="pins">pin 71</span><span class="tag live">on ECU</span></header>
+    <dl>
+      <dt>Measures</dt><dd>Whether the panel is commanding the engine to run.</dd>
+      <dt>Signal</dt><dd><span class="w red">Switched battery</span>, active high. Downstream of the GCU's 70 A ignition relay.</dd>
+      <dt>Acquisition</dt><dd>Zener-clamped bias network into a GPIO — not a divider, for the reason given in the handbook. Polled at <b>10 ms</b>.</dd>
+      <dt>Used for</dt><dd><b>Run enable and orderly shutdown.</b> Losing this input is the normal stop request: the ECU stops injection, closes the throttle if fitted, and reports the stop over CAN. It is also, per the handbook's safety section, the <b>signalling half of a path whose other half is physical</b> — the same relay that drops this input is believed to remove power from the fuel system entirely, which is what makes a hung ECU survivable.</dd>
+      <dt>Fault detection</dt><dd>Not detectable as an open circuit — an open wire and a genuine stop request are electrically identical. That is an accepted limitation of matching the OEM harness, and it is recorded in the FMEA rather than engineered around, because changing the sense would break compatibility.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="operator">
+  <div class="sechead"><i>06</i><h2>Operator inputs</h2></div>
+  <div class="col">
+  <p>Not sensors in the strict sense, but they arrive on the same connector and firmware
+  treats them identically — debounced digital state with a defined meaning.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Input</th><th>Pin</th><th>Sense</th><th>What it does</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Audio abort</td><td class="pin">20</td><td><span class="w red">active high</span></td><td>Silences the buzzer without clearing the underlying fault. The fault stays active, the annunciator stays lit, and only the noise stops — so an operator can think without losing the alarm.</td><td>Confirmed</td></tr>
+        <tr><td class="k">Override SS</td><td class="pin">24</td><td><span class="w red">active high</span></td><td>Function genuinely unconfirmed. Labelled <span class="m">OVERSIDE SWITCH</span> at the ECU and <span class="m">-S7 Override SS SW</span> at the panel — <strong>one switch, not two</strong>, despite earlier documents listing an overspeed switch and an override switch separately.</td><td>Open</td></tr>
+        <tr><td class="k">Droop select</td><td class="pin">23</td><td><span class="w cyan">switch to return</span></td><td>Selects droop versus isochronous governing. In droop, speed falls slightly as load rises, which lets multiple sets share load without fighting. Isochronous holds speed exactly, which is right for a set running alone.</td><td>Confirmed</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note warn">
+    <span class="lbl">Do not wire control logic to pin 24 yet</span>
+    <p>The override switch's actual function is a guess. Read its state, log it, report it
+    over CAN — but do not let it change what the engine does until somebody has confirmed
+    what the panel intends by it. A switch whose meaning you have assumed is worse than a
+    switch you ignore.</p>
+  </div>
+</section>
+
+<section id="panel">
+  <div class="sechead"><i>07</i><h2>Panel-side sensors</h2></div>
+  <div class="col">
+  <p>These exist in the machine and appear in the wiring diagram, but they do not reach
+  the ECU. They belong to the KG640C. They are documented here because earlier design
+  passes built ECU front-ends for two of them, and because knowing what the panel already
+  measures tells you what the ECU does not need to.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Sensor</th><th>Goes to</th><th>Signal</th><th>Used for</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Fuel level</td><td>Panel via XC pin 22</td><td>Resistive float sender, 2-pin</td><td>Tank level display and low-fuel alarm. <strong>Not an ECU signal</strong> — earlier documents wrongly gave it an ECU front-end.</td></tr>
+        <tr><td class="k">Water in fuel</td><td>Panel via XC pin 16/1</td><td>Conductivity probe, 3-pin with built-in electronics</td><td>Water-in-fuel warning. Water in a common-rail system destroys injectors, so this is a genuine alarm. <strong>Not an ECU signal.</strong></td></tr>
+        <tr><td class="k">Catalyst temperature</td><td>Unresolved — U9</td><td>2-pin, one sensor only</td><td>DOC inlet or outlet temperature. Earlier documents specified three EGT channels; the diagram shows one.</td></tr>
+        <tr><td class="k">Alternator voltage &amp; frequency</td><td>GCU terminals 27–30</td><td>3-phase AC sense, sampled at 5 kHz</td><td>Output metering, and — per the handbook's safety section — <strong>the GCU's only engine speed source</strong>. On a 4-pole alternator 1500 rpm is rigidly 50 Hz, which is what makes overspeed detection possible without an ECU.</td></tr>
+        <tr><td class="k">Load current</td><td>GCU terminals 35–42</td><td>Current transformers</td><td>Load metering, overload protection, load-dependent start/stop.</td></tr>
+        <tr><td class="k">Charging alternator D+</td><td>GCU</td><td>Excitation sense</td><td>Charge-failure alarm, and a secondary indication the engine is turning.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="future">
+  <div class="sechead"><i>08</i><h2>What we would add</h2></div>
+  <div class="col">
+  <p>The OEM sensor set is the minimum to run the engine and meet emissions. These are
+  the additions worth designing space for now, since a connector position or an unused
+  ADC channel costs almost nothing at design time and cannot be retrofitted cheaply.</p>
+  <p>Ordered by how much each earns its place.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Addition</th><th>Interface</th><th>Why it earns a place</th><th>Cost to design in now</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Barometric pressure</td><td>On-PCB MEMS, I²C</td><td>Altitude and weather change air density, and therefore the smoke-limit fuelling cap. Without it the engine either smokes at altitude or is derated everywhere to be safe. Needs no harness at all — barometric pressure is the same inside the enclosure as outside.</td><td>One IC, two I²C pins, a vented enclosure port. <strong>Already in the design.</strong></td></tr>
+        <tr><td class="k">Magnetic pickup</td><td>VR, to a standalone trip module</td><td>The independent overspeed path discussed in the handbook. Currently recommended rather than mandatory, because the GCU's alternator-frequency path already bypasses the ECU — but it is the only option that also survives a GCU firmware hang.</td><td>A flywheel sensor, a trip module, and panel wiring. No ECU pins at all, which is the point.</td></tr>
+        <tr><td class="k">Exhaust gas temperature, ×2</td><td>Type K thermocouple, CJC amplifier</td><td>DOC inlet and outlet. The difference across a catalyst tells you whether it is working; a single sensor tells you much less. Also protects the turbine from over-temperature.</td><td>Two amplifier ICs, two ADC channels, four connector positions.</td></tr>
+        <tr><td class="k">Fuel temperature</td><td>NTC, 2-wire</td><td>Diesel density varies with temperature, so the same injected volume is a different mass. Matters most for fuel consumption reporting and for hot-restart behaviour, where return fuel has been heated.</td><td>One ADC channel, one pull-up, two connector positions.</td></tr>
+        <tr><td class="k">Crankcase pressure</td><td>Low-range ratiometric</td><td>The best single indicator of engine wear available. Rising blow-by past the rings shows here long before anything else notices, which turns an unplanned failure into scheduled maintenance.</td><td>One ADC channel and a sensor. Genuinely the highest-value addition for a machine expected to run for years.</td></tr>
+        <tr><td class="k">Ambient air temperature</td><td>NTC, 2-wire</td><td>Separates engine-related temperature rise from a hot day. Makes the derate strategy fair, and makes the aftercooler diagnostic in §03 meaningful.</td><td>One ADC channel.</td></tr>
+        <tr><td class="k">Accelerometer</td><td>MEMS, SPI or I²C, on-PCB</td><td>Vibration signature as a condition-monitoring input — bearing wear, misfire, and mounting problems all have signatures. Speculative for a genset, but nearly free if the board is being laid out anyway.</td><td>One IC and a few pins. Firmware effort is the real cost, not hardware.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="lbl">What future-proofing actually means here</span>
+    <p>Not fitting every sensor on the list. It means <strong>reserving the channels and
+    connector positions</strong> so that adding one later is a firmware change and a
+    harness leg, not a board respin. Concretely: leave four ADC channels unrouted but
+    broken out, keep two spare positions on the sensor connector, put the I²C bus on a
+    header even if only the barometric sensor uses it now, and leave the second CAN
+    channel populated.</p>
+    <p>The MCU has room for all of it — the channel budget below shows the design using
+    well under half of what the part provides. Spending some of that headroom on
+    unpopulated options is the cheapest decision available at this stage.</p>
+  </div>
+</section>
+
+<section id="budget">
+  <div class="sechead"><i>09</i><h2>Channel budget</h2></div>
+  <div class="col">
+  <p>What the sensor set costs in MCU resources, against what the S32K148 provides. The
+  headroom is the argument for designing the additions in now.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Resource</th><th>Used now</th><th>With all additions</th><th>S32K148 provides</th><th>Headroom</th></tr></thead>
+      <tbody>
+        <tr><td class="k">ADC channels</td><td class="n">14</td><td class="n">19</td><td class="n">up to 64</td><td class="n">ample</td></tr>
+        <tr><td class="k">Timer capture</td><td class="n">2</td><td class="n">2</td><td class="n">64 across 8 FlexTimers</td><td class="n">ample</td></tr>
+        <tr><td class="k">Timer output / PWM</td><td class="n">8</td><td class="n">8</td><td class="n">shared with above</td><td class="n">ample</td></tr>
+        <tr><td class="k">Digital in</td><td class="n">5</td><td class="n">5</td><td class="n">abundant GPIO</td><td class="n">ample</td></tr>
+        <tr><td class="k">CAN</td><td class="n">2</td><td class="n">2</td><td class="n">3 FlexCAN</td><td class="n">1 spare</td></tr>
+        <tr><td class="k">I²C</td><td class="n">1</td><td class="n">1</td><td class="n">2 LPI2C</td><td class="n">1 spare</td></tr>
+        <tr><td class="k">SPI</td><td class="n">1 (injector driver)</td><td class="n">2</td><td class="n">3 LPSPI</td><td class="n">1 spare</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+  <p>The ADC count is the one to watch, and it is not close to a limit. The caveat from
+  the MCU memo stands: how many of those 64 channels are actually broken out on the
+  144-pin package needs the reference manual's pin-mux table, which is a Phase 2 item.</p>
+  </div>
+</section>
+
+<footer class="doc">
+  <span>Sensor Reference · Rev 1 · 13 September 2026</span>
+  <span><a href="index.html">Field Handbook</a> · derived from Kirloskar 08-GP3-60-001</span>
+</footer>
+
+</div>
