@@ -188,8 +188,8 @@ Confirmed pins from the wiring diagram. **44 of 94.** See §8 for the remaining 
 | Pin | Signal | Front-end |
 |---|---|---|
 | 21 | Battery + feed | Main input: EMI filter → fuse → TVS → reverse-battery FET |
-| 04 | `V_V_BAT_1R` (10 A fused) | Divider + ADC sense; feeds high-current loads `[?]` |
-| 06 | `V_V_BAT_2R` (10 A fused) | Divider + ADC sense; feeds high-current loads `[?]` |
+| 04 | `V_V_BAT_1R` (10 A fused) | **120 k / 10 k** divider → ADC; feeds high-current loads `[?]` |
+| 06 | `V_V_BAT_2R` (10 A fused) | **120 k / 10 k** divider → ADC; feeds high-current loads `[?]` |
 | 09 | `SYNCHRONIZATION GROUND` | Function unresolved — see §8 |
 
 ### Ratiometric analog — 1 kΩ series, 100 nF shunt, clamp, ADC ref tracks `5V_SENSOR`
@@ -199,6 +199,12 @@ Confirmed pins from the wiring diagram. **44 of 94.** See §8 for the remaining 
 | 11 / 41 | Boost: 5 V excitation / pressure signal | 34 |
 | 79 | Boost: temperature signal — **topology unresolved, see §8** | 34 |
 | 34 | Sensor ground — boost + coolant | — |
+
+The battery-sense divider is **120 k / 10 k, not the 75 k / 10 k** inherited from
+the earlier artifacts. That value was sized for a 5 V ADC and delivers 4.69 V at
+a 40 V input — above the S32K148's 3.3 V analog supply. The corrected divider
+peaks at 3.07 V and still resolves 573 ADC counts at the 6 V cranking dip.
+Verified in [`sim/blocks/battery_sense.cir`](../../../sim/blocks/battery_sense.cir).
 | 33 | Coolant temperature (NTC, pull-up divider) | 34 (spliced) |
 | 15 / 37 | EGR position: 5 V / wiper | 36 |
 | 36 | Sensor ground — EGR + oil pressure | — |
@@ -225,10 +231,25 @@ a dedicated return because it is the most accuracy-critical analog channel on th
 |---|---|---|---|
 | 43 | Coolant switch | Switch-to-return | Pull-up + RC debounce |
 | 23 | Droop switch | Switch-to-return | Pull-up + RC debounce |
-| 01 / 02 | `G_G_B AT1` / `AT2` | — | Switch return legs |
-| 20 | Audio abort | **Active-high** | Battery-rated divider + clamp + RC |
-| 24 | Override SS | **Active-high** | Battery-rated divider + clamp + RC |
-| 71 | Ignition | **Active-high** | Battery-rated divider + clamp + RC |
+| 01 / 02 | `G_G_B AT1` / `AT2` | — | Switch return legs — but see note below, these may be power grounds |
+| 20 | Audio abort | **Active-high** | 47 k / 68 k bias + 3.0 V zener clamp + 220 nF |
+| 24 | Override SS | **Active-high** | same |
+| 71 | Ignition | **Active-high** | same |
+
+**The active-high front-end is not a divider, and cannot be.** Reading logic
+high at a 6 V cranking dip needs a divider ratio above 2.31/6 = 0.385; staying
+under 3.3 V at 40 V needs it below 3.3/40 = 0.0825. Those constraints do not
+overlap, so no fixed ratio works at both ends. The zener sets the clamp level
+and the divider only biases into it, which makes the logic level flat to within
+92 mV across the whole range instead of tracking the battery. Verified in
+[`sim/blocks/discrete_input.cir`](../../../sim/blocks/discrete_input.cir).
+
+**Pins 01/02 need checking.** Memo 03 infers from the connector drawing that
+pins 1, 2, 5 and 6 are large power contacts. Pins 05 and 06 fit that — injector
+high side and a battery rail. Switch return legs would not. The likelier reading
+is that `G_G_B` denotes battery ground and these are the ECU's main power
+grounds, which would also explain why no power-ground pin appears anywhere in
+the extraction. Queued as a continuity measurement.
 
 ### Outputs
 
