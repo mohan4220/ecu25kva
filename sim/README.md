@@ -74,3 +74,15 @@ the logic level is flat to within 92 mV across the entire 6–40 V range instead
 of tracking the battery. This one is worth understanding, because it is not
 obvious from a schematic that the original was impossible rather than merely
 mis-valued.
+
+## Circuit schematics
+
+Six schematics live in [`docs/handbook/circuits/`](../docs/handbook/circuits/), as SVG
+(scalable, theme-aware) and PNG (fixed dark-on-white, for slides). They are
+generated from `sim/draw_schematics.py`, which mirrors the netlists in
+`sim/blocks/` -- so the picture and the thing that gets simulated cannot drift
+apart. Regenerate with:
+
+```bash
+.venv/bin/python sim/draw_schematics.py
+```
