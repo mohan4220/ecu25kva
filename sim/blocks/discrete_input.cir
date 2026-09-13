@@ -1,0 +1,68 @@
+* ============================================================
+* Discrete switch input -- ECU pins 20, 24, 71
+* (audio abort, override SS, ignition)
+* ============================================================
+* These are ACTIVE-HIGH inputs. The OEM wires them as switched
+* battery -- the red wire class in the Kirloskar diagram's legend --
+* so the switch connects the pin to battery, not to ground.
+*
+* The prior design documents specified pull-up to 5 V with the
+* switch closing to ground. That is the opposite sense, and its
+* front-end cannot survive battery voltage on the pin.
+*
+* This circuit must:
+*   1. read as logic HIGH even at a 6 V cranking dip
+*   2. never exceed the MCU pin's absolute maximum at 40 V
+*   3. debounce, so one contact closure is one firmware event
+*   4. read as logic LOW, not floating, when the switch is open
+*
+* WHY THIS IS NOT A PLAIN DIVIDER. A fixed ratio cannot satisfy
+* (1) and (2) together. Logic high at 6 V needs the ratio above
+* 2.31/6 = 0.385; staying under 3.3 V at 40 V needs it below
+* 3.3/40 = 0.0825. Those constraints do not overlap, so any single
+* divider ratio fails one end of the range. The first attempt at
+* this circuit used 100k/10k and failed both, which is what drove
+* the topology below.
+*
+* So the zener sets the clamp level and the divider only biases
+* into it. R5/R6 are sized so the node would sit at 3.55 V at the
+* 6 V cranking dip -- already above the zener knee -- meaning the
+* input is clamped to ~3.0 V across the entire 6-40 V range and
+* the logic level never depends on battery voltage at all.
+* R5 also limits zener current to under 1 mA at 40 V.
+*
+* Two copies of the network are instantiated because one source
+* cannot be both DC-swept and driven by a transient waveform.
+* ============================================================
+
+* 3.0 V zener -- clamps below the MCU's VDD+0.3 absolute maximum
+.model DZ3V0 D(Is=1e-14 N=1 Rs=5 BV=3.0 IBV=5e-3)
+
+* ---- network A: DC transfer ----
+Vdc swdc 0 DC 12
+R5a swdc ndc 47k
+R6a ndc  0   68k
+C1a ndc  0   220n
+D1a 0   ndc  DZ3V0
+
+* ---- network B: transient, bouncing contact ----
+* Contact chatters 5 times over 5 ms before settling at 12 V.
+* This is a deliberately nasty bounce; real automotive contacts
+* are usually quieter, so if the filter handles this it handles them.
+Vtr swtr 0 PWL(0 0  0.999m 0  1m 12  1.4m 12  1.5m 0  2.1m 0
++ 2.2m 12  2.6m 12  2.7m 0  3.3m 0  3.4m 12  3.8m 12
++ 3.9m 0  4.4m 0  4.5m 12  20m 12)
+R5b swtr ntr 47k
+R6b ntr  0   68k
+C1b ntr  0   220n
+D1b 0    ntr DZ3V0
+
+.control
+dc Vdc 6 40 0.1
+wrdata discrete_input_dc.dat v(ndc)
+
+tran 5u 30m
+wrdata discrete_input_tran.dat v(ntr) v(swtr)
+.endc
+
+.end

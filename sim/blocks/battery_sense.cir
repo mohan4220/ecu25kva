@@ -1,0 +1,32 @@
+* ============================================================
+* Battery voltage sense divider  -- ECU pins 04 / 06
+* ============================================================
+* Scales the 6-40 V battery rail into the MCU's ADC input range.
+*
+* The MCU is an S32K148 running its analog supply at 3.3 V, so the
+* ADC input must never exceed 3.3 V even at the top of the input
+* range. Spec section 4 Group H inherited 75k/10k from an earlier
+* artifact that assumed a 5 V ADC; this file tests both so the
+* difference is visible rather than argued about.
+*
+* Two independent channels exist (pins 04 and 06, one per fused
+* rail). They are identical, so only one is modelled.
+* ============================================================
+
+Vbat bat 0 DC 12
+
+* --- inherited divider, sized for a 5 V ADC: 10/85 ---
+R1 bat old 75k
+R2 old 0  10k
+
+* --- corrected divider, sized for a 3.3 V ADC: 10/130 ---
+R3 bat new 120k
+R4 new 0   10k
+
+.control
+* Sweep the full specified input range: cranking dip to clamped load dump
+dc Vbat 6 40 0.1
+wrdata battery_sense.dat v(old) v(new)
+.endc
+
+.end
