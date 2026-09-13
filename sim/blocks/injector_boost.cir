@@ -1,0 +1,44 @@
+* ============================================================
+* Injector drive -- why the boost converter exists
+* ECU pins 03/05 (high side), 73/07/29 (low side)
+* ============================================================
+* This is the circuit that justifies the most expensive stage on
+* the board, so the justification should be measurable rather
+* than asserted.
+*
+* A common-rail solenoid injector is an inductor with resistance.
+* Current through it cannot change instantly: di/dt = V/L. The
+* needle does not lift until current reaches the peak threshold,
+* so the time spent getting there is time the injector is
+* energised but not injecting -- pure dead time, and it sits in
+* series with every injection event.
+*
+* Injector model, mid-range of the envelope in research memo 04:
+*     L = 200 uH, R = 0.5 ohm, peak threshold 18 A
+*
+* Two drives are compared:
+*     battery   13.5 V  -- what you get with no boost stage
+*     boost    100.0 V  -- the memo 04 envelope, ~65-115 V
+*
+* Both are run open-loop to the point where current reaches 18 A.
+* The ratio between those two times is the entire argument for
+* the boost converter, and at 1500 rpm it has to be set against
+* an injection duration of roughly 1-3 ms.
+* ============================================================
+
+* ---- driven from battery, no boost ----
+Vbat b 0 DC 13.5
+Lb   b  bm 200u
+Rb   bm 0  0.5
+
+* ---- driven from the boost rail ----
+Vbst c 0 DC 100
+Lc   c  cm 200u
+Rc   cm 0  0.5
+
+.control
+tran 100n 800u uic
+wrdata injector_boost.dat i(Vbat) i(Vbst)
+.endc
+
+.end

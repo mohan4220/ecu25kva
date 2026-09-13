@@ -1,0 +1,69 @@
+* ============================================================
+* Group A -- ratiometric sensor front-end
+* ECU pins 41 (boost P), 35 (rail P), 80 (oil P), 37 (EGR pos)
+* ============================================================
+* These sensors are 0.5-4.5 V ratiometric: their output is a
+* fraction of their own 5 V supply, so the reading means nothing
+* unless the ADC reference tracks that same supply. The divider
+* below scales the 5 V sensor span into the MCU's 3.3 V ADC.
+*
+* Three jobs:
+*   1. scale 0.5-4.5 V down to fit a 3.3 V ADC
+*   2. low-pass, above the sensor's own mechanical bandwidth
+*      (~100 Hz) but below the switching noise the board makes
+*   3. limit fault current and clamp if the harness shorts the
+*      input to battery
+*
+* R1 is the fault-current limiter. R1/R2 set the scale. C1 sets
+* the corner. D1 clamps to the 3.3 V rail.
+*
+* Scale: 10k/16k gives a ratio of 16/26 = 0.615, so the sensor's
+* 4.5 V full scale maps to 2.77 V and its 0.5 V zero to 0.19 V.
+* Full scale deliberately sits below the 3.3 V clamp rather than
+* hard against the ADC ceiling, so the clamp can protect the pin
+* on a harness fault without ever touching the signal in normal
+* operation. That costs some span -- 78% of the ADC range instead
+* of 83% -- and buys a front-end that cannot be damaged by 40 V
+* on the sensor line.
+* ============================================================
+
+* 3.3 V zener to ground -- clamps below the MCU's 3.6 V absolute maximum.
+* Sits well above the 2.77 V full-scale signal, so it never loads the
+* sensor's own range; it only conducts on a harness fault.
+.model DZ3V3 D(Is=1e-14 N=1 Rs=5 BV=3.3 IBV=5e-3)
+
+* ---- network A: DC transfer over the sensor's output span ----
+Vsens sa 0 DC 2.5
+R1a sa  na 10k
+R2a na  0  16k
+C1a na  0  22n
+D1a 0   na DZ3V3
+
+* ---- network B: AC response, same network ----
+Vac sb 0 DC 2.5 AC 1
+R1b sb  nb 10k
+R2b nb  0  16k
+C1b nb  0  22n
+D1b 0   nb DZ3V3
+
+* ---- network C: harness short to battery, worst-case fault ----
+* 40 V appears on the sensor line. R1 must limit clamp current and
+* the ADC pin must stay inside its absolute maximum.
+Vflt sc 0 DC 40
+R1c sc  nc 10k
+R2c nc  0  16k
+C1c nc  0  22n
+D1c 0   nc DZ3V3
+
+.control
+dc Vsens 0.5 4.5 0.01
+wrdata sensor_ratio_dc.dat v(na)
+
+ac dec 200 1 1meg
+wrdata sensor_ratio_ac.dat vdb(nb)
+
+op
+wrdata sensor_ratio_fault.dat v(nc) i(Vflt)
+.endc
+
+.end

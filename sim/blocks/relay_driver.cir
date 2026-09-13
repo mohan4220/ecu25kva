@@ -1,0 +1,67 @@
+* ============================================================
+* Relay driver -- ECU pins 50 (main relay), 69 (buzzer relay)
+* ============================================================
+* Low-side N-FET switching a relay coil, with a flyback diode.
+*
+* The flyback diode is the whole point. A relay coil is an
+* inductor; interrupting its current generates V = -L*di/dt
+* across it, and with a fast FET turn-off that spike reaches
+* hundreds of volts -- far past the FET's drain-source rating.
+* The diode gives the collapsing field a path to circulate in.
+*
+* This netlist runs the same coil twice, with and without the
+* diode, so the spike is visible as a number rather than a
+* warning in a datasheet.
+*
+* Coil model: a typical automotive 12 V relay, ~160 ohm, 1.2 H,
+* drawing ~85 mA.
+* ============================================================
+
+.model DFLY  D(Is=1e-14 N=1 Rs=0.05 BV=600 IBV=1e-6)
+.model NSW   SW(Ron=0.05 Roff=1e9 Vt=2.5 Vh=0.2)
+
+Vbat  bat 0 DC 13.5
+
+* Gate drive: on at 1 ms, off at 6 ms
+Vg g 0 PWL(0 0  0.999m 0  1m 5  6m 5  6.0001m 0  12m 0)
+
+* ---- with flyback diode ----
+L1  bat da 1.2
+R1  da  db 160
+S1  db  0  g 0 NSW
+D1  db  bat DFLY
+
+* ---- without flyback diode, for comparison ----
+* A 10 Meg resistor stands in for the leakage that would otherwise
+* leave this node floating; without it the node has no DC path and
+* the simulation cannot find an operating point.
+L2  bat ea 1.2
+R2  ea  eb 160
+S2  eb  0  g 0 NSW
+Rleak eb 0 10meg
+
+.control
+tran 1u 12m uic
+wrdata relay_driver.dat v(db) v(eb)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- read the "without diode" number carefully
+* ------------------------------------------------------------
+* The simulated peak without the flyback diode is absurd (hundreds
+* of kV). That is the ideal-switch model being taken literally: a
+* perfect switch opening instantly across an inductor implies an
+* unbounded voltage.
+*
+* A real MOSFET does not reach that. It avalanches at its
+* drain-source breakdown (typically 40-100 V for a part in this
+* role) and dissipates the coil's stored energy as heat in the
+* die -- repeatedly, once per relay operation, until it fails.
+*
+* So the honest reading is not "402 kV" but "the coil's energy has
+* nowhere to go except through the FET." The diode's job is to
+* give it somewhere else. The magnitude is a model artifact; the
+* conclusion is not.
+* ------------------------------------------------------------

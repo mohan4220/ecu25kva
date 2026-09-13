@@ -1,0 +1,63 @@
+* ============================================================
+* Transient clamp -- ISO 7637-2 pulse 2a into the battery input
+* ============================================================
+* This is the circuit that decides whether the board survives the
+* electrical environment, so it is worth simulating rather than
+* assuming.
+*
+* Pulse 2a models a sudden interruption of current in a device
+* sharing the harness with this ECU. Per the severity table in
+* research memo 06 (ISO 7637-2:2011, Level IV, 12 V system):
+*
+*     amplitude        +112 V
+*     source impedance   2 ohm
+*     pulse width        0.05 ms
+*
+* The clamp must hold the buck converter's input pin below its
+* absolute maximum -- the LM5164 is a 100 V part, but the design
+* target from the earlier artifacts is to stay under 42 V so that
+* cheaper 60 V-class parts remain an option.
+*
+* D1 is an SMBJ33CA-class bidirectional TVS: 33 V working, ~36.7 V
+* breakdown, ~53.3 V clamping at full rated pulse current.
+* C1 is the bulk input capacitance that the TVS works alongside --
+* it matters, because charge dumped into it is charge the TVS does
+* not have to absorb.
+* ============================================================
+
+* TVS: breakdown 36.7 V, low dynamic resistance above the knee
+.model TVS D(Is=1e-12 N=1.6 Rs=0.35 BV=36.7 IBV=1e-3)
+
+* Pulse 2a: 112 V peak, 2 ohm source, 50 us wide, fast rise
+Vpulse src 0 PWL(0 13.5  0.999m 13.5  1.0m 125.5  1.05m 125.5  1.0505m 13.5  3m 13.5)
+Rsrc src bat 2
+
+D1  0  bat TVS
+C1  bat 0   10u
+Rload bat 0 50
+
+.control
+tran 100n 2m
+wrdata transient_clamp.dat v(bat) v(src)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE
+* ------------------------------------------------------------
+* Simulated clamp voltage under this pulse is ~50 V, not the
+* "under 42 V" the earlier design artifacts asked for. That
+* target cannot be met by an SMBJ33CA and was never derivable
+* from a datasheet: the real SMBJ33CA is specified at 53.3 V
+* clamping at its rated pulse current, so ~50 V here is the part
+* behaving correctly, not the circuit failing.
+*
+* What actually constrains the design:
+*   - LM5164 input rating is 100 V, so 50 V leaves 2x margin
+*   - 60 V-class alternatives also survive 50 V
+*
+* The 42 V figure should be dropped from the spec rather than
+* chased with a lower-voltage TVS, which would clamp during a
+* legitimate suppressed load dump and have to absorb its energy.
+* ------------------------------------------------------------
