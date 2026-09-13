@@ -1,0 +1,177 @@
+/* ============================================================
+   Print stylesheet -- shared by every PDF this repo builds.
+   ============================================================
+   Two jobs, kept separate on purpose:
+
+   PART A  styles the pages generated from Markdown (the research
+           memos, the spec, the plan). Everything is scoped under
+           .doc so it cannot touch the hand-written handbook.
+
+   PART B  is the paging layer: page size, margins, and the break
+           rules. It applies to every document, hand-written or
+           generated, which is why those two documents' section
+           structure had to agree -- both use <section id="...">.
+
+   It is injected as an inline <style> rather than linked, so a
+   temporary copy of a page in any directory still renders the
+   same. See build_pdf.py.
+   ============================================================ */
+
+:root{
+  --paper:#f4f5f3; --surface:#ffffff; --surface-2:#eceeea; --surface-3:#e2e5e0;
+  --rule:#d2d6cf; --rule-firm:#b4bab1;
+  --ink:#171b1e; --ink-2:#4c5560; --ink-3:#7c8590;
+  --petrol:#1f5566; --petrol-2:#2e7f96; --petrol-wash:#e3edef;
+  --pass:#2f7d4f; --pass-wash:#e2f0e7;
+  --fail:#b8332a; --fail-wash:#f7e6e4;
+  --warn:#9a6410; --warn-wash:#f6eddc;
+  --f-disp:'Archivo',system-ui,sans-serif;
+  --f-body:'Source Serif 4',Georgia,serif;
+  --f-mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+}
+
+/* ============================================================
+   PART A -- Markdown-generated documents
+   ============================================================ */
+
+.doc{
+  font-family:var(--f-body); color:var(--ink);
+  font-size:10.5pt; line-height:1.55;
+  max-width:none;
+}
+
+/* Running measure. Tables and code are allowed past it (Part B). */
+.doc p, .doc li, .doc blockquote{max-width:34em}
+
+.doc h1,.doc h2,.doc h3,.doc h4{
+  font-family:var(--f-disp); color:var(--ink);
+  line-height:1.16; text-wrap:balance; margin:0;
+}
+.doc h1{font-size:25pt;font-weight:700;letter-spacing:-.02em;margin-bottom:6pt}
+.doc h2{font-size:15pt;font-weight:700;letter-spacing:-.01em;
+  margin:0 0 8pt;padding-bottom:4pt;border-bottom:1.5pt solid var(--ink)}
+.doc h3{font-size:12pt;font-weight:600;margin:16pt 0 5pt;color:var(--petrol)}
+.doc h4{font-size:10.5pt;font-weight:600;margin:12pt 0 4pt;
+  font-family:var(--f-mono);letter-spacing:.02em}
+
+.doc p{margin:0 0 .85em}
+.doc ul,.doc ol{margin:0 0 .9em;padding-left:1.4em}
+.doc li{margin-bottom:.3em}
+.doc li > ul,.doc li > ol{margin-top:.3em}
+
+.doc strong{font-weight:600}
+.doc code{font-family:var(--f-mono);font-size:.86em;
+  background:var(--surface-2);padding:.1em .35em;border-radius:2pt}
+.doc pre{background:var(--surface-2);border-left:2.5pt solid var(--rule-firm);
+  padding:7pt 10pt;margin:0 0 1em;overflow-x:auto;border-radius:0 2pt 2pt 0}
+.doc pre code{background:none;padding:0;font-size:8.6pt;line-height:1.45}
+
+.doc blockquote{margin:0 0 1em;padding:6pt 12pt;
+  border-left:2.5pt solid var(--petrol);background:var(--petrol-wash);
+  color:var(--ink-2)}
+.doc blockquote p:last-child{margin-bottom:0}
+
+.doc table{border-collapse:collapse;width:100%;margin:0 0 1.1em;
+  font-size:9pt;font-variant-numeric:tabular-nums}
+.doc th,.doc td{border:.6pt solid var(--rule-firm);
+  padding:3.5pt 6pt;text-align:left;vertical-align:top}
+.doc th{background:var(--surface-3);font-family:var(--f-disp);
+  font-weight:600;font-size:8.4pt;letter-spacing:.02em}
+.doc tbody tr:nth-child(even){background:var(--surface-2)}
+
+.doc hr{border:0;border-top:.6pt solid var(--rule-firm);margin:1.4em 0}
+/* The memos cite sources as bare URLs, some of them very long. Without
+   this a single citation sets the minimum line length for its paragraph
+   and shreds the rag down the whole block. */
+.doc a,.doc code{overflow-wrap:anywhere}
+.doc a{color:var(--petrol);text-decoration:none;border-bottom:.5pt solid var(--rule)}
+.doc del{color:var(--ink-3)}
+
+/* The research memos and the inspection brief are checklists. Give the
+   boxes real presence -- these are printed and ticked with a pen. */
+.doc li input[type="checkbox"]{
+  appearance:none;-webkit-appearance:none;
+  width:9pt;height:9pt;border:.9pt solid var(--ink-2);
+  margin:0 5pt 0 -1.25em;vertical-align:-.5pt;border-radius:1pt}
+
+/* Standfirst: the lead paragraph every memo opens with, carrying the task,
+   the date and the engine context. Selected off .docmeta rather than
+   :first-of-type, because .docmeta is itself the first paragraph. */
+.doc .docmeta + p{font-size:11.5pt;color:var(--ink-2);line-height:1.5}
+
+.doc .docmeta{font-family:var(--f-mono);font-size:8pt;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--petrol);
+  margin:0 0 10pt;max-width:none}
+
+/* ------------------------------------------------------------
+   Cover page
+   ------------------------------------------------------------ */
+.cover{height:247mm;display:flex;flex-direction:column;
+  justify-content:space-between;font-family:var(--f-disp)}
+.cover .top{border-bottom:2.5pt solid var(--ink);padding-bottom:10pt}
+.cover .eyebrow{font-family:var(--f-mono);font-size:9pt;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--petrol);margin:0 0 14pt}
+.cover h1{font-size:46pt;font-weight:700;letter-spacing:-.025em;
+  line-height:1.02;margin:0 0 12pt;max-width:14ch}
+.cover .sub{font-family:var(--f-body);font-size:13pt;color:var(--ink-2);
+  max-width:30em;margin:0 0 6pt}
+.cover .mid{font-family:var(--f-body);font-size:10.5pt;color:var(--ink-2);
+  max-width:34em}
+.cover .contents{border-top:.8pt solid var(--rule-firm);padding-top:10pt}
+.cover .contents h2{font-family:var(--f-mono);font-size:8.5pt;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--petrol);
+  margin:0 0 8pt;border:0;padding:0}
+.cover ol{margin:0;padding-left:1.6em;font-size:10pt;column-count:2;
+  column-gap:26pt;font-family:var(--f-body)}
+.cover li{margin-bottom:3pt;break-inside:avoid}
+.cover .foot{font-family:var(--f-mono);font-size:8pt;color:var(--ink-3);
+  border-top:.8pt solid var(--rule-firm);padding-top:8pt;
+  display:flex;justify-content:space-between;gap:16pt}
+
+/* ============================================================
+   PART B -- paging, applied to every document
+   ============================================================ */
+
+@page{size:A4;margin:16mm 14mm 15mm}
+
+@media print{
+  /* Washes, table zebra stripes and the wire-colour classes all carry
+     meaning here -- the Kirloskar diagram's legend is colour-coded, so
+     dropping background colour would drop information. */
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+  body{background:#fff;font-size:10.5pt}
+
+  /* The handbook is built for a 1080px screen column; on A4 the page
+     margin is the gutter, so its wrapper stops constraining width. */
+  .wrap{max-width:none;padding-inline:0;padding-block:0}
+  .col{max-width:34em}
+
+  /* One section per page. Both documents mark their major divisions
+     with <section id="...">, which is what makes this work. */
+  section{break-before:page}
+  section:first-of-type{break-before:auto}
+
+  /* A heading stranded at the foot of a page is the commonest print
+     defect; these three rules prevent nearly all of them. */
+  h1,h2,h3,h4{break-after:avoid}
+  p,li,blockquote{orphans:3;widows:3}
+
+  /* Things that are unreadable when split. Each is comfortably under a
+     page, so avoiding the break cannot strand a blank one. */
+  .blk,.sch,.sensor,.note,.res,figure,pre,svg,dl{break-inside:avoid}
+  tr,th,td{break-inside:avoid}
+  table{break-inside:auto}
+  thead{display:table-header-group}
+
+  /* Schematics are drawn at screen scale; hold them to the text column
+     so a wide one cannot force a horizontal overflow. */
+  svg{max-width:100%;height:auto}
+
+  /* Cross-document links resolve to nothing inside a PDF. Keep the text,
+     drop the affordance that suggests it is clickable. */
+  a{text-decoration:none}
+  .doc a{border-bottom:0}
+
+  .cover{break-after:page}
+}
