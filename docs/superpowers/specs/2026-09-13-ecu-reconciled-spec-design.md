@@ -215,14 +215,39 @@ Design Brief §03 specifies MPC5744P while its own §02 block diagram and §06 s
 still say S32K148 and FTM.
 
 The argument for MPC5744P was angle-synchronous injection timing needing the eTPU2.
-That argument is much weaker here than in an automotive application, for one reason:
 
-**A genset runs at constant speed.** This set governs to 1500 rpm for 50 Hz. It is not
-an automotive engine sweeping 800–6000 rpm with transient-dominated timing demands.
-At 1500 rpm a crank degree is 111 µs; a 60-tooth wheel gives an edge every 667 µs.
-A Cortex-M4F at 112 MHz with FlexTimer input capture and a software angle clock has
-several orders of magnitude of headroom on that. Aftermarket ECUs do considerably
-harder timing on considerably smaller parts.
+> **Corrected 2026-09-13** after research memo 05 challenged the original reasoning and
+> was right to. This section first argued that constant 1500 rpm operation relaxes the
+> timing problem because a crank degree is 111 µs and a 60-tooth wheel gives an edge
+> every 667 µs. That checks the wrong variable. Crank-edge *capture* rate was never the
+> binding constraint in either case — at 6000 rpm a 60-tooth wheel still only produces
+> an edge every 28 µs, which is over 2000 CPU cycles at 80 MHz against an NVIC latency
+> of roughly 12. The comparison was never close, so constant speed cannot be what makes
+> it comfortable. The reasoning below replaces it.
+
+**What the eTPU2 actually buys.** It is a co-processor that autonomously schedules and
+re-schedules many angle-domain output-compare events across a wide and *rapidly changing*
+speed range, without consuming the main CPU's interrupt budget and without the core's
+scheduling jitter — cache effects, higher-priority ISRs, RTOS latency — reaching the
+injection timing chain. That matters when rpm sweeps 800–6000 with tight transient
+response and pilot/main/post multi-pulse strategies all landing within microseconds of a
+moving target angle.
+
+**Why we don't need it.** This set governs to a fixed 1500 rpm, and the pin map in §4
+shows a single main injection pulse per cylinder per cycle — one bank high-side plus one
+low-side select, with no multi-pulse rate shaping in scope. The constraint that does bind
+is **injector pulse-width resolution**, which sets fuel-quantity metering accuracy and is
+independent of crank speed. FlexTimer output-compare runs off the bus clock: one tick is
+12.5 ns at 80 MHz, 8.9 ns at 112 MHz HSRUN. Against a single-pulse metering requirement
+on the order of 1–4 µs, that is roughly 100–450× headroom.
+
+The S32K148 also carries 2× Programmable Delay Blocks, which trigger ADC conversions or
+timer events at a defined delay from a capture event in hardware. That recovers part of
+what the eTPU2 offers — jitter isolation on the timing chain — without the eTPU2.
+
+**Caveat carried forward:** the 1–4 µs resolution figure is a general diesel-injector
+engineering figure, not this injector's datasheet. Revisit if U5 closes with a part
+demanding materially finer control, or if multi-pulse injection ever enters scope.
 
 What the S32K148 buys in exchange:
 
@@ -237,9 +262,15 @@ What the S32K148 buys in exchange:
   2 EGR bridge PWM)
 - No eTPU2 microcode, which is a specialist skill and a hiring risk on a small team
 
-**Confirm in Phase 1** against actual distributor stock and the final channel count.
-If the S32K148 cannot be sourced, the fallback is S32K146 (same family, fewer pins) —
-not a jump to Power Architecture.
+**Confirmed in Phase 1** — see [`docs/research/05-mcu-selection.md`](../../research/05-mcu-selection.md).
+Orderable part **FS32K148HAT0MLQT**, 144-pin LQFP, 80 MHz RUN / 112 MHz HSRUN grade,
+−40…+125 °C. In stock at DigiKey India at roughly ₹1,900–2,000/unit. The S32K146
+fallback was checked and is in worse supply shape (backordered, 12–52 week spread), so
+it is not needed.
+
+Two items deferred to Phase 2: confirming how many ADC channels the 144-pin package
+actually breaks out (needs the reference manual's pin-mux table, not the datasheet), and
+pad-by-pad verification of the SOT486-2 package drawing before the footprint is locked.
 
 ---
 
