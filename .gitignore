@@ -5,3 +5,5 @@ fp-info-cache
 .superpowers/
 .venv/
 *.dat
+__pycache__/
+*.pyc
