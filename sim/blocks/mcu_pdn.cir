@@ -1,0 +1,111 @@
+* ============================================================
+* 3V3_MCU power distribution network -- decoupling impedance
+* Power chain stages 6 and 7, spec section 6
+* ============================================================
+* The S32K148 runs to 112 MHz in HSRUN. Every time its core
+* switches, it demands current faster than the regulator can
+* respond, and the decoupling network is what supplies it in the
+* meantime. The design question is not "how much capacitance"
+* but "what impedance, at which frequency".
+*
+* Target impedance is the honest way to state it:
+*     Z_target = allowed ripple / transient current step
+* Allow 50 mV on a 3.3 V rail (about 1.5%) against a 0.5 A step,
+* and the network has to stay under 100 mOhm everywhere the MCU
+* can excite it.
+*
+* This is an AC analysis driven by a 1 A current source, so the
+* voltage at the node reads directly as impedance in ohms.
+*
+* Three contributors, each dominant over its own decade:
+*   LDO      low impedance at DC, rising with frequency once it
+*            runs out of loop gain -- modelled as R + L. 0.15 uH
+*            corresponds to about 1 ohm at 1 MHz, typical for a
+*            small LDO once its loop has run out.
+*   bulk     47 uF, ESR 50 mOhm, ESL 2 nH
+*   ceramic  10 x 100 nF placed at the pins: 1 uF total,
+*            ESR 30/10 = 3 mOhm, ESL 0.8/10 = 0.08 nH
+*
+* Paralleling ten small capacitors instead of fitting one 1 uF
+* part is the entire trick: capacitance adds, but ESR and ESL
+* DIVIDE. The inductance is what the MCU actually feels at
+* hundreds of MHz, and it is set by how many packages and vias
+* share the current, not by the capacitance printed on them.
+*
+* THE BULK CAPACITOR IS SIZED BY A RESONANCE, NOT BY CHARGE.
+* The first version of this block used 10 uF with 20 mOhm ESR and
+* peaked at 3.4 ohms around 48 kHz -- thirty times the target, and
+* nowhere near the bulk/ceramic anti-resonance it was sized for.
+* That peak is the regulator's own output inductance resonating
+* with the bulk capacitance, and the two things that fix it are
+* MORE bulk capacitance (moving the resonance down) and MORE bulk
+* ESR (damping it). 47 uF at 50 mOhm does both, which is why a
+* plain aluminium or tantalum part beats a ceramic here. Fitting
+* a low-ESR ceramic as the bulk would make this worse.
+* ============================================================
+
+Iac n 0 AC 1
+
+* ---- LDO: flat to its loop bandwidth, inductive above ----
+Rldo n l1 0.01
+Lldo l1 0 0.15u
+
+* ---- bulk capacitor ----
+Cb  n  b1 47u
+Rb  b1 b2 50m
+Lb  b2 0  2n
+
+* ---- ten ceramics in parallel, lumped ----
+Cc  n  c1 1u
+Rc  c1 c2 3m
+Lc  c2 0  0.08n
+
+* ---- comparison: the same 1 uF as ONE package ----
+* Same capacitance, one part's worth of ESR and ESL. This branch
+* is on its own node so it can be plotted against the ten-part
+* network and the difference attributed to the parasitics alone.
+Iac2 m 0 AC 1
+Rldo2 m m1 0.01
+Lldo2 m1 0 0.15u
+Cb2  m  p1 47u
+Rb2  p1 p2 50m
+Lb2  p2 0  2n
+Cs   m  s1 1u
+Rs   s1 s2 30m
+Ls   s2 0  0.8n
+
+.control
+ac dec 100 1k 100meg
+wrdata mcu_pdn.dat vm(n) vm(m)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- what a lumped PDN model leaves out
+* ------------------------------------------------------------
+* This is a lumped model. It has no planes, no via inductance and
+* no spreading inductance, so it is optimistic above roughly
+* 100 MHz where those dominate and where the capacitors have
+* stopped being capacitors.
+*
+* What it is good for is the decade either side of the
+* anti-resonance between the bulk and ceramic banks -- the peak
+* in the plotted impedance. That peak is real, it is where a PDN
+* actually fails, and its height is set by the ESRs, which this
+* model does have. Damping it is what the bulk capacitor's ESR is
+* FOR; a very low-ESR bulk part makes this peak worse, not better,
+* which is the counter-intuitive result worth carrying into
+* layout.
+*
+* Plane capacitance and via inductance are a post-layout question
+* for a field solver, not for SPICE.
+*
+* The sweep therefore STOPS at 100 MHz, and that limit is load
+* bearing rather than cosmetic. An earlier version swept to 1 GHz
+* and the checks dutifully reported a 483 mOhm "peak" -- which was
+* not a resonance at all, just ESL*omega at the last point of the
+* sweep, read out of a model that stopped being true a decade
+* earlier. A check that reads a model outside its validity will
+* always find something, and it will always be wrong.
+* ------------------------------------------------------------

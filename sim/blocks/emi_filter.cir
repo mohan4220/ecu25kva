@@ -1,0 +1,107 @@
+* ============================================================
+* EMI input filter -- CISPR 25 conducted emissions
+* Power chain stage 1, spec section 6
+* ============================================================
+* The buck stage switches 400 kHz of square-edged current out of
+* the battery line. CISPR 25's conducted-emissions measurement
+* starts at 150 kHz and runs to 108 MHz, and research memo 06
+* puts this project at Class 5 -- the strictest class, 18 dBuV
+* average in the FM band.
+*
+* The switching current has to be kept inside the box. This
+* filter is what does it, and this block measures how well.
+*
+* Measurement setup follows the standard's voltage method: a
+* 50 ohm source and a 50 ohm load, which is what the LISN
+* presents. With Vs = 1 V AC and both 50 ohm, the unfiltered
+* reference at the load is exactly 0.5 V, so insertion loss is
+*     IL(dB) = 20*log10( v(out) / 0.5 )
+* and comes out negative. The checks compare against that
+* reference rather than against 1 V, which would report a
+* free 6 dB the filter did not earn.
+*
+* Two stages, because one is not enough and the reason is
+* instructive:
+*
+*   stage 1   L1 22 uH series, C1 4.7 uF shunt
+*             Handles the fundamental and low harmonics. C1's own
+*             ESL of ~1.5 nH puts its self-resonance near 1.9 MHz,
+*             and ABOVE that frequency C1 is an inductor. A large
+*             electrolytic or X7R bulk part stops filtering long
+*             before the FM band the standard cares most about.
+*
+*   stage 2   lossy ferrite + C2 100 nF
+*             Picks up where C1 gives out. The ferrite is modelled
+*             as 0.5 uH in parallel with 120 ohm -- that parallel
+*             resistance is the point of a ferrite as opposed to
+*             an inductor: it DISSIPATES the high-frequency energy
+*             instead of storing it and ringing with the next
+*             capacitor along.
+*
+*   damper    Rd + Cd across C2. Needed, and the netlist without it
+*             showed why: the ferrite's 0.5 uH and C2's 100 nF form
+*             a tank at 712 kHz, and undamped it clawed back 12 dB
+*             of attenuation right there -- the worst point in the
+*             whole band sat on top of the switching fundamental's
+*             second harmonic. The tank's characteristic impedance
+*             is sqrt(L/C) = 2.24 ohms, so a 2.2 ohm damper in
+*             series with a capacitor big enough to be invisible at
+*             that frequency brings Q to about 1. Cd is 10x C2 so
+*             the damper looks resistive across the whole peak.
+* ============================================================
+
+Vs  s 0 AC 1
+Rs  s a 50
+
+* ---- stage 1 ----
+L1  a b 22u
+C1  b c1 4.7u
+Rc1 c1 c2 5m
+Lc1 c2 0  1.5n
+
+* ---- stage 2: lossy ferrite bead ----
+Lf  b d 0.5u
+Rf  b d 120
+
+C2  d e1 100n
+Rc2 e1 e2 20m
+Lc2 e2 0  0.5n
+
+* Damping branch -- see the header. Cd is large enough that this
+* branch is essentially 2.2 ohms resistive across the resonance.
+Cd  d dp 1u
+Rd  dp 0 2.2
+
+Rl  d 0 50
+
+* ---- reference network: no filter, same 50/50 ----
+Vs2 s2 0 AC 1
+Rs2 s2 r 50
+Rl2 r  0 50
+
+.control
+ac dec 200 10k 200meg
+wrdata emi_filter.dat vdb(d) vdb(r)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- differential mode only
+* ------------------------------------------------------------
+* This models DIFFERENTIAL-mode attenuation: noise between
+* battery positive and return. Real automotive conducted-emissions
+* failures are frequently COMMON mode -- both wires swinging
+* together against the chassis -- and a differential filter does
+* essentially nothing for that.
+*
+* Common mode is what the common-mode choke in spec section 6 is
+* for, and it cannot be modelled honestly as a two-terminal part:
+* it needs a coupled-inductor model and a defined chassis return
+* path, which is a layout property this board does not have yet.
+*
+* So: this block sizes the differential stage. The common-mode
+* choke stays a specification, not a simulated result, until
+* there is a layout to model it against. Recorded rather than
+* quietly omitted.
+* ------------------------------------------------------------

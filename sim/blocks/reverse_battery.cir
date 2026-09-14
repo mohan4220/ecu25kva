@@ -1,0 +1,89 @@
+* ============================================================
+* Reverse-battery protection -- ideal diode vs Schottky
+* Power chain stage 2, spec section 6
+* ============================================================
+* A genset battery gets jump-started by whoever is on site, and
+* sooner or later someone reverses the clamps. Every ECU in this
+* class has to survive that, and the only question is what it
+* costs when the battery is the right way round.
+*
+* The obvious answer is a series Schottky. It works, and you pay
+* for it on every single amp, forever. The ideal-diode controller
+* answer is a P-FET held on by a controller that watches the
+* polarity; the price is a controller IC, and the drop becomes
+* Ron * I instead of a junction drop.
+*
+* This netlist puts both in the same simulation so the trade is a
+* number rather than an opinion.
+*
+* Schottky model: a 5 A / 45 V part, roughly 0.46 V at 3 A.
+* FET: 8 mOhm Ron, mid-range for a 40 V P-channel in a footprint
+* this board can afford.
+*
+* The controller is modelled as a voltage-controlled switch that
+* closes on positive input polarity. That is exactly what the
+* controller does, minus its turn-off delay -- which matters for
+* reverse transients but not for the steady-state drop this
+* block is about. See the RESULT NOTE.
+* ============================================================
+
+.model SCH  D(Is=1e-6 N=1.05 Rs=0.02 BV=45 IBV=1e-4)
+.model PSW  SW(Ron=8m Roff=1e9 Vt=0.5 Vh=0.1)
+
+* ---- forward: both paths carrying the same load current ----
+Vbat bat 0 DC 13.5
+
+* path A -- series Schottky
+D1   bat sa SCH
+Vsa  sa  a  0
+Ia   a   0  DC 1
+
+* path B -- ideal-diode controller + P-FET.
+* F mirrors path A's current exactly, so the DC sweep loads both
+* paths identically with one swept source.
+S1   bat b  bat 0 PSW
+Fb   b   0  Vsa 1
+
+* ---- reverse: -14 V applied, both paths must block ----
+Vrev rb 0 DC -14
+
+D2   rb  sc SCH
+Rc   sc  0  1k
+
+S2   rb  rd rb 0 PSW
+Rd   rd  0  1k
+
+.control
+* Sweep the load current across the board's whole range. 5 A is
+* above anything this ECU draws; it is there to show the slope.
+dc Ia 0.1 5 0.05
+let d_sch = v(bat) - v(sa)
+let d_fet = v(bat) - v(b)
+wrdata reverse_battery_fwd.dat d_sch d_fet
+
+* Reverse: sweep the applied voltage rather than a single operating
+* point, so the blocking is shown across the range and not at one
+* convenient value.
+dc Vrev -14 -1 0.5
+wrdata reverse_battery_rev.dat v(sc) v(rd)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- what this block does and does not prove
+* ------------------------------------------------------------
+* Proved here: the steady-state conduction loss of the two
+* topologies, and that both block a reversed battery.
+*
+* NOT proved here: reverse-transient behaviour. A real ideal-diode
+* controller takes a microsecond or so to turn the FET off, and
+* during that window current flows backwards through the FET's
+* body diode and channel. The controller datasheet's turn-off time
+* against the board's input capacitance is what bounds that, and
+* it is a datasheet question, not a SPICE question with this model.
+*
+* The switch model here turns off instantly, so it will always
+* look perfect in reverse. Do not read the reverse numbers as a
+* transient result.
+* ------------------------------------------------------------

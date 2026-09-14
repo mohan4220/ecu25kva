@@ -1,0 +1,107 @@
+* ============================================================
+* Buck pre-regulator -- 6-40 V in, 5 V out
+* Power chain stage 4, spec section 6
+* ============================================================
+* Everything on the board hangs off this stage, and the two
+* components whose values are actually a design decision are the
+* inductor and the output capacitor. This block sizes both by
+* measuring what they do rather than by trusting a formula.
+*
+* Switching at 400 kHz. That choice is itself a constraint from
+* research memo 06: CISPR 25's conducted-emissions band starts at
+* 150 kHz, so a fundamental below it would put the switching
+* harmonics straight into the measured band from the first
+* harmonic upward. 400 kHz puts the fundamental above the band
+* start with margin, and keeps the inductor small.
+*
+* The design is run OPEN LOOP at a fixed duty cycle. A closed
+* loop would settle to 5 V by definition and tell us nothing
+* about the filter; open loop at D = Vout/Vin puts the same 5 V
+* on the output and leaves the ripple visible.
+*
+* Two line conditions, because ripple is worst at high line:
+*     13.5 V nominal  -> D = 0.370
+*     40.0 V clamped  -> D = 0.125   (worst case)
+*
+* At fixed frequency the inductor's ripple current is
+*     dIL = (Vin - Vout) * D * T / L
+* which grows as Vin rises even though D falls. 40 V is the top
+* of the input range the transient clamp guarantees, so that is
+* the case the inductor has to be sized for.
+*
+* L = 33 uH, Cout = 47 uF with 10 mOhm ESR, load 1 A.
+*
+* Both cases start in steady state, via ic= on the inductors and
+* .ic on the outputs. That is deliberate. The output filter's own
+* natural frequency is 1/(2*pi*sqrt(LC)) = 4 kHz with a Q near 6,
+* so started from zero it rings for milliseconds before settling
+* and a 400 us run would measure the ring, not the ripple. Ripple
+* is a steady-state property; start there and measure it directly.
+* ============================================================
+
+.model NSW SW(Ron=25m Roff=1e9 Vt=2.5 Vh=0.2)
+* Body diodes. A real power MOSFET has one and a voltage-controlled
+* switch does not, and the difference is not cosmetic: during the
+* dead time both switches are off, and without a body diode the
+* inductor current has no path at all. The first version of this
+* netlist omitted them and the converter never started -- the
+* inductor was force-reset to zero every cycle through the switch
+* model's 1 GOhm off-resistance, so the output sat at 0.27 V.
+.model DBODY D(Is=1e-12 N=1.05 Rs=10m)
+
+* ---- case A: 13.5 V nominal, D = 0.370, ton = 925 ns ----
+Vin1  in1 0 DC 13.5
+Vg1   g1  0 PULSE(0 5 0     1n 1n 925n  2.5u)
+* Complementary drive with 20 ns of dead time each edge, so the
+* two ideal switches never conduct at once.
+Vg1n  g1n 0 PULSE(0 5 945n  1n 1n 1.515u 2.5u)
+Shi1  in1 sw1 g1  0 NSW
+Slo1  sw1 0   g1n 0 NSW
+Dlo1  0   sw1 DBODY
+Dhi1  sw1 in1 DBODY
+VsL1  sw1 la1 0
+L1    la1 o1  33u ic=1
+C1    o1  e1  47u
+Re1   e1  0   10m
+Rl1   o1  0   5
+
+* ---- case B: 40 V clamped high line, D = 0.125, ton = 312.5 ns ----
+Vin2  in2 0 DC 40
+Vg2   g2  0 PULSE(0 5 0      1n 1n 312.5n 2.5u)
+Vg2n  g2n 0 PULSE(0 5 332.5n 1n 1n 2.1275u 2.5u)
+Shi2  in2 sw2 g2  0 NSW
+Slo2  sw2 0   g2n 0 NSW
+Dlo2  0   sw2 DBODY
+Dhi2  sw2 in2 DBODY
+VsL2  sw2 la2 0
+L2    la2 o2  33u ic=1
+C2    o2  e2  47u
+Re2   e2  0   10m
+Rl2   o2  0   5
+
+* Start both converters in steady state -- see the header.
+.ic v(o1)=5 v(o2)=5
+
+.control
+* 400 us is 160 switching cycles -- long enough for the output to
+* settle so the last cycles show steady-state ripple, not startup.
+tran 20n 400u uic
+wrdata buck_prereg.dat v(o1) i(VsL1) v(o2) i(VsL2)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- the switch model
+* ------------------------------------------------------------
+* The switches here are ideal with a fixed 25 mOhm on-resistance.
+* That is close enough for ripple, which is set by L, C and the
+* duty cycle, not by the switch.
+*
+* It is NOT close enough for efficiency or thermal work: real
+* switching loss comes from the overlap of voltage and current
+* during transitions, gate charge, and the body diode's reverse
+* recovery, none of which this model has. An efficiency number
+* taken from this netlist would be optimistic and meaningless.
+* Use the controller's datasheet curves for that.
+* ------------------------------------------------------------

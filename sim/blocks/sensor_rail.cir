@@ -1,0 +1,78 @@
+* ============================================================
+* 5V_SENSOR distribution -- why each group gets its own PTC
+* Power chain stage 5, spec section 6
+* ============================================================
+* The sensor supply leaves the box on harness wires, runs along an
+* engine, and ends at connectors that get washed, vibrated and
+* occasionally levered off with a screwdriver. A short from a 5 V
+* sensor supply pin to engine ground is not an exotic fault, it is
+* a Tuesday.
+*
+* The question this block answers is what that short does to the
+* OTHER sensors. If one shorted harness takes the rail down, the
+* ECU loses rail pressure, boost, oil pressure and coolant
+* temperature simultaneously -- and a controller that loses every
+* analog input at once cannot tell a wiring fault from an engine
+* falling apart.
+*
+* The OEM pinout already groups sensors by ground return (pin 34
+* boost+coolant, 36 EGR+oil, 08 rail alone). This block is the
+* supply-side counterpart of that grouping: one resettable fuse
+* per group, so a fault is contained to the group that has it.
+*
+* Modelled as three sensor groups on one 5 V rail:
+*     Rsrc     0.1 ohm   regulator output impedance plus trace
+*     PTC      2.0 ohm   cold resistance of a 200 mA hold device
+*     group   100   ohm  roughly 50 mA of sensors per group
+*
+* Network A has the PTCs. Network B is the same rail wired as one
+* common node -- which is what you get if you skip them.
+* ============================================================
+
+V5A  ra 0 DC 5
+Rsa  ra raila 0.1
+* group A -- the faulted one. 10 mOhm is a hard short to ground.
+Rpa  raila aa 2
+Rfa  aa 0 10m
+* groups B and C -- healthy, and the ones we care about
+Rpb  raila ab 2
+Rlb  ab 0 100
+Rpc  raila ac 2
+Rlc  ac 0 100
+
+* ---- network B: no per-group protection ----
+V5B  rb 0 DC 5
+Rsb  rb railb 0.1
+Rqa  railb ba 1m
+Rfb  ba 0 10m
+Rqb  railb bb 1m
+Rlb2 bb 0 100
+Rqc  railb bc 1m
+Rlc2 bc 0 100
+
+.control
+op
+wrdata sensor_rail.dat v(raila) v(ab) v(railb) v(bb) i(V5A)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- the PTC is modelled cold, which understates it
+* ------------------------------------------------------------
+* A polyfuse is a thermal device: it sits at a low resistance
+* until the fault current heats it, then latches into a high
+* resistance until power is removed. This netlist models only the
+* COLD resistance, because that is the worst case for the healthy
+* groups -- it is the instant after the short, before the device
+* has tripped.
+*
+* So the healthy-group voltage computed here is the LOW point.
+* Once the device trips, the faulted branch goes to hundreds of
+* ohms and the healthy groups recover to nearly the full rail.
+*
+* The other half of the design, not modelled here: firmware must
+* notice. A tripped PTC and a dead sensor look identical from the
+* ADC's side, and only the tripped one comes back after a power
+* cycle. That distinction belongs in the fault manager.
+* ------------------------------------------------------------

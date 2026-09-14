@@ -260,6 +260,198 @@ def check_relay_driver():
     return c
 
 
+def check_reverse_battery():
+    c = Checks("reverse_battery -- ideal diode vs Schottky, power chain stage 2")
+    d = sim("reverse_battery", {
+        "reverse_battery_fwd.dat": ["iload", "d_sch", "d_fet"],
+        "reverse_battery_rev.dat": ["vrev", "sch", "fet"],
+    })
+    i, sch, fet = (d["reverse_battery_fwd.dat"][k] for k in ("iload", "d_sch", "d_fet"))
+
+    at3 = lambda v: float(np.interp(3.0, i, v))  # noqa: E731
+    c.that("Schottky drop at 3 A", at3(sch), 0.46, tol=0.06, unit="V")
+    c.that("ideal-diode FET drop at 3 A", at3(fet), 0.024, tol=0.005, unit="V")
+
+    # Spec section 6 asks for under 0.3 V, and the worst case is the top
+    # of the current range, not the typical operating point.
+    c.that("FET drop stays under 0.3 V spec to 5 A", float(fet.max()), 0.3,
+           tol=None, ok=float(fet.max()) < 0.3, unit="V")
+    c.that("  ... Schottky does NOT meet it",
+           f"{float(sch.max()):.2f} V at 5 A -- fails the 0.3 V spec", None,
+           ok=float(sch.max()) > 0.3)
+
+    # The number that pays for the controller IC: heat that never happens.
+    c.that("power burnt in the Schottky at 3 A", at3(sch) * 3, 1.38, tol=0.2, unit="W")
+    c.that("  ... and in the FET instead", at3(fet) * 3, 0.072, tol=0.02, unit="W")
+
+    # Reverse: neither path may pass appreciable current backwards.
+    rsch = d["reverse_battery_rev.dat"]["sch"]
+    rfet = d["reverse_battery_rev.dat"]["fet"]
+    c.that("Schottky blocks -14 V (leak into 1k)", abs(float(rsch.min())) * 1e3,
+           1.0, tol=None, ok=abs(float(rsch.min())) < 0.05, unit="mV")
+    c.that("ideal-diode FET blocks -14 V", abs(float(rfet.min())) * 1e3,
+           0.0, tol=None, ok=abs(float(rfet.min())) < 0.05, unit="mV")
+    return c
+
+
+def check_buck_preregulator():
+    c = Checks("buck_preregulator -- 6-40 V to 5 V, 400 kHz, power chain stage 4")
+    d = sim("buck_preregulator", {
+        "buck_prereg.dat": ["time", "vo1", "il1", "vo2", "il2"],
+    })["buck_prereg.dat"]
+    t = d["time"]
+
+    # Only the settled tail is steady state; the first cycles are startup.
+    tail = t > 380e-6
+    vo1, il1 = d["vo1"][tail], np.abs(d["il1"][tail])
+    vo2, il2 = d["vo2"][tail], np.abs(d["il2"][tail])
+
+    c.that("output at 13.5 V in (open loop, D=0.370)", float(vo1.mean()), 5.0,
+           tol=0.15, unit="V")
+    c.that("output at 40 V in (open loop, D=0.125)", float(vo2.mean()), 5.0,
+           tol=0.15, unit="V")
+
+    # Inductor ripple sets the core loss and the peak current the switch
+    # sees. Convention is to keep it under ~40% of full load.
+    rip1 = float(il1.max() - il1.min())
+    rip2 = float(il2.max() - il2.min())
+    c.that("inductor ripple at 13.5 V", rip1, 0.238, tol=0.06, unit="A")
+    c.that("inductor ripple at 40 V", rip2, 0.331, tol=0.07, unit="A")
+    c.that("  ... worst case is HIGH line, not low", rip2 / rip1, 1.39, tol=None,
+           ok=rip2 > rip1, unit="x")
+    c.that("worst-case ripple as fraction of 1 A load", rip2 * 100, 40.0,
+           tol=None, ok=rip2 < 0.4, unit="%")
+
+    # Output ripple is what the analog front-ends and the MCU rail inherit.
+    vr1 = float(vo1.max() - vo1.min())
+    vr2 = float(vo2.max() - vo2.min())
+    c.that("output ripple at 13.5 V", vr1 * 1e3, 50.0, tol=None,
+           ok=vr1 < 50e-3, unit="mV")
+    c.that("output ripple at 40 V", vr2 * 1e3, 50.0, tol=None,
+           ok=vr2 < 50e-3, unit="mV")
+    return c
+
+
+def check_sensor_rail():
+    c = Checks("sensor_rail -- 5V_SENSOR, one PTC per sensor group")
+    d = sim("sensor_rail", {
+        "sensor_rail.dat": ["sweep", "raila", "ab", "railb", "bb", "isrc"],
+    })["sensor_rail.dat"]
+    raila, ab = float(d["raila"][0]), float(d["ab"][0])
+    railb, bb = float(d["railb"][0]), float(d["bb"][0])
+
+    # With per-group protection, one shorted harness must leave the other
+    # groups usable. A ratiometric sensor needs its supply within a few
+    # percent to mean anything, so 4.5 V is the floor worth defending.
+    c.that("healthy group with PTCs, group A shorted", ab, 4.5, tol=None,
+           ok=ab > 4.5, unit="V")
+    c.that("  ... rail itself holds up", raila, 4.5, tol=None, ok=raila > 4.5,
+           unit="V")
+
+    # Without them, the same fault takes every sensor on the engine.
+    c.that("healthy group WITHOUT PTCs, same fault", bb, 1.0, tol=None,
+           ok=bb < 1.0, unit="V")
+    c.that("  ... so one harness short blinds the whole ECU",
+           f"{bb:.2f} V -- every analog channel lost at once", None, ok=bb < 1.0)
+
+    c.that("protection improves the healthy group by", ab / max(bb, 1e-6), 5.0,
+           tol=None, ok=ab / max(bb, 1e-6) > 5, unit="x")
+
+    # And the fault current must be something a polyfuse can actually trip on.
+    ifault = abs(float(d["isrc"][0]))
+    c.that("fault current drawn from the 5 V rail", ifault, 3.0, tol=None,
+           ok=0.3 < ifault < 3.0, unit="A")
+    return c
+
+
+def check_mcu_pdn():
+    c = Checks("mcu_pdn -- 3V3_MCU decoupling impedance, 100 mOhm target")
+    d = sim("mcu_pdn", {"mcu_pdn.dat": ["frequency", "z10", "z1"]})["mcu_pdn.dat"]
+    f, z10, z1 = d["frequency"], d["z10"], d["z1"]
+
+    # Driven by 1 A, so node voltage reads directly as ohms. The sweep stops
+    # at 100 MHz because that is where the lumped model stops being true --
+    # see the netlist's RESULT NOTE.
+    peak = float(z10.max())
+    fpeak = float(f[int(np.argmax(z10))])
+    c.that("peak impedance, 1 kHz to 100 MHz", peak * 1e3, 100.0, tol=None,
+           ok=peak < 0.1, unit="mOhm")
+
+    # Where the peak sits is the design insight: it is the regulator's own
+    # output inductance against the bulk capacitance, not the bulk/ceramic
+    # anti-resonance a decoupling discussion usually starts from.
+    c.that("  ... and it sits at", fpeak / 1e3, 60.0, tol=25, unit="kHz")
+    c.that("  ... i.e. regulator L against bulk C, not bulk against ceramic",
+           f"{fpeak/1e3:.0f} kHz -- decades below the ceramics", None,
+           ok=fpeak < 500e3)
+
+    # High frequency is where the parasitics decide it. ESL divides by the
+    # number of packages sharing the current; capacitance is irrelevant here.
+    hf = int(np.argmin(np.abs(f - 100e6)))
+    c.that("ten 100 nF parts at 100 MHz", float(z10[hf]) * 1e3, 47, tol=15,
+           unit="mOhm")
+    c.that("one 1 uF part at 100 MHz", float(z1[hf]) * 1e3, 357, tol=80,
+           unit="mOhm")
+    c.that("  ... same capacitance, this much worse", float(z1[hf] / z10[hf]),
+           7.6, tol=None, ok=float(z1[hf] / z10[hf]) > 5, unit="x")
+
+    # The counter-intuitive half, worth keeping as a regression: at the
+    # bulk/ceramic anti-resonance the LOW-ESR network is WORSE, because ESR
+    # is what damps that peak. Chasing low ESR everywhere backfires here.
+    ar = int(np.argmin(np.abs(f - 3.5e6)))
+    c.that("ten-part net at the 3.5 MHz anti-resonance", float(z10[ar]) * 1e3,
+           55, tol=15, unit="mOhm")
+    c.that("  ... one-part net is LOWER there (its ESR damps it)",
+           f"{float(z1[ar])*1e3:.0f} mOhm vs {float(z10[ar])*1e3:.0f} -- "
+           "more ESR, better damping", None, ok=float(z1[ar]) < float(z10[ar]))
+    return c
+
+
+def check_emi_filter():
+    c = Checks("emi_filter -- CISPR 25 conducted, differential mode")
+    d = sim("emi_filter", {"emi_filter.dat": ["frequency", "out", "ref"]})["emi_filter.dat"]
+    f, out, ref = d["frequency"], d["out"], d["ref"]
+
+    def il(hz):
+        i = int(np.argmin(np.abs(f - hz)))
+        return float(out[i] - ref[i])
+
+    # CISPR 25's conducted band starts at 150 kHz. The switching
+    # fundamental sits at 400 kHz, inside it by design -- see the netlist.
+    c.that("insertion loss at 150 kHz (band start)", il(150e3), -40.0, tol=None,
+           ok=il(150e3) < -40, unit="dB")
+    c.that("insertion loss at 400 kHz (switching f)", il(400e3), -50.0, tol=None,
+           ok=il(400e3) < -50, unit="dB")
+    c.that("insertion loss at 1 MHz", il(1e6), -60.0, tol=None, ok=il(1e6) < -60,
+           unit="dB")
+
+    # The bands the standard weights hardest, and the ones a single bulk
+    # capacitor cannot reach because it is inductive by then.
+    c.that("insertion loss at 30 MHz", il(30e6), -40.0, tol=None,
+           ok=il(30e6) < -40, unit="dB")
+    c.that("insertion loss at 100 MHz (FM band)", il(100e6), -40.0, tol=None,
+           ok=il(100e6) < -40, unit="dB")
+
+    # Attenuation must be monotone enough that no band is left unguarded:
+    # the worst point anywhere above the band start is the real spec.
+    band = f >= 150e3
+    worst = float(np.max(out[band] - ref[band]))
+    fworst = float(f[band][int(np.argmax(out[band] - ref[band]))])
+    c.that("worst insertion loss anywhere above 150 kHz", worst, -40.0, tol=None,
+           ok=worst < -40, unit="dB")
+    c.that("  ... worst point sits at", fworst / 1e3, 150.0, tol=None,
+           ok=True, unit="kHz")
+
+    # Stated rather than asserted: how much attenuation is ENOUGH cannot be
+    # decided here. It depends on the unfiltered emissions, which need a
+    # built board and a LISN. 40 dB across the band is what this filter
+    # delivers; whether Class 5 needs more is a measurement, not a claim.
+    c.that("is 40 dB enough for Class 5?",
+           "unknown -- needs measured unfiltered emissions on hardware", None,
+           ok=True)
+    return c
+
+
 CHECKS = {
     "battery_sense": check_battery_sense,
     "discrete_input": check_discrete_input,
@@ -267,6 +459,11 @@ CHECKS = {
     "transient_clamp": check_transient_clamp,
     "injector_boost": check_injector_boost,
     "relay_driver": check_relay_driver,
+    "emi_filter": check_emi_filter,
+    "reverse_battery": check_reverse_battery,
+    "buck_preregulator": check_buck_preregulator,
+    "sensor_rail": check_sensor_rail,
+    "mcu_pdn": check_mcu_pdn,
 }
 
 
