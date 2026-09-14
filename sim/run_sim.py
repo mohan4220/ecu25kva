@@ -452,6 +452,240 @@ def check_emi_filter():
     return c
 
 
+def check_vr_conditioner():
+    c = Checks("vr_conditioner -- crank VR sensor, pins 52/74/30")
+    d = sim("vr_conditioner", {
+        "vr_conditioner.dat": ["time", "zr", "fr", "zc", "fc"],
+    })["vr_conditioner.dat"]
+    t = d["time"]
+
+    def edges(v):
+        """Rising edges of a logic signal, counted at mid-rail."""
+        return int(np.sum(np.diff((v > 1.65).astype(int)) > 0))
+
+    # 20 ms of 1500 Hz is 30 teeth; of 150 Hz, 3 teeth.
+    c.that("zero-cross, running (1500 rpm, 30 teeth)", edges(d["zr"]), 30,
+           tol=1, unit="edges")
+    c.that("zero-cross, cranking (150 rpm, 3 teeth)", edges(d["zc"]), 3,
+           tol=1, unit="edges")
+
+    # The fixed threshold works fine on the bench signal and fails on the
+    # one that matters. This is the whole block.
+    c.that("fixed 5 V threshold, running", edges(d["fr"]), 30, tol=1,
+           unit="edges")
+    c.that("fixed 5 V threshold, cranking", edges(d["fc"]), 0, tol=None,
+           ok=edges(d["fc"]) == 0, unit="edges")
+    c.that("  ... so a fixed threshold never starts the engine",
+           "works at 1500 rpm, blind at 150 rpm -- passes on the bench",
+           None, ok=edges(d["fc"]) == 0)
+
+    # Edge spacing is what timing accuracy rests on: every injection is
+    # scheduled against crank angle interpolated between these edges.
+    idx = np.where(np.diff((d["zr"] > 1.65).astype(int)) > 0)[0]
+    if len(idx) > 2:
+        gaps = np.diff(t[idx])
+        c.that("running tooth period", float(gaps.mean()) * 1e6, 667, tol=20,
+               unit="us")
+        c.that("  ... jitter across the window", float(gaps.std()) * 1e6, 0.0,
+               tol=8.0, unit="us")
+    return c
+
+
+def check_sensor_differential():
+    c = Checks("sensor_differential -- shared ground on pin 34, single vs diff")
+    d = sim("sensor_differential", {
+        "sensor_differential.dat": ["rg", "se", "diff", "gs"],
+    })["sensor_differential.dat"]
+    rg, se, dif, gs = d["rg"], d["se"], d["diff"], d["gs"]
+
+    # Exactly the divider's ratio, not a rounded 0.615: at these error
+    # magnitudes a third-decimal rounding in the reference is itself a
+    # millivolt, and it showed up as a spurious clean-harness failure.
+    ideal = 2.5 * 16 / 26
+
+    # A clean harness: both topologies are fine, which is why this defect
+    # never shows up on a bench with short wires.
+    i0 = int(np.argmin(np.abs(rg - 0.05)))
+    c.that("clean harness (50 mOhm), single-ended error",
+           abs(float(se[i0]) - ideal) * 1e3, 1.0, tol=None,
+           ok=abs(float(se[i0]) - ideal) < 1e-3, unit="mV")
+
+    # A corroded return, which is what the harness becomes.
+    i1 = int(np.argmin(np.abs(rg - 1.0)))
+    c.that("1 ohm return, ground offset present", float(gs[i1]) * 1e3, 20.0,
+           tol=1.0, unit="mV")
+    c.that("  ... single-ended reading error", abs(float(se[i1]) - ideal) * 1e3,
+           12.3, tol=1.5, unit="mV")
+    c.that("  ... differential reading error", abs(float(dif[i1]) - ideal) * 1e3,
+           0.13, tol=0.2, unit="mV")
+
+    # The ratio is the argument for the part.
+    e_se = abs(float(se[i1]) - ideal)
+    e_df = abs(float(dif[i1]) - ideal)
+    c.that("differential is better by", e_se / max(e_df, 1e-9), 90, tol=None,
+           ok=e_se / max(e_df, 1e-9) > 20, unit="x")
+
+    # Stated as a harness requirement, which is the useful form: this is
+    # what single-ended costs you in contact resistance you must maintain.
+    span = 2.769 - 0.308
+    worst = abs(float(se[-1]) - ideal)
+    c.that("single-ended error at 2 ohm (bad contact)", worst / span * 100,
+           1.0, tol=None, ok=worst / span > 0.005, unit="% span")
+    c.that("  ... single-ended needs contact resistance below",
+           "~0.1 ohm forever, to hold 0.1% -- differential needs nothing",
+           None, ok=True)
+    return c
+
+
+def check_boost_converter():
+    c = Checks("boost_converter -- injector rail reservoir, pins 03/05")
+    d = sim("boost_converter", {
+        "boost_converter.dat": ["time", "ra", "rb"],
+    })["boost_converter.dat"]
+    t, ra, rb = d["time"], d["ra"], d["rb"]
+
+    # Arrangement A: reservoir supplies the peak phase only.
+    droop_a = 100.0 - float(ra.min())
+    c.that("droop, peak phase only (47 uF)", droop_a, 7.3, tol=1.5, unit="V")
+    c.that("  ... rail stays usefully above battery", float(ra.min()), 60.0,
+           tol=None, ok=float(ra.min()) > 60, unit="V")
+
+    # Arrangement B: reservoir supplies hold current too.
+    droop_b = 100.0 - float(rb.min())
+    c.that("droop, peak AND hold from the rail", droop_b, 100.0, tol=None,
+           ok=droop_b > 50, unit="V")
+    c.that("  ... so the rail collapses",
+           f"{float(rb.min()):.0f} V -- hold must come from the battery",
+           None, ok=float(rb.min()) < 50)
+    c.that("hold phase costs this much more charge", droop_b / droop_a, 28.0,
+           tol=None, ok=droop_b / droop_a > 10, unit="x")
+
+    # Recharge has 26.67 ms before the next cylinder (memo 04, 240 degrees).
+    at_next = float(np.interp(1e-3 + 26.67e-3, t, ra))
+    c.that("recovered by the next injection (26.67 ms)", at_next, 100.0,
+           tol=1.0, unit="V")
+    c.that("  ... 50 mA average charging is enough", at_next, 99.0, tol=None,
+           ok=at_next > 99, unit="V")
+    return c
+
+
+def check_ntc_frontend():
+    c = Checks("ntc_frontend -- U2's NTC branch, pin 79, divider vs current")
+    d = sim("ntc_frontend", {
+        "ntc_frontend.dat": ["rt", "vdiv", "vcur", "pdiss"],
+    })["ntc_frontend.dat"]
+    rt, vdiv, vcur, pd = d["rt"], d["vdiv"], d["vcur"], d["pdiss"]
+
+    hot = int(np.argmin(np.abs(rt - 88)))       # 150 C
+    mid = int(np.argmin(np.abs(rt - 2500)))     # 25 C
+    cold = int(np.argmin(np.abs(rt - 59000)))   # -40 C
+
+    # The divider is bounded by its own supply at both ends by construction.
+    c.that("divider at 150 C (88 ohm)", float(vdiv[hot]), 0.19, tol=0.03, unit="V")
+    c.that("divider at 25 C (2.5k)", float(vdiv[mid]), 2.66, tol=0.1, unit="V")
+    c.that("divider at -40 C (59k)", float(vdiv[cold]), 4.82, tol=0.1, unit="V")
+    c.that("  ... never leaves the 5 V rail", float(vdiv.max()), 5.0, tol=None,
+           ok=float(vdiv.max()) < 5.0, unit="V")
+
+    # The constant-current front-end runs out of rail before it runs out
+    # of range. This is the finding that keeps the divider.
+    c.that("100 uA source needs this at -40 C", float(vcur[cold]), 5.9,
+           tol=0.2, unit="V")
+    c.that("  ... but the rail is 5 V", f"{float(vcur[cold]):.1f} V demanded "
+           "-- out of compliance, reading clips", None,
+           ok=float(vcur[cold]) > 5.0)
+    c.that("100 uA source at 150 C gives only", float(vcur[hot]) * 1e3, 8.8,
+           tol=1.0, unit="mV")
+
+    # Sized to stay in compliance, the current source gives up the hot end.
+    i_ok = 5.0 / 59000
+    c.that("current that WOULD stay in compliance", i_ok * 1e6, 85, tol=10,
+           unit="uA")
+    c.that("  ... leaving this at 150 C", i_ok * 88 * 1e3, 7.5, tol=1.0,
+           unit="mV")
+
+    # Self-heating: the divider's one real cost, and it is small but not zero.
+    c.that("divider self-heating power at 25 C", float(pd[mid]) * 1e3, 2.83,
+           tol=0.5, unit="mW")
+    c.that("  ... error at ~2 mW/C dissipation constant",
+           float(pd[mid]) * 1e3 / 2.0, 1.4, tol=0.3, unit="degC")
+    return c
+
+
+def check_metering_unit_pwm():
+    c = Checks("metering_unit_pwm -- ECU pin 88, low-side PWM into the solenoid")
+    d = sim("metering_unit_pwm", {
+        "metering_unit_pwm.dat": ["time", "i100", "i1k", "i10k"],
+    })["metering_unit_pwm.dat"]
+    t = d["time"]
+    tail = t > 50e-3
+    i100, i1k, i10k = (np.abs(d[k][tail]) for k in ("i100", "i1k", "i10k"))
+
+    # The control law: average current must be the same at every frequency,
+    # or the pressure loop's gain depends on the PWM constant.
+    for name, arr in (("100 Hz", i100), ("1 kHz", i1k), ("10 kHz", i10k)):
+        c.that(f"mean current at {name}", float(arr.mean()), 0.675, tol=0.09,
+               unit="A")
+
+    # Ripple falls with frequency as V*D*(1-D)*T/L.
+    r100 = float(i100.max() - i100.min())
+    r1k = float(i1k.max() - i1k.min())
+    r10k = float(i10k.max() - i10k.min())
+    c.that("ripple at 100 Hz", r100, 1.0, tol=None, ok=r100 > 0.5, unit="A")
+    c.that("  ... as fraction of mean", r100 / float(i100.mean()) * 100, 100,
+           tol=None, ok=r100 / float(i100.mean()) > 0.8, unit="%")
+    c.that("ripple at 1 kHz", r1k, 0.113, tol=0.05, unit="A")
+    c.that("ripple at 10 kHz", r10k, 0.011, tol=0.008, unit="A")
+    c.that("ripple scales as 1/f", r1k / r10k, 10.0, tol=None,
+           ok=5 < r1k / r10k < 20, unit="x")
+
+    # 100 Hz is not dither, it is on/off. The coil's 3 ms time constant is
+    # comparable to the period, so the valve follows the PWM rather than
+    # its average.
+    c.that("100 Hz is not dither, it is chopping",
+           f"{r100/float(i100.mean())*100:.0f}% ripple -- valve follows the PWM",
+           None, ok=r100 / float(i100.mean()) > 0.8)
+    return c
+
+
+def check_can_termination():
+    c = Checks("can_termination -- split vs single, J1939 250 kbit/s")
+    d = sim("can_termination", {
+        "can_termination.dat": ["frequency", "zd_split", "zcm_split",
+                                "zd_single", "zcm_single"],
+    })["can_termination.dat"]
+    f = d["frequency"]
+    zds, zcs = d["zd_split"], d["zcm_split"]
+    zdg, zcg = d["zd_single"], d["zcm_single"]
+
+    # Differential impedance is what the standard specifies, and both
+    # topologies meet it identically -- which is why a schematic label
+    # cannot tell them apart.
+    lo = int(np.argmin(np.abs(f - 250e3)))
+    c.that("split termination, differential at 250 kbit/s", float(zds[lo]),
+           120.0, tol=2.0, unit="ohm")
+    c.that("single 120R, differential at 250 kbit/s", float(zdg[lo]), 120.0,
+           tol=2.0, unit="ohm")
+    c.that("  ... identical differentially", abs(float(zds[lo] - zdg[lo])),
+           0.0, tol=1.0, unit="ohm")
+
+    # Common mode is where they differ, and it is the whole reason to split.
+    hi = int(np.argmin(np.abs(f - 10e6)))
+    c.that("split termination, common-mode at 10 MHz", float(zcs[hi]), 33.0,
+           tol=8.0, unit="ohm")
+    c.that("single 120R, common-mode at 10 MHz", float(zcg[hi]) / 1e3, 500.0,
+           tol=None, ok=float(zcg[hi]) > 1e5, unit="kohm")
+    c.that("  ... split shunts common mode better by",
+           float(zcg[hi] / zcs[hi]), 1000.0, tol=None,
+           ok=float(zcg[hi] / zcs[hi]) > 100, unit="x")
+
+    # And it must not do that at the signal frequency, or it would load
+    # the bus: at 250 kbit/s the midpoint cap is still a high impedance.
+    c.that("split common-mode at the bit rate stays high", float(zcs[lo]),
+           100.0, tol=None, ok=float(zcs[lo]) > 100, unit="ohm")
+    return c
+
+
 CHECKS = {
     "battery_sense": check_battery_sense,
     "discrete_input": check_discrete_input,
@@ -464,6 +698,12 @@ CHECKS = {
     "buck_preregulator": check_buck_preregulator,
     "sensor_rail": check_sensor_rail,
     "mcu_pdn": check_mcu_pdn,
+    "vr_conditioner": check_vr_conditioner,
+    "sensor_differential": check_sensor_differential,
+    "boost_converter": check_boost_converter,
+    "ntc_frontend": check_ntc_frontend,
+    "metering_unit_pwm": check_metering_unit_pwm,
+    "can_termination": check_can_termination,
 }
 
 

@@ -1,0 +1,101 @@
+* ============================================================
+* Crank speed conditioner -- variable reluctance, pins 52/74/30
+* ============================================================
+* This is the most safety-critical input on the board. Injection
+* timing, speed governing and overspeed shutdown all derive from
+* it, and if it stops producing edges on a running engine the ECU
+* can no longer time injection at all.
+*
+* A variable-reluctance sensor is a coil beside a toothed wheel.
+* It generates voltage by Faraday induction, which means its
+* output amplitude is proportional to how fast the teeth go past:
+*
+*     1500 rpm, 60 teeth  ->  1500 Hz, roughly 20 V peak
+*      150 rpm, cranking  ->   150 Hz, roughly  2 V peak
+*
+* A 10:1 amplitude swing across the operating range, and the low
+* end is the end you need to get the engine started. That single
+* fact decides the topology, and it is why a fixed comparator
+* threshold is the wrong answer even though it is the obvious one.
+*
+* Two conditioners are run against both speeds:
+*
+*   FIXED     comparator at 5 V. Sized sensibly for the running
+*             engine -- high enough to ignore electrical noise on
+*             a 20 V signal. It cannot see a 2 V cranking signal
+*             at all, so the engine never starts.
+*
+*   ZEROCROSS comparator at 0 V with hysteresis, which is what the
+*             real design uses. Amplitude stops mattering: what is
+*             detected is the crossing, and a VR sensor's zero
+*             crossing is also the point of best timing accuracy,
+*             because that is where the waveform's slope is
+*             steepest and jitter from noise is smallest.
+*
+* Hysteresis is +/-0.2 V. It has to be small enough that the 2 V
+* cranking signal still crosses both thresholds, and large enough
+* to reject noise around the crossing. That tension is the whole
+* design of the block.
+* ============================================================
+
+* Comparator with hysteresis, modelled as a hysteretic switch
+* pulling a resistive load down. Output is inverted (low = input
+* above threshold) which does not matter for counting edges.
+.model ZCSW  SW(Ron=100 Roff=1e9 Vt=0    Vh=0.2)
+.model FIXSW SW(Ron=100 Roff=1e9 Vt=5.0  Vh=0.2)
+
+V33 v33 0 DC 3.3
+
+* ---- running: 1500 rpm, 60 teeth -> 1500 Hz at 20 V peak ----
+Vrun run 0 SIN(0 20 1500)
+Rsr  run ra 1k
+Rlr  ra  0  100k
+Szr  zr  0  ra 0 ZCSW
+Rzr  v33 zr 4.7k
+Sfr  fr  0  ra 0 FIXSW
+Rfr  v33 fr 4.7k
+
+* ---- cranking: 150 rpm -> 150 Hz at 2 V peak ----
+* Same sensor, same wheel, same harness. Only the speed changed.
+Vcrk crk 0 SIN(0 2 150)
+Rsc  crk ca 1k
+Rlc  ca  0  100k
+Szc  zc  0  ca 0 ZCSW
+Rzc  v33 zc 4.7k
+Sfc  fc  0  ca 0 FIXSW
+Rfc  v33 fc 4.7k
+
+.control
+* 20 ms covers 30 running-speed teeth and 3 cranking teeth --
+* enough of each to count edges and compare against what the
+* wheel geometry says they should be.
+tran 2u 20m uic
+wrdata vr_conditioner.dat v(zr) v(fr) v(zc) v(fc)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- what a fixed threshold really costs
+* ------------------------------------------------------------
+* The fixed-threshold channel produces edges at running speed and
+* none at cranking speed. Read as a fault, that is the worst
+* possible failure shape: the ECU works perfectly on the bench
+* with a signal generator turned up, and the engine will not start
+* on the machine.
+*
+* Not modelled here, and worth knowing before layout:
+*
+*   - A real VR signal is not a clean sine. Tooth edges and the
+*     missing-tooth sync gap distort it, and the gap produces one
+*     much larger excursion per revolution.
+*   - VR sensors are differential and the pair must be twisted.
+*     Pin 52 is Frequency I/P High and pin 74 Frequency I/P Low,
+*     so common-mode rejection at the input is doing real work
+*     against the injector currents flowing nearby.
+*   - Amplitude at true cranking speed can be under a volt on a
+*     cold engine with a weak battery, which is exactly when
+*     starting matters most. The hysteresis window is what bounds
+*     that, and it should be checked against the real sensor
+*     rather than against this 2 V estimate.
+* ------------------------------------------------------------

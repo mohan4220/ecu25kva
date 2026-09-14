@@ -1,0 +1,108 @@
+* ============================================================
+* Fuel metering unit driver -- ECU pin 88, low-side PWM
+* ============================================================
+* The metering unit sets rail pressure by throttling fuel into the
+* high-pressure pump. It is a proportional solenoid, not a valve
+* that is either open or shut, and what positions it is the
+* AVERAGE current through the coil. The ECU's rail pressure loop
+* closes onto the rail pressure sensor (pins 32/35/08) and its
+* output is this PWM duty cycle.
+*
+* Spec section 2.2 corrected an earlier reading here: this is a
+* single low-side PWM output on pin 88, not an H-bridge. The
+* metering unit's other pin sits on fused battery (20 A, fuse
+* 8F1), so the ECU switches the return path only.
+*
+* Coil, typical for a unit of this size: 10 ohm, 30 mH. At 13.5 V
+* that is 1.35 A fully on, and an electrical time constant of
+* L/R = 3 ms -- which is long compared with any sensible PWM
+* period, and that is what makes the average-current control work.
+*
+* THE DESIGN CHOICE IS THE PWM FREQUENCY, and it is not simply
+* "as high as possible". Ripple current at 50% duty is
+*
+*     dI = V * D * (1-D) * T / L
+*
+* so it falls as frequency rises. But a proportional solenoid has
+* static friction, and a valve held at a perfectly constant
+* current sticks and then jumps. Deliberate ripple -- dither --
+* keeps it moving and makes the response smooth and repeatable.
+* Too little dither and the valve is sticky; too much and the
+* ripple modulates rail pressure directly.
+*
+* Three frequencies are run at the same 50% duty so the trade is
+* visible as numbers:
+*
+*     100 Hz   period 10 ms, comparable to the coil's own 3 ms
+*     1 kHz    period 1 ms
+*     10 kHz   period 100 us, ripple essentially gone
+*
+* All three must produce the SAME average current, because that
+* is the control law the pressure loop depends on. If average
+* current moved with frequency, the loop's gain would depend on a
+* constant nobody thinks about.
+* ============================================================
+
+.model NSW  SW(Ron=25m Roff=1e9 Vt=2.5 Vh=0.2)
+* Freewheel diode. Same argument as the relay driver: interrupting
+* 1.35 A in 30 mH with no path produces a spike that destroys the
+* switch. Here it does a second job -- it sets how fast the
+* current decays during the off-time, and so sets the ripple.
+.model DFW  D(Is=1e-12 N=1.05 Rs=20m BV=200 IBV=1e-6)
+
+Vbat bat 0 DC 13.5
+
+* ---- 100 Hz ----
+Vg1 g1 0 PULSE(0 5 0 1u 1u 5m 10m)
+L1  bat a1 30m
+R1  a1  b1 10
+Vs1 b1  c1 0
+S1  c1  0  g1 0 NSW
+D1  c1  bat DFW
+
+* ---- 1 kHz ----
+Vg2 g2 0 PULSE(0 5 0 1u 1u 500u 1m)
+L2  bat a2 30m
+R2  a2  b2 10
+Vs2 b2  c2 0
+S2  c2  0  g2 0 NSW
+D2  c2  bat DFW
+
+* ---- 10 kHz ----
+Vg3 g3 0 PULSE(0 5 0 100n 100n 50u 100u)
+L3  bat a3 30m
+R3  a3  b3 10
+Vs3 b3  c3 0
+S3  c3  0  g3 0 NSW
+D3  c3  bat DFW
+
+.control
+* 60 ms is twenty coil time constants, so all three are in steady
+* state well before the measurement window at the end.
+tran 5u 60m uic
+wrdata metering_unit_pwm.dat i(Vs1) i(Vs2) i(Vs3)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- dither is a specification we do not have
+* ------------------------------------------------------------
+* This block shows what each frequency does to ripple. It cannot
+* say which is RIGHT, because the correct dither amplitude is a
+* property of the specific metering unit's mechanics -- its
+* friction, its spring, its mass -- and that is manufacturer data
+* tied to the part number.
+*
+* The same gap as U5's injector calibration, in a smaller form:
+* the electronics can be built to produce any dither asked for,
+* and nobody has told us what to ask for. What this design can do
+* is make the frequency a firmware constant rather than a
+* hardware one, so it can be tuned on the machine without
+* touching the board.
+*
+* Also not modelled: the coil's inductance is not constant. It
+* falls as the armature moves and as the core approaches
+* saturation, so real ripple at a given frequency varies across
+* the duty range. The 30 mH here is a fixed mid-travel estimate.
+* ------------------------------------------------------------

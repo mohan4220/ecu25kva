@@ -1,0 +1,99 @@
+* ============================================================
+* Injector boost rail -- reservoir sizing
+* Feeds ECU pins 03 and 05 (bank high sides)
+* ============================================================
+* The injector_boost block proved the rail is worth having: it
+* cuts the time to reach 18 A peak from 439 us to 38 us, which is
+* the difference between spending 44% of a 1 ms injection lifting
+* the needle and spending 4%.
+*
+* This block sizes the thing that supplies it. The reservoir
+* capacitor is the component that actually matters, because the
+* boost converter cannot deliver 18 A -- it delivers a trickle
+* and the capacitor delivers the pulse.
+*
+* Charge per injection event, peak phase only:
+*     current ramps 0 -> 18 A over 38 us, mean 9 A
+*     Q = 9 A * 38 us = 342 uC
+* Droop on a 47 uF reservoir = 342 uC / 47 uF = 7.3 V, so a 100 V
+* rail sags to about 93 V. That is acceptable: the rail's job is
+* to be much larger than 13.5 V, not to be exactly 100 V.
+*
+* THE DESIGN QUESTION THIS BLOCK ANSWERS is where the HOLD phase
+* gets its current. Two arrangements are simulated:
+*
+*   A  boost rail supplies the peak phase only; the hold current
+*      comes from the battery through a separate path. This is
+*      what production common-rail drivers do.
+*
+*   B  boost rail supplies peak AND hold. Superficially simpler --
+*      one supply, one path.
+*
+* Hold is roughly 10 A for the rest of the injection. At 1 ms
+* total that is 10 A * 962 us = 9.6 mC, twenty-eight times the
+* peak phase's charge. Arrangement B is not a slightly worse
+* version of A; it is a different order of magnitude, and the
+* block exists to make that visible rather than asserted.
+*
+* Timing budget between events, from research memo 04: injections
+* are 240 crank degrees apart, which at 1500 rpm is 26.67 ms. The
+* recharge has that long, and the charger only needs to average
+* the energy, not the peak.
+* ============================================================
+
+* ---- arrangement A: boost supplies the peak phase only ----
+Ca   ra 0 47u ic=100
+* Boost converter modelled as its average charging current. The
+* switching detail does not matter for reservoir sizing -- what
+* matters is charge in versus charge out.
+* Regulated: charges at 50 mA until the rail reaches its 100 V
+* setpoint, then stops. A plain DC source would keep pushing and
+* the rail would climb past target -- which is what the first
+* version of this netlist did, reporting a cheerful 122 V.
+Bchga 0 ra I = v(ra) < 100 ? 50m : 0
+* One injection event at 1 ms: ramp to 18 A over 38 us, then the
+* boost rail is disconnected and the battery takes over the hold.
+Iinja ra 0 PWL(0 0  1m 0  1.038m 18  1.0381m 0  30m 0)
+
+* ---- arrangement B: boost supplies peak AND hold ----
+Cb   rb 0 47u ic=100
+Bchgb 0 rb I = v(rb) < 100 ? 50m : 0
+* Same peak phase, then 10 A of hold for the rest of a 1 ms
+* injection before releasing.
+Iinjb rb 0 PWL(0 0  1m 0  1.038m 18  1.0381m 10  2m 10  2.0001m 0  30m 0)
+
+.control
+* 30 ms covers the event and most of the 26.67 ms available before
+* the next cylinder fires, so the recharge is visible too.
+tran 200n 30m uic
+wrdata boost_converter.dat v(ra) v(rb)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- what this models and what it does not
+* ------------------------------------------------------------
+* Modelled: charge balance. Reservoir droop under a pulsed load,
+* and whether the average charging current recovers it before the
+* next event. That is the reservoir sizing question and it is
+* answered here.
+*
+* NOT modelled: the boost converter itself. There is no inductor,
+* no switch, no control loop -- just a current source standing in
+* for its average output. That is deliberate and it is enough for
+* sizing, but it means this block says nothing about the
+* converter's stability, its inrush at power-up, or what happens
+* when it is asked to recharge into an already-drooping rail.
+*
+* Also not modelled: arrangement B's real failure. The rail does
+* not simply sag as drawn here -- it collapses toward the point
+* where the driver can no longer regulate hold current at all,
+* and the injector's behaviour past that is not linear. The
+* simulated voltage after collapse should be read as "far below
+* usable", not as a number.
+*
+* The hold current figure of 10 A is the middle of research memo
+* 04's envelope (8-13 A). The envelope is family-wide, not this
+* injector's measured value -- see U5.
+* ------------------------------------------------------------

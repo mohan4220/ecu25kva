@@ -1,0 +1,90 @@
+* ============================================================
+* Shared sensor ground -- single-ended vs differential
+* ECU pin 34: boost P&T and coolant temperature, splice V3
+* ============================================================
+* Research memo 09 found that both Deep Sea Electronics and
+* SEDEMAC treat ground offset as a first-class problem: DSE
+* specifies +/-2 V of common-mode rejection on every sender
+* channel, SEDEMAC insists on a dedicated sensor common point
+* bonded to the engine body. This block is that finding turned
+* into numbers for this specific harness.
+*
+* The OEM wiring shares pin 34 between the boost sensor and the
+* coolant sensor (refs/ecu-pinout-extracted.md, splice V3). A
+* shared return carries BOTH sensors' currents, so the coolant
+* sensor's supply current develops a voltage across the harness
+* ground resistance -- and the boost sensor's output is referenced
+* to that moving ground, not to the ECU's.
+*
+* A single-ended front-end measures sensor-output-to-ECU-ground
+* and reads that offset as signal. A differential front-end
+* measures sensor-output-to-sensor-ground and does not.
+*
+* Note what the OEM did with the channel that could not tolerate
+* this: rail pressure gets pin 08, a DEDICATED ground, spliced
+* with nothing. Whoever drew that harness ranked the channels by
+* how much ground offset each could stand. This block quantifies
+* the ranking.
+*
+* Swept variable is the shared return's resistance -- wire plus
+* two connector contacts, which is the number that degrades with
+* corrosion and age. A clean harness is tens of milliohms; a
+* corroded contact is ohms, and it gets there slowly enough that
+* nobody notices the readings drifting.
+* ============================================================
+
+* Coolant sensor's return current, flowing out through the shared
+* ground. 20 mA is a typical ratiometric sensor's supply draw.
+Ib  0 gs DC 20m
+
+* The shared harness ground. Swept.
+Rg  gs 0 1
+
+* Boost sensor: 2.5 V referenced to ITS OWN ground pin, which is
+* what a real sensor produces. Mid-scale output.
+Va  sa gs DC 2.5
+
+* ---- single-ended front-end: measures against ECU ground ----
+* Same 10k/16k divider as the sensor_ratiometric block.
+R1  sa nse 10k
+R2  nse 0  16k
+
+* ---- differential front-end: measures sensor minus sensor-ground --
+* Gain matched to the divider's exact 16/26 so the two are compared on
+* equal terms. The second term is finite common-mode rejection at
+* 80 dB, which is a realistic instrumentation-amp figure -- an
+* ideal difference would flatter the topology unfairly.
+Bd  nd 0 V = (16/26)*(v(sa)-v(gs)) + 1e-4*(v(sa)+v(gs))/2
+
+.control
+* From a clean harness to a badly corroded one.
+dc Rg 0.01 2 0.01
+wrdata sensor_differential.dat v(nse) v(nd) v(gs)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- the error is small, and that is the point
+* ------------------------------------------------------------
+* 20 mA through 1 ohm is 20 mV of ground offset, which the
+* single-ended front-end turns into about 12 mV of reading error
+* after the divider -- roughly half a percent of the 2.46 V span.
+* Nobody would call that a failure.
+*
+* It matters for three reasons that the raw number does not show:
+*
+*   1. It is a BIAS, not noise. It does not average out, it is
+*      always in the same direction, and it tracks whatever the
+*      other sensor on the splice is doing.
+*   2. It grows with age. Contact resistance is the parameter
+*      that degrades, and nothing in the system reports it.
+*   3. It is indistinguishable from a real reading. A boost
+*      pressure that is biased high permits more fuel, and the
+*      first symptom is smoke rather than a fault code.
+*
+* The differential front-end removes it for the cost of one part
+* and gives back a channel whose accuracy does not depend on
+* harness condition. Against a design that has to survive years
+* on an engine, that is the trade worth making.
+* ------------------------------------------------------------

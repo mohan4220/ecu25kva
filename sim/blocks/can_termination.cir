@@ -1,0 +1,111 @@
+* ============================================================
+* CAN termination -- split vs single, both channels
+* ECU pins: CAN H yellow, CAN L green (spec section 2.5)
+* ============================================================
+* J1939 runs 250 kbit/s over a twisted pair terminated at 120 ohm
+* at each end of the backbone. That much is in the standard and is
+* not a design decision.
+*
+* What IS a design decision is whether the 120 ohms is one
+* resistor or two with a capacitor to ground between them, and the
+* difference does not show up in the differential impedance at all
+* -- both are 120 ohm differential, which is the only number most
+* schematics label.
+*
+* The difference is in COMMON MODE. A single 120 ohm resistor
+* connects CAN H to CAN L and nothing else; common-mode noise --
+* both wires swinging together against chassis, which is what a
+* genset's alternator and contactors produce -- sees an open
+* circuit and stays on the bus. The split version gives it a path
+* to ground through the midpoint capacitor, while leaving the
+* differential signal untouched because the midpoint is a virtual
+* ground for differential drive.
+*
+* That matters more here than on a truck. Research memo 02 found
+* the KG640C measures engine speed from ALTERNATOR FREQUENCY,
+* sampled at 5 kHz, so this bus runs alongside 415 V three-phase
+* wiring and contactor coils inside the same panel.
+*
+* Four measurements, driven by 1 A AC so node voltages read
+* directly as ohms:
+*     A  split termination, differential drive
+*     A  split termination, common-mode drive
+*     B  single resistor,   differential drive
+*     B  single resistor,   common-mode drive
+* ============================================================
+
+* ---- A: split termination, differential drive ----
+Iad1 0 ah  AC 1
+Iad2 al 0  AC 1
+Rah  ah mh 60
+Ral  mh al 60
+Csh  mh 0  4.7n
+* DC path to ground so the nodes are defined. 1 MOhm is far above
+* anything that affects the measurement.
+Rlh  ah 0 1meg
+Rll  al 0 1meg
+
+* ---- A: split termination, common-mode drive ----
+* Half an amp into each line, so 1 A of common-mode current total
+* and no differential component at all.
+Iac1 0 bh AC 0.5
+Iac2 0 bl AC 0.5
+Rbh  bh mc 60
+Rbl  mc bl 60
+Csc  mc 0  4.7n
+Rlbh bh 0 1meg
+Rlbl bl 0 1meg
+
+* ---- B: single 120 ohm, differential drive ----
+Ibd1 0 ch AC 1
+Ibd2 cl 0 AC 1
+Rc   ch cl 120
+Rlch ch 0 1meg
+Rlcl cl 0 1meg
+
+* ---- B: single 120 ohm, common-mode drive ----
+Ibc1 0 dh AC 0.5
+Ibc2 0 dl AC 0.5
+Rd   dh dl 120
+Rldh dh 0 1meg
+Rldl dl 0 1meg
+
+.control
+* 10 kHz to 100 MHz: from below the bit rate to the top of the
+* CISPR 25 conducted band.
+ac dec 100 10k 100meg
+* mag() explicitly: an AC vector is complex, and wrdata writes a
+* complex trace as two columns. Taking the magnitude here keeps the
+* file one column per quantity and says what is meant.
+let zdiff_split  = mag(v(ah) - v(al))
+let zcm_split    = mag(v(bh))
+let zdiff_single = mag(v(ch) - v(cl))
+let zcm_single   = mag(v(dh))
+wrdata can_termination.dat zdiff_split zcm_split zdiff_single zcm_single
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- termination is not the whole common-mode story
+* ------------------------------------------------------------
+* The split capacitor gives common-mode current somewhere to go.
+* It does not stop it being generated, and it does nothing about
+* common-mode current arriving from outside on the shield or the
+* chassis.
+*
+* The other half of the job belongs to a common-mode choke in
+* series with the pair, which -- exactly as in the emi_filter
+* block -- cannot be modelled honestly as a two-terminal part. It
+* needs a coupled-inductor model and a defined chassis return,
+* which is a layout property this board does not have yet.
+*
+* One more thing this block does NOT decide: whether to fit
+* termination at all. A 120 ohm terminator belongs at each END of
+* the backbone, and research memo 06 noted that a single genset is
+* a short enough bus that it may be one piece of wire with nodes
+* at both ends. If this ECU is not an end node, fitting a
+* terminator makes the bus worse. That is a U4 question -- what
+* the KG640C expects -- and the board should carry the parts with
+* a link so it can be either.
+* ------------------------------------------------------------

@@ -1,0 +1,101 @@
+* ============================================================
+* NTC temperature front-end -- U2's unknown branch, pin 79
+* ============================================================
+* U2 asks whether the boost P&T combo sensor's temperature
+* element is a bare NTC thermistor or a conditioned ratiometric
+* output. One resistance measurement at the machine settles it
+* (inspection brief task 1.3). This block designs the NTC branch
+* so that answer can be acted on immediately either way.
+*
+* Research memo 09 found that Deep Sea Electronics drives its
+* resistive temperature senders with a FIXED CURRENT and measures
+* differentially -- 15 mA into a 480 ohm full scale. The obvious
+* move is to copy that. This block is what happens when you check
+* it against the actual sensor instead, and the answer is that it
+* does not transfer.
+*
+* A charge-air NTC is not a VDO sender. Taking a typical
+* automotive part, 2.5 kOhm at 25 C with B = 3380, over the range
+* this engine's intake actually sees:
+*
+*     -40 C   ~59 kOhm
+*      25 C    2.5 kOhm
+*     150 C   ~88 Ohm
+*
+* That is a 670:1 span, against the 50:1 a genset sender covers.
+* The two front-ends behave completely differently across it:
+*
+*   DIVIDER   5 V through a 2.2k pull-up. Non-linear, but the
+*             non-linearity COMPRESSES the range -- output is
+*             bounded by the supply rail no matter how cold it
+*             gets. Resolution is best in the middle, which is
+*             where the engine actually runs.
+*
+*   CURRENT   100 uA forced through the NTC. Linear in resistance,
+*             which is the textbook advantage -- and at the cold
+*             end it demands 5.9 V out of a 5 V rail. It runs out
+*             of compliance before it runs out of range.
+*
+* The resistance is swept by a behavioural resistor whose value
+* is read from a node voltage, so v(rt) = 2500 means 2500 ohms.
+* ============================================================
+
+Vrt rt 0 DC 2500
+
+V5  v5 0 DC 5
+
+* ---- divider front-end ----
+Rpu  v5 nd 2.2k
+Rnd  nd 0  R = 'v(rt)'
+
+* ---- constant-current front-end ----
+* An ideal 100 uA source: no compliance limit, deliberately. A
+* real source would clip at the rail and hide the problem; this
+* one lets the required voltage be read directly, which is the
+* number that decides whether the topology is usable.
+Ics  0  nc DC 100u
+Rnc  nc 0  R = 'v(rt)'
+
+* ---- self-heating, divider case ----
+* Power in the thermistor biases its own reading. An NTC's
+* dissipation constant is around 2 mW/C in still air, so a few
+* milliwatts is a real error, not a rounding one.
+Bpd  pd 0 V = v(nd)*v(nd)/v(rt)
+
+.control
+* 88 ohm (150 C) to 59 kOhm (-40 C), the full automotive range.
+dc Vrt 88 59000 20
+wrdata ntc_frontend.dat v(nd) v(nc) v(pd)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- the trade, and which way it falls
+* ------------------------------------------------------------
+* Constant current wins on:
+*   - linearity (V = I*R exactly, so no lookup curve needed for
+*     the front-end itself; the NTC's own curve still applies)
+*   - self-heating, by four orders of magnitude
+*
+* The divider wins on the thing that decides it:
+*   - it cannot run out of compliance, because its output is
+*     bounded by the rail at both ends of the range
+*
+* For a 50:1 genset sender, DSE's choice is right. For a 670:1
+* automotive NTC on a 5 V rail, a current small enough to stay in
+* compliance at -40 C leaves almost no signal at 150 C, and the
+* hot end is where charge-air temperature protection actually
+* does its work.
+*
+* So this design keeps the pull-up divider for the NTC branch and
+* takes memo 09's OTHER finding instead -- the differential input,
+* which applies regardless of which topology feeds it. See the
+* sensor_differential block.
+*
+* Self-heating is worth a second look before the value of the
+* pull-up is fixed. A larger pull-up reduces dissipation but
+* costs signal; the sweep here is what that trade should be
+* argued from once the real sensor's dissipation constant is
+* known, which is another thing task 1.3 could capture.
+* ------------------------------------------------------------
