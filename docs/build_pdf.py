@@ -82,7 +82,10 @@ BOOK = [
     ("11-inspection", "research/08-engine-inspection-brief.md",
      "Memo 08 -- Engine Inspection Brief",
      "The measurements to take at the machine, grouped by machine state"),
-    ("12-plan", "superpowers/plans/2026-09-13-phase1-research.md",
+    ("12-frontends", "research/09-resistive-sensor-frontends.md",
+     "Memo 09 -- Resistive Sensor Front-Ends",
+     "How DSE and SEDEMAC build temperature inputs, and what transfers"),
+    ("13-plan", "superpowers/plans/2026-09-13-phase1-research.md",
      "Phase 1 Research Plan",
      "The plan the eight memos were written against"),
 ]
@@ -158,9 +161,11 @@ def cover_page():
       pin, signal and colour in these pages was read out of that document
       or measured in simulation; where something is inferred rather than
       confirmed, it says so on the line.</p>
-    <p>The engine has not been inspected yet. Twelve items remain open in
-      the unknowns register, and the CPCB IV+ certification position in
-      Memo 06 is a decision for the machine's owners, not an engineering
+    <p>The engine has not been inspected yet. Of twelve items on the unknowns
+      register, two are answered by inference and none is confirmed &mdash;
+      every confirmation needs the machine. The CPCB IV+ certification
+      position in Memo 06 is a decision for the machine's owners, not an
+      engineering
       conclusion. <b>Read that memo before fitting anything.</b></p>
   </div>
   <div class="contents">

@@ -380,23 +380,41 @@ Recorded so they are choices, not drift:
 Nothing in this list may be guessed into copper. Each needs an answer before the
 sheet that depends on it is drawn.
 
-| # | Unknown | Blocks | How to close |
-|---|---|---|---|
-| U1 | Remaining 50 of 94 ECU pins | Connector selection, adapter harness | ECU connector part number — photograph the housing on the engine |
-| U2 | Boost air-temp (pin 79): NTC or ratiometric? | Sheet 3b front-end | Sensor part number. **Mitigation: lay out a DNP pull-up so either works** |
-| U3 | KG640C MPU input — does it exist? | §3 safety gate | KG640C manual |
-| U4 | KG640C J1939 PGN set and expectations | Firmware, CAN sheet | KG640C manual; or log the live bus with the OEM ECU fitted |
-| U5 | Injector part number and drive profile | Injector driver sheet, boost rail voltage | Read the injector body; Bosch/Denso datasheet or supplier |
-| U6 | Pin 09 `SYNCHRONIZATION GROUND` function | Power/ground plan | OEM pin list; drawn red despite the name |
-| U7 | Pins 04/06 — sense only, or load feeds? | Power sheet current rating | Measure on the live engine, or OEM pin list |
-| U8 | 6-pin intake throttle — on the ECU at all? | Whether a throttle driver is in scope | Trace on the engine; not in this diagram |
-| U9 | Catalyst temp sensor — connected where? | Whether an EGT front-end is in scope | Trace on the engine |
-| U10 | `SENT` in the colour legend — which signal? | Possible digital sensor front-end | Inspect harness; SENT is SAE J2716 |
-| U11 | Engine identity — "GK550" vs Kirloskar range | Emissions tier, sensor sourcing | Engine rating plate photograph |
-| U12 | **Does the 70 A ignition relay `-13RB1` remove power from the ECU and fuel metering unit, or only signal the ECU?** | **The §3 safety gate.** The entire relaxation from "mandatory trip module" to "recommended" rests on this | Measure at the machine: with the ignition relay de-energised, check for battery voltage at ECU pins 21, 04, 06 and at the fuel metering unit's supply pin. Voltage present ⇒ signal only ⇒ §3 reverts |
+Status updated at phase 1 exit, 14 Sep 2026. Three states, and the middle one
+carries weight: **Open** means no answer yet; **Answered** means phase-1 research
+produced an answer that is good enough to design against but is *inferred*, not
+confirmed, and still carries the upgrade path in its memo; **Closed** means
+confirmed outright. Nothing here is Closed yet — every confirmation on this list
+needs the machine.
 
-**U1, U3 and U5 are the three that matter most.** U1 decides whether the board mates,
-U3 is the safety gate, U5 decides whether injection can be commissioned at all.
+| # | Unknown | Status | Blocks | How to close |
+|---|---|---|---|---|
+| U1 | Remaining 50 of 94 ECU pins | Open | Connector selection, adapter harness | ECU connector part number — photograph the housing on the engine. Memo 03 ranks a shortlist; only a logo or molded part number settles it |
+| U2 | Boost air-temp (pin 79): NTC or ratiometric? | Open | Sheet 3b front-end | One resistance reading, sensor cold — brief task 1.3, closes it outright. **Mitigation: a front-end that works either way** |
+| U3 | KG640C MPU input — does it exist? | **Answered** — no MPU input, inferred, high confidence (memo 02) | §3 safety gate | Upgrade to confirmed: a manual titled KG640C (not the base KG640), a photograph of the physical rear terminal block, or KOEL technical support |
+| U4 | KG640C J1939 PGN set and expectations | Open | Firmware, CAN sheet | KG640C manual; or log the live bus with the OEM ECU fitted |
+| U5 | Injector part number and drive profile | **Partly answered** — memo 04 gives a family envelope (65–115 V, 12–24 A peak, 8–13 A hold, 40–100 A/ms) sufficient to design the driver | Boost rail *target* voltage, not the driver sheet itself | Photograph the injector body for a Bosch `0445 1xx xxx` or Kirloskar `F6.xxx.xx.x.pr`. **Separately: the calibration data is a different problem — see §9 and memo 04** |
+| U6 | Pin 09 `SYNCHRONIZATION GROUND` function | Open | Power/ground plan | OEM pin list; drawn red despite the name |
+| U7 | Pins 04/06 — sense only, or load feeds? | Open | Power sheet current rating | Measure on the live engine, or OEM pin list |
+| U8 | 6-pin intake throttle — on the ECU at all? | Open | Whether a throttle driver is in scope | Trace the cable by hand — brief task 3.11; not in this diagram |
+| U9 | Catalyst temp sensor — connected where? | Open | Whether an EGT front-end is in scope | Trace on the engine |
+| U10 | `SENT` in the colour legend — which signal? | Open | Possible digital sensor front-end | Inspect harness; SENT is SAE J2716 |
+| U11 | Engine identity — "GK550" vs Kirloskar range | **Answered** — Kirloskar 3R550ETA 4G1 in a KG4-25WS1, inferred, high confidence (memo 01) | Emissions tier, sensor sourcing | Engine rating plate photograph — brief task 3.1, closes outright |
+| U12 | **Does the 70 A ignition relay `-13RB1` remove power from the ECU and fuel metering unit, or only signal the ECU?** | Open | **The §3 safety gate.** The entire relaxation from "mandatory trip module" to "recommended" rests on this | Measure at the machine: with the ignition relay de-energised, check for battery voltage at ECU pins 21, 04, 06 and at the fuel metering unit's supply pin. Voltage present ⇒ signal only ⇒ §3 reverts. **Do brief task 1.4 first** — a normally-closed relay gives the same reading with the opposite meaning |
+
+**U12 and U1 are now the two that matter most.** U12 is the safety gate and nothing
+substitutes for the measurement; U1 decides whether the board mates.
+
+U3 and U11 were the other two on that list and are now answered, both by inference
+from primary documents rather than by confirmation. Neither answer is fragile — but
+both are the kind of finding that a single photograph at the machine would settle
+permanently, which is why they stay on the register rather than leaving it.
+
+U5 has moved off the critical list for a reason worth stating plainly: memo 04's
+family envelope means the **injector driver can be designed now, without the part
+number**. What the part number buys is a boost-rail target instead of a range. The
+thing that genuinely gates running this engine is not on this register at all — it
+is the injector calibration data, recorded in §9 and memo 04.
 
 ---
 
