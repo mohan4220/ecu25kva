@@ -30,3 +30,32 @@ wrdata battery_sense.dat v(old) v(new)
 .endc
 
 .end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- what a divider cannot tell you
+* ------------------------------------------------------------
+* Proved here: the scaling is right, it stays inside the ADC's
+* range across the whole 6-40 V input band, and it is linear.
+*
+* The linearity check deserves a caveat: a resistive divider is
+* linear by construction, so that check cannot fail for a correct
+* netlist. It is there to catch a WRONG TOPOLOGY -- someone
+* substituting a zener or a clamp into this position later -- not
+* to validate the values. Read it as a regression guard, not as
+* evidence.
+*
+* NOT modelled:
+*   - Resistor tolerance. At 1% on each leg the ratio moves about
+*     1.4%, which at 40 V is 43 mV. That eats a fifth of the
+*     231 mV of headroom below the rail, and it should be checked
+*     against the real parts before the divider is called safe.
+*   - Temperature coefficient, for the same reason.
+*   - ADC input impedance. The 10 k lower leg is a high source
+*     impedance for a SAR ADC's sampling capacitor; sampling time
+*     has to be set for it, or the reading will be low. That is a
+*     firmware and datasheet question, not a SPICE one.
+*   - What these pins actually feed. U7 asks whether 04 and 06 are
+*     sense-only or also carry load current; if they carry load,
+*     this front-end is right but the pin's current rating is not
+*     yet established.
+* ------------------------------------------------------------

@@ -46,6 +46,36 @@ R2b nb  0  16k
 C1b nb  0  22n
 D1b 0   nb DZ3V3
 
+* ---- network D: rail drift, and the correction that removes it ----
+* A ratiometric sensor's output IS a fraction of its own supply, so a
+* reading is only meaningful against the supply it was made with.
+* Spec section 4 originally answered this by having the ADC reference
+* track 5V_SENSOR, which cannot be built: the S32K148's VREFH may not
+* exceed its 3.3 V analog supply, and a 5 V reference is not available
+* on any 3.3 V part.
+*
+* The buildable answer is to give the rail its own ADC channel through
+* an IDENTICAL divider, and take the ratio of the two readings. The
+* divider ratio then cancels algebraically:
+*
+*     measurand = (Vsig * k) / (Vrail * k) = Vsig / Vrail
+*
+* which is the fraction the sensor was reporting in the first place --
+* independent of the rail voltage, and to first order independent of
+* the divider's tolerance too, as long as the two dividers match.
+*
+* Sensor held at mid-scale (0.5 of supply) while the rail is swept
+* +/-5%, which is wider than any sane regulator will drift.
+Vsup  sup 0 DC 5
+Bsens sd  0 V = 0.5*v(sup)
+R1d   sd  nd 10k
+R2d   nd  0  16k
+* Rail monitor -- same divider, so the ratio cancels.
+R1r   sup nr 10k
+R2r   nr  0  16k
+* The firmware correction, done here in one expression.
+Bcorr ncorr 0 V = v(nd)/v(nr)
+
 * ---- network C: harness short to battery, worst-case fault ----
 * 40 V appears on the sensor line. R1 must limit clamp current and
 * the ADC pin must stay inside its absolute maximum.
@@ -64,6 +94,35 @@ wrdata sensor_ratio_ac.dat vdb(nb)
 
 op
 wrdata sensor_ratio_fault.dat v(nc) i(Vflt)
+
+dc Vsup 4.75 5.25 0.005
+wrdata sensor_ratio_rail.dat v(nd) v(ncorr)
 .endc
 
 .end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- scaling, bandwidth, fault, and the rail
+* ------------------------------------------------------------
+* Proved here: the sensor's span lands inside the ADC range with
+* the clamp clear of it, the filter passes the sensor's own
+* bandwidth while rejecting switching noise, a 40 V harness short
+* is survivable, and -- network D -- that measuring the rail
+* removes the ratiometric error that an assumed 5.000 V leaves.
+*
+* NOT modelled:
+*   - GROUND OFFSET. Every network here measures against a perfect
+*     ground. Pins 34 and 36 are SHARED sensor returns, and the
+*     other sensor's current puts an offset on them that this
+*     front-end would read as signal. Spec section 4 now specifies
+*     a differential front-end for exactly those channels; see
+*     sensor_differential.cir for the measurement. This block
+*     remains valid for pin 08, the dedicated return.
+*   - Resistor tolerance on the divider pair. Network D's
+*     correction cancels it to first order only if the signal and
+*     rail dividers MATCH; mismatched tolerances do not cancel,
+*     and a matched resistor network is the cheap fix.
+*   - ADC sampling time against the source impedance.
+*   - The sensor's own error, which is usually larger than
+*     anything in this front-end.
+* ------------------------------------------------------------

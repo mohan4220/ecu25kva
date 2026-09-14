@@ -42,3 +42,31 @@ wrdata injector_boost.dat i(Vbat) i(Vbst)
 .endc
 
 .end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- this block models turn-ON only
+* ------------------------------------------------------------
+* Proved here: the time to reach the peak current threshold from
+* a battery rail versus a boost rail, and therefore why the boost
+* stage is worth its cost.
+*
+* NOT modelled, and it is the larger half: TURN-OFF. This netlist
+* ramps current up and stops. Interrupting 18 A in 200 uH releases
+* about 32 mJ, roughly seven times what the relay coil in
+* relay_driver.cir stores -- and that block exists specifically to
+* show what happens to a switch with nowhere to put that energy.
+* The injector does this every injection event, thousands of times
+* a minute. The recirculation and clamp path is a real circuit
+* that this project has not yet drawn or simulated.
+*
+* Also not modelled:
+*   - Magnetic saturation. Injector inductance falls sharply as
+*     the core saturates and as the needle lifts, so a real
+*     current ramp is faster than this constant-L model near the
+*     top, and the 38 us figure is conservative.
+*   - The needle actually moving. This is an electrical model of
+*     a solenoid, with no mechanical dynamics and no back-EMF
+*     from armature motion.
+*   - The envelope itself is family-wide, from research memo 04,
+*     not this injector's measured values. That is U5.
+* ------------------------------------------------------------

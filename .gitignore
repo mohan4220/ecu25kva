@@ -7,3 +7,4 @@ fp-info-cache
 *.dat
 __pycache__/
 *.pyc
+.review/

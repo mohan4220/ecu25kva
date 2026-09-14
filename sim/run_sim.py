@@ -148,6 +148,7 @@ def check_sensor_ratiometric():
         "sensor_ratio_dc.dat": ["vsens", "node"],
         "sensor_ratio_ac.dat": ["frequency", "vdb"],
         "sensor_ratio_fault.dat": ["sweep", "node", "ifault"],
+        "sensor_ratio_rail.dat": ["vsup", "raw", "corrected"],
     })
     vs, node = d["sensor_ratio_dc.dat"]["vsens"], d["sensor_ratio_dc.dat"]["node"]
     f, mag = d["sensor_ratio_ac.dat"]["frequency"], d["sensor_ratio_ac.dat"]["vdb"]
@@ -184,6 +185,25 @@ def check_sensor_ratiometric():
     c.that("40 V harness short clamps pin to", vf, 3.6, tol=None, ok=vf <= 3.6)
     c.that("  ... fault current limited to", i_f * 1e3, 5.0, tol=None, ok=i_f < 5e-3,
            unit="mA")
+
+    # The ratiometric property. A sensor at a fixed physical reading, with the
+    # rail drifting +/-5%: the raw ADC value must move with the rail (it is a
+    # fraction OF the rail), and the corrected value must not.
+    r = d["sensor_ratio_rail.dat"]
+    raw, corr = r["raw"], r["corrected"]
+    raw_err = (float(raw.max()) - float(raw.min())) / float(raw.mean()) * 100
+    corr_err = (float(corr.max()) - float(corr.min())) / float(corr.mean()) * 100
+    c.that("raw reading moves with a +/-5% rail drift", raw_err, 10.0, tol=1.0,
+           unit="%")
+    c.that("  ... so an assumed 5.000 V rail is a 10% error band",
+           f"{raw_err:.1f}% of reading, and nothing in the raw value reveals it",
+           None, ok=raw_err > 5)
+    c.that("corrected reading is flat", corr_err, 0.0, tol=0.01, unit="%")
+    c.that("correction recovers the true fraction", float(corr.mean()), 0.5,
+           tol=0.001)
+    c.that("  ... divider ratio cancels, so its tolerance drops out too",
+           "measurand = Vsig/Vrail -- k appears in both and divides away",
+           None, ok=True)
     return c
 
 

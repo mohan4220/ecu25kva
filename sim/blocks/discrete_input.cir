@@ -66,3 +66,29 @@ wrdata discrete_input_tran.dat v(ntr) v(swtr)
 .endc
 
 .end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- the fault this circuit cannot detect
+* ------------------------------------------------------------
+* Proved here: the level is flat across 6-40 V, stays inside the
+* MCU's absolute maximum, reads a valid logic high at the 6 V
+* cranking dip, and does not chatter on a bouncing contact.
+*
+* NOT detectable, by construction: an open wire. These are
+* switched-battery inputs, so an open harness and an unpressed
+* switch both read "not asserted" and nothing distinguishes them.
+* Spec section 2.4 records this as accepted rather than solved --
+* changing the sense would break harness compatibility, and
+* detecting it otherwise needs a pull-down plus a diagnostic
+* current source. It belongs in the FMEA.
+*
+* NOT modelled:
+*   - The bounce profile is a plausible synthetic one, not a
+*     measured contact. Real bounce depends on the switch, its
+*     age and its mounting, and 220 nF was chosen against this
+*     model rather than against the machine's actual switches.
+*   - Zener tolerance and its knee. A 3.0 V zener at low current
+*     is soft, so the clamped level moves with the part and with
+*     temperature; the 92 mV flatness figure is for an ideal one.
+*   - ESD at the connector.
+* ------------------------------------------------------------

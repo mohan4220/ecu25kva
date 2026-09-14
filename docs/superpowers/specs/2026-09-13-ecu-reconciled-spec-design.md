@@ -192,25 +192,66 @@ Confirmed pins from the wiring diagram. **44 of 94.** See §8 for the remaining 
 | 06 | `V_V_BAT_2R` (10 A fused) | **120 k / 10 k** divider → ADC; feeds high-current loads `[?]` |
 | 09 | `SYNCHRONIZATION GROUND` | Function unresolved — see §8 |
 
-### Ratiometric analog — 1 kΩ series, 100 nF shunt, clamp, ADC ref tracks `5V_SENSOR`
-
-| Pin | Signal | Group ground |
-|---|---|---|
-| 11 / 41 | Boost: 5 V excitation / pressure signal | 34 |
-| 79 | Boost: temperature signal — **topology unresolved, see §8** | 34 |
-| 34 | Sensor ground — boost + coolant | — |
-
 The battery-sense divider is **120 k / 10 k, not the 75 k / 10 k** inherited from
 the earlier artifacts. That value was sized for a 5 V ADC and delivers 4.69 V at
 a 40 V input — above the S32K148's 3.3 V analog supply. The corrected divider
 peaks at 3.07 V and still resolves 573 ADC counts at the 6 V cranking dip.
 Verified in [`sim/blocks/battery_sense.cir`](../../../sim/blocks/battery_sense.cir).
-| 33 | Coolant temperature (NTC, pull-up divider) | 34 (spliced) |
-| 15 / 37 | EGR position: 5 V / wiper | 36 |
-| 36 | Sensor ground — EGR + oil pressure | — |
-| 39 / 80 | Oil pressure: 5 V / signal | 36 (spliced) |
-| 32 / 35 | Rail pressure: 5 V / signal | 08 |
-| 08 | Sensor ground — rail pressure, dedicated | — |
+
+### Ratiometric analog — 10 k / 16 k divider, 22 nF shunt, 3.3 V clamp, rail measured and corrected in firmware
+
+**Revised 14 Sep 2026.** This section previously specified *1 kΩ series, 100 nF
+shunt, ADC ref tracks `5V_SENSOR`*, which contradicted the simulated front-end and
+cannot be built on this MCU. Both halves were wrong, and for the same reason the
+75 k / 10 k battery divider was wrong — they were written for a 5 V part:
+
+- **`VREFH` cannot track `5V_SENSOR`.** The S32K148's ADC reference may not exceed
+  its 3.3 V analog supply. A reference at 5 V is not an option on any 3.3 V device.
+- **1 kΩ in series scales nothing.** With no division, a sensor at 4.5 V arrives at
+  a 3.3 V pin. The series resistor is a fault-current limiter, not an attenuator.
+
+So the signal must be divided, and the question becomes how to keep the
+*ratiometric* property after dividing it.
+
+**Decision: divide, then measure the rail and correct in firmware.**
+`5V_SENSOR` gets its own ADC channel. Every ratiometric reading is computed as a
+fraction of the measured rail rather than of an assumed 5.000 V, which is what the
+sensor's output actually represents. Cost: one ADC channel, zero analog parts. The
+channel budget has room — see the sensor reference.
+
+*Rejected alternative:* dividing `5V_SENSOR` into `VREFH` by the same 16/26 ratio.
+It fits numerically (5 V × 16/26 = 3.08 V, inside the 3.3 V limit) and gives true
+ratiometric conversion with no firmware arithmetic. It is rejected because `VREFH`
+is shared by every channel on that ADC, so it would silently make **battery sense
+and the NTC channels ratiometric to the sensor rail as well** — both of which need
+an absolute reference. It would also need a buffer, since a resistive divider is
+too noisy and too high-impedance to drive a reference input.
+
+**Single-ended or differential is decided by the ground, not by the channel.**
+Where the sensor's return is shared, the other sensor's current develops an offset
+across the harness resistance that a single-ended input reads as signal:
+[`sim/blocks/sensor_differential.cir`](../../../sim/blocks/sensor_differential.cir)
+measures 12 mV of bias at 1 Ω of return resistance against 0.13 mV differential.
+Research memo 09 found both Deep Sea Electronics and SEDEMAC treat this as a
+first-class problem. So:
+
+- **Shared ground (pins 34, 36) → differential front-end.**
+- **Dedicated ground (pin 08) → single-ended is sufficient**, because there is no
+  other sensor's current in that return. This mirrors the OEM's own ranking: they
+  gave rail pressure a dedicated return precisely so it would not need one.
+
+| Pin | Signal | Group ground | Front-end |
+|---|---|---|---|
+| 11 / 41 | Boost: 5 V excitation / pressure signal | 34 | Differential |
+| 79 | Boost: temperature signal — **topology unresolved, see §8** | 34 | Differential |
+| 34 | Sensor ground — boost + coolant | — | — |
+| 33 | Coolant temperature (NTC, pull-up divider) | 34 (spliced) | Differential |
+| 15 / 37 | EGR position: 5 V / wiper | 36 | Differential |
+| 36 | Sensor ground — EGR + oil pressure | — | — |
+| 39 / 80 | Oil pressure: 5 V / signal | 36 (spliced) | Differential |
+| 32 / 35 | Rail pressure: 5 V / signal | 08 | Single-ended |
+| 08 | Sensor ground — rail pressure, dedicated | — | — |
+| — | `5V_SENSOR` rail monitor | — | Divider → ADC, for the correction above |
 
 Sensor-ground grouping mirrors the OEM harness exactly: `34` boost+coolant,
 `36` EGR+oil, `08` rail alone, `30` crank alone, `44` cam alone. Rail pressure gets

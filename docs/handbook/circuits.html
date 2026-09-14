@@ -7346,7 +7346,7 @@ z
 
   <div class="blk">
     <header><h3>Ratiometric sensor input</h3><span class="pins">pins 41, 35, 80, 37</span>
-      <span class="tag">9/9 checks</span></header>
+      <span class="tag">14/14 checks</span></header>
     <div class="body">
       <figure class="sch"><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="376.713pt" height="176pt" viewBox="0 0 376.713 176" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
@@ -8105,11 +8105,11 @@ z
 </figure>
       <div class="col">
         <p>The 0.5–4.5 V pressure and position channels, scaled into a 3.3 V ADC.</p>
-        <p><b>Why it looks like that.</b> Full scale deliberately lands at 2.77 V rather than hard against the ceiling, so the protection clamp can do its job on a harness fault without ever touching the signal in normal running. That costs a little span and buys a front-end 40 V cannot damage.</p>
-        <p class="lim"><b>What the model does not cover.</b> Single-ended, and measured against a perfect ground. See the next block for what that assumption costs on a shared return.</p>
+        <p><b>Why it looks like that.</b> Full scale deliberately lands at 2.77 V rather than hard against the ceiling, so the protection clamp can do its job on a harness fault without ever touching the signal in normal running. That costs a little span and buys a front-end 40 V cannot damage. The last four checks cover the ratiometric property itself, which this block was named for and did not model until the spec review caught it: a sensor's output is a fraction of its own supply, so a reading taken against an assumed 5.000 V carries the rail's whole error band — 10% here. Giving the rail its own ADC channel through an identical divider removes it, and the divider ratio cancels algebraically, so its tolerance drops out too.</p>
+        <p class="lim"><b>What the model does not cover.</b> Ground offset. Every network here measures against a perfect ground, and pins 34 and 36 are shared returns — which is why spec §4 now specifies a differential front-end for those channels and leaves this one for pin 08, the dedicated return. Also not modelled: divider tolerance matching, on which the rail correction depends, and ADC sampling time against the source impedance.</p>
       </div>
     </div>
-    <table class="res"><tbody><tr class="ok"><td>sensor zero (0.5 V) maps to</td><td class="v">0.308 V</td></tr><tr class="ok"><td>sensor full scale (4.5 V) maps to</td><td class="v">2.769 V</td></tr><tr class="ok"><td>  ... clears the 3.3 V clamp</td><td class="v">0.531 V</td></tr><tr class="ok"><td>span used of ADC range</td><td class="v">74.592 %</td></tr><tr class="ok"><td>low-pass corner</td><td class="v">1,174.898 Hz</td></tr><tr class="ok"><td>loss at sensor&#x27;s own 100 Hz</td><td class="v">-0.031 dB</td></tr><tr class="ok"><td>attenuation at 100 kHz switching</td><td class="v">-38.596 dB</td></tr><tr class="ok"><td>40 V harness short clamps pin to</td><td class="v">3.308</td></tr><tr class="ok"><td>  ... fault current limited to</td><td class="v">3.669 mA</td></tr></tbody></table>
+    <table class="res"><tbody><tr class="ok"><td>sensor zero (0.5 V) maps to</td><td class="v">0.308 V</td></tr><tr class="ok"><td>sensor full scale (4.5 V) maps to</td><td class="v">2.769 V</td></tr><tr class="ok"><td>  ... clears the 3.3 V clamp</td><td class="v">0.531 V</td></tr><tr class="ok"><td>span used of ADC range</td><td class="v">74.592 %</td></tr><tr class="ok"><td>low-pass corner</td><td class="v">1,174.898 Hz</td></tr><tr class="ok"><td>loss at sensor&#x27;s own 100 Hz</td><td class="v">-0.031 dB</td></tr><tr class="ok"><td>attenuation at 100 kHz switching</td><td class="v">-38.596 dB</td></tr><tr class="ok"><td>40 V harness short clamps pin to</td><td class="v">3.308</td></tr><tr class="ok"><td>  ... fault current limited to</td><td class="v">3.669 mA</td></tr><tr class="ok"><td>raw reading moves with a +/-5% rail drift</td><td class="v">10.000 %</td></tr><tr class="ok"><td>  ... so an assumed 5.000 V rail is a 10% error band</td><td class="v">10.0% of reading, and nothing in the raw value reveals it</td></tr><tr class="ok"><td>corrected reading is flat</td><td class="v">0.000 %</td></tr><tr class="ok"><td>correction recovers the true fraction</td><td class="v">0.500</td></tr><tr class="ok"><td>  ... divider ratio cancels, so its tolerance drops out too</td><td class="v">measurand = Vsig/Vrail -- k appears in both and divides away</td></tr></tbody></table>
     <p class="src">Netlist: <code>sim/blocks/sensor_ratiometric.cir</code></p>
   </div>
 

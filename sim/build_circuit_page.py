@@ -88,9 +88,17 @@ BLOCKS = {
          "The 0.5–4.5 V pressure and position channels, scaled into a 3.3 V ADC.",
          "Full scale deliberately lands at 2.77 V rather than hard against the ceiling, so the protection "
          "clamp can do its job on a harness fault without ever touching the signal in normal running. "
-         "That costs a little span and buys a front-end 40 V cannot damage.",
-         "Single-ended, and measured against a perfect ground. See the next block for what that assumption "
-         "costs on a shared return."),
+         "That costs a little span and buys a front-end 40 V cannot damage. The last four checks cover the "
+         "ratiometric property itself, which this block was named for and did not model until the spec "
+         "review caught it: a sensor's output is a fraction of its own supply, so a reading taken against "
+         "an assumed 5.000 V carries the rail's whole error band — 10% here. Giving the rail its own ADC "
+         "channel through an identical divider removes it, and the divider ratio cancels algebraically, "
+         "so its tolerance drops out too.",
+         "Ground offset. Every network here measures against a perfect ground, and pins 34 and 36 are "
+         "shared returns — which is why spec §4 now specifies a differential front-end for those channels "
+         "and leaves this one for pin 08, the dedicated return. Also not modelled: divider tolerance "
+         "matching, on which the rail correction depends, and ADC sampling time against the source "
+         "impedance."),
         ("sensor_differential", "Differential sensor input", "pin 34 group",
          "The same channel measured sensor-to-sensor-ground instead of sensor-to-ECU-ground, swept against "
          "the harness return's resistance.",
