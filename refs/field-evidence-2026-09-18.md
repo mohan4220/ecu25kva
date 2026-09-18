@@ -5,10 +5,17 @@ actual machine and from Kirloskar's own PLM system. This file is **raw extracted
 evidence**, in the same role as `ecu-pinout-extracted.md`: what the sources say,
 with reading confidence marked. Conclusions belong in the memos and the spec.
 
-**The original files are not yet in this repo.** They arrived through
-conversation, not the filesystem. They should be committed to `refs/` — the
-three photographs and the 30-page DSE configuration PDF — so this extract can be
-checked against them.
+**Sources, all now committed alongside this file:**
+
+| File | What it is |
+|---|---|
+| `engine-plate-2026-09-18.jpeg` | Engine rating plate, photographed on the block |
+| `ecu-connector-2026-09-18.jpeg` | ECU mating connector, unplugged, face-on |
+| `koel-plm-project-2026-09-18.jpeg` | Kirloskar Windchill PLM project slide |
+| `GP3.314.01.0.PR-DSE4522-config.pdf` | 30-page DSE Configuration Suite printout |
+
+Every reading below was taken from these files directly and can be re-checked
+against them.
 
 ---
 
@@ -87,29 +94,44 @@ Photograph of the ECU's mating connector, unplugged, face-on.
 - **`>PA66-GF50<`** — housing material, polyamide 66 with 50% glass fill.
   Standard automotive ECU housing material; not by itself a maker identification.
 - **`BDK`** — moulded at lower left of the grey insert. Significance unknown.
-- Two small circular logos, upper left and upper right of the grey insert, not
-  resolvable at this image size. **These are the marks worth re-photographing
-  under raking light** — see the inspection brief.
+- **Two circular moulded logos**, one between cavities `1` and `2` in the power
+  chamber, one at the upper right of the main chamber. Examined at 6× on the
+  original file: both are clearly circular badges with internal detail, and
+  **neither is legible**. The right-hand one is the better of the two and shows a
+  rounded form inside the circle. It is not identifiable with confidence, and
+  guessing a manufacturer from a blurred outline would be worse than leaving it
+  open. **These are the marks to re-photograph under raking light** — a torch held
+  almost flat to the surface, several angles. A maker's mark here closes U1.
 
-**Structure, read from the visible cavity numbering.** Numbers legible at the
-edges: `1`, `2` at the top of a separate left-hand chamber; `7` lower in that
-same chamber; and on the main chamber `29`, `51`, `73` down the left edge with
-`21`, `50`, `72`, `94` down the right.
+**Structure, read at full resolution from the cavity numbering.**
 
-That is consistent with, and only with, this arrangement:
+The housing has two chambers. Cavity numbers are moulded down both edges of each.
 
-| Chamber | Pins | Contact size |
-|---|---|---|
-| Left, separate | **1–8** | Large — power |
-| Main, row 1 | **9–28** (20) | Fine |
-| Main, row 2 | **29–50** (22) | Fine |
-| Main, row 3 | **51–72** (22) | Fine |
-| Main, row 4 | **73–94** (22) | Fine |
+| Chamber | Pins | Arrangement | Contact size |
+|---|---|---|---|
+| Left, separate | **1–8** | 2 columns × 4 rows | Large — power |
+| Main, row 1 | **9–28** | 20 | Fine |
+| Main, row 2 | **29–50** | 22 | Fine |
+| Main, row 3 | **51–72** | 22 | Fine |
+| Main, row 4 | **73–94** | 22 | Fine |
 
-8 + 20 + 22 + 22 + 22 = **94**. *(Inferred from the photograph, high confidence —
-the arithmetic closes exactly and every legible number falls where this
-arrangement puts it. Should still be confirmed by counting cavities on the
-physical part.)*
+8 + 20 + 22 + 22 + 22 = **94**, exactly.
+
+*Numbers read:* left chamber shows `1`, `2` at the top, `4` at mid-height and
+`6`, `8` at the bottom — the even column on the right, odd on the left. The main
+chamber's left edge reads `29`, `51`, `73` clearly, with the row-1 label legible
+only as a single digit. Its right edge reads `28`, `50`, `72`, `94`.
+
+*One ambiguity, resolved by arithmetic.* The row-1 left label could be read as
+`7` or `9` at this image quality. It must be **9**: `7` would make row 1 twenty-two
+pins and the total 96, and the connector is 94. A `4` also appears on the left
+edge at mid-height, which initially looked like a fifth row label — it sits
+measurably further left than `29`/`51`/`73` and belongs to the power chamber, not
+the main one.
+
+*(Confirmed from the photograph for the row boundaries and the 94 total;
+the single inference is row 1 starting at 9 rather than 7. Counting cavities on
+the physical part would settle even that.)*
 
 **This confirms memo 03's inference** that the low-numbered pins are large power
 contacts — they are, and they sit in their own chamber. Memo 03 guessed pins
