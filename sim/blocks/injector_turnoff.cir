@@ -243,4 +243,29 @@ wrdata injector_turnoff.dat v(rail) i(Vamm_i) i(Vamm_rc) i(Vamm_fw) v(lo) i(Vamm
 *     Claim 4's peak-power check bounds the stress; it does not
 *     size the part's die area or heatsink, which needs a real
 *     datasheet.
+*
+* TOLERANCE -- the check with the least margin in this block is
+* claim 3's "rail never exceeds 100 V setpoint," gated at 100.05 V
+* against a nominal result of 100.000 V -- 50 mV of headroom. The
+* obvious suspect is Crail (47 uF, same part class as
+* boost_converter.cir's reservoir, so the same +/-20% electrolytic
+* tolerance applies). Re-ran at Crail = 37.6 uF (-20%) in a scratch
+* copy, not this file:
+*
+*     nominal (47 uF)   rail.max() = 100.000229 V
+*     Crail -20%        rail.max() = 100.000229 V
+*
+* Unchanged to six significant figures. This is not a coincidence:
+* the RESULT NOTE above already explains WHY the peak-only case
+* barely moves off 100 V -- a lossless version of this loop cancels
+* EXACTLY by charge-balance symmetry regardless of the reservoir's
+* size, and real losses only push it net negative. Smaller Crail
+* raises the PEAK excursion during the bump (same charge into less
+* capacitance means more volts), but the bump decays before the
+* next event and the window this check measures (end of the third
+* event) is dominated by the same near-exact cancellation, not by
+* Crail's value. So this check's near-zero nominal margin is not
+* actually fragile -- it holds by the same charge-conservation
+* argument the RESULT NOTE already gives for why arrangement A
+* cannot overshoot, and that argument does not depend on C.
 * ------------------------------------------------------------

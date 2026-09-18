@@ -64,4 +64,34 @@ wrdata relay_driver.dat v(db) v(eb)
 * nowhere to go except through the FET." The diode's job is to
 * give it somewhere else. The magnitude is a model artifact; the
 * conclusion is not.
+*
+* TOLERANCE -- the check that matters here is the WITH-diode drain
+* peak, gated under 15 V (14.274 V nominal, 4.8% margin). The
+* binding parameter is not really a component tolerance in the
+* usual sense -- it is Vbat itself. This netlist fixes it at 13.5 V
+* "nominal," but the relay only operates while the engine is
+* running, which is also when the alternator is charging the
+* battery at 14.0-14.4 V, not sitting at rest. Re-ran with Vbat =
+* 14.4 V (a common alternator float-charge setpoint) in a scratch
+* copy, not this file:
+*
+*     Vbat = 13.5 V (this file's assumption)   drain peak = 14.274 V   PASS
+*     Vbat = 14.4 V (alternator charging)      drain peak = 15.177 V   FAIL
+*
+* The offset above Vbat (drain peak - Vbat) is ~0.77-0.78 V in both
+* cases -- the flyback diode's forward drop under the coil's
+* collapsing current, roughly constant -- so this is genuinely a
+* Vbat effect, not a diode-tolerance one. FLAGGED, not fixed: this
+* is a "design inadequate" case in the sense that the check's own
+* premise (13.5 V) does not cover the condition (charging voltage)
+* under which the relay actually operates, but no FET part number
+* is chosen here and the 15 V threshold itself is not derived from
+* one either -- there is no stated Vds rating this compares against,
+* the same unsourced-number problem the 2026-09-18 review's F7
+* found in transient_clamp.cir's 55 V line. Most N-channel parts
+* used in this role are rated 20-60 V, so 15.2 V is very unlikely to
+* be a real hardware problem -- but the CHECK as written should
+* either be run at a charging-voltage Vbat, or the 15 V line should
+* cite the actual part's Vds rating instead of a round number. Left
+* unresolved rather than silently loosened or a value changed here.
 * ------------------------------------------------------------

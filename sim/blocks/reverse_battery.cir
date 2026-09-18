@@ -109,4 +109,19 @@ wrdata reverse_battery_rev.dat v(sc) v(rd)
 * The switch model here turns off instantly, so it will always
 * look perfect in reverse. Do not read the reverse numbers as a
 * transient result.
+*
+* TOLERANCE -- the binding parameter is the FET's Ron, which sets
+* the check with the least headroom, "FET drop stays under 0.3 V
+* spec to 5 A" (0.040 V nominal, at 8 mOhm). Not re-run in SPICE:
+* the FET's drop is exactly I*Ron with no nonlinearity in this
+* model, so the corner is arithmetic. Power MOSFET Ron typically
+* carries +50 to +100% headroom from 25 C to 125 C on top of unit-
+* to-unit binning -- take a pessimistic +100% (worst case, hot):
+* Ron = 16 mOhm, drop at 5 A = 0.080 V, still 3.75x inside the 0.3 V
+* spec. Even a part binned at 3x the nominal 8 mOhm (24 mOhm, an
+* unrealistically bad corner) stays under 0.3 V at 5 A (0.12 V).
+* This check does not come close to being tolerance-sensitive; the
+* 0.3 V spec was set with the Schottky's 0.46-0.52 V performance in
+* mind; a FET would have to be an order of magnitude worse than any
+* realistic part to lose that comparison.
 * ------------------------------------------------------------

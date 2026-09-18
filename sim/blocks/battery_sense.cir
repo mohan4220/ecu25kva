@@ -58,4 +58,23 @@ wrdata battery_sense.dat v(old) v(new)
 *     sense-only or also carry load current; if they carry load,
 *     this front-end is right but the pin's current rating is not
 *     yet established.
+*
+* TOLERANCE -- the binding parameter is R3/R4's ratio, since that
+* is the only thing standing between the corrected divider and the
+* 3.3 V rail. At standard 1% resistors, worst case for MAXIMUM
+* output is R3 low / R4 high: R3=118.8k, R4=10.1k. Re-ran with
+* those values in a scratch copy, not this file:
+*
+*     nominal (120k/10k)      new.max() = 3.069 V, headroom 0.231 V
+*     corner (118.8k/10.1k)   new.max() = 3.126 V, headroom 0.174 V
+*
+* Headroom shrinks by about a quarter but stays comfortably
+* positive -- survives. This matches the "eats a fifth of the
+* headroom" figure already estimated (untested) in the NOT MODELLED
+* list above; the actual run confirms it and shows it does not flip
+* the check. Temperature coefficient was not tested separately: a
+* standard metal-film part's TC (typically ~100 ppm/C) moves the
+* ratio by far less than 1% tolerance already does over the
+* -40..125 C range, so it is dominated by the tolerance case above,
+* not an independent corner worth its own run.
 * ------------------------------------------------------------

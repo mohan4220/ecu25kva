@@ -91,4 +91,21 @@ wrdata discrete_input_tran.dat v(ntr) v(swtr)
 *     is soft, so the clamped level moves with the part and with
 *     temperature; the 92 mV flatness figure is for an ideal one.
 *   - ESD at the connector.
+*
+* TOLERANCE -- the binding parameter is the zener's breakdown
+* voltage. Standard low-power zeners (the 1N47xx-class part this
+* would be) are commonly binned at +/-5%. Re-ran DZ3V0's BV at 2.85
+* (-5%) and 3.15 (+5%) in scratch copies, not this file:
+*
+*     BV=2.85 V (low)   node at 6 V cranking dip = 2.718 V (want >=2.31)
+*     BV=3.15 V (high)  node max over 6-40 V      = 3.104 V (want <=3.6)
+*
+* Both survive with wide margin -- the cranking-dip floor keeps
+* 0.41 V of headroom at the low corner, the abs-max ceiling keeps
+* 0.50 V at the high corner. This block's whole point is that the
+* zener flattens the response against exactly this kind of part
+* variation, and the tolerance run bears that out: a 10% total BV
+* swing (the two corners together) moves the clamped level by
+* about 0.2-0.3 V, an order of magnitude less than the pre-zener
+* divider would have moved it against a 6-40 V battery swing.
 * ------------------------------------------------------------

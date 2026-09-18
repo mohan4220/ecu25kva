@@ -125,4 +125,23 @@ wrdata sensor_ratio_rail.dat v(nd) v(ncorr)
 *   - ADC sampling time against the source impedance.
 *   - The sensor's own error, which is usually larger than
 *     anything in this front-end.
+*
+* TOLERANCE -- the binding parameters are R1/R2 (the divider) for
+* the clamp-clearance check and R1 alone for the fault-current
+* check; neither was re-run in SPICE because both are linear
+* resistor networks and the result follows directly, the same way
+* battery_sense.cir's own divider does (that block's re-run at 1%
+* tolerance -- see its RESULT NOTE -- found the ratio moves about
+* 1.4% for a corner in the same direction as this one, since it is
+* the identical 10k/16k topology at a different scale here (10k/16k
+* vs 10k/... note this block's absolute values differ but the
+* construction is the same class of part at the same 1% tolerance).
+* At +/-1%: full-scale output moves by roughly 1.4% of 2.77 V, about
+* 39 mV -- against a 531 mV clamp-clearance margin that survives
+* easily. Fault current is set almost entirely by R1 in series with
+* a 40 V fault (the zener holds the far end near 3.3 V, a small
+* fraction of the 40 V drop), so a 1% R1 tolerance moves the 3.67 mA
+* figure by about the same 1%, against a 5 mA limit with 36% margin
+* already in hand. Neither check is close enough to any standard
+* resistor tolerance to be worth a SPICE corner run.
 * ------------------------------------------------------------

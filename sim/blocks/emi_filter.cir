@@ -104,4 +104,36 @@ wrdata emi_filter.dat vdb(d) vdb(r)
 * choke stays a specification, not a simulated result, until
 * there is a layout to model it against. Recorded rather than
 * quietly omitted.
+*
+* TOLERANCE -- the checks at 150 kHz and 400 kHz pass at nominal by
+* 1.17 dB and 1.55 dB, the thinnest margins in this repo. The two
+* parameters that move those numbers: L1 (power inductor, +/-20% is
+* standard for this class of part) and C1 (4.7 uF MLCC, sitting
+* directly on the battery line biased to 40 V -- MLCC capacitance
+* under DC bias can lose up to ~60% of its rated value near the
+* part's voltage rating, a well-documented X7R/X5R effect, worse
+* the smaller and higher-K the part). Re-ran at L1 -20% (17.6 uH)
+* and C1 -60% (1.88 uF) in a scratch copy, not this file:
+*
+*     nominal          IL@150kHz -41.17 dB   IL@400kHz -51.55 dB
+*     L1-20%/C1-60%    IL@150kHz -33.6  dB   IL@400kHz -42.4  dB
+*
+* Both flip from PASS to FAIL against the -40/-50 dB gates.
+*
+* What this does NOT show is that the filter is inadequate. Those
+* gates are round numbers chosen before any hardware measurement of
+* this board's unfiltered emissions exists -- see the check file's
+* own "is 40 dB enough for Class 5?" line, answered "unknown" for
+* every one of these checks, nominal or tolerance-corner alike. A
+* margin this thin against an unvalidated target is worth knowing
+* -- it says the -40/-50 dB gates are fragile to ordinary component
+* tolerance, not just to interpretation -- but flipping them to FAIL
+* here would manufacture a verdict this block cannot support either
+* way. The honest reading: this filter's margin against ITS OWN
+* placeholder target is not robust, and the placeholder target
+* itself still needs a LISN measurement to mean anything. Fixing
+* the margin (tighter-tolerance L1, a C1 sized or biased so its
+* DC-bias loss is smaller, e.g. a larger case size or a part rated
+* well above 40 V) is worth doing on cost/robustness grounds
+* regardless of what the eventual measured target turns out to be.
 * ------------------------------------------------------------

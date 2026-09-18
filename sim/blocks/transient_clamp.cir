@@ -60,4 +60,22 @@ wrdata transient_clamp.dat v(bat) v(src)
 * The 42 V figure should be dropped from the spec rather than
 * chased with a lower-voltage TVS, which would clamp during a
 * legitimate suppressed load dump and have to absorb its energy.
+*
+* TOLERANCE -- the one parameter this verdict could plausibly move
+* on is C1, the bulk input capacitance, since charge dumped into it
+* is charge the TVS does not have to clamp. Re-ran with C1 swept to
+* 0 (effectively removed) in a scratch copy, not this file:
+*
+*     C1 = 10 uF (nominal)  ->  vmax = 49.998 V
+*     C1 = 0 (removed)      ->  vmax = 49.998 V
+*
+* Identical to three decimal places. The TVS's own 0.35 ohm dynamic
+* resistance dominates the clamp against this 2 ohm/50 us source
+* pulse; C1 is not doing the clamping work at all here (it matters
+* for load_dump.cir's much longer pulse, not this one). So this
+* block's verdict does not depend on C1's tolerance -- there is
+* nothing to corner-test. The 55 V/60 V/100 V margin checks above
+* would only move if the TVS's own breakdown voltage or dynamic
+* resistance moved (temperature, part-to-part spread), which is
+* F11 in the 2026-09-18 review -- out of scope here, not modelled.
 * ------------------------------------------------------------

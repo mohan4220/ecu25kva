@@ -75,4 +75,42 @@ wrdata sensor_rail.dat v(raila) v(ab) v(railb) v(bb) i(V5A)
 * notice. A tripped PTC and a dead sensor look identical from the
 * ADC's side, and only the tripped one comes back after a power
 * cycle. That distinction belongs in the fault manager.
+*
+* TOLERANCE -- the binding parameter is the PTC's cold resistance.
+* This netlist picks 2.0 ohm with no part number cited ("cold
+* resistance of a 200 mA hold device" -- a class description, not a
+* datasheet pull). PTC cold resistance commonly spreads +/-30-50%
+* part-to-part within a single hold-current bin, wider than a fixed
+* resistor because it depends on the thermistor material lot, not
+* just geometry. Re-ran at two corners in scratch copies, not this
+* file:
+*
+*     PTC = 2.0 ohm (nominal)   healthy group A short = 4.661 V   PASS (>4.5)
+*     PTC = 1.0 ohm (-50%)      healthy group A short = 4.496 V   FAIL
+*     PTC = 1.4 ohm (-30%)      fault current          = 3.397 A  FAIL (>3.0 A)
+*
+* Both checks flip at a plausible low-resistance corner, at
+* different PTC values -- the healthy-group floor is the more
+* sensitive of the two (fails by -30% too: at 1.4 ohm ab=4.596,
+* still passes; the healthy-group check needs roughly -45% to flip,
+* the fault-current check needs only -30%).
+*
+* THE DESIGN IS INADEQUATE at this corner in the same shape as
+* buck_preregulator.cir's inductor finding: 2.0 ohm was chosen as a
+* class-typical figure with no datasheet min/typ/max spread behind
+* it, and the healthy-group margin at nominal (4.661 V against a
+* 4.5 V floor, 3.6%) is thin enough that ordinary PTC spread already
+* erodes it. The fix is not a bigger PTC value picked to force a
+* pass -- it is picking an actual part number and checking its
+* datasheet's MINIMUM cold resistance (not typical) against both
+* checks, and if no single part clears both at its worst case,
+* either accepting a lower healthy-group floor than 4.5 V (see F8 in
+* run_sim.py's comment on that check -- 4.5 V is itself a round
+* number, not sharply derived) or adding series resistance ahead of
+* the PTC so the fault-current ceiling has margin independent of the
+* PTC's own spread. Not changed here for the same reason as
+* buck_preregulator.cir: this value may be drawn on a schematic
+* owned by a concurrently-edited file, and picking a real part
+* number is an actual design decision this simulation pass should
+* not make unilaterally.
 * ------------------------------------------------------------

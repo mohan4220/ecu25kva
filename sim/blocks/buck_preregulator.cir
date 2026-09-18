@@ -105,3 +105,42 @@ wrdata buck_prereg.dat v(o1) i(VsL1) v(o2) i(VsL2)
 * taken from this netlist would be optimistic and meaningless.
 * Use the controller's datasheet curves for that.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- tolerance
+* ------------------------------------------------------------
+* The binding parameter is L (the power inductor); it sets the
+* ripple checks directly and everything else in this block has wide
+* margin. +/-20% is the standard tolerance bin for this class of
+* part. Worst case for ripple is L LOW, since ripple is inversely
+* proportional to L. Re-ran at L1=L2=26.4 uH (-20%) in a scratch
+* copy, not this file:
+*
+*     nominal (33 uH)   worst-case ripple (40 V line) = 34.84% of 1 A load
+*     L -20% (26.4 uH)  worst-case ripple (40 V line) = 44.92% of 1 A load
+*
+* Flips the "under ~40% of full load" check (run_sim.py's own
+* comment on that check, and the 2026-09-18 review's F9, both note
+* this 40% figure is industry convention rather than a cited spec --
+* still, 44.9% at a perfectly standard inductor tolerance is a real
+* margin failure against it, not a manufactured one).
+*
+* THE DESIGN IS INADEQUATE at this corner, not the target: a 30-40%
+* ripple-ratio convention is common enough (see run_sim.py) that
+* designing to only just clear it at NOMINAL component values, with
+* no margin for a standard +/-20% inductor tolerance, is the mistake
+* -- the same shape of error load_dump.cir's Us*/Ri finding and this
+* review's F3 catalogue elsewhere. The fix is straightforward and
+* not applied here: raise L to a value that clears 40% even at its
+* own -20% corner, which by the same linear scaling means roughly
+* L >= 36 uH nominal (33 uH * 34.84/40 / 0.8); the next standard
+* value up, 39 uH or 47 uH, would do it with real margin (47 uH's
+* own -20% corner would sit at about 30.6%). Not changed here
+* because sim/draw_schematics.py -- out of scope for this pass and
+* being edited concurrently -- draws this inductor's value on the
+* schematic, and changing it here without updating that picture
+* would create the exact netlist/schematic drift the project's own
+* README calls out as the thing this simulation harness exists to
+* prevent. Whoever owns that file next should make this change in
+* both places together.
+* ------------------------------------------------------------

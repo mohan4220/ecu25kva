@@ -218,6 +218,16 @@ def check_transient_clamp():
     # An SMBJ33CA cannot meet the 42 V figure the earlier artifacts asked for --
     # see the note in the netlist. The real constraints are the buck's rating
     # and keeping 60 V-class parts viable.
+    #
+    # 55.0 below has the same problem the 42 V figure had, one line down:
+    # it is not the LM5164's rating (100 V, checked next), not the "60 V-class
+    # parts" bound (checked two lines below), and not tied to any standard or
+    # datasheet. It reads as "simulated ~50 V result + ~5 V margin," chosen
+    # after seeing the answer rather than before. It happens not to change
+    # the verdict -- the 60 V check below carries the real conclusion -- but
+    # the number itself is unsourced. Kept as a check (not deleted) because a
+    # margin-over-observed-result gate still has some value as a trip wire if
+    # the clamp voltage ever moves; just do not read it as a spec.
     vmax = float(bat.max())
     c.that("clamped voltage at buck input", vmax, 55.0, tol=None, ok=vmax < 55.0)
     c.that("  ... inside LM5164's 100 V rating", 100.0 / vmax, 1.8, tol=None,
@@ -244,6 +254,21 @@ def check_load_dump():
 
     # Voltage side: same question transient_clamp asked for pulse 2a. This
     # is the part of the story that looks fine.
+    #
+    # vclamp/iclamp/avg_power below (and the same three lines further down)
+    # are REGRESSION PINS, not independent claims (2026-09-18 review F6):
+    # their "expected" values were read off this simulation's own output,
+    # not derived beforehand from Us*/Ri/the TVS model in closed form -- the
+    # TVS's nonlinear clamping makes that algebra impractical by hand, the
+    # same reason mcu_pdn.cir's anti-resonance check is pinned rather than
+    # formula-checked. They exist so a future change to this netlist that
+    # silently moves the clamp point gets caught; they are not a design
+    # requirement anybody chose. The real claims -- the ones with an
+    # independently sourced bound -- are the ~0.5 J / ~3 W datasheet-class
+    # limits checked below, and the settled-voltage and energy figures,
+    # which ARE derivable a priori (energy by integrating the plateau
+    # numbers, settled voltage as 13.5*Rload/(Rload+Rsrc)) and match to 3
+    # significant figures.
     plateau = (t > 0.05) & (t < 0.4)
     vclamp = float(bat[plateau].mean())
     c.that("clamped voltage through the 400 ms plateau", vclamp, 38.1, tol=0.3, unit="V")
@@ -260,6 +285,7 @@ def check_load_dump():
     c.that("TVS current through the plateau", iclamp, 3.04, tol=0.3, unit="A")
     avg_power = float(np.abs(bat[plateau] * iamm[plateau]).mean())
     c.that("average power dissipated in the TVS", avg_power, 116.0, tol=15.0, unit="W")
+    # ^ regression pin, see the comment above vclamp.
 
     energy = float(np.trapezoid(np.abs(bat * iamm), t))
     c.that("total energy absorbed by the TVS over the pulse", energy, 46.4, tol=4.0,
@@ -299,6 +325,15 @@ def check_injector_boost():
         idx = np.argmax(cur >= target)
         return float(t[idx]) if cur.max() >= target else float("inf")
 
+    # The two times below have a closed form -- t = (L/R)*ln(V/(V-I_th*R)),
+    # the standard RL step-response result -- but the "want" figures were
+    # taken from this simulation's own output rather than typed in from
+    # that formula, so treat them as regression pins on the timing (2026-09-18
+    # review F6 pattern). The RATIO two lines down is not a pin in the same
+    # way: L and R are identical in both branches (same injector coil), so
+    # L/R cancels algebraically and the ratio depends only on the two drive
+    # voltages -- it is invariant to the injector's own L/R tolerance by
+    # construction, not just numerically robust.
     t_bat = t_to(ibat, 18.0)
     t_bst = t_to(ibst, 18.0)
     c.that("time to 18 A peak from 13.5 V battery", t_bat * 1e6, 439, tol=15, unit="us")
@@ -395,6 +430,13 @@ def check_injector_turnoff():
     # netlist starts a second reservoir at 100 V with boost_converter.cir's
     # own 10 A hold-current figure already flowing (ic=10, no ramp) and
     # measures the result directly.
+    # Regression pin (2026-09-18 review F6 pattern): the bump depends on the
+    # two diode drops and R1's resistance during the decay, which is not a
+    # simple Q/C calculation. The claim this block actually makes is the
+    # next line -- that THIS scenario overshoots 100 V while the peak-only
+    # one above does not -- which is a real, independently meaningful
+    # comparison even though this exact bump figure is not independently
+    # derived.
     c.that("hold-current cutoff into the SAME cap, no offsetting draw",
            float(railh.max()) - 100.0, 2.1, tol=0.6, unit="V")
     c.that("  ... THIS is the scenario that overshoots 100 V",
@@ -413,6 +455,12 @@ def check_injector_turnoff():
     # still carries the full 18 A at its own forward drop during each
     # ~33 us pulse, and that instantaneous figure is what the diode's
     # thermal/junction rating actually has to survive.
+    # No closed form for peak_p -- it depends on the diode's nonlinear I-V
+    # curve at the instant of peak recirculation current, which only the
+    # simulation resolves. Regression pin (2026-09-18 review F6 pattern),
+    # not an independently derived claim; the claim this check actually
+    # backs is the ratio two lines down, against memo 10's own sourced
+    # average figure.
     decay = (t >= 38e-6) & (t < 138e-6)
     p_diode = (vlo[decay] - rail[decay]) * irc[decay]
     peak_p = float(p_diode.max())
@@ -476,6 +524,15 @@ def check_reverse_battery():
            ok=float(sch.max()) > 0.3)
 
     # The number that pays for the controller IC: heat that never happens.
+    # The Schottky figure is class-typical (the header's "roughly 0.46 V at
+    # 3 A"), so 1.38 W tracks a real datasheet-class number, loosely. The
+    # FET figure is exactly I*Ron = 3 A * 8 mOhm = 0.024 V * 3 A -- Ohm's
+    # law, not a regression pin, even though the "want" value was in fact
+    # copied from an earlier run of this same simulation rather than typed
+    # in as 0.024*3 (2026-09-18 review F6 flagged this one; the arithmetic
+    # is trivial enough that pin vs. derived claim comes out the same
+    # either way here, unlike load_dump's TVS numbers above, which have no
+    # such closed form).
     c.that("power burnt in the Schottky at 3 A", at3(sch) * 3, 1.38, tol=0.2, unit="W")
     c.that("  ... and in the FET instead", at3(fet) * 3, 0.072, tol=0.02, unit="W")
 
@@ -507,7 +564,16 @@ def check_buck_preregulator():
            tol=0.15, unit="V")
 
     # Inductor ripple sets the core loss and the peak current the switch
-    # sees. Convention is to keep it under ~40% of full load.
+    # sees. Convention is to keep it under ~40% of full load -- a ripple
+    # RATIO (r = dI/Iload) of 0.3-0.4 shows up repeatedly across buck
+    # converter inductor-selection app notes (e.g. TI SLVA477) as the
+    # rule-of-thumb sweet spot: lower wastes core size and cost on ripple
+    # nobody needs, higher raises peak current, core loss and EMI for no
+    # benefit. It is not a number from any standard, and no single
+    # canonical source for "40%" specifically was found -- 30% is quoted
+    # about as often as 40% is. Per the 2026-09-18 review (F9), this is
+    # convention, not spec: reasonable, uncited, and per the tolerance note
+    # below, the margin against it is thin.
     rip1 = float(il1.max() - il1.min())
     rip2 = float(il2.max() - il2.min())
     c.that("inductor ripple at 13.5 V", rip1, 0.238, tol=0.06, unit="A")
@@ -536,8 +602,16 @@ def check_sensor_rail():
     railb, bb = float(d["railb"][0]), float(d["bb"][0])
 
     # With per-group protection, one shorted harness must leave the other
-    # groups usable. A ratiometric sensor needs its supply within a few
-    # percent to mean anything, so 4.5 V is the floor worth defending.
+    # groups usable. 4.5 V is 10% below the 5 V nominal -- not "a few
+    # percent," corrected here (2026-09-18 review F8: the two did not
+    # match). No sharper derivation exists yet for why 10% specifically is
+    # the floor rather than, say, 5%; sensor_ratiometric.cir's ratiometric
+    # correction (measuring the rail and dividing it out) removes the error
+    # a drifting rail causes for THAT front-end, but the floor here is
+    # about whether the rail still has enough headroom to sit above the
+    # ADC's own useful range at all, which is a cruder question. Treat 4.5
+    # V as a round, defensible-but-not-derived floor until someone ties it
+    # to a specific sensor's own supply-tolerance spec.
     c.that("healthy group with PTCs, group A shorted", ab, 4.5, tol=None,
            ok=ab > 4.5, unit="V")
     c.that("  ... rail itself holds up", raila, 4.5, tol=None, ok=raila > 4.5,
@@ -634,13 +708,30 @@ def check_emi_filter():
     fworst = float(f[band][int(np.argmax(out[band] - ref[band]))])
     c.that("worst insertion loss anywhere above 150 kHz", worst, -40.0, tol=None,
            ok=worst < -40, unit="dB")
-    c.that("  ... worst point sits at", fworst / 1e3, 150.0, tol=None,
-           ok=True, unit="kHz")
+    # Informational, not a claim: no value of fworst can fail this line, so it
+    # is reported as a string like the other informational rows below rather
+    # than as a numeric check with a fake "(want 150)" target. (2026-09-18
+    # review F5: the numeric form with ok=True hardcoded printed a "want"
+    # value nothing could ever violate.)
+    c.that("  ... worst point sits at", f"{fworst/1e3:.1f} kHz", None, ok=True)
 
     # Stated rather than asserted: how much attenuation is ENOUGH cannot be
     # decided here. It depends on the unfiltered emissions, which need a
     # built board and a LISN. 40 dB across the band is what this filter
     # delivers; whether Class 5 needs more is a measurement, not a claim.
+    #
+    # That "unknown" is not a footnote to the five hard gates above -- it is
+    # the reason they exist at all. -40/-50/-60 dB are round numbers chosen
+    # before any hardware measurement existed to validate them (see the
+    # netlist's tolerance note: at a standard inductor/capacitor tolerance
+    # corner, two of them flip to FAIL on margins that were 1-2 dB at
+    # nominal). A tolerance-driven flip against an unvalidated round number
+    # does not mean the filter is inadequate for CISPR 25 Class 5 -- it
+    # means these five checks are only as solid as the -40/-50 dB choice,
+    # which this line already says is not solid. Read a FAIL here as "this
+    # filter's margin against its own placeholder target is thin," not as
+    # "this filter fails Class 5" -- that second claim needs the measurement
+    # this line says has not been made.
     c.that("is 40 dB enough for Class 5?",
            "unknown -- needs measured unfiltered emissions on hardware", None,
            ok=True)

@@ -69,4 +69,19 @@ wrdata injector_boost.dat i(Vbat) i(Vbst)
 *     from armature motion.
 *   - The envelope itself is family-wide, from research memo 04,
 *     not this injector's measured values. That is U5.
+*
+* TOLERANCE -- the binding parameter would be the injector coil's
+* own L (a power inductor's worth of tolerance is not really
+* applicable here since the coil IS the load, not a chosen part,
+* but treat +/-20% as the stand-in for how much the "typical" 200 uH
+* figure could be off for a real part). Not re-run in SPICE: the
+* two times being compared (t_bat, t_bst) both use the SAME coil
+* model, so for the RL step response t = (L/R)*ln(V/(V-I_th*R)),
+* the L/R factor is identical in both branches and cancels exactly
+* in their ratio. The "boost is faster by 11.6x" claim -- the
+* entire argument this block exists to make -- is therefore
+* invariant to the coil's L/R tolerance by construction, not merely
+* numerically robust to it. The two individual times (439 us, 38 us)
+* DO move with L/R tolerance, proportionally, but nothing here gates
+* a pass/fail threshold on either one alone.
 * ------------------------------------------------------------
