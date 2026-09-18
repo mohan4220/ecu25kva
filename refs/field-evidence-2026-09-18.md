@@ -11,11 +11,17 @@ with reading confidence marked. Conclusions belong in the memos and the spec.
 |---|---|
 | `engine-plate-2026-09-18.jpeg` | Engine rating plate, photographed on the block |
 | `ecu-connector-2026-09-18.jpeg` | ECU mating connector, unplugged, face-on |
+| `ecu-connector-bosch-marks-2026-09-18.jpeg` | Same connector, angled to the light — Bosch marks and part numbers |
 | `koel-plm-project-2026-09-18.jpeg` | Kirloskar Windchill PLM project slide |
+| `controller-front-2026-09-18.jpeg` | Genset controller, front — DSE badge and keypad |
+| `controller-rear-2026-09-18.jpeg` | Genset controller, rear — label, ratings, terminal numbering |
 | `GP3.314.01.0.PR-DSE4522-config.pdf` | 30-page DSE Configuration Suite printout |
 
 Every reading below was taken from these files directly and can be re-checked
-against them.
+against them. The load-bearing markings — the Bosch part numbers, `code C`, and
+the controller's model and serial — were each re-read at 4–5× magnification on
+the original files after first being transcribed from a smaller preview. All
+matched; none needed correction.
 
 ---
 
