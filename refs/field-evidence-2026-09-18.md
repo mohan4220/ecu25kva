@@ -139,22 +139,143 @@ contacts — they are, and they sit in their own chamber. Memo 03 guessed pins
 
 ---
 
-## 3. THE GENSET CONTROLLER IS A DEEP SEA DSE4522, NOT A KG640C
+## 2b. ECU CONNECTOR IDENTIFIED — U1 CLOSED
 
-Document supplied: **`GP3.314.01.0.PR — DSE 4522 CONTROLLER PROGRAM FOR
-3R550.25KVA, 3PHASE (GK PROJECT)`**, 30 pages, dated 10-07-2026. It is a full
-DSE Configuration Suite printout.
+A second connector photograph, taken with the housing angled to the light, carries
+the maker's mark and part numbers that the face-on shot could not resolve.
+
+| Marking | Where |
+|---|---|
+| **BOSCH** + the Bosch armature-in-circle logo | Moulded on the side body |
+| **`1 928 405 194`** | Same face, under the BOSCH text |
+| **`2.7`** | Beside the logo on that face |
+| **`1 928 405 192`** | On the strip along the lower body |
+| **`code C`** | Beside `1 928 405 192` — mechanical coding variant |
+| `>PA66-GF…<` | On the locking lever |
+
+The `1 928 4xx xxx` series is Bosch's connector part-number range. Taken with the
+face-on photograph's 94 cavities, the `>PA66-GF50<` housing and the single-lever
+actuation visible here, this is a **Bosch 94-way ECU connector of the EDC17
+family**.
+
+**Memo 03 ranked "Bosch EDC17-style 94-pin" as its leading candidate on
+inference. It is confirmed, and with part numbers off the physical part** — which
+is better evidence than a catalogue match, since it cannot be a mis-identification.
+
+*Note on `code C`:* Bosch supplies these housings in mechanically coded variants
+so that differently-coded plugs cannot be mated. **Any replacement or adapter
+housing must match code C**, or it will not engage. This is the kind of detail
+that is invisible until a part arrives and will not fit.
+
+*A web search for the two part numbers returned no direct catalogue hit* — the
+series and the 94-way EDC17 family are well represented commercially, but these
+specific numbers did not surface. Sourcing should go through a Bosch distributor
+quoting the numbers, not through a search engine. *(Negative result, recorded.)*
+
+---
+
+## 3. THE GENSET CONTROLLER IS A DEEP SEA DSE4522 — CONFIRMED, NOT A KG640C
+
+**Settled by photograph, 18 Sep 2026.** The controller has been removed and
+photographed front and rear.
+
+Front: **DSE — Deep Sea Electronics** badge, LCD, and the Stop / Auto / Start
+keypad of the 45xx series.
+
+Rear label:
+
+| Field | Value |
+|---|---|
+| Model | **4522 MKII AMF (INDIA SP)** |
+| Part number | **4522-001-01** |
+| Batch | F001022612 |
+| Serial number | **11021794** |
+| Origin | Made in the UK |
+| Housing | 020-1048,5 |
+
+Ratings printed on the rear housing:
+
+| | |
+|---|---|
+| DC supply | 8 V to 35 V, 0.5 A max |
+| DC outputs | 30 V, **5 A (T3–T4)**; **2 A (T6–T9)** |
+| DC inputs | 30 V max |
+| AC voltage inputs | 600 V AC, 50/60 Hz, 1 ph to 3 ph |
+| AC current inputs | 5 A, 50/60 Hz, 1 ph to 3 ph |
+| Charge alternator | 30 V DC, 2.5 W max |
+| Comms port | 5 V DC max |
+
+Terminals visible: **1–9, 10–20** along the bottom; **21–24, 25–28, 29–35** along
+the top. **35 terminals.** A USB-B configuration port sits on the rear face.
+
+Document supplied alongside: **`GP3.314.01.0.PR — DSE 4522 CONTROLLER PROGRAM FOR
+3R550.25KVA, 3PHASE (GK PROJECT)`**, 30 pages, dated 10-07-2026. A full DSE
+Configuration Suite printout, and now confirmed to be the program for the module
+that is actually fitted.
 
 `GP3.314.01.0.PR` follows the same `GP3.` document-numbering as the wiring
 diagram, and the title names this engine and this rating.
 
-**Research memo 02 is an analysis of the KG640C.** The whole of spec §3's safety
-position is built on it: that the controller senses speed from alternator
-frequency, that its digital output B drives a 70 A ignition relay, and that this
-gives an overspeed path bypassing the ECU. **If the fitted controller is a
-DSE4522, that analysis is about the wrong device.**
+**Research memo 02 is an analysis of the KG640C, and the KG640C is not on this
+machine.** The whole of spec §3's safety position was built on that memo. It has
+been rewritten — see §3 of the spec, second revision.
 
-This is not yet settled — see "What this does not tell us" below.
+### 3.0 What DSE's own manual says about engine speed — the finding that matters
+
+From the DSE4510 MKII / DSE4520 MKII operator manual, document **`057-260` issue 6**
+(the 4522's direct siblings; downloaded and text-extracted):
+
+> "If the unit has been configured for CAN, compatible ECU's receive the start
+> command via CAN and **transmit the engine speed to the DSE controller**."
+
+and in the engine-at-rest detection logic:
+
+> "Engine speed is zero **as detected by the CAN ECU**"
+
+**Engine speed reaches this controller from the ECU, over CAN.** Memo 02's central
+claim — that the controller senses speed from alternator frequency independently
+of the ECU — is false for the fitted device. The configured 1710 rpm overspeed
+shutdown reads a number our ECU sends, and a hung ECU transmitting a stale
+plausible speed defeats it.
+
+**No magnetic pickup input exists** on this module. The manual's terminal table
+runs 1–35 with no speed-pickup terminal of any kind. That makes U3's answer
+*confirmed* rather than *inferred* — arrived at correctly by memo 02, for a
+device that turned out not to be fitted.
+
+**The independent path that does survive is generator over-frequency.** The
+module measures generator frequency directly at terminals 21–24, off the
+alternator's three phases, without touching CAN. The configuration sets an
+over-frequency **shutdown at 56.0 Hz**, which on this 4-pole alternator is
+**1680 rpm** — below the CAN-dependent 1710 rpm overspeed trip. It is genuinely
+independent of our ECU, and it is conditional on the alternator being excited.
+
+### 3.0.1 Terminal assignments, from the manual
+
+| Terminal | Function | Rating |
+|---|---|---|
+| 1 / 2 | DC plant supply negative / positive | — |
+| **3** | **DC Output A — FUEL** | 10 A for 10 s, 5 A continuous |
+| **4** | **DC Output B — START** | 10 A for 10 s, 5 A continuous |
+| 5 | Charge fail / excite | — |
+| 6–9 | DC Outputs C–F | 2 A each |
+| **10** | **Sensor common return** | must bond to the **engine block** |
+| 11 / 12 / 13 | Analogue sensor inputs A / B / C | oil / coolant / fuel level |
+| 14–17 | Configurable digital inputs A–D | switch to negative |
+| 18 / 19 / 20 | CAN H / CAN L / screen | 120 Ω cable |
+| 21–24 | Generator L1 / L2 / L3 / N voltage sensing | — |
+| 25–28 | Mains L1 / L2 / L3 / N | — |
+| 29–35 | CTs, charge alternator, comms | — |
+
+This reconciles the configuration printout exactly: six DC outputs A–F, of which
+two are the 5 A pair on T3/T4 and four are the 2 A group on T6–T9.
+
+**Terminal 10's instruction is emphatic and worth carrying into our own design.**
+DSE's manual: *"It is VERY important that terminal 10 (sensor common) is connected
+to an earth point on the ENGINE BLOCK, not within the control panel … This
+connection MUST NOT be used to provide an earth connection for other terminals or
+devices."* That is the same discipline research memo 09 found in SEDEMAC's sensor
+common point, now confirmed as DSE practice on the exact module fitted here.
 
 ### 3.1 Digital outputs (page 4) — contradicts memo 02's mapping
 

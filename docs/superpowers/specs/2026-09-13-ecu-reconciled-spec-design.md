@@ -111,71 +111,116 @@ lists them as two.
 
 ## 3. Safety position
 
-> **Revised 2026-09-13** after research memo 02 and a follow-up trace of the OEM diagram.
-> This section originally claimed engine speed reaches the GCU over CAN only, and that
-> the architecture therefore has no independent overspeed path. **That was wrong, and
-> wrong in the pessimistic direction.** The corrected picture is below; the gate it
-> imposes is relaxed but not removed.
+> **Revised 18 Sep 2026 — second revision, and it moves in the pessimistic direction.**
+> The genset controller has been photographed and identified. It is a **Deep Sea
+> Electronics DSE4522 MKII AMF (India SP)**, part `4522-001-01`, serial 11021794 —
+> **not the KG640C** that the OEM wiring diagram shows and that research memo 02
+> analysed. This section was built on memo 02. Its central claim is now known to be
+> false for the device actually fitted, and the relaxation that claim bought is
+> withdrawn.
 
-**There is no magnetic pickup.** Confirmed as far as desk research can: the OEM diagram
-labels every terminal in the KG640C's J1–J8 with no speed-pickup among them, and KOEL's
-manual for the sibling KG640 (`SED-MAN-KG640-002`) enumerates all 42 terminals with no
-MPU input.
+### What changed
 
-**But the GCU has an independent overspeed path anyway, and it is better than an MPU
-trip in one respect and worse in another.** Three findings combine:
+The previous revision rested on this: *the controller senses speed from alternator
+frequency, not from CAN, so its overspeed trip cannot be defeated by a hung ECU.*
 
-1. **The GCU senses speed from alternator frequency, not from CAN.** The KG640 manual's
-   sole `Engine Speed Sense Source` value is `Alternator frequency`; terminals 27–30
-   sample the genset's own AC output at 5 kHz over 3–75 Hz. On a 4-pole alternator with
-   no slip, 1500 rpm is rigidly 50 Hz. This path does not touch the engine ECU or the
-   CAN bus.
-2. **The GCU can cut fuel in hardware.** Its digital output B drives the ignition relay
-   `-13RB1`, which is rated **70 A** — a power contactor, not a signal relay. Dropping it
-   removes the supply feeding the ECU and the fuel metering unit rather than merely
-   signalling the ECU to stop.
-3. **So the whole chain bypasses this ECU.** Alternator frequency → GCU AC front-end →
-   GCU firmware → 70 A contactor → fuel system unpowered. A hung ECU or a dead CAN bus
-   does not defeat any link in it.
+That is true of the KG640C. **It is not true of the DSE4522.** From DSE's own operator
+manual for the DSE4510/4520 MKII (document `057-260`, the 4522's siblings):
 
-**What this leaves.** The residual single point of failure is the GCU's own
-microcontroller. A GCU firmware hang defeats the path; an ECU hang does not. That is a
-materially different and much smaller risk than the one this section originally
-described.
+> "If the unit has been configured for CAN, compatible ECU's receive the start command
+> via CAN and **transmit the engine speed to the DSE controller**."
 
-**The revised gate.** A standalone MPU-driven overspeed trip module is **recommended,
-not mandatory**, and the decision is now a judgement about GCU reliability rather than
-about a missing path. Two candidates are costed in memo 02 (GAC SSW675, Murphy HD9063).
-What remains **mandatory** before any build takes injection authority is confirming
-finding 2 by measurement — see U12 — because the whole relaxation rests on the ignition
-relay actually removing power from the fuel system rather than merely signalling.
+and, in the engine-at-rest detection logic:
 
-The Circuit Guide argued — correctly, as a matter of engineering — that overspeed
-protection should not depend on the same MCU and the same bus that could be the thing
-that failed. The OEM system does not honour that. We are replacing the OEM ECU, so we
-inherit its interface, and adding an MPU requires a GCU input we have not confirmed exists.
+> "Engine speed is zero **as detected by the CAN ECU**"
 
-The position for this design:
+**Engine speed reaches this controller from our ECU, over CAN.** The configured
+overspeed shutdown at 1710 rpm therefore reads a number we send. An ECU that hangs
+while transmitting a stale, plausible speed defeats it completely — which is precisely
+the failure mode this section exists to guard against.
+
+### What is confirmed, and what replaces it
+
+**No magnetic pickup — now confirmed rather than inferred.** The DSE4522's full
+terminal list runs 1–35 and contains no speed-pickup input of any kind: 1–2 DC supply,
+3–4 outputs A (FUEL) and B (START), 5 charge fail/excite, 6–9 outputs C–F, 10 sensor
+common, 11–13 analogue sensors, 14–17 digital inputs, 18–20 CAN, 21–24 generator
+voltage sensing, 25–28 mains, 29–35 CTs, charge alternator and comms. Read from the
+manufacturer's own terminal table, not from a diagram's silence.
+
+**An independent path does still exist — but it is a different mechanism, and a more
+conditional one.** The module measures **generator frequency directly** at terminals
+21–24, straight off the alternator's three phases. It does not use CAN to do this. The
+configuration sets:
+
+| Protection | Trip | Source | Equivalent speed (4 poles) |
+|---|---|---|---|
+| Generator **over-frequency** shutdown | **56.0 Hz** (112 %) | Alternator terminals 21–24 — **independent of CAN** | **1680 rpm** |
+| Engine **over-speed** shutdown | 1710 rpm | **CAN, from our ECU** | 1710 rpm |
+
+On a 4-pole alternator at no slip, speed and output frequency are rigidly linked. The
+over-frequency trip fires at **1680 rpm, before** the CAN-dependent overspeed trip at
+1710 rpm, and it cannot be defeated by anything our ECU does or fails to do.
+
+**Its conditions, stated plainly.** It is a *generator* protection being relied on as an
+*engine* protection, and it inherits that mechanism's dependencies: the alternator must
+be excited and producing measurable output, and the AVR must be working. An excitation
+failure removes the protection. That is a narrower guarantee than a magnetic pickup
+watching the flywheel, and it should not be described as equivalent to one.
+
+### Where the chain terminates — and why U12 is now the whole question
+
+Every protective action this controller can take ends at the same place: it
+de-energises **DC Output A, terminal 3, the FUEL relay** (rated 10 A for 10 s, 5 A
+continuous — a relay coil driver, consistent with it operating the 70 A `-13RB1`
+contactor in the OEM diagram).
+
+So the independent over-frequency path is only as good as what that relay's contacts
+carry. If they remove supply from the ECU and the fuel metering unit, the path works. If
+they merely signal a hung ECU, **the path terminates in the failure it was meant to
+catch**, and there is no independent protection at all.
+
+That is U12, unchanged in substance and now the single load-bearing measurement in this
+section.
+
+### The position for this design
 
 1. The ECU implements overspeed shutdown in firmware as a **primary** function, with the
-   crank sensor as its input, at the highest scheduling priority. This is the first line,
-   and it is ours.
-2. The GCU's alternator-frequency path plus its 70 A ignition contactor is the **second
-   line**, independent of this ECU. We must not do anything that weakens it — in
-   particular, the ECU must not latch the fuel metering unit on in a way that survives
-   its supply being removed, and must fail safe when the ignition input at pin 71 drops.
-3. A standalone MPU trip module is the **optional third line**, covering GCU firmware
-   failure. Recommended; a judgement call for the project owners on cost against residual
-   risk, no longer a blocking requirement.
-4. **The gate that remains: U12 must be closed by measurement before any build takes
-   injection authority.** If the ignition relay turns out to signal the ECU rather than
-   remove power from the fuel system, the second line does not exist, item 3 reverts to
-   mandatory, and this section reverts with it.
+   crank sensor as its input, at the highest scheduling priority. First line, and it is
+   ours.
+2. The controller's **generator over-frequency shutdown at 56 Hz**, measured directly
+   from the alternator, is the **second line**. It is independent of this ECU but
+   conditional on alternator excitation. We must not weaken it: the ECU must not latch
+   the fuel metering unit on in a way that survives its supply being removed, and must
+   fail safe when the ignition input at pin 71 drops.
+3. A standalone MPU-driven overspeed trip module is **mandatory again**, not
+   recommended. The relaxation in the previous revision was bought entirely by the claim
+   that the controller had an independent *speed* path; that claim is false for the
+   fitted device. What remains is a generator-frequency protection with an excitation
+   dependency, terminating in a relay whose function is unverified. That is not enough
+   to carry a 25 kVA set on its own. Two candidates are costed in memo 02
+   (GAC SSW675, Murphy HD9063) — that costing survives even though the memo's device
+   analysis does not.
+4. **The gate: U12 must be closed by measurement before any build takes injection
+   authority.** A clean U12 result strengthens line 2 but does not by itself restore the
+   relaxation, because line 2's excitation dependency is separate from U12.
 
-A 25 kVA set in runaway is a mechanical hazard to anyone near it. The failure mode that
-matters is a controller hanging with fuel still flowing. What makes this architecture
-acceptable is that stopping the fuel does not require the hung controller's cooperation —
-which is exactly the property U12 verifies.
+The owners may of course revisit item 3 with evidence. What they should not do is
+inherit the previous revision's conclusion, because the fact it was built on turned out
+to describe a controller that is not on this machine.
+
+### What this section still does not address
+
+A diesel that begins burning its own lubricating oil — through a failed turbocharger
+seal or crankcase fumes drawn into the intake — has a fuel supply that **none of the
+three lines above can interrupt**. Every one of them cuts diesel or electrical power.
+The standard countermeasure is a mechanical or pneumatic **air-intake shutoff valve**,
+and no such device appears anywhere in this design, this register, or §9's out-of-scope
+list. It was never considered rather than considered and rejected.
+
+This is recorded here, unresolved, because it is a decision for the machine's owners:
+the part is mechanical, not electronic, and fitting it is not within this PCB's scope.
+It should not be allowed to stay invisible.
 
 ---
 
@@ -430,10 +475,10 @@ needs the machine.
 
 | # | Unknown | Status | Blocks | How to close |
 |---|---|---|---|---|
-| U1 | Remaining 50 of 94 ECU pins | **Advanced** — connector photographed. Housing `>PA66-GF50<`, marked `BDK`. Structure read as 8 large power contacts (1–8) in their own chamber, then four fine rows 9–28, 29–50, 51–72, 73–94 = 94 | Connector selection, adapter harness | Still needs the maker: two circular logos on the housing are unresolved at the image size. Re-photograph under raking light |
+| U1 | ECU connector identity | **CLOSED 18 Sep 2026** — **Bosch**, part numbers `1 928 405 192` and `1 928 405 194`, **`code C`** mechanical keying. 94 cavities: power pins 1–8 in their own chamber, then rows 9–28, 29–50, 51–72, 73–94 | — | Closed by markings on the part. Note: an adapter housing **must be code C** or it will not mate |
 | U2 | Boost air-temp (pin 79): NTC or ratiometric? | Open | Sheet 3b front-end | One resistance reading, sensor cold — brief task 1.3, closes it outright. **Mitigation: a front-end that works either way** |
-| U3 | Controller MPU input — does it exist? | **REOPENED 18 Sep 2026** — a Kirloskar-issued **DSE4522** configuration for this engine has surfaced, so the fitted controller may not be a KG640C at all. Memo 02's answer is about a device that may not be present | §3 safety gate | **Photograph the controller's front panel and rear terminal strip.** Settles which device is fitted in seconds |
-| U4 | Controller J1939 expectations | **Partly answered** — the DSE4522 configuration gives CAN source addresses **234** (engine) and **44** (instrumentation), J1939-75 instrumentation enabled, and requires the ECU to report **oil pressure, coolant temperature and coolant level**. `ECU Data Fail → Shutdown` | Firmware, CAN sheet | Confirm the controller identity first (U3), then log the live bus |
+| U3 | Controller MPU input — does it exist? | **CLOSED 18 Sep 2026 — No.** The fitted controller is a **DSE4522 MKII**; DSE manual `057-260`'s terminal table runs 1–35 with no speed-pickup terminal | §3 | Closed from the manufacturer's own terminal list |
+| U4 | Controller J1939 expectations | **Largely answered** — CAN source addresses **234** (engine) / **44** (instrumentation); J1939-75 instrumentation on, alarms off; the controller takes **oil pressure, coolant temperature, coolant level and ENGINE SPEED** from our ECU over CAN; `ECU Data Fail → Shutdown` | Firmware, CAN sheet | Remaining: the exact PGN set. Log the live bus, or read DSE publication 057-004 |
 | U5 | Injector part number and drive profile | **Partly answered** — memo 04 gives a family envelope (65–115 V, 12–24 A peak, 8–13 A hold, 40–100 A/ms) sufficient to design the driver | Boost rail *target* voltage, not the driver sheet itself | Photograph the injector body for a Bosch `0445 1xx xxx` or Kirloskar `F6.xxx.xx.x.pr`. **Separately: the calibration data is a different problem — see §9 and memo 04** |
 | U6 | Pin 09 `SYNCHRONIZATION GROUND` function | Open | Power/ground plan | OEM pin list; drawn red despite the name |
 | U7 | Pins 04/06 — sense only, or load feeds? | Open | Power sheet current rating | Measure on the live engine, or OEM pin list |
@@ -441,15 +486,22 @@ needs the machine.
 | U9 | Catalyst temp sensor — connected where? | Open | Whether an EGT front-end is in scope | Trace on the engine |
 | U10 | `SENT` in the colour legend — which signal? | Open | Possible digital sensor front-end | Inspect harness; SENT is SAE J2716 |
 | U11 | Engine identity | **CLOSED 18 Sep 2026** — rating plate reads **3GK550ETA 4SR1**, app code **GK3.8703**, 26.5 kW at 1500 rpm, type approval `ARAI/MoEF/DGTA/IGES4/KOEL-P25/2825/24`. Memo 01's inferred `3R550ETA 4G1` was **wrong**; the original "GK550" was right | — | Closed by plate |
-| U13 | **Which controller is actually fitted — KG640C or DSE4522?** | **NEW 18 Sep 2026** | **Memo 02 and spec §3 in their entirety.** The safety position is built on the KG640C's behaviour | Photograph the controller's front panel and rear terminal strip |
+| U13 | Which controller is fitted | **CLOSED 18 Sep 2026** — **DSE4522 MKII AMF (India SP)**, part `4522-001-01`, serial 11021794. Photographed front and rear. **Not a KG640C.** Memo 02 superseded; spec §3 rewritten | — | Closed by photograph |
 | U14 | Pre-heat / post-heat: driven by the controller or by the ECU? | **NEW 18 Sep 2026** | Whether a heater output is in scope. The design currently has none | The DSE4522 config enables both at 50 °C. Trace the heater's supply at the machine |
 | U15 | What does `CRS-878` denote in the controller's engine profile? | **NEW 18 Sep 2026** | Possibly bears on U5 — "CRS" plausibly identifies the common-rail system | Ask KOEL, or find DSE's engine-profile list |
 | U12 | **Does the 70 A ignition relay `-13RB1` remove power from the ECU and fuel metering unit, or only signal the ECU?** | Open | **The §3 safety gate.** The entire relaxation from "mandatory trip module" to "recommended" rests on this | Measure at the machine: with the ignition relay de-energised, check for battery voltage at ECU pins 21, 04, 06 and at the fuel metering unit's supply pin. Voltage present ⇒ signal only ⇒ §3 reverts. **Do brief task 1.4 first** — a normally-closed relay gives the same reading with the opposite meaning |
 
-**U13 and U12 are now the two that matter most.** U13 asks whether the device this
-project's entire safety analysis describes is the device on the machine; U12 is the
-safety gate within that analysis, and nothing substitutes for the measurement. Both
-are answered at the machine, and U13 needs only a photograph.
+**U12 now stands alone as the load-bearing unknown.** U13 is closed and it cost this
+project its safety argument: the fitted DSE4522 takes engine speed from our ECU over
+CAN, so the controller's overspeed trip is not independent of the thing it is meant to
+protect against. What independence remains is the generator over-frequency shutdown at
+56 Hz — and every protective action the controller can take terminates in the same
+fuel relay on terminal 3. **U12 asks what that relay's contacts actually carry, and the
+entire second line of defence rests on the answer.**
+
+U1, U3, U11 and U13 all closed on 18 September from photographs and one manufacturer's
+manual. Three of the four closed *against* an inference this project had made, which is
+the honest measure of how much desk research was carrying.
 
 U3 and U11 were the other two on that list and are now answered, both by inference
 from primary documents rather than by confirmation. Neither answer is fragile — but

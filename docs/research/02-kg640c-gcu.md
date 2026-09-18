@@ -6,12 +6,13 @@
 
 ---
 
-## SUPERSEDED IN PART, 18 Sep 2026 — the controller may not be a KG640C
+## SUPERSEDED, 18 Sep 2026 — the fitted controller is NOT a KG640C
 
-A Kirloskar-issued configuration document has been supplied:
+**The controller has been photographed.** It is a **Deep Sea Electronics
+DSE4522 MKII AMF (India SP)**, part `4522-001-01`, serial 11021794, made in the
+UK. Not a KG640C. A Kirloskar-issued configuration for it was supplied alongside:
 `GP3.314.01.0.PR — DSE 4522 CONTROLLER PROGRAM FOR 3R550.25KVA, 3PHASE (GK
-PROJECT)`, 30 pages. It is a **Deep Sea Electronics DSE4522** configuration, and
-it names this engine and this rating.
+PROJECT)`, naming this engine and this rating.
 
 **This memo analyses a KG640C.** The OEM wiring diagram in this repo shows a
 KG640C, and both documents carry `GP3.` numbering, so which controller is
@@ -35,9 +36,20 @@ wired fail-safe, `ECU Data Fail → Shutdown`, CAN source addresses 234 and 44,
 and the protection thresholds the controller applies to values our ECU supplies.
 Those partly answer U4.
 
-**The thing that settles it is a photograph of the controller's front panel and
-rear terminal strip.** Until then, treat this memo's device identification as
-unconfirmed.
+**Both contradictions are now resolved against this memo.** DSE's own manual
+(`057-260`) states that with a CAN engine the ECU transmits engine speed to the
+controller — so the independent alternator-frequency *speed* path this memo
+describes does not exist on the fitted device. Spec §3 has been rewritten on the
+DSE4522, and the standalone overspeed trip module reverts to **mandatory**.
+
+**What survives and is still worth reading here:** the reasoning method, the
+J1939 background, and the costing of the two trip-module candidates (GAC SSW675,
+Murphy HD9063), which is device-independent. The memo's conclusion that no
+magnetic pickup exists also turned out to be right — the DSE4522 has no MPU
+terminal either — but it was right by coincidence, about a different controller.
+
+Treat everything below as **historical**: an analysis of a device that is not on
+this machine.
 
 Evidence: [`refs/field-evidence-2026-09-18.md`](../../refs/field-evidence-2026-09-18.md).
 

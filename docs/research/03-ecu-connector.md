@@ -1,5 +1,28 @@
 # Research Memo 03: ECU Connector Identification
 
+> ### U1 CLOSED, 18 Sep 2026 — this memo's leading candidate is confirmed
+>
+> The connector has been photographed with its markings legible. It carries the
+> **Bosch** name and armature logo, part numbers **`1 928 405 192`** and
+> **`1 928 405 194`**, **`code C`**, and `2.7`. The face-on photograph shows 94
+> cavities in two chambers: 8 large power contacts (1–8) plus four fine rows
+> numbered 9–28, 29–50, 51–72, 73–94.
+>
+> **This memo ranked "Bosch EDC17-style 94-pin" as the leading candidate on
+> inference. Confirmed, with part numbers read off the physical part.**
+>
+> One detail this memo did not anticipate: `code C` is a **mechanical coding
+> variant**. Bosch supplies these housings in coded versions that will not mate
+> across codes, so any replacement or adapter housing must be code C.
+>
+> A search for the two part numbers returned no direct catalogue hit, so sourcing
+> should go through a Bosch distributor quoting the numbers rather than a search
+> engine. The shortlist and sourcing analysis below remain useful for that
+> conversation.
+>
+> Evidence: [`refs/field-evidence-2026-09-18.md`](../../refs/field-evidence-2026-09-18.md).
+
+
 **Task:** U1 (ECU connector part number / mating-half sourcing), partial closure — full closure needs a photograph. Consumes Task 1 (engine identity). Feeds the adapter-harness deliverable (spec §7.1).
 **Date:** 2026-09-13
 **Author:** Phase-1 research (task 3)
