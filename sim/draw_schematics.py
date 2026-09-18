@@ -623,6 +623,110 @@ def can_termination(d):
     return "CAN split termination -- 120R differential, low-Z common mode"
 
 
+def supervisor(d):
+    """Fail-safe kill path -- watches 3V3_MCU, RESET drives (through one
+    inverting stage) a kill FET at each protected gate, in parallel with
+    a standing 10k Rgs pulldown. Research memo 11's Recommendation.
+
+    The supervisor's comparator + open-drain RESET stage is drawn as one
+    Ic block (elm.Ic) rather than four separate primitives -- what the
+    netlist's SWK switch model actually captures is the KILL FET alone
+    conducting once RESET has already commanded it on, not a claim that
+    the comparator/RESET/inverter chain adds zero delay (see the
+    netlist's header). The inverting stage and the driver + protected
+    FET are drawn dashed: real parts on the board, not their own
+    netlist elements here.
+
+    One gate node is drawn -- the mechanism is identical at all six
+    protected gates (pin 88 metering, 73/07/29 injector low side, 03/05
+    injector bank high side).
+
+    Two traps this file's own comments already name, both hit while
+    building this one: elements inherit the PREVIOUS element's
+    direction (the NFet silently rotated 90 degrees until `.right()`
+    was added explicitly -- the same class of bug sensor_differential's
+    docstring already warns about for the op-amp's sign glyphs); and
+    two nodes placed with nearly-cancelling offsets landed on top of
+    each other (the kill FET's drain ended up almost exactly under the
+    RESET_b node the first time) -- avoided here by choosing offsets
+    that keep every branch's column visibly separate rather than by
+    coincidence."""
+    ic = elm.Ic(
+        pins=[
+            elm.IcPin(name="SENSE", side="left", anchorname="sense"),
+            elm.IcPin(name="GND", side="bottom", anchorname="gnd"),
+            elm.IcPin(name="RESET", side="right", anchorname="reset"),
+        ],
+        size=(3.0, 2.2),
+    ).label("supervisor\nTPS3850-class", "top")
+    d += ic
+    sense = ic.absanchors["sense"]
+    reset = ic.absanchors["reset"]
+    gndp = ic.absanchors["gnd"]
+    d += elm.Ground().at(gndp)
+
+    RAILY = sense[1] + 4.0
+    r1 = (reset[0] + 1.3, reset[1])
+    r2 = (r1[0] + 3.0, r1[1])
+
+    # ---- monitored rail + open-drain pull-up ----
+    d += elm.Line().up().at(sense).toy(RAILY)
+    d += elm.Line().left().length(0.8)
+    d += elm.Dot(open=True).label("3V3_MCU", "left")
+    d += elm.Line().right().at((sense[0], RAILY)).tox(r1[0])
+    d += elm.Resistor().up().at(r1).toy(RAILY).label("pull-up", loc="right")
+
+    # ---- RESET_b junction ----
+    d += elm.Line().right().at(reset).tox(r1[0])
+    d += (r1dot := elm.Dot())
+    d += elm.Label().at((r1dot.center[0] - 0.7, r1dot.center[1] - 0.55)).label(
+        "RESET_b")
+
+    # ---- also feeds the S32K148's own RESET_B pin, conventionally ----
+    d += elm.Line().right().at(r1).tox(r2[0])
+    d += elm.Dot()
+    d += elm.Line().right().length(0.8)
+    d += elm.Dot(open=True).label("to S32K148\nRESET_B", "right")
+
+    # ---- through one inverting stage (dashed -- real part, not its own
+    # netlist element here) into the kill FET's gate ----
+    kg = (r2[0], r2[1] - 2.2)
+    d += elm.Line().down().at(r2).toy(kg[1]).linestyle("--")
+    d += elm.Label().at((r2[0] + 0.15, (r2[1] + kg[1]) / 2)).label("inv.")
+
+    q = elm.NFet(bulk=False).right().at(kg).anchor("gate")
+    d += q
+    d += elm.Ground().at(q.source)
+    d += elm.Dot().at(q.drain)
+
+    # riser straight up from the drain -- nothing else may share this column
+    gtop = (q.drain[0], RAILY - 0.8)
+    d += elm.Line().up().at(q.drain).toy(gtop[1])
+    d += elm.Dot(open=True)
+    d += elm.Label().at((gtop[0] - 0.25, gtop[1] - 0.55)).label("gate node")
+
+    # jog right off the riser before dropping into Rgs, so Rgs's own
+    # ground symbol never lands back on the drain/source column above
+    rgs_top = (gtop[0] + 1.6, gtop[1] - 0.6)
+    d += elm.Line().at(gtop).to(rgs_top)
+    d += elm.Resistor().down().length(1.4).label("Rgs\n10k", loc="right")
+    d += elm.Ground()
+
+    # dashed stub to the undrawn driver + protected FET, off the riser
+    # itself, routed up first so it clears the Rgs jog below it
+    d += elm.Line().up().at(gtop).length(0.7)
+    d += elm.Line().right().length(1.8).linestyle("--")
+    d += elm.Dot(open=True).linestyle("--").label("driver + FET", "right")
+
+    d += elm.Label().at((0.0, -2.7)).label(
+        "gate node drawn once -- identical kill FET + Rgs sit at all six\n"
+        "protected gates: pin 88 (metering), 73/07/29 (injector low side),\n"
+        "03/05 (injector bank high side). \"inv.\" and \"driver + FET\" are\n"
+        "on the board but not their own netlist elements here -- claim 3's\n"
+        "FAIL (see RESULT NOTE) is about Rgs, drawn and modelled as 10k.")
+    return "Supervisor -- fail-safe kill path, watches 3V3_MCU"
+
+
 BLOCKS = {
     "battery_sense": battery_sense,
     "discrete_input": discrete_input,
@@ -643,6 +747,7 @@ BLOCKS = {
     "ntc_frontend": ntc_frontend,
     "metering_unit_pwm": metering_unit_pwm,
     "can_termination": can_termination,
+    "supervisor": supervisor,
 }
 
 # schemdraw writes literal black; swap for currentColor so the drawing

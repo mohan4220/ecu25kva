@@ -996,6 +996,163 @@ def check_can_termination():
     return c
 
 
+def check_supervisor():
+    c = Checks("supervisor -- fail-safe kill path, watches 3V3_MCU (research memo 11)")
+    d = sim("supervisor", {
+        "supervisor_claim12.dat": ["t", "g1", "g1b", "g2pd", "g2nopd"],
+        "supervisor_claim3.dat": ["t", "g20p", "g50p", "g100p", "g200p", "g500p",
+                                   "g1000p"],
+        "supervisor_claim4_fast.dat": ["t", "mon293", "g293", "mon585", "g585",
+                                        "mon1170", "g1170"],
+        "supervisor_claim4_slow.dat": ["t", "mon10m", "g10m", "mon100m", "g100m",
+                                        "mon1000m", "g1000m"],
+    })
+    Vgsth = 1.0  # INFERRED, see the netlist header -- low end of a small-signal
+    # N-FET class threshold, the conservative pick for every "stays below" claim.
+
+    def t_cross(sig, tarr, thresh, rising=False):
+        """First interpolated time `sig` crosses `thresh` (falling by default).
+        Linear interpolation between the bracketing samples, not just the
+        raw sample index -- resolution-independent, same trick used to
+        pull claim 2's ~14 ns effect out of a 10 ns-step dataset."""
+        cond = sig > thresh if rising else sig < thresh
+        idx = int(np.argmax(cond))
+        if not cond[idx]:
+            return float("inf")
+        if idx == 0:
+            return float(tarr[0])
+        t0, t1_ = tarr[idx - 1], tarr[idx]
+        v0, v1 = sig[idx - 1], sig[idx]
+        frac = (thresh - v0) / (v1 - v0) if v1 != v0 else 0.0
+        return float(t0 + frac * (t1_ - t0))
+
+    # ---- claim 1: RESET already asserted -- how fast does the kill path
+    # itself pull the gate below Vgs(th)? Memo 11's own bound for the
+    # PASSIVE pulldown alone is 10-40 us; this is the ACTIVE kill path,
+    # which should beat that bound by a wide margin because Ron (5 ohm)
+    # dominates the 10k pulldown. ----
+    d12 = d["supervisor_claim12.dat"]
+    t12, g1, g1b = d12["t"], d12["g1"], d12["g1b"]
+    t_g1 = t_cross(g1, t12, Vgsth)
+    c.that("claim 1: gate below Vgsth, kill engaged (bound: 10-40 us)",
+           t_g1 * 1e6, 40.0, tol=None, ok=t_g1 < 40e-6, unit="us")
+    c.that("  ... actual kill-path discharge time",
+           f"{t_g1*1e9:.1f} ns -- Ron dominates the 10k pulldown by ~2000x",
+           None, ok=True)
+
+    # ---- claim 1b: the GPIO-independence check memo 11 sec.4 asks for in
+    # prose. An adversarial driver (100 ohm to 10 V, fixed) fights the kill
+    # path for the WHOLE run. If the gate still ends up below Vgsth, the
+    # safe state does not depend on what GPIO/driver is doing. ----
+    v_g1b_final = float(g1b[-1])
+    c.that("claim 1b: gate stays below Vgsth despite an adversarial\n"
+           "      driver actively holding it high (GPIO-independence)",
+           v_g1b_final, Vgsth, tol=None, ok=v_g1b_final < Vgsth, unit="V")
+
+    # ---- claim 2: RESET deasserted, MCU driving the gate through its
+    # normal path -- the pulldown must not measurably slow the edge.
+    # Compared at a fixed absolute voltage (90% of the 10 V command)
+    # rather than each branch's own 10-90%, so the tiny final-value
+    # difference doesn't get folded into the timing comparison. ----
+    g2pd, g2nopd = d12["g2pd"], d12["g2nopd"]
+    t_pd = t_cross(g2pd, t12, 9.0, rising=True)
+    t_nopd = t_cross(g2nopd, t12, 9.0, rising=True)
+    slowdown = (t_pd - t_nopd) / t_nopd
+    c.that("claim 2: 10k pulldown slows the turn-on edge (to 9 V) by",
+           slowdown * 100, 10.0, tol=None, ok=slowdown < 0.10, unit="%")
+    c.that("  ... in absolute terms", (t_pd - t_nopd) * 1e9, 14.0, tol=5.0,
+           unit="ns")
+
+    # ---- claim 3: THE ONE THE TASK FLAGGED AS LOAD-BEARING. Miller/dV-dt
+    # coupling at this design's own 2.8 V/us boost-rail turn-off edge,
+    # through the 10k pulldown ALONE (no kill switch -- RESET is not
+    # asserted during a normal turn-off). Swept across Crss rather than
+    # taking memo 11's illustrative 50-200 pF on faith. See the netlist's
+    # RESULT NOTE for the arithmetic error this exposes in the memo. ----
+    d3 = d["supervisor_claim3.dat"]
+    crss_checks = [
+        ("g20p", 20, 0.235),
+        ("g50p", 50, 1.155),
+        ("g100p", 100, 2.289),
+        ("g200p", 200, 4.497),
+        ("g500p", 500, 10.647),
+        ("g1000p", 1000, 19.490),
+    ]
+    for key, pf, expected in crss_checks:
+        peak = float(d3[key].max())
+        # `expected` is a regression pin on this simulation's own output
+        # (this exact R/C/edge model), not an independently derived
+        # number -- the CLAIM is the ok= comparison against Vgsth.
+        c.that(f"claim 3: peak V(gate), Crss={pf} pF, Rpd=10k alone",
+               peak, expected, tol=max(0.05 * expected, 0.02), unit="V",
+               ok=peak < Vgsth)
+    c.that("  ... memo 11's own hand arithmetic at Crss=200 pF claimed",
+           "~5.6 mV -- off by 1000x (560 uA * 10 kOhm = 5.6 V, not 5.6 mV); "
+           "this sim's 4.50 V independently confirms the corrected order "
+           "of magnitude, not the memo's figure", None, ok=True)
+    c.that("  ... so the 10k pulldown fails even at the memo's OWN low end",
+           "1.155 V at Crss=50 pF already exceeds Vgsth=1.0 V -- not just "
+           "at an extended/pessimistic Crss", None, ok=True)
+
+    # ---- claim 4: THE CENTRAL CLAIM. Brownout ramps at six rates (three
+    # from memo 11's own sub-ms RC estimate, three several orders of
+    # magnitude slower), gate held by the SAME adversarial drive as
+    # claim 1b throughout. Does the kill path finish (gate < Vgsth)
+    # before 3V3_MCU crosses 2.97 V, the S32K148's own PLL-guarantee
+    # floor -- the earliest, most conservative bound for "undefined
+    # state", earlier than VLVR (2.50-2.7 V) where the MCU would
+    # actually reset itself? ----
+    def claim4_margins(dat, keys, unit_scale, unit):
+        rows = []
+        for mon_k, g_k, label in keys:
+            mon, g = dat[mon_k], dat[g_k]
+            t = dat["t"]
+            t_safe = t_cross(g, t, Vgsth)
+            t_297 = t_cross(mon, t, 2.97)
+            margin = t_297 - t_safe
+            c.that(f"claim 4: gate safe before 2.97V guarantee floor, "
+                   f"ramp={label}", margin * unit_scale, 0.0, tol=None,
+                   ok=margin > 0, unit=unit)
+            rows.append((label, margin))
+        return rows
+
+    d4f = d["supervisor_claim4_fast.dat"]
+    claim4_margins(d4f, [
+        ("mon293", "g293", "293 us"),
+        ("mon585", "g585", "585 us"),
+        ("mon1170", "g1170", "1.17 ms"),
+    ], 1e6, "us")
+
+    d4s = d["supervisor_claim4_slow.dat"]
+    claim4_margins(d4s, [
+        ("mon10m", "g10m", "10 ms"),
+        ("mon100m", "g100m", "100 ms"),
+        ("mon1000m", "g1000m", "1000 ms"),
+    ], 1e3, "ms")
+
+    c.that("  ... tightest margin is at the FASTEST ramp tried",
+           "18 us at 293 us -- grows to tens of ms at the slowest ramp; "
+           "a slow sag gives the supervisor MORE time, not less", None,
+           ok=True)
+
+    # ---- claim 5: total exposure vs one 26.67 ms cylinder interval
+    # (1500 rpm, 3-cyl, 240 deg phasing -- memo 04/10). Not a separate
+    # circuit -- reuses claim 1's own measured kill-path latency, because
+    # the watchdog window itself (CWD/SET0/SET1) is an explicit Phase-2
+    # item memo 11 sec.5 declines to guess. This only bounds the GATE
+    # RESPONSE portion of total exposure, not the watchdog's own fault-
+    # detection latency, which is unmodelled and unchosen. ----
+    cyl_interval = 26.67e-3
+    ratio = cyl_interval / t_g1
+    c.that("claim 5: kill-path latency vs one 26.67 ms cylinder interval",
+           ratio, 1000.0, tol=None, ok=ratio > 1000, unit="x")
+    c.that("  ... caveat: excludes the watchdog's own fault-DETECTION "
+           "time",
+           "not modelled -- Phase-2 item per memo 11 sec.5, this only "
+           "bounds the response AFTER RESET asserts", None, ok=True)
+    return c
+
+
 CHECKS = {
     "battery_sense": check_battery_sense,
     "discrete_input": check_discrete_input,
@@ -1016,6 +1173,7 @@ CHECKS = {
     "ntc_frontend": check_ntc_frontend,
     "metering_unit_pwm": check_metering_unit_pwm,
     "can_termination": check_can_termination,
+    "supervisor": check_supervisor,
 }
 
 

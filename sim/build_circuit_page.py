@@ -116,6 +116,35 @@ BLOCKS = {
          "Lumped: no planes, no via inductance, no spreading inductance, so it is optimistic above about "
          "100 MHz — which is exactly where the sweep stops. An earlier version swept to 1 GHz and "
          "obediently reported ESL times omega at the last point as a 'peak'."),
+        ("supervisor", "Supervisor / fail-safe kill path", "—",
+         "A TPS3850-class windowed supervisor watching 3V3_MCU — the same rail mcu_pdn.cir characterizes "
+         "— whose RESET drives, through one inverting stage, a kill FET at every protected driver gate "
+         "(pin 88 metering, 73/07/29 injector low side, 03/05 injector bank high side), in parallel with "
+         "a standing 10 kΩ gate-source pulldown.",
+         "Research memo 11 found this board has no external watchdog, no brownout supervisor, and "
+         "nothing defining output state during MCU reset — and that spec §3's other lines of defence "
+         "both collapsed on 18 Sep 2026 (the fitted DSE4522 takes engine speed from this ECU over CAN, "
+         "and its fuel relay signals rather than removes power), making this the first line, not "
+         "defence-in-depth. Five falsifiable claims came out of that memo; two mattered most. Claim 4, "
+         "the central one, PASSES with a wide margin: across six brownout ramps spanning 293 µs to 1 s, "
+         "the kill path always finishes (gate below Vgs(th), fought by an adversarial driver the whole "
+         "time) before 3V3_MCU crosses 2.97 V — the S32K148's own PLL-guarantee floor — with margin that "
+         "GROWS at slower ramps, so the memo's flagged-open 'slow sag' case does not threaten it. Claim "
+         "3 FAILS, and not narrowly: swept across the memo's own illustrative Crss range under this "
+         "design's own 2.8 V/µs boost-rail turn-off edge, the 10 kΩ pulldown alone lets the coupled "
+         "gate voltage exceed a representative Vgs(th) starting at Crss = 50 pF — the LOW end of that "
+         "range, not an extended one — and the memo's own hand arithmetic claiming '~5.6 mV' at 200 pF "
+         "is off by three orders of magnitude (560 µA through 10 kΩ is 5.6 V). A 300 Ω–1 kΩ pulldown "
+         "clears it with real margin; the fix is a component VALUE, not a new part.",
+         "The pin-mux gap is real and not papered over: which physical PTxx pins 88/73/07/29/03/05 "
+         "land on is still a Phase-2 item, so their individual reset pull-state defaults cannot be "
+         "stated — this model treats every protected gate generically, with no GPIO drive assumed at "
+         "all except as a deliberately adversarial stimulus. The supervisor IC's own comparator "
+         "propagation delay (assert side) is not sourced anywhere and is modelled as zero; claim 4's "
+         "tightest margin (18 µs, at the fastest ramp) is the one that delay would eat into first. The "
+         "inverting stage and kill FET's own gate-drive dynamics are collapsed into one switch with an "
+         "INFERRED Ron. Ciss=2 nF and Vgs(th)=1.0 V are class figures, not a chosen part's datasheet "
+         "numbers — no injector/metering FET has been selected yet."),
     ]),
     "sensors": ("02", "Sensor front-ends", "Everything that turns something on the engine into a number "
                 "in the ADC.", [

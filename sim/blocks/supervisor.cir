@@ -1,0 +1,510 @@
+* ============================================================
+* Supervisor / fail-safe kill path -- watches 3V3_MCU, holds every
+* protected driver gate off in reset, brownout, or a hung MCU.
+* docs/research/11-supervisor-and-fail-safe-outputs.md, "Recommendation:
+* the circuit to build" and its five falsifiable claims.
+* ============================================================
+* Context this block exists inside (spec sec.3, docs/superpowers/specs/
+* 2026-09-13-ecu-reconciled-spec-design.md): the fitted DSE4522 takes
+* engine speed from THIS ECU over CAN, and its fuel relay was measured
+* 18 Sep 2026 to signal only, not remove power. Nothing external to this
+* board interrupts fuelling without this ECU's cooperation. This block
+* is the first line, not defence-in-depth -- if the MCU is in reset,
+* browning out, or hung, this is what actually holds the gates off.
+*
+* Topology (memo 11's Recommendation section): a TPS3850-class windowed
+* supervisor watches 3V3_MCU. Its open-drain RESET, pulled up to
+* 3V3_MCU, feeds the S32K148's own RESET_B pin AND, through one
+* inverting stage, a dedicated N-channel "kill" transistor at each
+* protected gate node -- in parallel with the standing 10 kOhm Rgs
+* pulldown already justified in memo 11 sec.4. RESET is active-low
+* (asserted low = fault); the kill transistor must turn ON exactly
+* then, hence the inversion.
+*
+* MODELLING CHOICE, stated up front: the supervisor comparator, its
+* open-drain RESET stage, the inverter, and the kill FET are collapsed
+* into ONE voltage-controlled switch per protected gate (.model SWK
+* below), rather than four separate elements. What this switch's Ron
+* models is the KILL FET ALONE conducting once RESET has already
+* commanded it on -- it is not a claim that the comparator, RESET
+* stage and inverter add zero delay. NOT modelled, and flagged here
+* rather than silently assumed favourable: TPS3850's own comparator
+* propagation delay (assert-side, not the release-side t_PD the
+* datasheet's timing table gives). No number for it was extracted in
+* memo 11 -- SNIPPET-level "sub-microsecond" is the general class
+* expectation for a dedicated analog comparator, not a datasheet
+* figure for this part. Every claim below therefore checks the time
+* FROM the rail crossing the supervisor's threshold, not from whatever
+* fault first started the rail moving -- see each claim's own note.
+*
+* Vt is written negative (-3.05) on purpose: ngspice's SW model closes
+* when V(nc+)-V(nc-) > Vt. Controlling from (0, mon) makes that
+* voltage -V(mon), so Vt=-3.05 closes the switch when V(mon) < 3.05 V
+* -- falling-threshold assert, the low end of memo 11's recommended
+* 3.05-3.10 V window (the end that gives the LEAST margin, so it is
+* the conservative choice for every claim below). Vh=0: every ramp in
+* this file is monotonic, so hysteresis (not sourced to any datasheet
+* number here) cannot change when the single crossing happens; a real
+* part's hysteresis exists to stop chatter near a HOVERING signal,
+* which nothing here does.
+* .model SW switches have no body diode (sim/lib/ngrun.py's own
+* documented trap) -- irrelevant here, there is no inductor and no
+* floating current path in this file, only R/C networks and ideal
+* sources.
+* ============================================================
+
+.model SWK SW(Ron=5 Roff=1e9 Vt=-3.05 Vh=0)
+
+* Gate input capacitance: INFERRED, not sourced to a chosen part (memo
+* 11 sec.4's own "1-4 nF" class range for the eventual injector/
+* metering FET's Ciss -- no FET has been picked, spec sec.8-class gap).
+* 2n is this file's single working value, the midpoint of that range,
+* used everywhere a protected gate's own capacitance needs modelling.
+* Vgs(th): INFERRED at 1.0 V, deliberately the LOW end of a small-
+* signal-class N-FET's typical 1-2.5 V threshold spread (memo 11's own
+* part-class recommendation, sec. "Recommendation" -- "a small-signal
+* N-FET... no current-handling requirement beyond discharging gate
+* capacitance"). Low threshold is the HARDER bar for "stays below
+* Vgs(th)" claims, so it is the conservative pick, not a rosy one.
+
+.param Ciss=2n
+.param Vgsth=1.0
+
+* ============================================================
+* CLAIM 1 (+ the GPIO-independence variant memo 11 sec.4 asks for):
+* "With the supervisor's RESET asserted and the kill transistor's gate
+* driven high..., every protected gate node should settle below
+* Vgs(th) within the 10-40 us RC estimate... a specific time bound."
+*
+* g1: the base case. Vmon1 is held at 0 V for the whole run -- RESET
+* is asserted from t=0 (this file does not model the supervisor's OWN
+* assert-side propagation delay, see header). Cg1 starts charged to
+* 10 V (ic=10, an INFERRED representative "on" gate-drive voltage --
+* no driver IC is chosen yet), and S1 is closed throughout, so this
+* measures the kill path's OWN discharge time, not a step response.
+*
+* g1b: memo 11's flat statement "the safe state must not depend on
+* GPIO configuration" turned into a number. Same kill path, but an
+* ADVERSARIAL driver (Rdrv_adv=100 ohm to Vadv=10 V, both INFERRED --
+* no driver chosen) fights it the whole time, standing in for a
+* mis-mapped or misconfigured pin-mux default that ends up pushing the
+* gate high regardless of RESET. If the kill path still wins, the
+* safe state really does not depend on what GPIO/driver is doing.
+* ============================================================
+
+Cg1   g1  0  {Ciss} ic=10
+Rpd1  g1  0  10k
+Vmon1 mon1 0 DC 0
+S1    g1  0  0  mon1 SWK
+
+Cg1b  g1b 0  {Ciss} ic=10
+Rpd1b g1b 0  10k
+S1b   g1b 0  0  mon1 SWK
+Rdrv_adv g1b vadv 100
+Vadv  vadv 0 DC 10
+
+* ============================================================
+* CLAIM 2: "With RESET deasserted... and the MCU actively driving a
+* gate high through its normal drive path, the kill transistor and its
+* 10 kOhm pulldown together should not measurably slow the intended
+* switching edge... checked against whatever gate-drive current budget
+* the eventual driver stage has, not assumed negligible."
+*
+* No driver IC is chosen (same Phase-2 gap), so Rdrv2=100 ohm is an
+* INFERRED, generic logic-level driver output impedance -- not a
+* datasheet figure. Vmon2 sits at 3.3 V (healthy) for the whole run, so
+* S2 never closes: this is the kill path present but INACTIVE, which
+* is the actual claim (normal running, not a fault).
+*
+* g2nopd is a comparison branch only, NOT this design (same convention
+* injector_turnoff.cir uses for its battery-freewheel baseline): same
+* driver and gate capacitance, no pulldown at all, so the pulldown's
+* OWN loading effect is isolated rather than mixed with anything else.
+* ============================================================
+
+Vdrv2   vd2 0 PWL(0 0  1n 10  5u 10)
+Rdrv2   vd2 g2pd 100
+Cg2pd   g2pd 0 {Ciss}
+Rpd2    g2pd 0 10k
+Vmon2   mon2 0 DC 3.3
+S2      g2pd 0 0 mon2 SWK
+
+Rdrv2b  vd2 g2nopd 100
+Cg2nopd g2nopd 0 {Ciss}
+
+.control
+tran 10n 45u uic
+wrdata supervisor_claim12.dat v(g1) v(g1b) v(g2pd) v(g2nopd)
+.endc
+
+* ============================================================
+* CLAIM 3 -- THE ONE THE TASK FLAGGED AS LOAD-BEARING: "A simulated
+* Miller/dV/dt coupling event at this design's own ~2.8 V/us boost-rail
+* turn-off edge... should show the gate node staying below Vgs(th)
+* through the 10 kOhm pulldown alone, across a swept Crss range... this
+* directly tests whether the 'weak pulldown is adequate' conclusion...
+* actually holds, or whether it was an artifact of the illustrative
+* Crss assumption."
+*
+* It was. See the RESULT NOTE -- this is not a close call.
+*
+* No kill switch in this section at all: RESET is not asserted during
+* a normal turn-off event, so this tests the PASSIVE baseline (Rgs
+* alone) exactly as memo 11 sec.4/Recommendation states it, not the
+* kill path.
+*
+* Drain edge: 0 -> 100 V in 35.7 us, i.e. 2.8 V/us -- injector_turnoff
+* .cir's OWN measured boost-rail turn-off edge (its RESULT NOTE,
+* claim 5), reused here rather than re-derived, exactly as memo 11
+* sec.4 instructs ("this design's own already-computed turn-off edge").
+* Crss sweep: memo 11's illustrative class range is 50-200 pF
+* (INFERRED, no FET chosen). Extended down to 20 pF and up to 500 pF
+* and 1000 pF here specifically to find where the "adequate" claim
+* stops holding, per the task's instruction to sweep rather than take
+* the illustrative value on faith.
+*
+* Gate node carries BOTH Rpd (10k) and Cg (Ciss) in parallel, which
+* memo 11 sec.4's own hand arithmetic (I=Crss*dV/dt, V=I*R) omits --
+* that arithmetic has no gate capacitance in it at all, only the
+* resistor. Including Ciss is the physically correct circuit (a real
+* FET's own input capacitance sits right there, and it is the only
+* thing that can look like an RC low-pass to Crss's injected current),
+* and it makes the peak SMALLER than the hand estimate, not bigger --
+* see the RESULT NOTE for how much smaller, and why the conclusion
+* does not change.
+* ============================================================
+
+Vd3 drain3 0 PWL(0 0  35.7u 100  60u 100)
+
+Ccpl20p  drain3 g20p   20p
+Cg20p    g20p   0      {Ciss}
+Rpd20p   g20p   0      10k
+
+Ccpl50p  drain3 g50p   50p
+Cg50p    g50p   0      {Ciss}
+Rpd50p   g50p   0      10k
+
+Ccpl100p drain3 g100p  100p
+Cg100p   g100p  0      {Ciss}
+Rpd100p  g100p  0      10k
+
+Ccpl200p drain3 g200p  200p
+Cg200p   g200p  0      {Ciss}
+Rpd200p  g200p  0      10k
+
+Ccpl500p drain3 g500p  500p
+Cg500p   g500p  0      {Ciss}
+Rpd500p  g500p  0      10k
+
+Ccpl1000p drain3 g1000p 1000p
+Cg1000p   g1000p 0      {Ciss}
+Rpd1000p  g1000p 0      10k
+
+.control
+tran 20n 80u uic
+wrdata supervisor_claim3.dat v(g20p) v(g50p) v(g100p) v(g200p) v(g500p) v(g1000p)
+.endc
+
+* ============================================================
+* CLAIM 4 -- "either validates or falsifies the memo's central
+* argument": "A brownout ramp on 3V3_MCU sagging through the confirmed
+* VLVR/VLVD band... at a swept rate (from the sub-millisecond RC
+* estimate up through several orders of magnitude slower...) should
+* show the external supervisor's own threshold tripping BEFORE the
+* MCU's outputs could plausibly be left in an undefined state by
+* internal LVR/LVD alone."
+*
+* "Undefined state" starts, per the S32K148 datasheet's own footnote
+* (memo 11 sec.3, CONFIRMED), at 2.97 V -- the PLL-engaged guarantee
+* floor -- not at VLVR (2.50-2.7 V), which is where the MCU resets
+* itself and the undefined window CLOSES. The check below therefore
+* compares against 2.97 V, the earlier and more conservative bound:
+* if this circuit beats 2.97 V it necessarily beats VLVR too, with
+* more margin, not less.
+*
+* Six linear ramps, 3.3 V -> 2.0 V (through the whole 2.97-2.50 V band
+* with margin either side), split into two .tran calls because their
+* timescales span three decades and one output step cannot resolve
+* both without an unreasonable point count:
+*
+*   FAST group -- 293/585/1170 us, memo 11 sec.3's own dt=C*dV/I table
+*   for the 150 uF bulk cap (mcu_pdn.cir, raised from 47 uF 18 Sep
+*   2026 -- THAT capacitance is what sets these durations) at assumed
+*   200/100/50 mA loads. This is the "sub-millisecond RC estimate."
+*
+*   SLOW group -- 10/100/1000 ms, one to three decades slower again,
+*   bounding memo 11 sec.3's own flagged-open "slow sag" case (a
+*   degrading buck stage rather than a lost supply) that nobody has
+*   quantified for this design.
+*
+* Each branch's own gate node carries the SAME kill path as claim 1
+* (Ciss, Rpd=10k, kill switch keyed to that branch's own monitored
+* node), starting from ic=10 V. CRITICALLY, each branch also carries
+* claim 1b's adversarial driver (Rdrv_adv=100 ohm to Vadv=10 V, fixed
+* -- not derived from the sagging rail, on the reasoning that a real
+* gate-driver stage more plausibly runs off a separate, more robust
+* rail than 3V3_MCU itself, memo 11 sec.4/Recommendation's own
+* "Phase-2 detail" for the driver stage). Without this, the FIRST
+* version of this file (nothing holding the gate high, just the
+* initial ic=10 V) let the standing 10k Rgs pulldown alone discharge
+* the gate in ~46 us regardless of whether the supervisor ever tripped
+* -- a real effect (the passive pulldown IS always present) but not a
+* test of the SUPERVISOR mechanism this claim is supposed to be
+* about, and it would have hidden a much smaller margin. With the
+* adversarial drive fighting the pulldown the whole time, the gate
+* stays near its adversarial steady-state value (memo 11's own "does
+* not depend on GPIO configuration" scenario) right up until the kill
+* switch closes -- so what this section actually measures is the
+* margin between the supervisor tripping and the guarantee floor,
+* which is the claim as written.
+* ============================================================
+
+Vmon4f1 mon4f1 0 PWL(0 3.3  293u  2.0   298.9u 2.0)
+Cg4f1   g4f1   0  {Ciss} ic=10
+Rpd4f1  g4f1   0  10k
+S4f1    g4f1   0  0 mon4f1 SWK
+Rdrv4f1 g4f1   vadv4f1 100
+Vadv4f1 vadv4f1 0 DC 10
+
+Vmon4f2 mon4f2 0 PWL(0 3.3  585u  2.0   596.7u 2.0)
+Cg4f2   g4f2   0  {Ciss} ic=10
+Rpd4f2  g4f2   0  10k
+S4f2    g4f2   0  0 mon4f2 SWK
+Rdrv4f2 g4f2   vadv4f2 100
+Vadv4f2 vadv4f2 0 DC 10
+
+Vmon4f3 mon4f3 0 PWL(0 3.3  1170u 2.0  1193.4u 2.0)
+Cg4f3   g4f3   0  {Ciss} ic=10
+Rpd4f3  g4f3   0  10k
+S4f3    g4f3   0  0 mon4f3 SWK
+Rdrv4f3 g4f3   vadv4f3 100
+Vadv4f3 vadv4f3 0 DC 10
+
+.control
+tran 50n 1.3m uic
+wrdata supervisor_claim4_fast.dat v(mon4f1) v(g4f1) v(mon4f2) v(g4f2) v(mon4f3) v(g4f3)
+.endc
+
+Vmon4s1 mon4s1 0 PWL(0 3.3  10m   2.0  10.2m 2.0)
+Cg4s1   g4s1   0  {Ciss} ic=10
+Rpd4s1  g4s1   0  10k
+S4s1    g4s1   0  0 mon4s1 SWK
+Rdrv4s1 g4s1   vadv4s1 100
+Vadv4s1 vadv4s1 0 DC 10
+
+Vmon4s2 mon4s2 0 PWL(0 3.3  100m  2.0  102m 2.0)
+Cg4s2   g4s2   0  {Ciss} ic=10
+Rpd4s2  g4s2   0  10k
+S4s2    g4s2   0  0 mon4s2 SWK
+Rdrv4s2 g4s2   vadv4s2 100
+Vadv4s2 vadv4s2 0 DC 10
+
+Vmon4s3 mon4s3 0 PWL(0 3.3  1000m 2.0  1020m 2.0)
+Cg4s3   g4s3   0  {Ciss} ic=10
+Rpd4s3  g4s3   0  10k
+S4s3    g4s3   0  0 mon4s3 SWK
+Rdrv4s3 g4s3   vadv4s3 100
+Vadv4s3 vadv4s3 0 DC 10
+
+.control
+tran 5u 1.05 uic
+wrdata supervisor_claim4_slow.dat v(mon4s1) v(g4s1) v(mon4s2) v(g4s2) v(mon4s3) v(g4s3)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE
+* ------------------------------------------------------------
+* CLAIM 1 -- PASS, and not close. With the kill switch's Ron=5 ohm
+* dominating the 10k pulldown, both g1 and g1b discharge from 10 V to
+* under Vgs(th)=1.0 V in tens of nanoseconds -- three orders of
+* magnitude inside the 10-40 us bound memo 11 derived for the PASSIVE
+* pulldown alone. g1b (adversarial 100 ohm/10 V driver fighting the
+* whole time) settles at its own steady-state divider value, about
+* 0.48 V -- comfortably under Vgs(th) with the driver actively
+* fighting it, which is the actual content of "does not depend on GPIO
+* configuration": it is not that GPIO is assumed to cooperate, it is
+* that the kill FET's Ron beats any plausible driver's Rdrv even when
+* it doesn't. See the check output for the exact settle times and
+* voltages.
+*
+* CLAIM 2 -- PASS. Time to reach 9 V (90% of the 10 V command) is
+* 461 ns without Rpd2 and 475 ns with it -- 14 ns, about 3%, and the
+* final settled voltage moves from 10.000 V to 9.901 V, about 1%
+* (both track Rdrv2/Rpd2 = 100/10000, as they should). Fourteen
+* nanoseconds against a 1-3 ms injection event, or even against the
+* 38 us boost-ramp time injector_boost.cir measures, is not a
+* measurable slowdown by any standard this repo uses elsewhere.
+*
+* CLAIM 3 -- FAIL. This is the load-bearing finding.
+*
+* Memo 11 sec.4's own hand arithmetic states: at Crss=200 pF (the TOP
+* of its own illustrative 50-200 pF range), I = Crss*dV/dt = 560 uA,
+* "through 10 kOhm that is at most ~5.6 mV." That multiplication is
+* wrong by three orders of magnitude: 560 uA through 10 kOhm is 5.6 V,
+* not 5.6 mV (560e-6 * 10e3 = 5.6, not 5.6e-3). This simulation, which
+* also correctly includes the gate's own Ciss in parallel with Rpd
+* (memo 11's hand estimate has no capacitor in it at all), gives a
+* SMALLER number than even the corrected hand estimate -- but still
+* nowhere near millivolts:
+*
+*     Crss      peak V(gate)   memo's naive I*R   vs Vgsth=1.0 V
+*     20 pF      0.235 V         0.28 V             pass
+*     50 pF      1.155 V         1.40 V             FAIL (memo's own low end)
+*     100 pF     2.289 V         2.80 V             FAIL
+*     200 pF     4.497 V         5.60 V             FAIL (memo's own high end)
+*     500 pF    10.647 V        14.0  V             FAIL
+*     1000 pF   19.490 V        28.0  V             FAIL
+*
+* (Read straight off this simulation's own supervisor_claim3.dat --
+* not hand-typed -- and matching what the check below asserts. Ciss's
+* own filtering brings the simulated peak to roughly 80% of the naive
+* I*R figure at these Crss values, not the many-orders-of-magnitude
+* reduction memo 11 implies -- because Rpd*Ciss = 10k*2n = 20 us is
+* COMPARABLE to the 35.7 us edge, not "three to four orders of
+* magnitude faster" the way memo 11 sec.4's OTHER comparison (RC vs
+* the 1 ms injection event) correctly is. Those are two different
+* comparisons; conflating them is a second, smaller error in the
+* memo, separate from the arithmetic slip above.)
+*
+* So even at the LOW end of memo 11's own illustrative Crss range
+* (50 pF), the weak-pulldown-alone peak (1.16 V) already exceeds a
+* representative small-signal FET's Vgs(th) (1.0 V, itself the
+* conservative low end of that class). The memo's conclusion --
+* "a plain 10 kOhm weak pulldown is adequate here without needing an
+* active-clamp/strong-pulldown driver stage" -- is FALSE for its own
+* stated Crss range, not just for some pessimistic extension of it.
+* This is exactly the "artifact of the illustrative Crss assumption"
+* the task asked this block to test for, and the answer is yes: the
+* artifact was in the arithmetic, not in the physical assumption that
+* Crss might be higher than expected.
+*
+* WHAT WOULD ACTUALLY WORK, checked rather than guessed (same
+* discipline load_dump.cir's RESULT NOTE uses for its own reframe):
+* strengthening Rpd, exactly what the Infineon AN's "hard-switching...
+* needs a strong pull-down" warning describes, and exactly what memo
+* 11 sec.4 argued this design's gentle 2.8 V/us edge did not need.
+* Re-run at Crss=200 pF, sweeping Rpd, in a scratch copy, not this file:
+*
+*     Rpd        peak V(gate) at Crss=200 pF
+*     10 kOhm     4.50 V   FAILS (Vgsth=1.0 V)
+*      3 kOhm     1.67 V   FAILS
+*      1 kOhm     0.56 V   PASSES
+*    300 Ohm      0.17 V   PASSES
+*    100 Ohm      0.056 V  PASSES
+*
+* A pulldown in the 300 Ohm-1 kOhm class -- not 10 kOhm -- clears
+* Vgs(th) with real margin at this design's own edge rate. That is a
+* BOM-neutral fix (still a single resistor) but it directly reopens
+* the leakage-drop and RC-discharge-speed checks memo 11 sec.4 ran
+* against 10 kOhm specifically; at 1 kOhm the discharge-speed estimate
+* (RC = R*Ciss = 1k*2n = 2 us) is still two to three orders of
+* magnitude faster than the shortest injection event, so that check
+* does not reopen a problem -- but it was not re-verified here for
+* every value in the table above, and should be before any pulldown
+* value is committed to copper.
+*
+* CLAIM 4 -- PASS, and by a wide margin, at every rate tried. This is
+* the central claim, and it holds.
+*
+* Supervisor threshold (3.05 V, Vt in .model SWK) versus the S32K148's
+* own PLL-guarantee floor (2.97 V, CONFIRMED, memo 11 sec.3): on ANY
+* monotonic falling ramp the higher threshold is crossed first, so the
+* supervisor trips before the MCU's own guarantee lapses by
+* construction -- that part is geometry, not a result. What is a real
+* result -- and what needed the adversarial-driver fix described above
+* to actually test -- is whether the KILL PATH has finished (gate below
+* Vgs(th), against the SAME adversarial 100 ohm/10 V drive claim 1b
+* uses) by the time the rail reaches 2.97 V. At every rate from 293 us
+* to 1000 ms it has, read directly off supervisor_claim4_fast.dat /
+* supervisor_claim4_slow.dat:
+*
+*     ramp T     t(mon=3.05V)  t(gate<Vgsth)   t(mon=2.97V)   margin
+*     293 us      56.35 us      56.42 us        74.38 us       17.96 us
+*     585 us     112.50 us     112.57 us       148.50 us       35.93 us
+*     1170 us    225.00 us     225.07 us       297.00 us       71.93 us
+*     10 ms        1.923 ms      1.926 ms        2.538 ms       0.613 ms
+*     100 ms       19.23 ms      19.23 ms        25.38 ms       6.152 ms
+*     1000 ms      192.3 ms      192.3 ms        253.8 ms       61.53 ms
+*
+* The margin GROWS with slower ramps, which is the right direction: a
+* slow sag gives the supervisor more, not less, time to act, so the
+* "slow sag" open item from memo 11 sec.3 does not threaten this
+* conclusion -- if anything it is the fast end (already the smallest
+* margin in the table, 18 us) that would need watching if the bulk
+* capacitor were ever reduced from its current 150 uF, or if a real
+* supervisor's own assert-side propagation delay (not modelled here,
+* see header) turned out to eat a meaningful fraction of 18 us.
+*
+* This validates memo 11's central argument: an external supervisor
+* whose threshold sits above VLVD's max, watching the SAME rail whose
+* decay time is governed by mcu_pdn.cir's 150 uF bulk cap, genuinely
+* does fire before the MCU's own internal protection would have left
+* it in an undefined state -- PROVIDED claim 3's pulldown value is
+* fixed. Claim 4 protects against reset/brownout; claim 3, as sized in
+* the memo, does not protect against the coupling event, and that
+* failure sits in the SAME 10 kOhm component this claim's PASS relies
+* on for nothing (claim 4 never invokes Rpd at all when the kill switch
+* is closed -- Ron dominates). The two claims do not trade off against
+* each other; fixing claim 3 (a smaller Rpd) does not cost claim 4
+* anything.
+*
+* CLAIM 5 ("total exposure time from watchdog-fault-onset to
+* kill-transistor-conducting... against one 26.67 ms cylinder
+* interval"): NOT modelled as its own circuit here -- memo 11 sec.5 is
+* explicit that the watchdog window's own CWD/SET0/SET1 values are a
+* Phase-2 item once a part variant is chosen, and inventing one would
+* be exactly the "confident desk reasoning" failure mode the project's
+* sourcing discipline exists to catch. What IS checked is the piece
+* this file can actually speak to: claim 1's own measured kill-path
+* latency (tens of ns) against 26.67 ms is a ratio in the hundreds of
+* thousands to one, so whatever the eventual watchdog window turns out
+* to be, the GATE RESPONSE after RESET asserts is not what will use up
+* that budget -- the watchdog's own fault-DETECTION time (not modelled
+* here, and not yet chosen) is the entire budget in practice.
+* ------------------------------------------------------------
+*
+* WHAT THIS MODEL DOES NOT COVER
+* ------------------------------------------------------------
+* - The supervisor IC's own comparator propagation delay (assert
+*   side). Not sourced in memo 11; assumed zero in every claim above
+*   (RESET responds the instant the modelled threshold is crossed).
+*   A real TPS3850-class part's sub-microsecond class delay would not
+*   change claim 4's verdict (its smallest margin, ~18 us at the
+*   293 us ramp, still has room), but it has not been measured against
+*   a real part.
+* - The inverting stage and the kill FET's own gate-drive dynamics are
+*   collapsed into one switch (Ron=5 ohm, INFERRED). A real BJT
+*   inverter has its own turn-on delay and the kill FET has its own
+*   gate charge -- neither chosen yet (Phase-2, same gap as the driver
+*   FETs themselves).
+* - PIN-MUX GAP, stated as the task requires: ECU pins 88/73/07/29/03/
+*   05's physical PTxx assignment is not yet known (spec sec.5,
+*   deferred to Phase 2), so their individual PE/PS reset-default pull
+*   states cannot be stated. This file does NOT assume any of them
+*   pull a particular way on reset -- the gate node here is generic,
+*   fed only by the modelled kill path and Rgs, with no GPIO drive
+*   modelled as a default source of "on" AT ALL except as the
+*   deliberately adversarial stimulus in claim 1b. If the eventual
+*   pin-mux table shows one of these six pins defaults to an internal
+*   pull-UP on reset (a few S32K148 pins do, e.g. the JTAG pins'
+*   documented defaults, memo 11 sec.4), that pin's real exposure
+*   during reset is BETTER than this file's ic=10V worst case, not
+*   worse -- this model is conservative with respect to that unknown,
+*   not blind to it.
+* - Ciss=2n and Vgsth=1.0 V are both INFERRED class figures, not a
+*   chosen part's datasheet numbers (spec sec.8-class gap, no
+*   injector/metering FET selected). Claim 3's verdict is NOT sensitive
+*   to Ciss in the same way it is sensitive to Rpd -- Ciss's role is
+*   damping the coupling peak (see the header), and a smaller Ciss
+*   makes the peak WORSE (less filtering), so this file's 2n choice is
+*   if anything already on the generous side for claim 3's FAIL.
+* - The kill switch's Ron=5 ohm and the adversarial driver's Rdrv=100
+*   ohm (claims 1/1b/2) are INFERRED, not sourced to chosen parts.
+* - Reverse recovery, thermal transients, and switch transition times
+*   are not modelled anywhere in this file, the same class of omission
+*   injector_turnoff.cir and load_dump.cir already flag for their own
+*   ideal switches and diodes.
+* - Claim 5's watchdog window itself, per memo 11 sec.5 -- see above.
+* ------------------------------------------------------------
