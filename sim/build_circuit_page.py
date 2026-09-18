@@ -47,11 +47,16 @@ BLOCKS = {
          "flows backwards through the body diode during that window. The switch model here turns off "
          "instantly, so it will always look perfect in reverse — that number is a datasheet question."),
         ("transient_clamp", "Transient clamp", "pin 21",
-         "A bidirectional TVS and a ferrite, against ISO 7637-2 pulse 2a: +112 V through 2 ohms for 50 us.",
+         "A bidirectional TVS behind a 5 A fuse, against ISO 7637-2 pulse 2a: +112 V through 2 ohms for "
+         "50 us. Second and third stages of spec sec.4's pin 21 order — EMI filter, then fuse, then this "
+         "TVS, then the reverse-battery FET.",
          "Clamps to 50 V, which leaves 2x margin inside the buck controller's 100 V rating and keeps "
          "60 V-class parts viable everywhere downstream.",
          "It misses the 42 V figure the earlier documents asked for, and that figure should be dropped: "
-         "it was arbitrary, with no standard behind it. The real constraints are the parts' ratings."),
+         "it was arbitrary, with no standard behind it. The real constraints are the parts' ratings. The "
+         "fuse (dashed in the schematic) is not modelled either — this netlist folds all series impedance "
+         "into Rsrc — and its survival under pulse 2a's repeated ~38 A instantaneous stress has not been "
+         "tested, unlike load_dump, which did check this for its own pulse."),
         ("load_dump", "Load dump", "pin 21",
          "The same TVS and capacitor as transient_clamp, against ISO 7637-2 pulse 5b: a suppressed load "
          "dump, 40 V through 0.5 ohms for 400 ms — four orders of magnitude longer than pulse 2a.",
@@ -72,7 +77,9 @@ BLOCKS = {
          "That has not been confirmed for this genset — if it is not, the real event is pulse 5a "
          "(65–87 V, unclamped), a harder problem this block does not simulate. Also not modelled: the "
          "real pulse's exponential-decay shape (approximated here as a trapezoid, which is pessimistic "
-         "in the right direction), and the TVS's actual junction thermal transient."),
+         "in the right direction), and the TVS's actual junction thermal transient. The 5 A fuse (dashed "
+         "in the schematic, not a netlist element) does not rescue this failing case either: the fault "
+         "current is 3.04 A, 0.6x the fuse's rating, and it will not clear in 400 ms."),
         ("buck_preregulator", "Buck pre-regulator", "—",
          "6–40 V down to 5 V at 400 kHz, run open-loop at fixed duty so the output filter is visible.",
          "400 kHz is chosen against CISPR 25, not for size: the conducted band starts at 150 kHz, so a "
@@ -185,7 +192,9 @@ BLOCKS = {
          "entire argument for the stage.",
          "An RL model of the injector with no magnetic saturation and no moving needle. The envelope it "
          "sits in — 65–115 V, 12–24 A peak — is family-wide from memo 04, not this injector's "
-         "measured values. That is U5."),
+         "measured values. That is U5. Also not modelled: the high/low-side switches and the sense "
+         "resistor, dashed in the schematic — this is a turn-on-only step response straight onto L/R, "
+         "and R already stands in for whatever series resistance the real drive path adds."),
         ("injector_turnoff", "Turn-off / recirculation", "pins 73, 07, 29",
          "The low-side switch opening at 18 A, with a recirculation diode routing the coil's current back "
          "into the same boost cap (Cres, 47 uF) instead of a clamp that just burns it — plus a second diode "
@@ -218,10 +227,11 @@ BLOCKS = {
          "current comes from, and the answer is not subtle: hold costs 29 times the peak phase's charge, "
          "so a rail supplying both collapses completely. Hold comes from the battery. 50 mA of average "
          "charging recovers the rail with room to spare in the 26.67 ms before the next cylinder fires.",
-         "Charge balance only. There is no inductor, no switch and no control loop — just a current "
-         "source standing in for the converter's average output. It says nothing about the converter's "
-         "stability or its inrush, and the collapsed voltage in the second case should be read as 'far "
-         "below usable' rather than as a number."),
+         "Charge balance only. L, D and the switch are dashed in the schematic because the converter "
+         "physically has them, but there is no inductor, no switch and no control loop in the netlist — "
+         "just a current source standing in for the converter's average output. It says nothing about the "
+         "converter's stability or its inrush, and the collapsed voltage in the second case should be read "
+         "as 'far below usable' rather than as a number."),
     ]),
     "actuators": ("05", "Actuators", "Outputs that move something.", [
         ("metering_unit_pwm", "Fuel metering unit driver", "pin 88",
@@ -422,7 +432,10 @@ tr.bad{{background:var(--fail-wash)}}
   <p class="eyebrow">Engine control unit &middot; Kirloskar 3GK550ETA 4SR1</p>
   <h1>Circuit Reference</h1>
   <p class="standfirst">Every circuit block that has been built and verified, with the
-    schematic, the reasoning, the simulated result, and what each model leaves out.</p>
+    schematic, the reasoning, the simulated result, and what each model leaves out.
+    A dashed part is on the board but not in the netlist below it — its impedance is
+    either folded into a lumped value elsewhere in the same circuit, or left out
+    entirely. The checks are claims about the solid parts only.</p>
   <p class="meta"><span><b>{total}</b> blocks</span>
     <span>all checks <b>passing</b></span>
     <span>generated from <b>sim/blocks/</b></span>

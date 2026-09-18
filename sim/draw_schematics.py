@@ -89,37 +89,52 @@ def sensor_ratiometric(d):
 
 
 def transient_clamp(d):
-    """Battery input protection -- ISO 7637-2 pulse 2a."""
-    d += elm.Dot(open=True).label("BATT +\npin 21", "left")
+    """Battery input protection -- ISO 7637-2 pulse 2a. Sits between the EMI
+    filter and the reverse-battery FET, per spec sec.4's stage order for
+    pin 21: EMI filter -> fuse -> TVS -> reverse-battery FET. FB1 does not
+    belong on this drawing -- it is emi_filter's own ferrite, one stage
+    upstream; drawing a second FB1 here was the bug (see F2 in the
+    2026-09-18 power-chain review)."""
+    d += elm.Dot(open=True).label("from EMI\nfilter", "left")
     d += elm.Line().right().length(0.5)
-    d += elm.Inductor2().right().label("FB1\nferrite")
-    d += elm.Fuse().right().label("F1\n5 A")
+    d += elm.Fuse().right().linestyle("--").label("F1\n5 A")
     d += (node := elm.Dot())
     d += elm.Line().right().length(1.6)
-    d += elm.Dot(open=True).label("to buck\nVIN", "right")
+    d += elm.Dot(open=True).label("to reverse-\nbattery FET", "right")
 
     d += elm.Line().down().at(node.center).length(0.4)
     d += (tvs := elm.Dot())
-    d += elm.DiodeShockley().down().label("D1  TVS\nSMBJ33CA", loc="bottom")
+    d += (d1 := elm.DiodeShockley().down())
     d += elm.Ground()
+    # Same trap load_dump's picture already worked around: loc= on this
+    # rotated element lands on top of C1's label. Explicit coordinate to
+    # the LEFT of the diode, and the C1 branch pushed out to 2.3 pitch
+    # instead of 1.5, clears it.
+    d += elm.Label().at((tvs.center[0] - 2.7, tvs.center[1] - 1.5)).label(
+        "D1  TVS\nSMBJ33CA")
 
-    d += elm.Line().right().at(tvs.center).length(1.5)
+    d += elm.Line().right().at(tvs.center).length(2.3)
     d += elm.Dot()
     d += elm.Capacitor().down().label("C1\n10u")
     d += elm.Ground()
+
+    d += elm.Label().at((3.0, -5.0)).label(
+        "F1 dashed: on the board per spec sec.4, but this netlist folds\n"
+        "all series impedance into Rsrc -- F1 is not modelled, and its\n"
+        "survival under pulse 2a's repeated ~38 A stress is untested")
     return "Transient clamp -- battery input, ISO 7637-2"
 
 
 def load_dump(d):
     """Battery input protection -- ISO 7637-2 pulse 5b, same physical stage
-    as transient_clamp, a much longer and more energetic pulse."""
-    d += elm.Dot(open=True).label("BATT +\npin 21", "left")
+    as transient_clamp, a much longer and more energetic pulse. FB1 is
+    deliberately not drawn here -- see transient_clamp's docstring."""
+    d += elm.Dot(open=True).label("from EMI\nfilter", "left")
     d += elm.Line().right().length(0.5)
-    d += elm.Inductor2().right().label("FB1\nferrite")
-    d += elm.Fuse().right().label("F1\n5 A")
+    d += elm.Fuse().right().linestyle("--").label("F1\n5 A")
     d += (node := elm.Dot())
     d += elm.Line().right().length(1.6)
-    d += elm.Dot(open=True).label("to buck\nVIN", "right")
+    d += elm.Dot(open=True).label("to reverse-\nbattery FET", "right")
 
     d += elm.Line().down().at(node.center).length(0.4)
     d += (tvs := elm.Dot())
@@ -142,25 +157,33 @@ def load_dump(d):
     # other element -- this is a lot of text to land safely.
     d += elm.Label().at((3.3, -5.0)).label(
         "pulse 5b: Us*=40 V, 0.5R, 400 ms\n"
-        "D1 absorbs ~46 J at ~116 W -- FAILS an SMBJ-class part's rating")
+        "D1 absorbs ~46 J at ~116 W -- FAILS an SMBJ-class part's rating\n"
+        "F1 dashed (drawn, not in this netlist) does not rescue it either:\n"
+        "fault current is 3.04 A, 0.6x F1's rating, and won't clear in 400 ms")
     return "Load dump -- battery input, ISO 7637-2 pulse 5b"
 
 
 def injector_boost(d):
-    """ECU pins 03/05 high side, 73/07/29 low side."""
+    """ECU pins 03/05 high side, 73/07/29 low side. The netlist is a
+    turn-on-only step response (ideal source straight onto L/R): neither
+    switch nor the sense resistor is a netlist element, so both are
+    dashed."""
     d += elm.Dot(open=True).label("BOOST RAIL\n~100 V", "left")
     d += elm.Line().right().length(0.7)
-    d += (hs := elm.Switch().right().label("high side\npin 03 / 05"))
+    d += (hs := elm.Switch().right().linestyle("--").label("high side\npin 03 / 05"))
     d += elm.Line().right().length(0.5)
     d += elm.Dot(open=True).label("INJECTOR", "top")
     d += elm.Inductor().right().label("L\n200u")
     d += elm.Resistor().right().label("R\n0.5")
     d += elm.Line().right().length(0.5)
-    d += elm.Switch().right().label("low side\npin 73 / 07 / 29")
+    d += elm.Switch().right().linestyle("--").label("low side\npin 73 / 07 / 29")
     d += elm.Line().right().length(0.5)
     d += (sense := elm.Dot())
-    d += elm.Resistor().down().label("R_sense\ncurrent fb")
+    d += elm.Resistor().down().linestyle("--").label("R_sense\ncurrent fb")
     d += elm.Ground()
+    d += elm.Label().at((hs.center[0] + 0.3, hs.center[1] - 2.6)).label(
+        "dashed: on the board, not in this netlist -- R above already\n"
+        "lumps whatever series resistance the real drive path adds")
     return "Injector drive -- bank high side, per-cylinder low side"
 
 
@@ -255,7 +278,7 @@ def emi_filter(d):
     d += elm.Inductor2().right().at(n1.center).label("FB1\nferrite 0.5u / 120R")
     d += (n2 := elm.Dot())
     d += elm.Line().right().length(3.4)
-    d += elm.Dot(open=True).label("to reverse-\nbattery stage", "right")
+    d += elm.Dot(open=True).label("to fuse ->\nTVS stage", "right")
 
     d += elm.Capacitor().down().at(n1.center).label("C1\n4u7")
     d += elm.Ground()
@@ -276,8 +299,10 @@ def emi_filter(d):
 
 
 def reverse_battery(d):
-    """Power chain stage 2 -- ideal-diode controller and P-FET."""
-    d += elm.Dot(open=True).label("BATT +\nfrom filter", "left")
+    """Power chain stage 2 -- ideal-diode controller and P-FET. Sits
+    downstream of the TVS clamp per spec sec.4's stage order, so this FET
+    sees the clamped ~50 V, not the raw pulse -- see transient_clamp."""
+    d += elm.Dot(open=True).label("from TVS\nstage", "left")
     d += elm.Line().right().length(0.8)
     d += (q := elm.PFet(bulk=False).right().anchor("source"))
     d += elm.Line().right().at(q.drain).length(1.0)
@@ -292,7 +317,11 @@ def reverse_battery(d):
     d += elm.Label().at((g.center[0], g.center[1] - 0.55)).label(
         "ideal-diode controller\nwatches polarity, drives the gate")
 
-    d += elm.Label().at((n.center[0] + 0.9, n.center[1] + 0.7)).label(
+    # Placed above the FET rather than at n: the "from TVS stage" label
+    # change shifted nothing structurally, but this caption already sat
+    # on top of the FET symbol before that edit -- pre-existing collision,
+    # fixed here rather than carried forward.
+    d += elm.Label().at((q.drain[0] + 0.7, q.source[1] + 0.55)).label(
         "< 0.3 V drop -- 24 mV at 3 A")
     return "Reverse-battery protection -- ideal diode, not a Schottky"
 
@@ -419,17 +448,25 @@ def sensor_differential(d):
 
 
 def boost_converter(d):
-    """Injector boost rail and its reservoir."""
+    """Injector boost rail and its reservoir. L, D and the switch are
+    drawn because the converter physically has them, but the netlist below
+    is charge-balance only -- a current source standing in for all three
+    (see the RESULT NOTE), so all three are dashed."""
     d += elm.Dot(open=True).label("BATT +\n13.5 V", "left")
     d += elm.Line().right().length(0.5)
-    d += elm.Inductor2().right().label("L")
+    d += elm.Inductor2().right().linestyle("--").label("L")
     d += (sw := elm.Dot())
-    d += elm.Diode().right().label("D")
+    d += elm.Diode().right().linestyle("--").label("D")
     d += (rail := elm.Dot().label("~100 V", "top"))
     d += elm.Line().right().length(1.5)
     d += elm.Dot(open=True).label("injector high side\npins 03 / 05", "right")
 
-    d += elm.Switch().down().at(sw.center).label("boost\nswitch", loc="left")
+    d += elm.Switch().down().at(sw.center).linestyle("--")
+    # loc= on this rotated element lands on top of the caption below --
+    # pre-existing collision (the trap this file's other diodes/switches
+    # already work around), fixed here rather than carried forward.
+    d += elm.Label().at((sw.center[0] - 1.35, sw.center[1] - 1.0)).label(
+        "boost\nswitch")
     d += elm.Ground()
 
     d += elm.Capacitor().down().at(rail.center).label("Cres\n47u")
