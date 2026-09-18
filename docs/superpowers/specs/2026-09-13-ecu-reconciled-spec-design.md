@@ -251,6 +251,38 @@ The owners may of course revisit item 3 with evidence. What they should not do i
 inherit the previous revision's conclusion, because the fact it was built on turned out
 to describe a controller that is not on this machine.
 
+### What this ECU must do about the trip module
+
+Item 5 puts the trip module's contacts in series with the fuel metering unit's battery
+feed. That interface is the module's, not ours — but it constrains this design in three
+ways, and none of them has been designed against yet.
+
+**We must not be able to defeat it.** The trip module removes the metering unit's
+supply. Our low-side driver on pin 88 sinks current from that supply, so when the module
+trips, our output has nothing to switch. That is the property that makes the arrangement
+work, and it must survive the detail: no path from any ECU output may re-energise the
+metering unit around an open trip contact. Any such path would be a wiring error that
+silently restores the failure mode the module exists to remove.
+
+**We should sense its state, and treat it as an input rather than a surprise.** A trip
+that removes fuel while the ECU is still commanding injection produces a fault the ECU
+should recognise and report over CAN, rather than reading it as a fuelling anomaly and
+compensating. The cheapest form is one discrete input sensing whether the module's
+contacts are closed. That is a new connector position and a new front-end, and it does
+not exist in the OEM harness — a deliberate addition, listed under §7.
+
+**We must fail safe into it, not against it.** The module acts on overspeed sensed by
+its own magnetic pickup. The ECU's own overspeed shutdown (item 1) acts on the crank
+sensor. These are independent measurements of the same quantity, and they will disagree
+near the threshold. The ECU must not treat its own reading as authoritative to the point
+of trying to keep running through a trip.
+
+**Not yet decided:** whether the module's pickup shares the flywheel target with our
+crank sensor or gets its own. Sharing is cheaper and physically simpler; separate
+targets preserve the independence that is the entire point of fitting the module. This
+is a mounting question for whoever fits it, and it should be answered before the module
+is ordered rather than after.
+
 ### What this section still does not address
 
 A diesel that begins burning its own lubricating oil — through a failed turbocharger
@@ -390,6 +422,57 @@ the extraction. Queued as a continuity measurement.
 | 59 / 81 | EGR High / EGR Low | H-bridge + position feedback on pin 37 |
 | 50 | Main relay | Low-side FET + flyback |
 | 69 | Buzzer relay | Low-side FET + flyback |
+
+#### Every driver gate is held off by hardware, not by firmware — REQUIRED 18 Sep 2026
+
+Research memo 11 establishes the hazard with the MCU's own datasheet numbers rather
+than by argument. Two facts combine badly:
+
+- **S32K148 GPIOs are high-impedance out of reset**, until firmware configures them.
+  High-impedance on a gate driver is not "off" — it is undefined, and the gate can be
+  brought up by leakage or by capacitive coupling from a switching node.
+- **There is a band where nothing internal resets the part.** Low Voltage Reset always
+  forces a reset at 2.50–2.7 V, but Low Voltage Detect at 2.8–3.0 V only does so if
+  firmware has set `LVDRE`. Below the datasheet's own 2.97 V correctness guarantee and
+  above LVR, the core may execute wrong instructions **with its outputs still driven**.
+
+The pin that makes this concrete is **88**. The fuel metering unit is fed from battery
+through fuse `8F1` and switched low-side by this ECU (§2.2). A gate floating high during
+reset energises the metering unit with no firmware in control of it — and, since U12,
+with nothing downstream able to remove its power either.
+
+**Therefore, as a binding requirement on every driver gate in the table above:**
+
+1. A **10 kΩ gate–source pulldown** at each gate node. The value is justified in memo 11
+   §4 against this design's own confirmed figures — S32K1xx leakage ≤ 0.5 µA, and the
+   ~2.8 V/µs boost-rail turn-off edge measured in `injector_turnoff.cir` — not chosen as
+   a round number.
+2. A **windowed supervisor** monitoring `3V3_MCU`, tripping at **~3.05–3.10 V**, above
+   LVD's 3.0 V maximum, so the trip does not depend on whether firmware ever configured
+   `LVDRE`. Its watchdog window must close well inside one cylinder interval (26.67 ms
+   at 1500 rpm).
+3. The supervisor's reset, inverted, driving a **kill transistor at each protected
+   gate**, so the safe state is enforced independently of GPIO configuration. A plain
+   timeout watchdog is defeated by a stuck loop that still kicks it; the window is what
+   closes that.
+
+This is the ECU's own fail-safe and it is **separate from the standalone trip module**
+of §3. The trip module removes fuel authority from outside the board; this keeps the
+board's own outputs defined while it still has power. Neither substitutes for the other,
+and since U12 neither is optional.
+
+**Open, and blocking the detail rather than the requirement:** the physical `PTxx`
+assignment for pins 88, 73/07/29 and 03/05 is a phase-2 task (§5), so the per-pin reset
+pull defaults cannot yet be looked up. The requirement above does not depend on them —
+it exists precisely so that the answer does not matter — but the analysis cannot be
+finished until the pin map is fixed.
+
+**A decision this raises, not yet taken:** integrated injector-driver ICs in the
+MC33814 class handle their own power-on-reset output state internally ("all outputs
+turned off" in NXP's own datasheet), which would move part of this requirement off the
+board and into a part. That is a different driver architecture from the discrete
+high-side/low-side arrangement assumed above, and it should be decided before sheet 4
+is drawn rather than inherited by default.
 
 ### CAN
 
