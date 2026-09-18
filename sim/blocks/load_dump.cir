@@ -14,9 +14,11 @@
 * Pulse 5b only exists if the alternator's rectifier is a
 * suppressed/avalanche type that clamps its own output when the
 * battery is disconnected under charge. Nobody has confirmed that
-* for THIS genset's alternator -- it is not on the unknowns
-* register (docs/superpowers/specs/2026-09-13-ecu-reconciled-spec-design.md
-* section 8) and no datasheet or nameplate has been read for it.
+* for THIS genset's alternator, and no datasheet or nameplate has
+* been read for it. It was not on the unknowns register when this
+* block was written; it is now, as U16 in spec section 8, because a
+* question this load-bearing should not live only in a netlist
+* comment.
 * If the alternator is NOT suppressed, the real event is pulse 5a:
 * 65-87 V unclamped (ISO 7637-2:2011 table), a completely different
 * and much harder survivability problem that this block does not
