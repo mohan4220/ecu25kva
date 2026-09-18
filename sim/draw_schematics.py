@@ -401,7 +401,7 @@ def mcu_pdn(d):
     d += elm.Line().right().length(3.2)
     d += elm.Dot(open=True).label("S32K148\nVDD pins", "right")
 
-    d += elm.Capacitor().down().at(rail.center).label("Cbulk 47u\nESR 50m")
+    d += elm.Capacitor().down().at(rail.center).label("Cbulk 150u\nESR 50m")
     d += elm.Ground()
 
     d.push()

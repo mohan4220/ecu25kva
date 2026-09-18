@@ -105,7 +105,14 @@ BLOCKS = {
          "with low ESR and peaked at 3.4 ohms around 48 kHz — the regulator's own output inductance "
          "ringing against the bulk capacitance, decades away from the bulk/ceramic anti-resonance the "
          "design was drawn around. Bigger AND lossier fixes it, which is why a plain aluminium part "
-         "beats a ceramic in that position.",
+         "beats a ceramic in that position. It was pulled a second time on 18 September, from 47 uF to "
+         "150 uF: at 47 uF the block cleared its target only at the nominal value of the LDO's output "
+         "inductance, a number no chosen part pins down, and a 26% margin that evaporates when an "
+         "unmeasured parameter is restated is not a margin. At 150 uF that resonance has dropped and "
+         "damped enough that a different peak is now the tallest — the bulk/ceramic anti-resonance at "
+         "2.6 MHz, floored near 60 mOhm — and that one does not move with the LDO at all. The verdict "
+         "has stopped depending on the unpinned number. More bulk beyond 150 uF buys nothing, because "
+         "it does not touch the peak that now dominates.",
          "Lumped: no planes, no via inductance, no spreading inductance, so it is optimistic above about "
          "100 MHz — which is exactly where the sweep stops. An earlier version swept to 1 GHz and "
          "obediently reported ESL times omega at the last point as a 'peak'."),

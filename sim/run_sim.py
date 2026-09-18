@@ -646,13 +646,21 @@ def check_mcu_pdn():
     c.that("peak impedance, 1 kHz to 100 MHz", peak * 1e3, 100.0, tol=None,
            ok=peak < 0.1, unit="mOhm")
 
-    # Where the peak sits is the design insight: it is the regulator's own
-    # output inductance against the bulk capacitance, not the bulk/ceramic
-    # anti-resonance a decoupling discussion usually starts from.
-    c.that("  ... and it sits at", fpeak / 1e3, 60.0, tol=25, unit="kHz")
-    c.that("  ... i.e. regulator L against bulk C, not bulk against ceramic",
-           f"{fpeak/1e3:.0f} kHz -- decades below the ceramics", None,
-           ok=fpeak < 500e3)
+    # Where the peak sits was the design insight while the bulk was 47 uF:
+    # the limiter was the regulator's own output inductance against the bulk
+    # capacitance, tens of kHz, decades below the bulk/ceramic anti-resonance
+    # a decoupling discussion usually starts from. Raising the bulk to 150 uF
+    # (18 Sep 2026, see the netlist's tolerance note) moved that resonance far
+    # enough down and damped it enough that it is no longer the tallest thing
+    # in the sweep -- the bulk/ceramic anti-resonance in the MHz now is. That
+    # handover IS the claim worth checking, because it is what buys the block
+    # its tolerance margin: the surviving peak does not move with Lldo, the
+    # parameter nobody has pinned.
+    c.that("  ... and it has moved to the MHz anti-resonance", fpeak / 1e6, 2.6,
+           tol=1.0, unit="MHz")
+    c.that("  ... i.e. bulk against ceramic, no longer regulator L against bulk",
+           f"{fpeak/1e6:.2f} MHz -- the LDO resonance is no longer the limiter",
+           None, ok=fpeak > 500e3)
 
     # High frequency is where the parasitics decide it. ESL divides by the
     # number of packages sharing the current; capacitance is irrelevant here.

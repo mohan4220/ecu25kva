@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-09-18T19:39:42.256811</dc:date>
+    <dc:date>2026-09-18T21:00:37.937039</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -42,13 +42,13 @@ C 118.149 54.743853 118.591538 55.812235 119.379152 56.599848
 C 120.166765 57.387462 121.235147 57.83 122.349 57.83 
 L 122.349 57.83 
 z
-" clip-path="url(#p8268e3e1d6)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pae9da737fa)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="line2d_1">
     <path d="M 59.349 26.63 
 L 73.749 26.63 
 L 88.149 26.63 
-" clip-path="url(#p8268e3e1d6)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
+" clip-path="url(#pae9da737fa)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
    </g>
    <g id="line2d_2">
     <path d="M 88.149 26.63 
@@ -57,35 +57,35 @@ L 112.149 41.63
 L 112.149 65.63 
 L 88.149 65.63 
 L 88.149 80.63 
-" clip-path="url(#p8268e3e1d6)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
+" clip-path="url(#pae9da737fa)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
    </g>
    <g id="line2d_3">
     <path d="M 118.149 41.63 
 L 118.149 65.63 
-" clip-path="url(#p8268e3e1d6)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
+" clip-path="url(#pae9da737fa)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
    </g>
    <g id="line2d_4">
     <path d="M 126.549 53.63 
 L 137.349 53.63 
-" clip-path="url(#p8268e3e1d6)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
+" clip-path="url(#pae9da737fa)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
    </g>
    <g id="line2d_5">
     <path d="M 88.149 80.63 
 L 106.149 80.63 
 L 124.149 80.63 
-" clip-path="url(#p8268e3e1d6)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
+" clip-path="url(#pae9da737fa)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
    </g>
    <g id="line2d_6">
     <path d="M 124.149 80.63 
 L 149.349 80.63 
 L 174.549 80.63 
-" clip-path="url(#p8268e3e1d6)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
+" clip-path="url(#pae9da737fa)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
    </g>
    <g id="line2d_7">
     <path d="M 137.349 53.63 
 L 137.349 82.43 
 L 137.349 111.23 
-" clip-path="url(#p8268e3e1d6)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
+" clip-path="url(#pae9da737fa)" style="fill: none; stroke: #000000; stroke-width: 1.6; stroke-linecap: round"/>
    </g>
    <g id="text_1">
     <!-- ideal-diode controller -->
@@ -742,7 +742,7 @@ C 56.933489 25.227134 56.649 25.913952 56.649 26.63
 C 56.649 27.346048 56.933489 28.032866 57.439812 28.539188 
 C 57.946134 29.045511 58.632952 29.33 59.349 29.33 
 z
-" clip-path="url(#p8268e3e1d6)" style="fill: #ffffff; stroke: #000000; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pae9da737fa)" style="fill: #ffffff; stroke: #000000; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="text_3">
     <!-- from TVS -->
@@ -841,7 +841,7 @@ C 121.733489 79.227134 121.449 79.913952 121.449 80.63
 C 121.449 81.346048 121.733489 82.032866 122.239812 82.539188 
 C 122.746134 83.045511 123.432952 83.33 124.149 83.33 
 z
-" clip-path="url(#p8268e3e1d6)" style="stroke: #000000; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pae9da737fa)" style="stroke: #000000; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
     <path d="M 174.549 83.33 
@@ -854,7 +854,7 @@ C 172.133489 79.227134 171.849 79.913952 171.849 80.63
 C 171.849 81.346048 172.133489 82.032866 172.639812 82.539188 
 C 173.146134 83.045511 173.832952 83.33 174.549 83.33 
 z
-" clip-path="url(#p8268e3e1d6)" style="fill: #ffffff; stroke: #000000; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pae9da737fa)" style="fill: #ffffff; stroke: #000000; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="text_4">
     <!-- to buck VIN -->
@@ -967,12 +967,12 @@ C 134.933489 109.827134 134.649 110.513952 134.649 111.23
 C 134.649 111.946048 134.933489 112.632866 135.439812 113.139188 
 C 135.946134 113.645511 136.632952 113.93 137.349 113.93 
 z
-" clip-path="url(#p8268e3e1d6)" style="stroke: #000000; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#pae9da737fa)" style="stroke: #000000; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
   </g>
  </g>
  <defs>
-  <clipPath id="p8268e3e1d6">
+  <clipPath id="pae9da737fa">
    <rect x="0" y="0" width="244.386" height="150.81"/>
   </clipPath>
  </defs>

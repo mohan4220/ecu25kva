@@ -39,9 +39,14 @@
 * That peak is the regulator's own output inductance resonating
 * with the bulk capacitance, and the two things that fix it are
 * MORE bulk capacitance (moving the resonance down) and MORE bulk
-* ESR (damping it). 47 uF at 50 mOhm does both, which is why a
+* ESR (damping it). A lossy bulk part does both, which is why a
 * plain aluminium or tantalum part beats a ceramic here. Fitting
 * a low-ESR ceramic as the bulk would make this worse.
+*
+* The bulk is 150 uF, raised from 47 uF on 18 Sep 2026 after the
+* tolerance pass showed 47 uF cleared the target only at the
+* nominal value of a parameter nobody has pinned. See the
+* tolerance RESULT NOTE for the sweep that chose 150.
 * ============================================================
 
 Iac n 0 AC 1
@@ -51,7 +56,7 @@ Rldo n l1 0.01
 Lldo l1 0 0.15u
 
 * ---- bulk capacitor ----
-Cb  n  b1 47u
+Cb  n  b1 150u
 Rb  b1 b2 50m
 Lb  b2 0  2n
 
@@ -67,7 +72,7 @@ Lc  c2 0  0.08n
 Iac2 m 0 AC 1
 Rldo2 m m1 0.01
 Lldo2 m1 0 0.15u
-Cb2  m  p1 47u
+Cb2  m  p1 150u
 Rb2  p1 p2 50m
 Lb2  p2 0  2n
 Cs   m  s1 1u
@@ -111,53 +116,56 @@ wrdata mcu_pdn.dat vm(n) vm(m)
 * ------------------------------------------------------------
 *
 * ------------------------------------------------------------
-* RESULT NOTE -- tolerance
+* RESULT NOTE -- tolerance, and the fix that was applied
 * ------------------------------------------------------------
 * The binding parameter is Lldo, the LDO's modelled output
-* inductance (0.15 uH). It sets the peak-impedance check directly
-* and the peak's margin at nominal is already the thinnest number
-* in this block: 74.2 mOhm against a 100 mOhm target, 26%. Unlike
-* the bulk/ceramic parts, Lldo is not a catalog value with a
-* tolerance bin -- it is this block's own behavioural stand-in for
-* "how inductive does a small LDO's output look once its loop runs
-* out of gain," and per the 2026-09-18 review's F3, no specific LDO
-* part has been cited to pin it at 0.15 uH rather than some other
-* typical figure. INFERRED, both the nominal and the corner.
+* inductance. Unlike the bulk and ceramic parts, it is not a
+* catalog value with a tolerance bin -- it is this block's
+* behavioural stand-in for "how inductive does a small LDO's output
+* look once its loop runs out of gain", and no specific LDO part
+* has been cited to pin it. INFERRED, both nominal and corner.
 *
-* Re-ran at Lldo = 0.35 uH in a scratch copy, not this file -- the
-* exact figure the review used, chosen as "still typical" for this
-* class of part rather than a stated tolerance percentage:
+* At the original 47 uF bulk, the block cleared its target only at
+* the nominal value of that unpinned parameter:
 *
-*     Lldo = 0.15 uH (nominal)  ->  peak 74.2 mOhm at 67.6 kHz   PASS
-*     Lldo = 0.35 uH            ->  peak 145.9 mOhm at 39.8 kHz  FAIL
+*     Lldo 0.15 uH (nominal)  ->  peak  74.2 mOhm at   67.6 kHz  PASS
+*     Lldo 0.35 uH            ->  peak 145.9 mOhm at   39.8 kHz  FAIL
 *
-* Confirms the review's finding. The 100 mOhm target itself is not
-* the uncited-convention kind: it is Z_target = 50 mV allowed ripple
-* / 0.5 A transient step, a derived requirement, not a round number
-* picked after the fact -- so this FAIL, unlike emi_filter's or
-* buck_preregulator's brush with the same shape of thin margin, is
-* not a case of an unreal target being blamed for a real number.
+* A 26% margin evaporating under a plausible restatement of a
+* number nobody has measured is not a margin. The 100 mOhm target
+* is not the arbitrary kind that could be argued away either: it is
+* 50 mV allowed ripple / 0.5 A transient step, derived rather than
+* rounded.
 *
-* THE DESIGN IS INADEQUATE at this corner, in the sense that a
-* 26% margin evaporates under a plausible restatement of a single
-* unpinned parameter. But the fix is the same lever this file's own
-* RESULT NOTE already used once: the first version of this block
-* (10 uF/20 mOhm bulk) peaked at 3.4 ohm and was cured by MORE bulk
-* capacitance and MORE bulk ESR, both of which push the anti-
-* resonance down and damp it. Re-ran the 0.35 uH corner with the
-* bulk capacitor doubled to 94 uF (ESR unchanged at 50 mOhm):
+* THE FIX, APPLIED: bulk capacitance 47 uF -> 150 uF. This is the
+* same lever this block already pulled once -- the first version
+* (10 uF, 20 mOhm) peaked at 3.4 ohm and was cured by more bulk
+* capacitance and more bulk ESR. Sweeping both parameters together:
 *
-*     Lldo = 0.35 uH, Cb = 47 uF (nominal)  ->  peak 145.9 mOhm  FAIL
-*     Lldo = 0.35 uH, Cb = 94 uF            ->  peak  83.0 mOhm  PASS
+*            Cb= 47 uF   Cb=100 uF   Cb=150 uF
+*   Lldo 0.15u    74.2       60.1        60.4   mOhm
+*   Lldo 0.35u   145.9       79.3        60.6   mOhm
+*   Lldo 0.50u      --      104.3        76.6   mOhm
+*   Lldo 1.00u      --      188.3       132.1   mOhm
 *
-* So the design is recoverable with the same component already
-* chosen for the same reason, not a new part. Not applied here:
-* changing Cb changes what gets drawn on the schematic, which
-* sim/draw_schematics.py owns and is being edited concurrently in
-* this pass -- same reasoning buck_preregulator.cir and
-* sensor_rail.cir gave for not bumping their own binding component.
-* The real fix is to replace the INFERRED 0.15 uH with a pulled
-* datasheet Zout curve for the actual LDO once one is chosen; until
-* then this block's PASS should be read as conditional on an
-* assumption nobody has verified, not as a cleared margin.
+* 100 uF would have cleared the 0.35 uH corner and then failed at
+* 0.5 uH, which for an unpinned parameter is buying back the same
+* problem one step further out. 150 uF holds to 0.5 uH.
+*
+* 150 uF is also where the sweep stops paying. At 47 uF the tallest
+* peak is the regulator's inductance against the bulk, in the tens
+* of kHz. By 150 uF that resonance has dropped and damped far
+* enough that a different peak is tallest -- the bulk/ceramic
+* anti-resonance at 2.63 MHz, floored near 60 mOhm. More bulk does
+* not move that one, so beyond 150 uF the block buys nothing.
+*
+* That handover is the real result, and the checks now assert it:
+* the surviving peak does not depend on Lldo at all. The block's
+* verdict has stopped resting on the parameter nobody has pinned.
+*
+* Still worth doing: replace the INFERRED Lldo with a pulled Zout
+* curve once an actual LDO is chosen. The difference is that the
+* answer no longer changes the design if it comes back unfavourable
+* -- at 150 uF, Lldo would have to reach about 1 uH to threaten the
+* target, which is far outside this class of part.
 * ------------------------------------------------------------
