@@ -400,13 +400,47 @@ be specific, per the task's own instruction:**
      (`injector_turnoff.cir`'s RESULT NOTE / research memo 10 §5) is **~2.8 V/µs** across
      the 100 V boost rail — the memo's own number, reused here, not re-derived. Using an
      illustrative Crss of 50–200 pF (again a class figure, INFERRED, not a chosen part),
-     the coupled current is `I = Crss·dV/dt ≈ 140–560 µA`. Through 10 kΩ that is at most
-     ~5.6 mV — again far below any realistic gate threshold. **This design's edge rate
-     is roughly two orders of magnitude gentler than the hard-switched half-bridge
-     scenario the "strong pulldown" warning targets** (which typically involves edges
-     in the hundreds of V/µs), so a plain 10 kΩ weak pulldown is adequate here without
-     needing an active-clamp/strong-pulldown driver stage — **conditional on the Crss
-     assumption above, flagged as such.**
+     the coupled current is `I = Crss·dV/dt ≈ 140–560 µA`.
+
+     > **CORRECTION, 18 Sep 2026 — this paragraph was wrong by a factor of 1000, and
+     > the conclusion it reached does not survive the fix.**
+     >
+     > It originally read: *"Through 10 kΩ that is at most ~5.6 mV — again far below any
+     > realistic gate threshold,"* and concluded that a plain 10 kΩ weak pulldown is
+     > adequate without an active clamp.
+     >
+     > 560 µA through 10 kΩ is **5.6 V**, not 5.6 mV. `560e-6 × 10e3 = 5.6`.
+     >
+     > `sim/blocks/supervisor.cir` was built to test this paragraph's conclusion as
+     > claim 3, and it **FAILS**. Simulated peak gate voltage, which includes the gate's
+     > own Ciss dividing the step down and so reads somewhat below the bare arithmetic:
+     >
+     > | Crss | V(gate) through 10 kΩ alone |
+     > |---|---|
+     > | 20 pF | 0.465 V |
+     > | 50 pF | **1.155 V** |
+     > | 100 pF | 2.289 V |
+     > | 200 pF | 4.497 V |
+     > | 500 pF | 10.647 V |
+     >
+     > Against a representative Vgs(th) of 1.0 V it fails at **50 pF — the low end of
+     > this memo's own illustrative range**, not at some pessimistic extension of it.
+     >
+     > The edge-rate argument above is still correct as far as it goes: 2.8 V/µs really
+     > is two orders of magnitude gentler than the hard-switched half-bridge case the
+     > "strong pulldown" literature addresses. It just does not license 10 kΩ, and the
+     > arithmetic slip is what made it look as though it did.
+     >
+     > **The pulldown cannot be a fixed number in this memo.** It is set by the FET
+     > actually chosen, through `Rpd < Vgs(th) / (Crss · dV/dt)`. At this design's
+     > 2.8 V/µs and a 1.0 V threshold: Crss 200 pF needs under 1.79 kΩ, 500 pF under
+     > 714 Ω, 1000 pF under 357 Ω. Halve for margin. Bounded from below by the gate
+     > driver's source current, since the pulldown fights it continuously during
+     > conduction — 300 Ω holding a 10 V gate costs 33 mA per gate, and there are six.
+     >
+     > What survives unchanged is everything the kill transistor does. Claim 4 passes
+     > across six brownout ramps with margin. This correction is about the passive
+     > resistor beside it, not the supervisor path.
 2. **A driver IC whose own POR forces outputs off, independent of host GPIO state** —
    confirmed real practice per MC33814 above. This is the stronger mechanism where
    applicable, because it does not depend on a passive resistor racing an active driver

@@ -443,10 +443,23 @@ with nothing downstream able to remove its power either.
 
 **Therefore, as a binding requirement on every driver gate in the table above:**
 
-1. A **10 kΩ gate–source pulldown** at each gate node. The value is justified in memo 11
-   §4 against this design's own confirmed figures — S32K1xx leakage ≤ 0.5 µA, and the
-   ~2.8 V/µs boost-rail turn-off edge measured in `injector_turnoff.cir` — not chosen as
-   a round number.
+1. A **gate–source pulldown** at each gate node, sized by the FET actually chosen rather
+   than fixed here:
+
+   > `Rpd < Vgs(th) / (Crss · dV/dt)`, with dV/dt = 2.8 V/µs from `injector_turnoff.cir`
+
+   At a 1.0 V threshold that is **under 1.79 kΩ for Crss = 200 pF, 714 Ω at 500 pF,
+   357 Ω at 1000 pF** — halve for margin. It is bounded from below by the gate driver's
+   source current, because the pulldown fights the driver continuously while the FET
+   conducts: 300 Ω holding a 10 V gate costs 33 mA, and there are six gates.
+
+   **This requirement said "10 kΩ" when first written on 18 Sep 2026, and that was
+   wrong.** Memo 11 §4 computed the Miller-coupled current correctly at 140–560 µA and
+   then mis-multiplied, reporting 5.6 mV across 10 kΩ where the answer is 5.6 V.
+   `sim/blocks/supervisor.cir` was built to check that paragraph and fails it at 50 pF,
+   the low end of the memo's own range. The memo now carries the correction inline. The
+   error is recorded rather than quietly patched because it survived a review, a spec
+   commit, and was caught only by simulating the claim.
 2. A **windowed supervisor** monitoring `3V3_MCU`, tripping at **~3.05–3.10 V**, above
    LVD's 3.0 V maximum, so the trip does not depend on whether firmware ever configured
    `LVDRE`. Its watchdog window must close well inside one cylinder interval (26.67 ms
