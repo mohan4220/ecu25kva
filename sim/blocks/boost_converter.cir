@@ -96,4 +96,35 @@ wrdata boost_converter.dat v(ra) v(rb)
 * The hold current figure of 10 A is the middle of research memo
 * 04's envelope (8-13 A). The envelope is family-wide, not this
 * injector's measured value -- see U5.
+*
+* ALSO NOT MODELLED, found 18 Sep 2026 by injector_turnoff.cir:
+* there is no bleed path on this reservoir. Bchga charges while
+* v(ra) < 100 and stops above it, which regulates the rail from
+* below and not at all from above. Nothing here can remove charge.
+*
+* That was harmless while the only current flowing was outward.
+* injector_turnoff.cir now recirculates the injector's turn-off
+* energy back INTO this capacitor, and its checks separate two
+* cases:
+*
+*   peak-current cutoff   rail stays at 100.0002 V over three
+*                         back-to-back events. The energy came
+*                         out of this same rail microseconds
+*                         earlier, so a lossless loop cancels by
+*                         symmetry and real losses make it net
+*                         negative.
+*   hold-current cutoff   rail climbs to 101.995 V, about +2 V
+*                         per event, and stays there.
+*
+* The difference is where the current came from. In arrangement A
+* above, hold current is supplied by the BATTERY, not by this
+* rail -- so recirculating it here is charge this capacitor never
+* gave up, arriving with nothing to offset it and no way out.
+*
+* Whether that actually happens depends on whether hold-phase
+* cutoffs share the same recirculation diode as full turn-off, a
+* wiring question this block does not settle. If they do, this
+* reservoir needs a bleed path and Bchga's one-sided regulation
+* is not sufficient. Recorded here rather than in injector_turnoff
+* because it is this block's component and this block's gap.
 * ------------------------------------------------------------
