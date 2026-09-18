@@ -1,0 +1,246 @@
+* ============================================================
+* Injector turn-off / recirculation -- ECU pins 73/07/29 (low side)
+* Closes the gap injector_boost.cir's RESULT NOTE names.
+* ============================================================
+* injector_boost.cir proved turn-ON only and said so plainly:
+* interrupting 18 A in 200 uH releases about 32 mJ per event with
+* nowhere defined for it to go. Research memo 10
+* (docs/research/10-injector-turnoff.md) surveyed what real
+* peak-and-hold injector drivers do about that and recommended a
+* specific circuit, not a generic one: a low-side switch per
+* channel with a recirculation diode from the injector's low side
+* back into the EXISTING 100 V / 47 uF boost reservoir
+* (boost_converter.cir's Ca/Bchga). Not a Zener-across-the-FET
+* active clamp (memo section 1.1: Nexperia AN50003 flags repetitive
+* active clamp as reliability-"Questionable", gate-oxide wear-out).
+* Not a bare freewheel-to-battery diode (too slow, same problem the
+* boost rail was built to fix on the opening side). This is that
+* circuit.
+*
+* THE SECOND DIODE THIS NETLIST ADDS THAT THE MEMO DOES NOT NAME:
+* D_fw, gnd -> hi. The memo's recommendation names one new diode
+* (low side -> boost cap). But with the injector's high side wired
+* to the boost rail through a switch (Shs, the bank-shared high
+* side memo 04 already verified), opening BOTH switches at turn-off
+* leaves node "hi" with no path for the inductor's current at all --
+* exactly the ngrun.py trap: "voltage-controlled switches have NO
+* body diode ... if an inductor's current has no path during a dead
+* time it gets reset through the off-state resistance and the
+* simulation quietly produces nonsense." A real FET does not have
+* this problem in the direction that matters here either -- Shs's
+* own body diode sits across rail/hi, the wrong pair of nodes to
+* supply "hi" from ground. What actually closes this loop is the
+* SAME external diode Infineon's TLE8242-2 already requires for
+* hold-phase constant-current chopping (memo section 1.2, quoted
+* directly: "An external recirculation diode is required in
+* [constant current mode] configuration otherwise the IC may be
+* damaged"). That diode normally does the hold-phase job; at full
+* turn-off (both switches open, not just the high side chopping)
+* it is what lets current flow from ground back into "hi" so the
+* low-side recirculation diode's current has somewhere to come
+* from. It is modelled here as standard supporting infrastructure,
+* not the novel part this block exists to justify -- D_recirc is.
+*
+* Without D_fw, node "hi" is a dead end when Shs opens and this
+* would hit the exact ngrun.py failure mode. Tried it first without
+* D_fw to confirm: the inductor current is forced through Shs's
+* 1e9 ohm off-state resistance instead of decaying physically, and
+* v(hi) and the reported turn-off time are meaningless. That
+* failure is not reproduced here -- D_fw is left in from the start
+* -- but the reasoning for why it is required is recorded because
+* it is not obvious from the memo's prose alone.
+*
+* Same injector model as injector_boost.cir: L = 200 uH, R = 0.5
+* ohm, peak threshold 18 A. Same boost reservoir as
+* boost_converter.cir: 47 uF, 100 V setpoint, Bchg charges at 50 mA
+* only while below setpoint (copied verbatim -- this is the exact
+* mechanism claim 3 below tests for a missing bleed path).
+*
+* Three events (pilot/main/post) are run back to back, all assumed
+* to reach the full 18 A peak before cutoff -- research memo 10
+* section 4 argues this is the design figure to use, not a
+* conservative upper bound to discount, because the boost ramp
+* (~38 us) is well under even a short pilot pulse's minimum width.
+* Spacing (300 us) is not a sourced pilot/main/post interval -- none
+* was found (memo 10's own negative-results list) -- it is chosen
+* only to be comfortably longer than one event's ~35 us turn-off, so
+* each event's recirculation finishes before the next begins and the
+* rail bumps are visible as separate steps.
+* ============================================================
+
+.model NSW  SW(Ron=20m Roff=1e9 Vt=2.5 Vh=0.2)
+* Ultrafast recirculation diode, rated for the boost-rail voltage
+* and the 18 A peak -- the part class research memo 10 names,
+* matching TLE8242-2's generic "recirculation diode (ultrafast)"
+* callout even though that IC itself is the wrong current/voltage
+* class for this injector. BV=150 gives margin above the 100 V
+* rail, the same margin logic transient_clamp used for its TVS.
+.model DREC D(Is=2e-11 N=1.3 Rs=40m BV=150 IBV=1e-3)
+
+* ---- gate: pilot, main, post -- each ON 38 us (the injector_boost
+* ramp time to 18 A at 100 V), then OFF ----
+Vg  g 0 PWL(
++ 0      5
++ 38u    5
++ 38.01u 0
++ 300u   0
++ 300.01u 5
++ 338u   5
++ 338.01u 0
++ 600u   0
++ 600.01u 5
++ 638u   5
++ 638.01u 0
++ 30m    0)
+
+* ---- boost reservoir, identical mechanism to boost_converter.cir ----
+Crail rail 0 47u ic=100
+Bchg  0 rail I = v(rail) < 100 ? 50m : 0
+
+* ---- high side: bank-shared switch to the boost rail, plus its
+* freewheel diode (see header) ----
+Shs     rail hi  g 0 NSW
+Vamm_fw hi   fwn 0
+Dfw     0    fwn DREC
+
+* ---- injector coil, ammeter in series so its current is directly
+* readable through both the ramp and the decay ----
+Vamm_i hi  hin 0
+L1     hin lm  200u
+R1     lm  lo  0.5
+
+* ---- low side: independent per-channel switch ----
+Sls lo 0 g 0 NSW
+
+* ---- the recirculation diode this block exists to add ----
+Vamm_rc lo  rcn 0
+Drc     rcn rail DREC
+
+* ---- comparison only, NOT this design: freewheel straight to the
+* 13.5 V battery, starting already at 18 A (ic=18) so only the
+* turn-off physics is compared, not the much slower battery ramp
+* injector_boost.cir already measured (439 us). This is memo 10's
+* baseline row -- the option ruled out for being too slow. ----
+Vbatb  batb 0 DC 13.5
+Vammb  batb xb 0
+Lcb    xb   cb 200u ic=18
+Rcb    cb   db 0.5
+Dcb    db   batb DREC
+
+* ---- claim 3, the sensitivity that actually matters: what THIS
+* block's own 3-event circuit above cannot show. That circuit always
+* recirculates the SAME current it just drew from the boost rail, so
+* -- see the RESULT NOTE -- a lossless version of it would cancel
+* EXACTLY (a symmetric linear ramp up and down against the same
+* clamp voltage draws and returns identical charge) and any real
+* loss only makes recovery net LESS than the draw. It cannot
+* overshoot. But boost_converter.cir's own arrangement A has the
+* BOOST rail supply the peak phase only -- hold current comes from
+* the BATTERY. If end-of-injection recirculation is wired the same
+* way for every channel regardless of which rail was last driving
+* the coil (one shared low-side switch and diode per channel, not
+* two), then a cutoff during HOLD sends battery-sourced current
+* into the BOOST cap with no boost-side draw to net against. That
+* is an uncompensated addition, not a near-cancellation. This
+* circuit starts a second, separate 47 uF/100 V reservoir already
+* at 100 V with a coil already carrying boost_converter.cir's own
+* 10 A hold-current figure (ic=10, no preceding ramp) and lets it
+* recirculate through the same diode pair, to measure that addition
+* directly. ----
+Crailh railh 0 47u ic=100
+Bchgh  0 railh I = v(railh) < 100 ? 50m : 0
+Dfwh     0    fwnh DREC
+Vamm_fwh fwnh hih   0
+Vamm_ih  hih  hmh   0
+Lh       hmh  lmh   200u ic=10
+Rh       lmh  loh   0.5
+Vamm_rch loh  rch   0
+Drch     rch  railh DREC
+
+.control
+tran 200n 30m uic
+wrdata injector_turnoff.dat v(rail) i(Vamm_i) i(Vamm_rc) i(Vamm_fw) v(lo) i(Vammb) v(railh) i(Vamm_ih)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE -- read the back-to-back rail number before the
+* single-event numbers, it is the one that changes another block
+* ------------------------------------------------------------
+* Single event (pilot, the first of the three): turn-off from 18 A
+* clamped to the boost rail takes about 34 us -- close to memo 10's
+* ~36 us hand-derived figure (Delta t = L*Delta I / V_clamp), a
+* little faster because that formula ignores the two diode drops
+* and the coil's own resistance, which effectively raise the clamp
+* voltage above the bare 100 V rail. Against the comparison
+* circuit's freewheel-to-battery baseline the difference is large
+* and in the direction memo 10 predicted -- boost recirculation is
+* the fast path, battery freewheel is not.
+*
+* Boost-rail bump from that single event is smaller than memo 10's
+* idealised +6.9 V (which explicitly ignores diode and resistive
+* losses -- section 3 says so). The two diode drops plus R1's
+* resistance burn a real fraction of the 32.4 mJ before it reaches
+* the capacitor. Read the actual simulated numbers in the checks
+* below rather than this comment -- they are not repeated here to
+* avoid the two drifting apart.
+*
+* THE BACK-TO-BACK FINDING (claim 3, the one that changes a
+* different, already-passing block): Bchg is boost_converter.cir's
+* own Bchga line, copied verbatim -- it adds 50 mA while the rail is
+* below 100 V and adds NOTHING above it. It has no bleed path. There
+* is nothing else in this model that removes charge from the
+* reservoir. So each of the three recirculation events in this
+* netlist stacks its bump on top of the last one's, and by the third
+* event the rail is sitting measurably above 100 V -- see the check
+* output for the number. It stays there: v(rail) at the end of the
+* 30 ms window (well past the 26.67 ms to the next cylinder,
+* boost_converter.cir's own spacing) is unchanged from where it
+* landed right after the post event, because nothing in Bchg's
+* ternary can ever discharge it. This is not a flaw in this block's
+* model of boost_converter.cir -- it is boost_converter.cir's own
+* charge-regulation logic, run against a load (recovered turn-off
+* energy) that block was never simulated against. It needs a bleed
+* path (a resistor across the reservoir, or a comparator-gated
+* shunt) once turn-off recirculation is added to the real design.
+* boost_converter.cir's own RESULT NOTE should be revisited with
+* this finding.
+*
+* Claim 4 (diode peak instantaneous power): checked directly against
+* the average figure memo 10 section 4 computed (about 3.6 W across
+* all 9 events/second) -- the check confirms the peak is two to
+* three orders of magnitude above that average, which is the point:
+* the average never sized this diode, the ~30-40 us pulse did.
+*
+* Claim 5 (EMI edge, memo 10 section 5): NOT modelled quantitatively
+* here. The switches in this netlist are ideal -- zero transition
+* time -- so any dV/dt read off v(lo)'s edge in this simulation
+* would be an artifact of the solver's timestep, not the FET's real
+* Miller-plateau-limited slew rate. Reporting a dV/dt number from
+* this model would be exactly the kind of promotion-to-sourced the
+* project's own discipline rules out. What IS carried over
+* honestly is memo 10's own INFERRED estimate (100 V in ~36 us,
+* about 2.8 V/us), restated as a comparison point against
+* emi_filter.cir's differential-mode model, not as a result this
+* netlist produced.
+*
+* Also not modelled:
+*   - Diode reverse recovery (Qrr). DREC is a static diode model;
+*     a real ultrafast diode's Qrr adds a brief reverse current
+*     spike and ringing at the moment D_recirc stops conducting
+*     that this model cannot show.
+*   - The FETs' own switching transition time and Miller plateau --
+*     see claim 5 above.
+*   - Magnetic saturation and needle motion -- the same limits
+*     injector_boost.cir's RESULT NOTE already states, inherited
+*     here because the injector model is the same L/R pair.
+*   - The pilot/main/post spacing (300 us) is not a sourced value
+*     for this engine's calibration -- memo 10 records that no such
+*     figure was found. It is chosen only to let each event's
+*     recirculation finish before the next starts.
+*   - The diode's thermal transient (junction temperature vs time).
+*     Claim 4's peak-power check bounds the stress; it does not
+*     size the part's die area or heatsink, which needs a real
+*     datasheet.
+* ------------------------------------------------------------

@@ -164,6 +164,63 @@ def injector_boost(d):
     return "Injector drive -- bank high side, per-cylinder low side"
 
 
+def injector_turnoff(d):
+    """ECU pins 73/07/29 -- low-side switch, recirculation into the boost
+    cap (Cres, the same reservoir boost_converter.cir sizes)."""
+    d += elm.Dot(open=True).label("BOOST RAIL\n~100 V", "left")
+    d += elm.Line().right().length(0.5)
+    d += (rail := elm.Dot())
+    d += elm.Capacitor().down().at(rail.center).label("Cres\n47u", loc="bottom")
+    d += elm.Ground()
+
+    d += elm.Line().right().at(rail.center).length(0.6)
+    d += elm.Switch().right().label("high side\nbank shared")
+    d += (hi := elm.Dot())
+    d += elm.Line().right().length(0.4)
+    d += elm.Dot(open=True).label("INJECTOR", "top")
+    d += elm.Inductor().right().label("L\n200u")
+    d += elm.Resistor().right().label("R\n0.5")
+    d += (lo := elm.Dot())
+    d += elm.Line().right().length(0.4)
+    d += elm.Switch().right().label("low side\npin 73 / 07 / 29")
+    d += elm.Line().right().length(0.4)
+    d += elm.Ground()
+
+    # D_fw -- ground back into "hi", the loop's return path. Not the new
+    # part this block adds: it is the same external recirculation diode
+    # Infineon's TLE8242-2 datasheet already requires for hold-phase
+    # constant-current chopping (research memo 10, section 1.2). Dropped
+    # straight down from "hi" so it never crosses the main chain.
+    d += elm.Line().down().at(hi.center).length(1.7)
+    d += elm.Diode().down().reverse()
+    d += elm.Ground()
+    # loc= on a rotated element lands unpredictably (the trap every other
+    # diode/switch label in this file works around) -- explicit coordinate,
+    # clear of both the diode and the ground symbol below it.
+    d += elm.Label().at((hi.center[0] + 0.85, hi.center[1] - 1.0)).label(
+        "D_fw\nreturn path\n(TLE8242-2's own\nhold-phase diode)")
+
+    # D_recirc -- "lo" back into the boost cap. THIS is the new part this
+    # block exists to add. Routed above the main chain, clear of the
+    # "INJECTOR" label, then down into the same node Cres hangs off.
+    d += elm.Line().up().at(lo.center).length(2.8)
+    d += (rc_top := elm.Dot())
+    d += (drc := elm.Diode().left().reverse())
+    d += elm.Line().left().tox(rail.center)
+    d += elm.Line().down().toy(rail.center)
+    d += elm.Label().at((drc.center[0] - 0.3, rc_top.center[1] + 0.45)).label(
+        "D_recirc")
+
+    # Well clear of D_fw's own diode and ground symbol below "hi" -- the
+    # first attempt put this text straight through them.
+    d += elm.Label().at((hi.center[0] + 3.0, lo.center[1] - 6.2)).label(
+        "18 A -> ~0 A in ~33 us, rail bump ~+6.4 V/event (measured)\n"
+        "memo 10 predicted ~36 us / ~+6.9 V ideal -- real diode and\n"
+        "switch losses shave both, and the bump undershoots the\n"
+        "7.3 V on-phase droop it is paired with -- net loss, not gain")
+    return "Injector turn-off -- recirculation into the boost cap"
+
+
 def relay_driver(d):
     """ECU pins 50/69 -- low-side FET with flyback diode."""
     d += elm.Dot(open=True).label("BATT +  13.5 V", "top")
@@ -467,6 +524,7 @@ BLOCKS = {
     "transient_clamp": transient_clamp,
     "load_dump": load_dump,
     "injector_boost": injector_boost,
+    "injector_turnoff": injector_turnoff,
     "relay_driver": relay_driver,
     "emi_filter": emi_filter,
     "reverse_battery": reverse_battery,

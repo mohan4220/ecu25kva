@@ -315,6 +315,127 @@ def check_injector_boost():
     return c
 
 
+def check_injector_turnoff():
+    c = Checks("injector_turnoff -- recirculation to the boost rail (pins 73/07/29)")
+    d = sim("injector_turnoff", {
+        "injector_turnoff.dat": ["time", "rail", "ii", "irc", "ifw", "vlo", "ib",
+                                  "railh", "ih"],
+    })["injector_turnoff.dat"]
+    t = d["time"]
+    rail, ii, irc, vlo = d["rail"], np.abs(d["ii"]), np.abs(d["irc"]), d["vlo"]
+    ib = np.abs(d["ib"])
+    railh, ih = d["railh"], np.abs(d["ih"])
+
+    def at(time):
+        return float(np.interp(time, t, rail))
+
+    # ---- claim 1: turn-off time, 18 A clamped to the boost rail ----
+    # Memo 10 section 2.2: Delta t = L*Delta I / V_clamp =~ 36 us. Measured
+    # as time from the gate's turn-off command (38 us, the same ramp time
+    # injector_boost.cir found) to the current dropping under 0.5 A (2.8%
+    # of peak).
+    window = (t > 38e-6) & (t < 238e-6)
+    idx = np.where(ii[window] < 0.5)[0]
+    t_off = float(t[window][idx[0]] - 38e-6) if len(idx) else float("inf")
+    c.that("turn-off time, 18 A -> ~0 A on the boost rail", t_off * 1e6, 36.0,
+           tol=6.0, unit="us")
+
+    # Comparison only, not this design: the same 18 A starting current,
+    # freewheeling to the 13.5 V battery instead (memo 10's ruled-out
+    # baseline). Included so "far off" in the claim above has something to
+    # be far off FROM.
+    idxb = np.where(ib < 0.5)[0]
+    t_offb = float(t[idxb[0]]) if len(idxb) else float("inf")
+    c.that("  ... vs freewheel-to-battery baseline (comparison only)",
+           t_offb * 1e6, 260.0, tol=None, ok=t_offb > 5 * t_off, unit="us")
+    c.that("  ... boost recirculation is faster by", t_offb / max(t_off, 1e-9),
+           25.0, tol=10.0, unit="x")
+
+    # ---- claim 2: boost-rail bump from ONE recovery event ----
+    # Isolated at the pilot event: rail value at the turn-off instant (the
+    # bottom of the on-phase droop) vs after the recirculation decay has
+    # finished, so this is JUST the recovery contribution, not mixed with
+    # the on-phase draw already characterized in boost_converter.cir.
+    droop = 100.0 - at(38e-6)
+    bump = at(90e-6) - at(38e-6)
+    c.that("on-phase droop, pilot event", droop, 7.3, tol=0.5, unit="V")
+    c.that("  ... matches boost_converter.cir's own droop figure",
+           "cross-check between two independently built models", None,
+           ok=abs(droop - 7.3) < 1.0)
+    c.that("recovery bump, pilot event (isolated)", bump, 6.9, tol=1.2, unit="V")
+    c.that("  ... undershoots the droop it is paired with (real losses)",
+           f"{bump:.2f} V recovered vs {droop:.2f} V drawn -- net loss, not gain",
+           None, ok=bump < droop)
+
+    # ---- claim 3: does recirculation push the rail over 100 V on
+    # back-to-back events? ----
+    # As THIS circuit models it -- boost supplies the peak ramp, the SAME
+    # current is what gets recirculated at turn-off -- the answer is no,
+    # and it is not a close call. A lossless version of this exact loop
+    # would cancel EXACTLY: ramping up and recirculating down against the
+    # same clamp voltage draws and returns identical charge by symmetry
+    # (a linear ramp up, a linear-ish ramp down). Real R only adds loss,
+    # never surplus, which is exactly what the bump-vs-droop check above
+    # already shows. So across three back-to-back events the rail should
+    # stay at or below its 100 V start, never above it.
+    c.that("rail never exceeds 100 V setpoint (3-event circuit)",
+           float(rail.max()), 100.0, tol=None, ok=float(rail.max()) < 100.05,
+           unit="V")
+    c.that("rail recovered by the next cylinder (26.67 ms after post)",
+           float(np.interp(0.638e-3 + 26.67e-3, t, rail)), 100.0, tol=1.0,
+           unit="V")
+
+    # The sensitivity this verdict actually hinges on: THIS circuit always
+    # recirculates current it just drew from the SAME rail. boost_converter
+    # .cir's own arrangement A has the boost rail supply the peak phase
+    # ONLY -- hold current comes from the battery. If one shared low-side
+    # switch and diode per channel (not two) recirculates a HOLD-current
+    # cutoff into the boost cap too, that energy has no offsetting
+    # boost-side draw to net against -- a separate small circuit in the
+    # netlist starts a second reservoir at 100 V with boost_converter.cir's
+    # own 10 A hold-current figure already flowing (ic=10, no ramp) and
+    # measures the result directly.
+    c.that("hold-current cutoff into the SAME cap, no offsetting draw",
+           float(railh.max()) - 100.0, 2.1, tol=0.6, unit="V")
+    c.that("  ... THIS is the scenario that overshoots 100 V",
+           float(railh.max()), 100.0, tol=None, ok=float(railh.max()) > 100.5,
+           unit="V")
+    c.that("  ... so the verdict hinges on whether hold-current cutoffs "
+           "share the boost-recirculation diode",
+           "peak-only recirculation never overshoots; hold-current "
+           "recirculation does -- boost_converter.cir's Bchga has no bleed "
+           "path either way", None, ok=True)
+
+    # ---- claim 4: peak instantaneous diode power, not the average ----
+    # Memo 10 section 4: worst-case AVERAGE dissipation across all 9
+    # events/second is ~3.6 W, assuming a purely dissipative clamp. This
+    # block's clamp is not dissipative (recirculation), but the diode
+    # still carries the full 18 A at its own forward drop during each
+    # ~33 us pulse, and that instantaneous figure is what the diode's
+    # thermal/junction rating actually has to survive.
+    decay = (t >= 38e-6) & (t < 138e-6)
+    p_diode = (vlo[decay] - rail[decay]) * irc[decay]
+    peak_p = float(p_diode.max())
+    c.that("peak instantaneous power in D_recirc during turn-off", peak_p,
+           29.0, tol=8.0, unit="W")
+    c.that("  ... exceeds the ~3.6 W worst-case AVERAGE by", peak_p / 3.6,
+           8.0, tol=4.0, unit="x")
+
+    # ---- claim 5: the EMI edge, stated not modelled ----
+    # The switches here are ideal (zero transition time), so this
+    # simulation cannot honestly produce a dV/dt -- that would be an
+    # artifact of the solver's timestep, not a FET's real slew rate.
+    # Carried over as memo 10's own INFERRED estimate, not this block's
+    # result: 100 V in ~36 us is about 2.8 V/us, two orders of magnitude
+    # gentler than the buck stage's edges emi_filter.cir already exists to
+    # filter -- a comparison point, not a simulated claim.
+    c.that("differential-mode edge vs emi_filter.cir",
+           "not modelled here (ideal switches) -- memo 10's own ~2.8 V/us "
+           "estimate is carried as a comparison, not simulated", None,
+           ok=True)
+    return c
+
+
 def check_relay_driver():
     c = Checks("relay_driver -- pins 50/69, low-side FET with flyback")
     d = sim("relay_driver", {"relay_driver.dat": ["time", "with_d", "without_d"]})["relay_driver.dat"]
@@ -767,6 +888,7 @@ CHECKS = {
     "transient_clamp": check_transient_clamp,
     "load_dump": check_load_dump,
     "injector_boost": check_injector_boost,
+    "injector_turnoff": check_injector_turnoff,
     "relay_driver": check_relay_driver,
     "emi_filter": check_emi_filter,
     "reverse_battery": check_reverse_battery,

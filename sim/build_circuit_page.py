@@ -186,6 +186,30 @@ BLOCKS = {
          "An RL model of the injector with no magnetic saturation and no moving needle. The envelope it "
          "sits in — 65–115 V, 12–24 A peak — is family-wide from memo 04, not this injector's "
          "measured values. That is U5."),
+        ("injector_turnoff", "Turn-off / recirculation", "pins 73, 07, 29",
+         "The low-side switch opening at 18 A, with a recirculation diode routing the coil's current back "
+         "into the same boost cap (Cres, 47 uF) instead of a clamp that just burns it — plus a second diode "
+         "(D_fw) the loop needs to close, and a comparison against freewheeling to the battery instead.",
+         "Research memo 10 surveyed real injector-driver topologies and ruled out a Zener/active clamp "
+         "(Nexperia AN50003 flags repetitive active clamp as reliability-“Questionable”) and a bare "
+         "battery freewheel (too slow) in favor of recirculation to the existing boost rail — confirmed "
+         "production diesel-injector practice via a 1988 Marelli Autronica patent, not a textbook "
+         "flourish. Simulated: 33 us to collapse 18 A to zero (memo predicted ~36 us), 25x faster than "
+         "freewheeling to the battery (830 us — slower than the memo's own simplified estimate, because a "
+         "real RL circuit's exponential tail matters more at 13.5 V than at 100 V). The rail bump per "
+         "event is +6.4 V, under the memo's +6.9 V ideal because real diode and switch losses are "
+         "modelled here, and it undershoots the 7.3 V on-phase droop it is paired with — net loss, not "
+         "gain, so three back-to-back events never push the rail over its 100 V setpoint. But that verdict "
+         "hinges on which current is being cut off: boost_converter.cir's own arrangement A has the "
+         "battery supply HOLD current, not the boost rail, and recirculating a hold-current cutoff "
+         "through the same diode has no offsetting boost-side draw to net against — modelled separately "
+         "here, it overshoots to 102 V on a single event. boost_converter.cir's charge regulation "
+         "(Bchga) has no bleed path either way; it just happens not to need one for the peak-only case.",
+         "The differential-mode EMI edge (memo's own claim 5) is not modelled — the switches here are "
+         "ideal with zero transition time, so any dV/dt read off this simulation would be a solver "
+         "artifact, not a FET's real slew rate. Also not modelled: diode reverse recovery (Qrr), the "
+         "diode's thermal transient, and — inherited from injector_boost.cir — magnetic saturation and "
+         "needle motion."),
         ("boost_converter", "Boost rail reservoir", "pins 03, 05",
          "The reservoir capacitor under a real injection event, with and without the hold phase drawn "
          "from the same rail.",
