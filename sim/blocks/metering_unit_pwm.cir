@@ -106,3 +106,64 @@ wrdata metering_unit_pwm.dat i(Vs1) i(Vs2) i(Vs3)
 * saturation, so real ripple at a given frequency varies across
 * the duty range. The 30 mH here is a fixed mid-travel estimate.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- tolerance
+* ------------------------------------------------------------
+* Two components, and they bind two different checks:
+*
+*   L (30 mH) sets ripple. +/-20% (wound-inductor bin, same as
+*   buck_preregulator's power inductor) moves ripple at 1 kHz from
+*   0.118 A (nominal) to 0.099 A (+20%) / 0.148 A (-20%), and at
+*   10 kHz from 0.012 A to 0.010 A / 0.015 A. Both stay inside their
+*   checks' tolerance bands (0.113+/-0.05 and 0.011+/-0.008) at
+*   either corner -- not sensitive. The "ripple scales as 1/f" check
+*   is even less sensitive: both frequencies scale with 1/L equally,
+*   so the ratio barely moves regardless of which way L goes.
+*
+*   R (10 ohm) sets mean current. 10 ohm is a class-typical figure
+*   for a coil this size, INFERRED -- no metering unit part number
+*   has been chosen. Wound-coil DC resistance commonly specifies at
+*   +/-10% (automotive solenoid/relay coil datasheets typically use
+*   this figure). Re-ran at R = 11 ohm (+10%, all three frequency
+*   branches together, since it is the same physical coil measured
+*   three ways) in a scratch copy, not this file:
+*
+*     R = 10 ohm (nominal)  mean current 0.634-0.639 A  PASS (want 0.675+/-0.09)
+*     R = 11 ohm (+10%)     mean current 0.577-0.581 A  FAIL (0.004-0.008 A under)
+*
+* FLIPS, narrowly, and only on the high-R side (R = 9 ohm/-10% gives
+* 0.709-0.710 A, comfortably inside). But look at what the three
+* frequencies do AT the corner: 0.5809 / 0.5807 / 0.5767 A -- they
+* still agree with each other to within a few mA, which is the
+* actual claim the header makes ("all three must produce the SAME
+* average current... the control law the pressure loop depends
+* on"). What fails is closeness to 0.675 A specifically, a number
+* that only means anything if the coil really is 10 ohm.
+*
+* THE TARGET IS NOT FULLY REAL here, in the same shape the review
+* flagged for uncited round numbers elsewhere: 0.675 A is not a
+* requirement anyone stated, it is this simulation's own prediction
+* from an assumed, unsourced coil resistance. The rail-pressure loop
+* is closed on the pressure sensor, not on an open-loop assumption
+* about coil current, so a coil that turns out to be 11 ohm does not
+* break anything the firmware depends on -- it just makes this one
+* check's target wrong. The real invariant (frequency-independence)
+* is what should gate PASS/FAIL here, and it does not move.
+*
+* Not fixed by widening the check's tolerance in this pass, because
+* that would be weakening a check to make a corner pass, which the
+* rules for this work explicitly rule out -- run_sim.py instead now
+* carries a comment on this check explaining the distinction, so a
+* future FAIL here is read correctly (coil resistance uncertainty,
+* not a broken control law) rather than chased as a design defect.
+* Also worth flagging and NOT modelled: copper's resistance rises
+* with temperature (~0.39%/degC), and this coil dissipates real
+* power (0.675 A^2 * 10 ohm =~ 4.6 W) inside an engine bay -- a hot
+* coil pushes R further in the SAME direction that already flips
+* this check, so treat the 11 ohm corner as optimistic, not
+* pessimistic, once self-heating is considered. That is a thermal
+* question this block does not simulate, the same kind of gap
+* transient_clamp's RESULT NOTE leaves open for TVS temperature
+* coefficient (2026-09-18 review F11).
+* ------------------------------------------------------------

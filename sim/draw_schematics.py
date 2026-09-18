@@ -23,15 +23,29 @@ schemdraw.config(lw=1.6, fontsize=11.5)
 
 
 def battery_sense(d):
-    """ECU pins 04/06 -- 6-40 V rail scaled into a 3.3 V ADC."""
+    """ECU pins 04/06 -- 6-40 V rail scaled into a 3.3 V ADC.
+
+    Draws the ADOPTED divider only, using the netlist's own designators
+    for it: R3/R4 in battery_sense.cir (120k/10k, sized for the 3.3 V
+    ADC). The netlist also runs a REJECTED comparison divider, R1/R2
+    (75k/10k, inherited from a 5 V-ADC-era assumption) -- that one is
+    not drawn, because it isn't the circuit on the board. Using R1/R2
+    here, as an earlier version of this drawing did, collided with the
+    netlist's own R1/R2 and pointed a reader at the wrong resistors.
+    Spec sec.4's front-end table gives 120k/10k for pins 04/06, which
+    matches R3/R4 exactly."""
     d += elm.Dot(open=True).label("BATT\n6-40 V", "left")
     d += elm.Line().right().length(0.6)
-    d += (r1 := elm.Resistor().right().label("R1\n120k"))
+    d += (r3 := elm.Resistor().right().label("R3\n120k"))
     d += (node := elm.Dot())
     d += elm.Line().right().length(1.4)
     d += elm.Dot(open=True).label("MCU ADC", "right")
-    d += elm.Resistor().down().at(node.center).label("R2\n10k")
+    d += elm.Resistor().down().at(node.center).label("R4\n10k")
     d += elm.Ground()
+    d += elm.Label().at((node.center[0] - 2.3, node.center[1] - 4.6)).label(
+        "R3/R4: the adopted divider (spec sec.4, pins 04/06).\n"
+        "battery_sense.cir also carries a rejected R1/R2 75k/10k\n"
+        "divider, sized for a 5 V ADC -- not drawn here.")
     return "Battery voltage sense -- pins 04 / 06"
 
 
@@ -424,26 +438,81 @@ def vr_conditioner(d):
 
 
 def sensor_differential(d):
-    """Shared sensor ground on pin 34 -- differential front-end."""
-    d += elm.Dot(open=True).label("SENSOR OUT\npin 41", "left")
+    """Shared sensor ground on pin 34 -- single-ended divider plus a
+    differential front end, both reading the boost sensor's output (sa),
+    against two different references. This redraws the block: the
+    previous version drew two resistor dividers joined by a plain wire,
+    which matched neither the netlist nor any plausible physical circuit
+    (see the 2026-09-18 schematic-drift report).
+
+    sensor_differential.cir models ONE divider (R1/R2, 10k/16k, identical
+    to sensor_ratiometric's -- single-ended, referenced to ECU ground)
+    plus a behavioral gain block (Bd: 16/26 gain matched to that same
+    ratio, plus an 80 dB CMRR term) standing in for a differential/
+    instrumentation amplifier -- not a second resistor divider. Drawn
+    here as a generic op-amp symbol, since the netlist doesn't model
+    discrete gain-setting resistors for it and neither vendor studied in
+    memo 09 published an internal schematic to draw instead.
+
+    Rg (gs to ECU ground) is the netlist's actual subject: the shared
+    harness + connector resistance in pin 34's return path, swept
+    0.01-2 ohm by the check. It is a real, modelled part and is drawn
+    solid. Ib (0 to gs, 20 mA) is also a real, modelled netlist element,
+    but it is NOT drawn: it doesn't stand for a part of this front end at
+    all, it's a stimulus representing the coolant sensor's own return
+    current, injected into gs because the two channels share splice V3.
+    The dashed convention is for a real part the netlist omits; Ib is the
+    opposite (a modelled element that isn't a part here), so dashing it
+    would claim the wrong thing about it. Captioned instead, the same way
+    the previous drawing captioned it."""
+    d += (sa := elm.Dot(open=True).label("SENSOR OUT\npin 41 (sa)", "left"))
     d += elm.Line().right().length(0.6)
-    d += elm.Resistor().right().label("R1 10k")
-    d += (hi := elm.Dot())
-    d += elm.Line().right().length(1.5)
-    d += elm.Dot(open=True).label("diff amp +", "right")
+    d += elm.Resistor().right().label("R1\n10k")
+    d += (nse := elm.Dot())
+    d += elm.Line().right().length(1.2)
+    d += elm.Dot(open=True).label("MCU ADC\nsingle-ended", "right")
+    d += elm.Resistor().down().at(nse.center).length(2.2).label("R2\n16k", loc="bottom")
+    d += elm.Ground()
 
-    d += elm.Line().down().at(hi.center).length(1.6)
-    d += (lo := elm.Dot())
-    d += elm.Line().right().length(1.5)
-    d += elm.Dot(open=True).label("diff amp -", "right")
+    d += (gs := elm.Dot(open=True).label("SENSOR GND\npin 34, shared (gs)", "left")
+          .at((-3.2, -4.0)))
+    d += elm.Line().right().at(gs.center).length(1.8)
+    d += (gtap := elm.Dot())
+    d += elm.Resistor().down().length(2.0).label(
+        "Rg\nharness + contacts\n(swept 0.01-2 ohm)", loc="bottom")
+    d += elm.Ground()
+    d += elm.Label().at((gs.center[0] + 0.3, gs.center[1] - 3.8)).label(
+        "Not drawn: Ib (netlist, 20 mA into gs) -- the coolant sensor's\n"
+        "own return current, sharing this ground via splice V3. It is\n"
+        "what moves gs; Rg is what decides how far it moves.")
 
-    d += elm.Resistor().left().at(lo.center).label("R3 10k")
-    d += elm.Line().left().length(0.6)
-    d += elm.Dot(open=True).label("SENSOR GND\npin 34 (shared)", "left")
-
-    d += elm.Label().at((lo.center[0] - 1.0, lo.center[1] - 1.3)).label(
-        "pin 34 is spliced to the coolant sensor -- its current\n"
-        "moves this node, and single-ended reads that as signal")
+    # amp sits well above row A (single-ended) so neither its wires nor
+    # its top caption come near anything else -- the trap this file's
+    # rotated/multi-anchor elements keep hitting.
+    # sign=False: schemdraw's own +/- glyphs inherit the element's
+    # rotation, and the minus renders as a bare vertical bar on an
+    # op-amp oriented this way -- the same rotated-label trap as loc=.
+    # Place both signs at explicit coordinates instead.
+    d += (amp := elm.Opamp(sign=False).at((1.2, 4.5)))
+    # This Opamp inherits the previous element's "down" direction, so it
+    # is rotated: its inputs sit along the TOP edge, not the left one.
+    # Offset the signs downward into the triangle, not sideways -- a +x
+    # offset slides them along that edge and away from their own pins.
+    # in1 takes the sensor signal, in2 the shared ground; getting these
+    # the wrong way round inverts the measurement.
+    d += elm.Label().at((amp.absanchors["in1"][0],
+                         amp.absanchors["in1"][1] - 0.45)).label("+")
+    d += elm.Label().at((amp.absanchors["in2"][0],
+                         amp.absanchors["in2"][1] - 0.45)).label("−")
+    d += elm.Line().up().at(sa.center).toy(amp.absanchors["in1"][1])
+    d += elm.Line().right().tox(amp.absanchors["in1"][0])
+    d += elm.Line().up().at(gs.center).toy(amp.absanchors["in2"][1])
+    d += elm.Line().right().tox(amp.absanchors["in2"][0])
+    d += elm.Line().right().at(amp.absanchors["out"]).length(1.2)
+    d += elm.Dot(open=True).label("MCU ADC\ndifferential", "right")
+    d += elm.Label().at((amp.absanchors["center"][0] - 0.9, amp.absanchors["center"][1] + 2.2)).label(
+        "diff amp -- netlist's Bd: gain 16/26 (matches the single-\n"
+        "ended ratio) plus a realistic 80 dB CMRR term")
     return "Differential sensor front-end -- rejects shared-ground offset"
 
 

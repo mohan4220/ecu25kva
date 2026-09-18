@@ -134,11 +134,18 @@ BLOCKS = {
          "return current. A single-ended input reads the resulting offset as signal. Research memo 09 "
          "found this is exactly what Deep Sea Electronics specifies against (+/-2 V common mode on every "
          "sender channel) and what SEDEMAC's dedicated sensor common point exists for. Note what the OEM "
-         "did with the channel that could not tolerate it: rail pressure gets pin 08, spliced with nothing.",
+         "did with the channel that could not tolerate it: rail pressure gets pin 08, spliced with nothing. "
+         "The schematic below draws one divider (R1/R2, the single-ended path) plus a generic amplifier "
+         "for the differential path, because that is what the netlist models — a behavioral gain block "
+         "(Bd: 16/26 gain, matched to R1/R2's own ratio, plus an 80 dB CMRR term), not a second resistor "
+         "divider. An earlier version of this drawing showed two dividers joined by a plain wire, which "
+         "matched neither the netlist nor any circuit that would actually reject a ground offset.",
          "The error is about half a percent of span at 1 ohm of return resistance, and that understates it. "
          "It is a bias rather than noise, so it never averages out; it grows as contacts corrode; and it "
          "is indistinguishable from a real reading — a boost pressure biased high permits more fuel, and "
-         "the first symptom is smoke, not a fault code."),
+         "the first symptom is smoke, not a fault code. Rg, the swept harness + connector resistance, is "
+         "drawn; Ib, the 20 mA coolant-sensor current that actually moves gs, is not — it is a stimulus, "
+         "not a part of this front end, and it is captioned rather than drawn for that reason."),
         ("ntc_frontend", "NTC temperature input", "pin 79",
          "The thermistor branch of U2, as a pull-up divider and as a constant-current source, across the "
          "full –40 to 150 C range.",
@@ -154,7 +161,11 @@ BLOCKS = {
          "The 6–40 V system rail scaled into the ADC.",
          "The inherited 75k/10k divider was sized for a 5 V ADC and reaches 4.69 V at 40 V — it would "
          "have damaged the input pin. 120k/10k peaks at 3.07 V and still resolves 573 counts at the 6 V "
-         "cranking dip.",
+         "cranking dip. The schematic below draws only the adopted 120k/10k divider, and it now carries "
+         "the netlist's own designators for it, R3/R4 — spec §4 gives the same 120k/10k for pins 04/06. "
+         "The rejected 75k/10k comparison is R1/R2 in battery_sense.cir; it is not drawn, since it is not "
+         "the circuit on the board, and using its designators for the drawn divider (an earlier version of "
+         "this drawing did) pointed a reader at the wrong resistors.",
          "Nothing subtle. A resistive divider is exactly linear and the check confirms it, which is there "
          "to catch a wrong topology rather than a wrong value."),
         ("discrete_input", "Discrete switch input", "pins 20, 24, 71",

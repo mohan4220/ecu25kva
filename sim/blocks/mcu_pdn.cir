@@ -109,3 +109,55 @@ wrdata mcu_pdn.dat vm(n) vm(m)
 * earlier. A check that reads a model outside its validity will
 * always find something, and it will always be wrong.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- tolerance
+* ------------------------------------------------------------
+* The binding parameter is Lldo, the LDO's modelled output
+* inductance (0.15 uH). It sets the peak-impedance check directly
+* and the peak's margin at nominal is already the thinnest number
+* in this block: 74.2 mOhm against a 100 mOhm target, 26%. Unlike
+* the bulk/ceramic parts, Lldo is not a catalog value with a
+* tolerance bin -- it is this block's own behavioural stand-in for
+* "how inductive does a small LDO's output look once its loop runs
+* out of gain," and per the 2026-09-18 review's F3, no specific LDO
+* part has been cited to pin it at 0.15 uH rather than some other
+* typical figure. INFERRED, both the nominal and the corner.
+*
+* Re-ran at Lldo = 0.35 uH in a scratch copy, not this file -- the
+* exact figure the review used, chosen as "still typical" for this
+* class of part rather than a stated tolerance percentage:
+*
+*     Lldo = 0.15 uH (nominal)  ->  peak 74.2 mOhm at 67.6 kHz   PASS
+*     Lldo = 0.35 uH            ->  peak 145.9 mOhm at 39.8 kHz  FAIL
+*
+* Confirms the review's finding. The 100 mOhm target itself is not
+* the uncited-convention kind: it is Z_target = 50 mV allowed ripple
+* / 0.5 A transient step, a derived requirement, not a round number
+* picked after the fact -- so this FAIL, unlike emi_filter's or
+* buck_preregulator's brush with the same shape of thin margin, is
+* not a case of an unreal target being blamed for a real number.
+*
+* THE DESIGN IS INADEQUATE at this corner, in the sense that a
+* 26% margin evaporates under a plausible restatement of a single
+* unpinned parameter. But the fix is the same lever this file's own
+* RESULT NOTE already used once: the first version of this block
+* (10 uF/20 mOhm bulk) peaked at 3.4 ohm and was cured by MORE bulk
+* capacitance and MORE bulk ESR, both of which push the anti-
+* resonance down and damp it. Re-ran the 0.35 uH corner with the
+* bulk capacitor doubled to 94 uF (ESR unchanged at 50 mOhm):
+*
+*     Lldo = 0.35 uH, Cb = 47 uF (nominal)  ->  peak 145.9 mOhm  FAIL
+*     Lldo = 0.35 uH, Cb = 94 uF            ->  peak  83.0 mOhm  PASS
+*
+* So the design is recoverable with the same component already
+* chosen for the same reason, not a new part. Not applied here:
+* changing Cb changes what gets drawn on the schematic, which
+* sim/draw_schematics.py owns and is being edited concurrently in
+* this pass -- same reasoning buck_preregulator.cir and
+* sensor_rail.cir gave for not bumping their own binding component.
+* The real fix is to replace the INFERRED 0.15 uH with a pulled
+* datasheet Zout curve for the actual LDO once one is chosen; until
+* then this block's PASS should be read as conditional on an
+* assumption nobody has verified, not as a cleared margin.
+* ------------------------------------------------------------

@@ -88,3 +88,46 @@ wrdata sensor_differential.dat v(nse) v(nd) v(gs)
 * harness condition. Against a design that has to survive years
 * on an engine, that is the trade worth making.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- tolerance
+* ------------------------------------------------------------
+* The binding parameter is the differential front-end's own CMRR,
+* modelled as the 1e-4 coefficient on the common-mode term in Bd
+* (80 dB, called out in the header as "a realistic instrumentation-
+* amp figure" -- INFERRED, no part chosen). It sets the differential
+* error directly and therefore both checks that depend on it. Ib
+* (20 mA coolant sensor draw) was not swept the same way: it scales
+* the ground offset and both error terms together, so it moves the
+* absolute numbers but not the single-ended-vs-differential
+* comparison this block is actually making.
+*
+* Re-ran the CMRR term at three values in scratch copies, not this
+* file (80 dB nominal, then two corners down):
+*
+*     CMRR=80 dB (1e-4, nominal)  diff error 0.13 mV  ratio  96x  PASS both
+*     CMRR=70 dB (3.16e-4)        diff error 0.40 mV  ratio  31x  PASS ratio, FAILS error check (>0.33 mV bound)
+*     CMRR=60 dB (1e-3)           diff error 1.27 mV  ratio 9.6x  FAILS both
+*
+* 80 dB is a plausible datasheet CMRR for a dedicated in-amp IC at
+* matched source impedance, and by that reading 60-70 dB looks like
+* "a worse chip." But CMRR is not purely a chip spec -- it also
+* degrades with imbalance between the two input paths' source
+* impedances, and this block's own subject is exactly that: a
+* corroding harness return whose resistance this netlist already
+* sweeps to 2 ohm. An installed CMRR of 60-70 dB under a degraded,
+* imbalanced harness is not an exotic assumption for THIS circuit
+* specifically, even with a good chip on the board.
+*
+* THE TARGET IS PARTLY UNREAL, in the same shape as
+* metering_unit_pwm's mean-current check: "0.13 mV" and "96x" are
+* this simulation's own output at an assumed, unsourced 80 dB, not
+* an independently stated requirement. What the design actually
+* promises -- differential meaningfully beats single-ended, "for
+* the cost of one part" -- survives easily even at the worst corner
+* tried: 9.6x better at 60 dB CMRR is still a real, useful margin,
+* just not the ~96x the nominal-CMRR numbers advertise. Read a FAIL
+* on the "0.13 mV" or "better by 90x" checks as CMRR uncertainty
+* (chip choice, or harness-driven source-impedance imbalance), not
+* as the differential front-end failing to do its job.
+* ------------------------------------------------------------

@@ -98,4 +98,64 @@ wrdata ntc_frontend.dat v(nd) v(nc) v(pd)
 * costs signal; the sweep here is what that trade should be
 * argued from once the real sensor's dissipation constant is
 * known, which is another thing task 1.3 could capture.
+*
+* U2 IS STILL OPEN. Everything above and below assumes the
+* charge-air element is a bare NTC thermistor with the curve stated
+* in the header (2.5 kOhm at 25 C, B=3380) -- one resistance
+* measurement at the machine (inspection brief task 1.3) has not
+* been taken. If it turns out to be a conditioned ratiometric
+* output instead, this entire branch -- both front-ends, every
+* check below, and the divider-vs-current conclusion itself -- does
+* not apply; the input would look like sensor_ratiometric.cir's
+* problem, not this one. The tolerance analysis below is therefore
+* conditional on an input assumption nobody has confirmed, on top
+* of being conditional on a part nobody has chosen.
+* ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- tolerance
+* ------------------------------------------------------------
+* Rpu (2.2k pull-up, +/-1%) barely moves anything: at either
+* tolerance extreme the divider outputs shift by single-digit
+* millivolts against checks toleranced at 30-100 mV, and the "never
+* leaves the 5 V rail" guarantee is structural (Rnd/(Rpu+Rnd) < 1
+* for any positive resistances) rather than dependent on the exact
+* value at all. Not sensitive, not worth a re-run.
+*
+* The parameter that actually matters is the NTC's OWN curve --
+* R25 and B -- and neither is pinned to a chosen part; "2.5 kOhm at
+* 25 C with B=3380" is stated in the header as "a typical automotive
+* part," not a datasheet pull. This is an arithmetic corner, not a
+* SPICE one: the current-source front-end is exactly V=I*R (the
+* netlist's own point), so the compliance voltage at any resistance
+* is a one-line calculation, no re-run needed. Recomputed the -40 C
+* endpoint across the realistic automotive NTC B-value range
+* (3000-4300, R25 held at 2.5 kOhm):
+*
+*     B=3000  R(-40C)= 41.3 kOhm   100 uA needs  4.13 V  -- IN compliance
+*     B=3380  R(-40C)= 59.0 kOhm   100 uA needs  5.90 V  -- (nominal, header's figure)
+*     B=3434  R(-40C)= 62.0 kOhm   100 uA needs  6.20 V
+*     B=3950  R(-40C)=100.5 kOhm   100 uA needs 10.05 V
+*     B=4300  R(-40C)=139.4 kOhm   100 uA needs 13.94 V
+*
+* The conclusion this block draws -- that a constant-current
+* front-end runs out of compliance before it runs out of range --
+* gets STRONGER, not weaker, across most of the realistic B range:
+* automotive charge-air/intake NTCs commonly run B=3380-4300 for
+* better cold-end sensitivity, and every one of those needs MORE
+* headroom than the 5.9 V already used to reject the topology, not
+* less. Only an atypically low-B part (B ~3000, more common on
+* cheap general-purpose thermistors than automotive-grade charge-
+* air sensors) would bring the cold end back under the 5 V rail.
+* So the topology decision is robust across the range a real part
+* is likely to land in -- the number would have to be picked from
+* the unusual end of the distribution to change the verdict, the
+* same shape as load_dump's Ri countercheck (FAIL holds across the
+* whole plausible range, not just at the chosen corner).
+*
+* What is NOT robust is the specific 5.9 V figure printed in the
+* checks below -- it is only exactly right if B is exactly 3380,
+* which nobody has confirmed for this part (see U2, above). Treat
+* it as "several volts over compliance," not as a number accurate
+* to two decimal places.
 * ------------------------------------------------------------

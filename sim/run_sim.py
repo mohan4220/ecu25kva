@@ -802,6 +802,12 @@ def check_sensor_differential():
            tol=1.0, unit="mV")
     c.that("  ... single-ended reading error", abs(float(se[i1]) - ideal) * 1e3,
            12.3, tol=1.5, unit="mV")
+    # Both this line and the ratio below are pinned to the netlist's
+    # assumed 80 dB CMRR (INFERRED, no in-amp chosen) -- see its tolerance
+    # note. At a worse, still-plausible CMRR (harness-driven source-
+    # impedance imbalance, not just a cheaper chip) these numbers move a
+    # lot; the underlying claim -- differential meaningfully beats
+    # single-ended -- does not, down to 60 dB CMRR tried there.
     c.that("  ... differential reading error", abs(float(dif[i1]) - ideal) * 1e3,
            0.13, tol=0.2, unit="mV")
 
@@ -908,7 +914,17 @@ def check_metering_unit_pwm():
     i100, i1k, i10k = (np.abs(d[k][tail]) for k in ("i100", "i1k", "i10k"))
 
     # The control law: average current must be the same at every frequency,
-    # or the pressure loop's gain depends on the PWM constant.
+    # or the pressure loop's gain depends on the PWM constant. 0.675 A is
+    # 13.5 V * 0.5 duty / 10 ohm -- the ideal value AT THE ASSUMED 10 ohm
+    # coil resistance, which is a class-typical figure, not a chosen part's
+    # datasheet number (see the netlist's tolerance note). The real claim
+    # this loop is checking is that the three frequencies AGREE with each
+    # other, not that any of them hits 0.675 A exactly -- a coil that turns
+    # out to be 11 ohm moves all three together and still passes the real
+    # invariant while missing this absolute figure. Kept as three separate
+    # checks against 0.675 rather than one mutual-agreement check because it
+    # also catches a frequency-dependent bug the agreement check alone could
+    # miss (e.g. all three drifting together with frequency).
     for name, arr in (("100 Hz", i100), ("1 kHz", i1k), ("10 kHz", i10k)):
         c.that(f"mean current at {name}", float(arr.mean()), 0.675, tol=0.09,
                unit="A")

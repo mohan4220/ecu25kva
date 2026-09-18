@@ -109,3 +109,54 @@ wrdata can_termination.dat zdiff_split zcm_split zdiff_single zcm_single
 * the KG640C expects -- and the board should carry the parts with
 * a link so it can be either.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- tolerance
+* ------------------------------------------------------------
+* Two components, two different checks, and they do not share a
+* binding parameter:
+*
+*   Rah/Ral (60 ohm each) set the DIFFERENTIAL impedance check --
+*   Csh cancels out of that measurement by the virtual-ground
+*   argument in the header, so only the resistors matter there.
+*   Resistor tolerance taken at +/-1% (this repo's standard bin,
+*   and the tolerance CAN termination app notes commonly call for
+*   on split networks, since balance between the two halves matters
+*   for EMC as much as the absolute value does). Re-ran with both
+*   resistors shifted together to 60.6 ohm (+1%) in a scratch copy:
+*
+*       R = 60 ohm (nominal)   zdiff@250kbit  120.0 ohm  PASS (want 120+/-2)
+*       R = 60.6 ohm (+1%)     zdiff@250kbit  121.2 ohm  PASS, margin 0.8/2
+*
+*   Passes, but the margin the check was written with (+/-2 ohm,
+*   1.7%) is barely wider than what a single-direction 1% resistor
+*   shift already consumes. A +5% resistor (a part someone reached
+*   for without checking the tolerance) would fail this outright --
+*   worth specifying 1% on the BOM line, not assuming it.
+*
+*   Csh/Csc (4.7 nF) sets the two COMMON-MODE checks, but not
+*   equally. At 10 MHz the 60+60 ohm series path dominates over the
+*   cap's ~3.4 ohm reactance, so that check barely moves with C at
+*   all (+/-20% MLCC tolerance: 30.13-30.30 ohm against nominal
+*   30.19, want 33+/-8 -- not sensitive). At the 250 kbit/s bit
+*   rate the cap's reactance is what the "stays high" check is
+*   actually measuring, and that one does move:
+*
+*       C = 4.7 nF (nominal)   zcm@250kbit  138.1 ohm  PASS (want >100)
+*       C = 5.64 nF (+20%)     zcm@250kbit  116.3 ohm  PASS, margin down to 16%
+*       C = 3.76 nF (-20%)     zcm@250kbit  171.2 ohm  PASS, more margin
+*
+*   +20% MLCC is the DC-bias-adverse direction is not in play here
+*   (this cap sees no significant DC bias in normal operation, so
+*   the -60%-near-rated-voltage figure used elsewhere does not
+*   apply) -- ordinary +/-20% bin is the right one, and it still
+*   clears the check, just with less than half the nominal margin.
+*
+* Neither check flips at a standard tolerance corner. Both go from
+* comfortable to thin, which is worth recording (same shape as the
+* countercheck in load_dump's own Ri finding) even though it is not
+* a FAIL: a slightly worse corner than the standard bin -- a Y5V-
+* class cap instead of X7R, or a 5% resistor substituted at the
+* board house -- would cost this design its margin on both checks
+* at once, not just one.
+* ------------------------------------------------------------

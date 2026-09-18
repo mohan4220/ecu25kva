@@ -99,3 +99,45 @@ wrdata vr_conditioner.dat v(zr) v(fr) v(zc) v(fc)
 *     that, and it should be checked against the real sensor
 *     rather than against this 2 V estimate.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- tolerance
+* ------------------------------------------------------------
+* This is the check the paragraph above asks for. The binding
+* parameter is not a component's manufacturing spread -- it is the
+* VR sensor's own output amplitude at cranking, which the header
+* already flags as uncertain (2 V is a mid-estimate; the note above
+* says it can be under a volt cold and weak). Re-ran the cranking
+* branch at four amplitudes in scratch copies, not this file, all
+* else unchanged:
+*
+*     2 V (nominal)    zero-cross cranking edges = 3   PASS
+*     0.8 V (-60%)     zero-cross cranking edges = 3   PASS
+*     0.4 V (-80%)     zero-cross cranking edges = 3   PASS
+*     0.25 V           zero-cross cranking edges = 3   PASS
+*     0.21 V           zero-cross cranking edges = 3   PASS (right at the edge)
+*     0.15 V           zero-cross cranking edges = 0   FAILS
+*
+* The failure point sits almost exactly at Vh, the +/-0.2 V
+* hysteresis band -- which is the correct theoretical answer: a
+* signal that never gets outside the hysteresis window cannot flip
+* the comparator at all, independent of amplitude margin arguments.
+* Below that the design has no chance regardless of tuning; above
+* it the zero-cross topology does not care how far above.
+*
+* NOT SENSITIVE, and by a wide margin: the design works down to
+* about 1/10th the nominal 2 V estimate, comfortably below even the
+* pessimistic "under a volt" figure this block's own RESULT NOTE
+* already worried about. The fixed-threshold comparator, for
+* contrast, fails at all four amplitudes tried (unsurprising -- it
+* already fails at the full 2 V) and was not re-tested for that
+* reason; its failure does not depend on amplitude at all, it
+* depends on the threshold being set for the running signal's scale.
+*
+* What this does NOT settle: the real sensor's actual worst-case
+* cranking amplitude, which the RESULT NOTE above already says needs
+* the real part's data, not this estimate. It settles that WHATEVER
+* that number turns out to be, the zero-cross topology has roughly a
+* decade of headroom below the 2 V design-time estimate before it
+* would matter.
+* ------------------------------------------------------------

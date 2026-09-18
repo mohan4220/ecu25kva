@@ -194,3 +194,39 @@ wrdata load_dump.dat v(bat) v(src) i(Vamm)
 *     and this board in the real harness, which this block folds
 *     into the single Ri = 0.5 ohm source impedance.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- tolerance, second parameter (Ri)
+* ------------------------------------------------------------
+* The Us*-vs-breakdown finding above is the first binding parameter.
+* Ri (source impedance) is the second: the header already picked
+* 0.5 ohm as the low end of the standard's 0.5-4 ohm range because
+* lower Ri means more fault current for the same clamped voltage --
+* worst case for energy. That reasoning was never checked against
+* the rest of the range until now. Re-ran at Ri = 0.5 / 2.0 / 4.0
+* ohm (the standard's full span) in scratch copies, not this file,
+* matching the 2026-09-18 review's F3 countercheck:
+*
+*     Ri = 0.5 ohm (chosen)  energy 46.44 J  avg power 115.9 W  FAILS both bounds
+*     Ri = 2.0 ohm           energy  9.78 J  avg power  24.4 W  FAILS both bounds
+*     Ri = 4.0 ohm (top)     energy  0.655 J  avg power   1.64 W  energy FAILS (0.5 J bound), power PASSES (3 W bound)
+*
+* Energy stays above the ~0.5 J single-pulse rating across the
+* ENTIRE standard range, not just at the chosen 0.5 ohm -- even the
+* least pessimistic end of the standard's own window (Ri = 4 ohm,
+* which a real installation is just as entitled to have as 0.5 ohm)
+* still exceeds the bound, by 31%. Average power, by contrast, DOES
+* clear its 3 W bound by Ri = 4 ohm -- so the two checks are not
+* equally robust across the range, and it is the energy check that
+* is carrying this block's FAIL at the top end, not the power check.
+*
+* This is the same shape as load_dump's own Us* finding turned on
+* the other parameter: the choice of Ri = 0.5 ohm was reasoned about
+* correctly (worst case for energy) but never verified against the
+* rest of the range until this pass. Now it has been, and the
+* verdict does not depend on having picked the pessimistic end --
+* the FAIL holds across the whole 0.5-4 ohm range the standard
+* allows, which is a stronger claim than "FAILS at the corner we
+* chose." Nothing to fix here; this strengthens the existing
+* conclusion rather than changing it.
+* ------------------------------------------------------------
