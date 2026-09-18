@@ -17,8 +17,31 @@
 * number rather than an opinion.
 *
 * Schottky model: a 5 A / 45 V part, roughly 0.46 V at 3 A.
-* FET: 8 mOhm Ron, mid-range for a 40 V P-channel in a footprint
+* FET: 8 mOhm Ron, mid-range for a 60 V P-channel in a footprint
 * this board can afford.
+*
+* 60 V, not the 40 V this comment said until 18 Sep 2026, and the
+* correction matters more than a comment edit suggests. Spec
+* section 4 fixes the stage order as
+*
+*     EMI filter -> fuse -> TVS -> reverse-battery FET
+*
+* so this FET sits DOWNSTREAM of the clamp and sees the clamped
+* voltage, not the raw pulse. transient_clamp.cir measures that
+* clamped voltage at ~50 V and its RESULT NOTE says in as many
+* words that 60 V-class parts are what survive it. That conclusion
+* was never carried the three blocks across to the part actually
+* selected here, and a 40 V FET sitting on a node its neighbour
+* block had already measured at 50 V is a destroyed part, not a
+* tight margin.
+*
+* Nothing in this repo would have caught it. The switch model
+* below is an ideal SPICE switch: Roff=1e9 and no breakdown
+* voltage at all, so it blocks any voltage you apply forever. The
+* failure mode is structurally invisible to every check here, and
+* stays invisible until a real part number with a real Vds is
+* chosen. Treat "60 V" as the requirement this block hands to part
+* selection, not as something this block has verified.
 *
 * The controller is modelled as a voltage-controlled switch that
 * closes on positive input polarity. That is exactly what the
