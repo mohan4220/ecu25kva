@@ -1,5 +1,30 @@
 # Engine Inspection Brief — Field Checklist
 
+> ### STATUS 18 Sep 2026 — part of this brief is done
+>
+> A first visit has happened and photographs came back. **Four register items closed**,
+> and the tasks that closed them are ticked below. What remains is mostly the
+> multimeter work, which is the part that actually gates the design.
+>
+> **Closed:** U11 engine identity (task 3.1 — the plate reads `3GK550ETA 4SR1`, *not*
+> the model memo 01 inferred) · U1 the connector (tasks 3.4–3.8 — Bosch
+> `1 928 405 192` / `194`, **code C**) · U13 which controller is fitted (**DSE4522
+> MKII AMF**, not a KG640C — this was not a task in this brief, it was raised by the
+> evidence itself) · U3 no speed pickup (from DSE's manual).
+>
+> **The one that matters most is still open.** Task 1.4 then task 2.1 — U12. With the
+> controller now identified, every protective action it can take ends by de-energising
+> one fuel relay, and U12 asks what that relay's contacts carry. Nothing else on this
+> list substitutes for it.
+>
+> **Also still open and cheap:** task 1.3 (U2, one resistance reading) and task 3.11
+> (U8, follow one cable by hand).
+>
+> **New since this brief was written**, worth adding to the next visit: trace the
+> **pre-heat / post-heat** supply — the DSE4522's configuration enables both at 50 °C
+> and this design has no heater output at all (U14).
+
+
 **Purpose:** close every open unknown that no amount of desk research can close — only
 a person with a multimeter and a camera, at the machine, can. Closes or advances
 **U1, U2, U4, U6, U7, U8, U9, U10, U11, U12**, plus the pin 01/02 ground question
@@ -159,33 +184,39 @@ preferred while working around the engine bay)
 For each: square-on unless noted, fill the frame, flash off / raking light for
 part numbers (on-axis flash washes out shallow embossing).
 
-- [ ] **3.1 Engine rating plate** (rocker cover / flywheel housing / block side).
+- [x] ~~3.1 DONE 18 Sep~~ — **Engine rating plate** (rocker cover / flywheel housing / block side).
   Get legible: model string (expect something matching **`3R550ETA`** — anything
   else means the engine-identity inference in memo 01 is wrong and should be
   discarded, not patched), serial number, rated output/speed/frequency, any
   emissions certification mark. **Closes U11.** *(memo 01, "What would close this")*
-- [ ] **3.2 Genset nameplate** (canopy/control panel). Expect **`KG4-25WS1`** or close
-  variant, plus genset serial number. *(memo 01)*
+- [ ] **3.2 Genset nameplate** (canopy/control panel). **Do not go looking for a string
+  you expect.** This brief originally said to expect `KG4-25WS1`, inferred from memo 01's
+  engine identification — and that identification turned out to be wrong when the engine
+  plate was read. The genset model inference came from the same chain and is equally
+  unsupported. Photograph whatever is actually on the plate, including the serial number.
+  *(memo 01, and its correction)*
 - [ ] **3.3 ECU case label.** Flat, well-lit. Hunting a vendor part number — Bosch
   EDC pattern `0 281 0xx xxx`, Bosch-reseller pattern `F 01R 0xx xxx`, or any
-  Continental/Delphi/Denso mark. Would resolve the still-open OEM-ECU-vendor
+  Continental/Delphi/Denso mark. **Now more likely to pay off than when this was
+  written:** the connector is confirmed Bosch (`1 928 405 192` / `194`), so a Bosch
+  part number on the case would be consistent and would identify the OEM ECU outright. Would resolve the still-open OEM-ECU-vendor
   question. *(memo 03 §4 item 4)*
-- [ ] **3.4 ECU connector — full-face, mating side, connector unplugged.** Determines
+- [x] ~~3.4 DONE 18 Sep~~ — **ECU connector — full-face, mating side, connector unplugged.** Determines
   at a glance: flat rectangular multi-row grid (Bosch/Delphi-style) vs. oval/rounded
   single-lever shell (AMPSEAL-style) — the top-level branch of the connector
   shortlist. **Advances U1.** *(memo 03 §4 item 1, ranked candidate table)*
-- [ ] **3.5 Connector retention mechanism**, actuated and disengaged, if it can be
+- [x] ~~3.5 DONE 18 Sep~~ — **Connector retention mechanism**, actuated and disengaged, if it can be
   operated safely with the connector unplugged. Lever vs. slide latch vs. bolt vs.
   friction/CPA clip. *(memo 03 §4 item 2)*
-- [ ] **3.6 Raking-light pass over every flat face of the connector housing** — top,
+- [x] ~~3.6 DONE 18 Sep~~ — **Raking-light pass over every flat face of the connector housing** — top,
   both sides, cable boot. Hunting molded/raised part number, date code, or logo:
   Bosch roundel, Delphi/Aptiv wordmark, TE Connectivity mark. Take several shots at
   different light angles if the first doesn't show text. **Would settle U1's
   connector-family ranking outright if a logo turns up.** *(memo 03 §4 item 3)*
-- [ ] **3.7 Connector still mated, wide shot** — backshell, cable exit angle, strain
+- [x] ~~3.7 DONE 18 Sep~~ — **Connector still mated, wide shot** — backshell, cable exit angle, strain
   relief. Feeds the adapter-harness design even without a family ID. *(memo 03 §4
   item 5)*
-- [ ] **3.8 Pin-count/contact-size check, connector unplugged.** Confirm four rows of
+- [x] ~~3.8 DONE 18 Sep~~ — **Pin-count/contact-size check, connector unplugged.** Confirm four rows of
   small pins plus two 2-pin corner blocks (near pins 1 and 5). **Check specifically
   whether the corner-block contacts (pins 1/2/5/6) are visibly larger/wider than the
   small-pin grid.** This is the photographic half of the 1.1 pin 01/02 question —

@@ -1,5 +1,31 @@
 # Research Memo 06: Standards, Test Requirements, and Certification Scope
 
+> ### UPDATED 18 Sep 2026 — the certificate is now a specific number
+>
+> The engine's rating plate has been photographed. Two things change for this memo,
+> both in the direction of making its conclusions **more** concrete, not less:
+>
+> - The engine is **3GK550ETA 4SR1**, application code `GK3.8703`, not the
+>   `3R550ETA 4G1` this memo inherited from research memo 01. The genset model
+>   `KG4-25WS1` in the header was inferred from the same chain and should be treated
+>   as **unconfirmed** — no genset nameplate has been seen.
+> - The plate carries the actual type approval:
+>   **`ARAI/MoEF/DGTA/IGES4/KOEL-P25/2825/24`**. `IGES4` is India Genset Emission
+>   Standard IV, confirming the CPCB IV+ tier from the machine itself rather than from
+>   a brochure.
+>
+> **This memo's regulatory conclusions stand, and now attach to a numbered
+> certificate against a specific serial number** rather than to a product family in
+> the abstract. That is worth stating plainly to whoever takes the decision.
+>
+> One gap this memo did not examine, raised by a later review: the **state pollution
+> board Consent-to-Operate** regime is a separate gate from central type approval and
+> was never looked at. Recorded as unexamined.
+>
+> The controller references below to the KG640C are also superseded — the fitted unit
+> is a **DSE4522 MKII AMF**. See [`refs/field-evidence-2026-09-18.md`](../../refs/field-evidence-2026-09-18.md).
+
+
 **Task:** U6 (J1939 layers, ISO 7637-2 transient immunity, CISPR 25 conducted emissions, certification position). Consumes Task 1's emissions tier. Produces the test/design numbers Phase 3 layout must honour and an honest scope statement on certification.
 **Date:** 2026-09-13
 **Author:** Phase-1 research (task 6)

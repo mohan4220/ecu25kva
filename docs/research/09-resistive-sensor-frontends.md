@@ -1,5 +1,32 @@
 # Research Memo 09: Resistive Temperature Front-Ends — DSE and SEDEMAC Prior Art
 
+> ### UPDATED 18 Sep 2026 — DSE is not just prior art here, it is the fitted controller
+>
+> This memo studied Deep Sea Electronics and SEDEMAC as **prior art** — other vendors'
+> answers to a problem we share. It opened by noting that both are genset-controller
+> class devices, "the same class of device as the KG640C we talk to", and was careful
+> that findings from them might not transfer.
+>
+> The controller on this machine has since been photographed. It is a **Deep Sea
+> Electronics DSE4522 MKII AMF**. The DSE practice described below is therefore not
+> analogous guidance from a comparable product — **it is the behaviour of the device
+> this ECU actually has to work alongside.**
+>
+> That strengthens §3.1's ground-offset finding considerably. DSE's own manual for the
+> fitted module's siblings (`057-260`) is emphatic about it: *"It is VERY important that
+> terminal 10 (sensor common) is connected to an earth point on the ENGINE BLOCK, not
+> within the control panel … This connection MUST NOT be used to provide an earth
+> connection for other terminals or devices."* The differential front-end recommendation
+> in §4 has been adopted into spec §4.
+>
+> §3.4's scaling caveat also held up under its own test: `sim/blocks/ntc_frontend.cir`
+> found that copying DSE's constant-current topology onto a 670:1 automotive NTC runs out
+> of rail compliance at the cold end. The divider survived.
+>
+> The SEDEMAC material remains what it was — prior art, snippet-sourced, and still not
+> verified against a retrieved manual.
+
+
 **Task:** U2 supporting research — how two established genset-controller vendors
 build resistive temperature sensor inputs. Consumes memo 02 (KG640C is the same
 class of device). Feeds the sheet 3b analog front-end and a re-examination of

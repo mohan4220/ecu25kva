@@ -1,7 +1,8 @@
 # Genset ECU
 
-Replacement engine control unit for a **Kirloskar KG4-25WS1** 25 kVA diesel
-genset (engine 3R550ETA 4G1, 12 V system).
+Replacement engine control unit for a 25 kVA Kirloskar diesel genset —
+engine **3GK550ETA 4SR1**, application code `GK3.8703`, 26.5 kW at 1500 rpm,
+12 V system. Panel controller is a **Deep Sea Electronics DSE4522 MKII AMF**.
 
 ## Start here
 
@@ -24,9 +25,9 @@ Prefer the browser? Three of those are live HTML:
 | `docs/handbook/circuits.html` | Circuit reference — all 17 blocks, each with schematic, reasoning, simulated result and model limits |
 | `docs/handbook/sensors.html` | Sensor reference — every sensor, what it measures, how it's read, what the data drives |
 | `docs/superpowers/specs/` | The reconciled specification — the binding source of truth |
+| `refs/` | The OEM wiring diagram, the DSE4522 configuration, machine photographs, and the extracted pinout |
 | `docs/research/` | Nine research memos: engine ID, GCU, connector, injector, MCU, standards, BOM, inspection brief, sensor front-ends |
 | `sim/` | Seventeen SPICE circuits that run and check themselves, plus the schematic and page generators |
-| `refs/` | The OEM wiring diagram and its extracted pinout |
 
 ## Rebuilding the PDFs
 
@@ -84,13 +85,28 @@ an ADC pin; the MCU decoupling peaked thirty times over target against the
 regulator's own output inductance; and the EMI filter handed back 12 dB at the
 exact frequency it most needed to hold.
 
-What gates the next phase is not desk research. Twelve unknowns remain open, and
-most need a multimeter and a camera at the machine rather than more reading, so
-one visit closes nearly all of them —
-[Memo 08](docs/research/08-engine-inspection-brief.md) is the printed checklist
-for that visit, and Handbook §06 lists what each unknown blocks.
+**Four unknowns closed on 18 September**, from photographs of the machine and one
+manufacturer's manual — and three of the four closed *against* an inference this
+project had made. The engine is **3GK550ETA 4SR1**, not the model memo 01 derived.
+The panel controller is a **DSE4522**, not the KG640C the OEM diagram shows. The
+connector is **Bosch `1 928 405 192` / `194`, code C**. And the controller has no
+speed pickup, which memo 02 got right about the wrong device.
 
-Two findings deserve reading before anything gets built: **Memo 06** on the CPCB
-IV+ certification position, which is a decision for the machine's owners rather
-than an engineering call, and the single-source flag on the **MC33816** injector
-driver in Memo 07, which has no alternative identified.
+That cost the project its safety argument. The DSE4522 takes engine speed from
+**our ECU over CAN**, so its overspeed trip is not independent of the thing it
+protects against. Spec §3 is rewritten and the standalone overspeed trip module
+reverts from *recommended* to **mandatory**.
+
+**U12 now stands alone as the load-bearing unknown.** Every protective action the
+controller can take ends by de-energising one fuel relay; whether its contacts
+remove supply from the ECU and fuel system, or merely signal a hung ECU, decides
+whether any independent protection exists.
+[Memo 08](docs/research/08-engine-inspection-brief.md) is the printed checklist
+for that measurement.
+
+Three things deserve reading before anything gets built. **Memo 06** on the CPCB
+IV+ position — and the machine's type approval is now a specific certificate,
+`ARAI/MoEF/DGTA/IGES4/KOEL-P25/2825/24`. The single-source flag on the
+**MC33816** injector driver in Memo 07. And §3's closing note: **no air-intake
+shutoff exists anywhere in this design**, which means nothing here can stop a
+diesel running away on its own lubricating oil.

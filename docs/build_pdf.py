@@ -152,7 +152,7 @@ def cover_page():
 <style>{PRINT_CSS}</style>
 <article class="doc cover">
   <div class="top">
-    <p class="eyebrow">Kirloskar KG4-25WS1 &middot; 3R550ETA 4G1 &middot; 25 kVA</p>
+    <p class="eyebrow">Kirloskar 3GK550ETA 4SR1 &middot; GK3.8703 &middot; 25 kVA</p>
     <h1>Replacement Engine Control Unit</h1>
     <p class="sub">Complete documentation: the machine, the circuits, the
       specification, and the research all of it rests on.</p>

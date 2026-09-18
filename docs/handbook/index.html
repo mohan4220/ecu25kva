@@ -169,7 +169,7 @@ html{scroll-behavior:smooth}
 <div class="wrap">
 
 <header class="mast">
-  <p class="eyebrow">Engine Control Unit · Kirloskar KG4-25WS1</p>
+  <p class="eyebrow">Engine Control Unit · Kirloskar 3GK550ETA 4SR1</p>
   <h1>Genset ECU Field Handbook</h1>
   <p class="standfirst">Everything known about replacing the engine control unit on a
   25&nbsp;kVA diesel genset — the machine, the 94-pin interface, every circuit with its
@@ -178,7 +178,7 @@ html{scroll-behavior:smooth}
     <span>Rev <b>1</b></span>
     <span>13 Sep 2026</span>
     <span><b>17</b> circuits verified</span>
-    <span><b>12</b> open unknowns</span>
+    <span><b>10</b> open unknowns</span>
     <span>Source: <b>08-GP3-60-001</b></span>
     <span><a href="circuits.html">Circuit reference &rarr;</a> <a href="sensors.html">Sensor Reference →</a></span>
   </div>
@@ -197,49 +197,53 @@ html{scroll-behavior:smooth}
 <section id="machine">
   <div class="sechead"><i>01</i><h2>The machine</h2></div>
   <div class="col">
-  <p>The genset is a <strong>Kirloskar KG4-25WS1</strong>. Its engine is a
-  <strong>3R550ETA 4G1</strong> — three cylinders, 1.65 litres, turbocharged and
-  aftercooled, common-rail injection, cooled EGR with a diesel oxidation catalyst and
-  no SCR. It governs at a constant 1500&nbsp;rpm to make 50&nbsp;Hz.</p>
+  <p>The engine is a <strong>Kirloskar 3GK550ETA 4SR1</strong> — three cylinders,
+  turbocharged and aftercooled, common-rail injection, cooled EGR with a diesel
+  oxidation catalyst and no SCR. <strong>26.5&nbsp;kW / 36&nbsp;hp at 1500&nbsp;rpm</strong>,
+  governing at constant speed to make 50&nbsp;Hz. Application code
+  <span class="m">GK3.8703</span>, built 12&nbsp;September&nbsp;2025.</p>
 
   <p>That constant speed matters more than it first appears, and it comes up twice in
   this handbook: once because it makes the timing problem easier than an automotive
   engine's, and once because the genset's own output frequency is rigidly tied to shaft
-  speed, which turns out to be how a runaway gets stopped.</p>
+  speed, which turns out to be what is left of the runaway protection.</p>
 
-  <p>None of this was given to us. It was derived by taking five hardware constraints
-  from the wiring diagram — three cylinders, common rail, EGR fitted, one catalyst
-  temperature sensor and no urea, a 12&nbsp;V system — and finding the single engine in
-  Kirloskar's 25–58.5&nbsp;kVA range that satisfies all five. It is
-  <strong>inferred, not confirmed</strong>; a photograph of the engine rating plate
-  would settle it.</p>
+  <p>The panel controller is a <strong>Deep Sea Electronics DSE4522 MKII AMF</strong>,
+  India special — <em>not</em> the Kirloskar KG640C the OEM wiring diagram shows. That
+  distinction is not academic; §04 explains what it cost.</p>
   </div>
 
   <div class="tw">
     <table>
       <thead><tr><th>Parameter</th><th>Value</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td class="k">Genset</td><td class="n">KG4-25WS1, 25 kVA prime, 415 V 3-phase, 50 Hz</td><td>Confirmed</td></tr>
-        <tr><td class="k">Engine</td><td class="n">3R550ETA 4G1</td><td>Inferred, high confidence</td></tr>
-        <tr><td class="k">Displacement</td><td class="n">1.65 L · 86 × 94 mm · 3 cyl · CR 19.7:1</td><td>Confirmed</td></tr>
-        <tr><td class="k">Rated output</td><td class="n">26.5 kW prime @ 1500 rpm</td><td>Confirmed</td></tr>
+        <tr><td class="k">Engine</td><td class="n">3GK550ETA 4SR1 · app code GK3.8703</td><td>Confirmed — rating plate</td></tr>
+        <tr><td class="k">Rated output</td><td class="n">26.5 kW / 36 hp @ 1500 rpm · ISO 3046</td><td>Confirmed — rating plate</td></tr>
+        <tr><td class="k">Type approval</td><td class="n">ARAI/MoEF/DGTA/IGES4/KOEL-P25/2825/24</td><td>Confirmed — rating plate</td></tr>
+        <tr><td class="k">Genset</td><td class="n">25 kVA, 415 V 3-phase, 50 Hz, 4-pole alternator</td><td>Confirmed — controller config</td></tr>
         <tr><td class="k">Fuel system</td><td class="n">Common rail, metering unit + 3 injectors</td><td>Confirmed</td></tr>
         <tr><td class="k">Aftertreatment</td><td class="n">Cooled EGR + DOC — no SCR, no DEF, no DPF</td><td>Confirmed</td></tr>
-        <tr><td class="k">Emissions tier</td><td class="n">CPCB IV+ · GSR 804(E), 3 Nov 2022 · 19–56 kW band</td><td>Confirmed</td></tr>
+        <tr><td class="k">Emissions tier</td><td class="n">CPCB IV+ (IGES4) · GSR 804(E), 3 Nov 2022</td><td>Confirmed</td></tr>
         <tr><td class="k">Electrical</td><td class="n">12 V, 75 Ah</td><td>Confirmed</td></tr>
-        <tr><td class="k">Panel controller</td><td class="n">Kirloskar KG640C</td><td>Confirmed</td></tr>
-        <tr><td class="k">Controller MCU</td><td class="n">NXP FS32K148HAT0MLQT, 144-LQFP</td><td>Selected</td></tr>
+        <tr><td class="k">Panel controller</td><td class="n">DSE4522 MKII AMF (India SP) · 4522-001-01</td><td>Confirmed — photographed</td></tr>
+        <tr><td class="k">ECU connector</td><td class="n">Bosch 1 928 405 192 / 194 · code C · 94-way</td><td>Confirmed — markings</td></tr>
+        <tr><td class="k">Our MCU</td><td class="n">NXP FS32K148HAT0MLQT, 144-LQFP</td><td>Selected</td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="note">
-    <span class="lbl">On the name "GK550"</span>
-    <p>The engine was first described to us as a GK550. No Kirloskar document uses that
-    string. It is <strong>KG4</strong> — the genset model prefix — run together with
-    <strong>550</strong>, the engine family number inside <span class="m">3R<b>550</b>ETA</span>.
-    Use <span class="m">KG4-25WS1</span> and <span class="m">3R550ETA 4G1</span> when
-    ordering parts; "GK550" will find nothing.</p>
+    <span class="lbl">On the name "GK550" — we got this wrong</span>
+    <p>The engine was first described to us as a <strong>GK550</strong>. An earlier
+    revision of this handbook said no Kirloskar document used that string, that it was
+    a garbled run-together of the genset prefix and the engine family number, and that
+    it "will find nothing" when ordering parts.</p>
+    <p>The rating plate reads <span class="m">3GK550ETA 4SR1</span>. <strong>The original
+    description was correct and our inference was wrong.</strong> The reasoning that
+    produced it was sound — five hardware constraints read off the wiring diagram, all
+    of which match the real engine — but it converged on a different Kirloskar engine
+    that happens to satisfy the same five. Use <span class="m">3GK550ETA 4SR1</span> and
+    <span class="m">GK3.8703</span>.</p>
   </div>
 </section>
 
@@ -5874,43 +5878,85 @@ z
   that matters is a controller hanging with fuel still flowing — and a controller cannot
   be its own protection against that.</p>
 
-  <p>Our first reading of this system was that engine speed reaches the panel over CAN
-  only, which would mean overspeed protection depended on the very microcontroller and bus
-  most likely to have failed. <strong>That was wrong, and wrong in the pessimistic
-  direction.</strong></p>
+  <p>This section has now been wrong twice, in opposite directions, and the second time
+  is worth understanding before trusting the third.</p>
 
-  <p>There is no magnetic pickup anywhere — the diagram labels every terminal on the
-  KG640C and none is a speed input, and Kirloskar's manual for the sibling KG640 lists all
-  42 terminals with no MPU among them. But the panel controller gets engine speed another
-  way entirely, and it can act on it without asking the ECU anything.</p>
+  <p>We first read the system as sending engine speed to the panel over CAN only, which
+  would leave overspeed protection depending on the very microcontroller and bus most
+  likely to have failed. We then found the panel controller had an independent
+  alternator-frequency speed path, concluded the pessimism was unwarranted, and relaxed
+  the requirement for a standalone trip module. <strong>That second reading was about the
+  wrong device.</strong></p>
+
+  <p>The OEM wiring diagram shows a Kirloskar <span class="m">KG640C</span>. The controller
+  actually fitted, photographed front and back, is a <strong>Deep Sea Electronics DSE4522
+  MKII AMF</strong>. And DSE's own manual for its siblings says plainly that with a CAN
+  engine, <em>"compatible ECU's receive the start command via CAN and transmit the engine
+  speed to the DSE controller"</em>.</p>
+
+  <p><strong>So engine speed reaches this controller from us.</strong> Its configured
+  1710&nbsp;rpm overspeed shutdown reads a number our ECU sends, and a hung ECU
+  transmitting a stale, plausible speed defeats it completely. The first, pessimistic
+  reading was closer to the truth than the second.</p>
   </div>
 
-  <div class="chain">
-    <div class="lk"><b>Alternator frequency</b><span>The GCU samples its own AC output at 5 kHz. On a 4-pole alternator with no slip, 1500 rpm <em>is</em> 50 Hz.</span></div>
-    <div class="ar">→</div>
-    <div class="lk"><b>GCU firmware</b><span>Over-frequency detected by the panel controller's own microcontroller.</span></div>
-    <div class="ar">→</div>
-    <div class="lk"><b>70 A contactor</b><span>Digital output B drives ignition relay <span class="m">-13RB1</span>. Seventy amps is a power contactor, not a signal relay.</span></div>
-    <div class="ar">→</div>
-    <div class="lk"><b>Fuel system unpowered</b><span>Supply removed, rather than the ECU being politely asked to stop.</span></div>
+  <div class="note stop">
+    <span class="lbl">What this changed</span>
+    <p>The standalone magnetic-pickup trip module — a GAC SSW675 or a Murphy HD9063, both
+    with Indian distributors — goes back to <strong>mandatory</strong>. The relaxation to
+    "recommended" was bought entirely by the independent-speed claim, and that claim
+    described a controller that is not on this machine.</p>
   </div>
 
   <div class="col">
-  <p>Not one link in that chain touches this ECU or the CAN bus. A hung ECU does not
-  defeat it. What remains is a smaller risk: the GCU's own microcontroller is now the
-  single point of failure, and a firmware hang there would defeat the path.</p>
-  <p>So a standalone magnetic-pickup trip module — a GAC SSW675 or a Murphy HD9063, both
-  with Indian distributors — moves from <strong>mandatory to recommended</strong>. It is a
-  judgement about how much you trust the GCU's firmware, not a missing safety path.</p>
+  <p>One independent path does survive, and it is worth having — but it is a different
+  mechanism and a more conditional one. The DSE4522 measures <strong>generator
+  frequency</strong> directly at its terminals 21–24, straight off the alternator's three
+  phases, without touching CAN at all.</p>
+  </div>
+
+  <div class="chain">
+    <div class="lk"><b>Generator frequency</b><span>Measured directly at terminals 21–24. On a 4-pole alternator with no slip, 1500 rpm <em>is</em> 50 Hz.</span></div>
+    <div class="ar">→</div>
+    <div class="lk"><b>Over-frequency shutdown</b><span>Configured to trip at <span class="m">56.0 Hz</span> — that is <b>1680 rpm</b>, below the CAN-dependent 1710 rpm trip.</span></div>
+    <div class="ar">→</div>
+    <div class="lk"><b>Fuel relay, terminal 3</b><span>DC Output A. 5 A continuous — a coil driver, consistent with operating the 70 A <span class="m">-13RB1</span> contactor.</span></div>
+    <div class="ar">→</div>
+    <div class="lk"><b>Fuel system unpowered?</b><span>Only if that relay's contacts carry the supply. <b>This link is unverified.</b></span></div>
+  </div>
+
+  <div class="col">
+  <p>No link before the last one touches this ECU, so a hung ECU does not defeat them.
+  But note what is being relied on: a <em>generator</em> protection doing the work of an
+  <em>engine</em> protection. It inherits that mechanism's dependencies — the alternator
+  must be excited and producing measurable output. An excitation failure removes it. That
+  is a narrower guarantee than a magnetic pickup watching the flywheel, and it should not
+  be described as equivalent to one.</p>
   </div>
 
   <div class="note stop">
     <span class="lbl">The gate that remains</span>
-    <p>All of that rests on one unverified fact: that the ignition relay <em>removes
-    power</em> from the fuel system rather than merely signalling the ECU. Confirm it by
-    measurement before any build takes injection authority — de-energise the relay and
-    check for battery voltage at ECU pins 21, 04, 06 and the metering unit's supply pin.
-    <strong>Voltage present means signal-only, and everything in this section reverts.</strong></p>
+    <p>Every protective action this controller can take ends at the same place: it
+    de-energises the fuel relay on terminal 3. If those contacts remove supply from the
+    ECU and the fuel system, the chain works. If they merely signal a hung ECU,
+    <strong>the chain terminates in the failure it was meant to catch</strong> and there
+    is no independent protection at all.</p>
+    <p>Confirm by measurement before any build takes injection authority. De-energise the
+    relay and check for battery voltage at ECU pins 21, 04, 06 and the metering unit's
+    supply pin — but check the relay's contact type <em>first</em>, because a
+    normally-closed relay gives the same reading with the opposite meaning.</p>
+  </div>
+
+  <div class="note stop">
+    <span class="lbl">And the one nobody considered</span>
+    <p>A diesel that starts burning its own lubricating oil — through a failed turbo seal,
+    or crankcase fumes drawn into the intake — has a fuel supply that <strong>none of the
+    protections above can touch</strong>. Every one of them cuts diesel or electrical
+    power. The standard countermeasure is a mechanical <strong>air-intake shutoff
+    valve</strong>, and no such device appears anywhere in this design.</p>
+    <p>It was never considered and rejected. It was never considered. Whether to fit one
+    is a decision for the machine's owners — the part is mechanical, not electronic — but
+    it should be a decision rather than an omission.</p>
   </div>
 </section>
 
@@ -5992,33 +6038,50 @@ z
   <p>Nothing on this list may be guessed into copper. Most of it needs somebody at the
   machine with a multimeter and a camera rather than more research — which is worth
   knowing, because it means one site visit closes most of it.</p>
+
+  <p><strong>Four closed on 18 September</strong>, from photographs and one
+  manufacturer's manual. Three of the four closed <em>against</em> something this project
+  had inferred, which is a fair measure of how much the desk research was carrying.</p>
   </div>
 
   <div class="tw">
     <table>
-      <thead><tr><th>#</th><th>Unknown</th><th>Blocks</th><th>How it closes</th></tr></thead>
+      <thead><tr><th>#</th><th>Closed</th><th>Answer</th></tr></thead>
       <tbody>
-        <tr><td class="pin">U12</td><td class="k">Does the ignition relay remove power, or only signal?</td><td>The §04 safety gate</td><td>Measure with the relay de-energised</td></tr>
-        <tr><td class="pin">U1</td><td class="k">The other 50 of 94 connector pins</td><td>Whether the board mates at all</td><td>Photograph the connector housing</td></tr>
-        <tr><td class="pin">U5</td><td class="k">Injector part number</td><td>Commissioning, not design</td><td>Read the injector body</td></tr>
-        <tr><td class="pin">U4</td><td class="k">J1939 PGN set the GCU expects</td><td>CAN firmware</td><td>Log the live bus with the OEM ECU fitted</td></tr>
-        <tr><td class="pin">U2</td><td class="k">Boost air temp — NTC or ratiometric?</td><td>One sensor front-end</td><td>Measure resistance across the sensor, cold</td></tr>
+        <tr><td class="pin">U11</td><td class="k">Engine identity</td><td class="n">3GK550ETA 4SR1, app code GK3.8703 — rating plate. <b>Our inferred model number was wrong.</b></td></tr>
+        <tr><td class="pin">U13</td><td class="k">Which controller is fitted</td><td class="n">DSE4522 MKII AMF (India SP), serial 11021794 — <b>not the KG640C</b> the diagram shows. Cost us §04's argument.</td></tr>
+        <tr><td class="pin">U1</td><td class="k">The connector</td><td class="n">Bosch <span class="m">1 928 405 192</span> / <span class="m">194</span>, <b>code C</b> keying. 94 ways: power 1–8, then 9–28, 29–50, 51–72, 73–94.</td></tr>
+        <tr><td class="pin">U3</td><td class="k">Does the controller have a speed pickup?</td><td class="n">No — DSE's terminal list runs 1–35 with no pickup input.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>#</th><th>Still open</th><th>Blocks</th><th>How it closes</th></tr></thead>
+      <tbody>
+        <tr><td class="pin">U12</td><td class="k">Does the fuel relay remove power, or only signal?</td><td>The §04 safety gate — now the only load-bearing unknown</td><td>Measure with the relay de-energised. Check its contact type first.</td></tr>
+        <tr><td class="pin">U4</td><td class="k">Exact J1939 PGN set</td><td>CAN firmware</td><td>Mostly answered — addresses 234 / 44, and the controller wants oil pressure, coolant temp, coolant level and speed from us. Log the bus for the rest.</td></tr>
+        <tr><td class="pin">U2</td><td class="k">Boost air temp — NTC or ratiometric?</td><td>One sensor front-end</td><td>One resistance reading across the sensor, engine cold</td></tr>
+        <tr><td class="pin">U5</td><td class="k">Injector part number</td><td>Boost rail target, not the driver itself</td><td>Read the injector body</td></tr>
         <tr><td class="pin">U6</td><td class="k">What pin 09 "synchronization ground" does</td><td>Ground plan</td><td>Continuity, battery disconnected</td></tr>
-        <tr><td class="pin">U7</td><td class="k">Are pins 04/06 sense-only or load feeds?</td><td>Power sheet current rating</td><td>Measure current at the fuses</td></tr>
-        <tr><td class="pin">U8</td><td class="k">Is the 6-pin intake throttle on the ECU?</td><td>Whether a throttle driver is in scope</td><td>Trace on the engine</td></tr>
+        <tr><td class="pin">U7</td><td class="k">Are pins 04/06 sense-only or load feeds?</td><td>Power sheet current rating</td><td>Measure current at the fuse</td></tr>
+        <tr><td class="pin">U8</td><td class="k">Is the 6-pin intake throttle on the ECU?</td><td>Whether a throttle driver is in scope</td><td>Follow the cable by hand</td></tr>
         <tr><td class="pin">U9</td><td class="k">Where the catalyst temp sensor goes</td><td>Whether an EGT front-end is needed</td><td>Trace on the engine</td></tr>
         <tr><td class="pin">U10</td><td class="k">Which signal uses SENT</td><td>Possible digital sensor front-end</td><td>Inspect the harness</td></tr>
-        <tr><td class="pin">U11</td><td class="k">Engine identity confirmation</td><td>Nothing — high confidence already</td><td>Photograph the rating plate</td></tr>
+        <tr><td class="pin">U14</td><td class="k">Pre-heat / post-heat — controller or ECU?</td><td>Whether a heater output is in scope. We have none.</td><td>Trace the heater supply. The controller config enables both at 50 °C.</td></tr>
+        <tr><td class="pin">U15</td><td class="k">What "CRS-878" denotes</td><td>Possibly bears on the injector</td><td>Ask KOEL, or find DSE's engine-profile list</td></tr>
         <tr><td class="pin">—</td><td class="k">Are pins 01/02 switch returns or power grounds?</td><td>Ground plan</td><td>Continuity to battery negative</td></tr>
       </tbody>
     </table>
   </div>
 
-  <div class="note">
-    <span class="lbl">One visit, most of the list</span>
-    <p>U12, U2, U6, U7 and the pin 01/02 question are all multimeter measurements. U1, U5
-    and U11 are photographs. U4 is a CAN log. Done together that is an afternoon, and it
-    unblocks nearly everything currently stalled.</p>
+  <div class="note stop">
+    <span class="lbl">U12 now stands alone</span>
+    <p>With the controller identified, every protective action it can take ends at one
+    relay. U12 asks what that relay's contacts actually carry, and the whole of §04's
+    second line of defence rests on the answer. It is a multimeter and ten minutes, and
+    nothing else on this list substitutes for it.</p>
   </div>
 </section>
 

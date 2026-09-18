@@ -538,20 +538,34 @@ is the injector calibration data, recorded in §9 and memo 04.
   This is the project owners' decision to take to qualified counsel or to CPCB/ARAI
   directly. It is recorded here because it is material and was not previously examined,
   not to make the decision for them.
-- The GCU. We talk to the KG640C; we do not replace it.
+- The panel controller. We talk to the **DSE4522 MKII AMF**; we do not replace it. (Earlier
+  revisions of this line said KG640C, which is what the OEM wiring diagram shows and not what
+  is fitted — see §3.)
 - Panel wiring, ATS, alternator metering.
 
 ---
 
 ## 10. Phase sequence
 
-| Phase | Output |
-|---|---|
-| 0 | This document |
-| 1 | Research memos: engine ID, KG640C, MCU confirmation, injector and connector sourcing |
-| 2 | KiCad hierarchical schematic capture |
-| 3 | 4-layer PCB layout, DRC, fab outputs |
-| 4 | Firmware skeleton: HAL, J1939, crank sequencing, fault manager |
+| Phase | Output | Status |
+|---|---|---|
+| 0 | This document | Done |
+| 1 | Research memos: engine ID, controller, MCU confirmation, injector and connector sourcing | **Done** — nine memos |
+| **1.5** | **Block-level simulation: topology and component values verified before capture** | **In progress — 17 blocks, all passing** |
+| 2 | KiCad hierarchical schematic capture | Not started |
+| 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
+| 4 | Firmware skeleton: HAL, J1939, crank sequencing, fault manager | Not started |
 
-Phase 2 cannot start on the sheets blocked by U1, U2, U5 and U8. It can start on power,
-CAN, MCU support, speed inputs and the relay outputs, which are fully specified above.
+**Phase 1.5 was added on 18 Sep 2026 to name work that was already happening.** The
+simulated blocks are neither research memos nor schematic capture, and leaving them
+unnamed meant the roadmap did not describe the most productive activity on the project —
+the one that caught a divider that would have destroyed an ADC pin, a discrete input that
+was impossible as specified, and a decoupling network thirty times over its impedance
+target. It also gives the two gaps the circuit review found — load dump, and injector
+turn-off energy — a phase to belong to instead of floating as review findings.
+
+Phase 2's blocked sheets are now fewer: **U1 is closed** (Bosch `1 928 405 192` / `194`,
+code C), so the connector and adapter-harness sheets are unblocked. U2 blocks one sensor
+front-end, U8 blocks whether a throttle driver exists at all, and U5 sets the boost rail's
+target voltage but not the driver itself. Power, CAN, MCU support, speed inputs, the
+relay outputs and the analog front-ends are all fully specified above.

@@ -207,13 +207,16 @@ BLOCKS = {
          "Both are 120 ohms differential and a schematic label cannot tell them apart. The difference is "
          "common mode: a single resistor gives noise on both wires together nowhere to go, while the "
          "split version shunts it to ground without touching the differential signal, because the "
-         "midpoint is a virtual ground for differential drive. That matters more here than on a truck — "
-         "memo 02 found the KG640C takes engine speed from alternator frequency, so this bus runs beside "
-         "415 V three-phase wiring and contactor coils in the same panel.",
+         "midpoint is a virtual ground for differential drive. That matters more here than on a truck. "
+         "The fitted controller is a Deep Sea DSE4522, and DSE\u2019s manual is explicit that with a CAN "
+         "engine the ECU transmits engine speed to it \u2014 so this bus carries a safety-relevant value, "
+         "and it runs beside 415 V three-phase wiring and contactor coils in the same panel.",
          "Termination is not the whole common-mode story; the choke is the other half and needs a layout. "
          "And this does not decide whether to fit termination at all: a 120 ohm terminator belongs at "
          "each END of the backbone, and if this ECU is not an end node, fitting one makes the bus worse. "
-         "That is U4 — so the board should carry the parts with a link and let the machine decide."),
+         "That is U4 — so the board should carry the parts with a link and let the machine decide. "
+         "The DSE4522 terminates CAN on its terminals 18/19/20 and DSE specify 120 ohm cable, which "
+         "settles the cable but not which nodes carry the terminators."),
     ]),
 }
 
@@ -371,7 +374,7 @@ tr.bad{{background:var(--fail-wash)}}
 
 <div class="wrap">
 <header class="mast">
-  <p class="eyebrow">Engine control unit &middot; Kirloskar KG4-25WS1</p>
+  <p class="eyebrow">Engine control unit &middot; Kirloskar 3GK550ETA 4SR1</p>
   <h1>Circuit Reference</h1>
   <p class="standfirst">Every circuit block that has been built and verified, with the
     schematic, the reasoning, the simulated result, and what each model leaves out.</p>

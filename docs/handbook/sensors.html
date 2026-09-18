@@ -408,10 +408,24 @@ html{scroll-behavior:smooth}
 </section>
 
 <section id="panel">
+  <div class="note">
+    <span class="lbl">What the controller now demands from us — confirmed 18 Sep 2026</span>
+    <p>The fitted <b>DSE4522</b>'s own configuration takes <b>oil pressure</b>,
+    <b>coolant temperature</b>, <b>coolant level</b> and <b>engine speed</b> from the ECU
+    over CAN rather than from its own analogue inputs, on source addresses
+    <span class="m">234</span> (engine) and <span class="m">44</span> (instrumentation).
+    Its analogue inputs A and B are configured <i>Not Used</i> for exactly that reason.</p>
+    <p>Two consequences for this design. Those four values are no longer optional
+    instrumentation — the controller's protections act on them, at 0.99 bar oil pressure
+    and 200 °C coolant. And <b>ECU Data Fail is configured to shut the set down</b>, so
+    our CAN transmission is itself a watchdog held by another device. Engine speed is the
+    uncomfortable one: the controller's overspeed trip reads the number we send, which is
+    why handbook §04 now calls a standalone trip module mandatory.</p>
+  </div>
   <div class="sechead"><i>07</i><h2>Panel-side sensors</h2></div>
   <div class="col">
   <p>These exist in the machine and appear in the wiring diagram, but they do not reach
-  the ECU. They belong to the KG640C. They are documented here because earlier design
+  the ECU. They belong to the panel controller — a Deep Sea <b>DSE4522 MKII AMF</b>, identified 18 Sep 2026; earlier revisions of this page said KG640C, which is what the OEM wiring diagram shows but not what is fitted. They are documented here because earlier design
   passes built ECU front-ends for two of them, and because knowing what the panel already
   measures tells you what the ECU does not need to.</p>
   </div>

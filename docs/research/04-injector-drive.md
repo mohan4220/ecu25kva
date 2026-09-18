@@ -3,7 +3,7 @@
 **Task:** U5 (injector drive stage — boost rail voltage, peak/hold current, pulse timing). Consumes Task 1 (engine identity). Feeds the injector driver sheet and Phase-2 boost converter design.
 **Date:** 2026-09-13
 **Author:** Phase-1 research (task 4)
-**Engine:** Kirloskar 3R550ETA 4G1, 3-cyl inline, 1.65 L, common-rail, turbocharged-aftercooled, 1500 rpm, 26.5 kW prime (per `docs/research/01-engine-identity.md`, inferred with high confidence).
+**Engine:** Kirloskar **3GK550ETA 4SR1** (this memo was written as `3R550ETA 4G1`; corrected 18 Sep 2026 from the rating plate — the family envelope this memo derives is unaffected, since it was never tied to a part number). 3-cyl inline, 3-cyl inline, 1.65 L, common-rail, turbocharged-aftercooled, 1500 rpm, 26.5 kW prime (per `docs/research/01-engine-identity.md`, inferred with high confidence).
 **Genset:** Kirloskar KG4-25WS1.
 
 ---
