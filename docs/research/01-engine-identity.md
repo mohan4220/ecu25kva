@@ -6,6 +6,35 @@
 
 ## Verdict
 
+> ### SUPERSEDED 18 Sep 2026 — READ THIS FIRST
+>
+> The engine's rating plate has been photographed. It reads **`3GK550ETA 4SR1`**,
+> application code **`GK3.8703`**, 26.5 kW / 36 hp at 1500 rpm, type approval
+> `ARAI/MoEF/DGTA/IGES4/KOEL-P25/2825/24`, manufactured 12 Sep 2025.
+>
+> **This memo's model-number conclusion below is wrong.** It identified the
+> engine as `3R550ETA 4G1` and explicitly rejected "GK550" as a garbled
+> recollection of "KG4" + "550", advising that GK550 "should not be used as a
+> search term or part-lookup key going forward". The original designation given
+> to this project was right; this memo's inference was not.
+>
+> **What survives:** every hardware constraint in the Step 3 cross-check — three
+> cylinders, common rail, turbocharged-aftercooled, cooled EGR with DOC and no
+> SCR, 1500 rpm, CPCB IV+, 26.5 kW — matches the plate exactly. The reasoning
+> from the wiring diagram was sound. What failed was the model-number
+> identification built on top of it, which converged on a real Kirloskar engine
+> that is not this one.
+>
+> **Also resolved:** this memo recorded as a negative result that "GP3 cannot be
+> resolved to a specific engine model or family". It is a project/application
+> code — the wiring diagram is `GP3.8703.C4.pdf` and the engine's serial number
+> begins `GK3.8703/`. The 8703 matches.
+>
+> Evidence: [`refs/field-evidence-2026-09-18.md`](../../refs/field-evidence-2026-09-18.md).
+> **U11 is closed**, by plate rather than by inference.
+
+## Verdict (as originally written, superseded above)
+
 The engine is almost certainly the **Kirloskar 3R550ETA 4G1** (Kirloskar "R550" family, 3-cylinder, 1.65 L, turbocharged-aftercooled, common-rail, cooled-EGR + DOC), as fitted to the **Kirloskar KG4-25WS1** 25 kVA CPCB IV+ genset. Every hardware constraint from the wiring-diagram cross-check (Step 3) is satisfied, and the genset controller named in the OEM brochure (KG640C) is the exact same controller named in the OEM wiring-diagram extraction. This is treated as **inferred with high confidence** rather than **confirmed**, because no single primary source explicitly states "manual 08-GP3-60-001 / file GP3.8703.C4.pdf belongs to engine 3R550ETA 4G1" — the identification is a convergence of independent documents, not a direct statement. A rating-plate photograph (see "What would close this," below) would upgrade this to confirmed.
 
 "GK550" as reported by the user does not match any Kirloskar Oil Engines (KOEL) designation found in searching. It is most plausibly the user's own conflation of the genset model prefix **KG4** and the engine family number **550** — but this is speculation on my part, not a sourced fact, and is flagged as such.

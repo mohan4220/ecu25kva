@@ -6,6 +6,43 @@
 
 ---
 
+## SUPERSEDED IN PART, 18 Sep 2026 — the controller may not be a KG640C
+
+A Kirloskar-issued configuration document has been supplied:
+`GP3.314.01.0.PR — DSE 4522 CONTROLLER PROGRAM FOR 3R550.25KVA, 3PHASE (GK
+PROJECT)`, 30 pages. It is a **Deep Sea Electronics DSE4522** configuration, and
+it names this engine and this rating.
+
+**This memo analyses a KG640C.** The OEM wiring diagram in this repo shows a
+KG640C, and both documents carry `GP3.` numbering, so which controller is
+actually fitted is now an open question rather than a settled one. Spec section 3's
+safety position is built on this memo.
+
+Two specific contradictions, neither yet resolved:
+
+- **Output mapping.** This memo assigns output A to the start relay and output B
+  to the ignition relay. The DSE4522 configuration assigns **A = Fuel Relay,
+  B = Start Relay**. A separate reading of the wiring diagram gives `-13RB1` =
+  ignition on B and `-13RB2` = start on A. Three sources, three mappings.
+- **Speed source.** This memo's central finding is that the controller senses
+  speed from alternator frequency independently of the ECU. The DSE4522
+  configuration carries `Module To Use Engine Speed = No`, whose meaning in DSE's
+  own semantics must be established from their documentation before anything is
+  concluded from it.
+
+**What the new document adds rather than contradicts:** an Emergency Stop input
+wired fail-safe, `ECU Data Fail → Shutdown`, CAN source addresses 234 and 44,
+and the protection thresholds the controller applies to values our ECU supplies.
+Those partly answer U4.
+
+**The thing that settles it is a photograph of the controller's front panel and
+rear terminal strip.** Until then, treat this memo's device identification as
+unconfirmed.
+
+Evidence: [`refs/field-evidence-2026-09-18.md`](../../refs/field-evidence-2026-09-18.md).
+
+---
+
 ## Verdict (U3 — read this first)
 
 **The KG640C genset controller has no dedicated magnetic pickup (MPU) input terminal. Verdict: No.**

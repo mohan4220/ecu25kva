@@ -430,21 +430,26 @@ needs the machine.
 
 | # | Unknown | Status | Blocks | How to close |
 |---|---|---|---|---|
-| U1 | Remaining 50 of 94 ECU pins | Open | Connector selection, adapter harness | ECU connector part number — photograph the housing on the engine. Memo 03 ranks a shortlist; only a logo or molded part number settles it |
+| U1 | Remaining 50 of 94 ECU pins | **Advanced** — connector photographed. Housing `>PA66-GF50<`, marked `BDK`. Structure read as 8 large power contacts (1–8) in their own chamber, then four fine rows 9–28, 29–50, 51–72, 73–94 = 94 | Connector selection, adapter harness | Still needs the maker: two circular logos on the housing are unresolved at the image size. Re-photograph under raking light |
 | U2 | Boost air-temp (pin 79): NTC or ratiometric? | Open | Sheet 3b front-end | One resistance reading, sensor cold — brief task 1.3, closes it outright. **Mitigation: a front-end that works either way** |
-| U3 | KG640C MPU input — does it exist? | **Answered** — no MPU input, inferred, high confidence (memo 02) | §3 safety gate | Upgrade to confirmed: a manual titled KG640C (not the base KG640), a photograph of the physical rear terminal block, or KOEL technical support |
-| U4 | KG640C J1939 PGN set and expectations | Open | Firmware, CAN sheet | KG640C manual; or log the live bus with the OEM ECU fitted |
+| U3 | Controller MPU input — does it exist? | **REOPENED 18 Sep 2026** — a Kirloskar-issued **DSE4522** configuration for this engine has surfaced, so the fitted controller may not be a KG640C at all. Memo 02's answer is about a device that may not be present | §3 safety gate | **Photograph the controller's front panel and rear terminal strip.** Settles which device is fitted in seconds |
+| U4 | Controller J1939 expectations | **Partly answered** — the DSE4522 configuration gives CAN source addresses **234** (engine) and **44** (instrumentation), J1939-75 instrumentation enabled, and requires the ECU to report **oil pressure, coolant temperature and coolant level**. `ECU Data Fail → Shutdown` | Firmware, CAN sheet | Confirm the controller identity first (U3), then log the live bus |
 | U5 | Injector part number and drive profile | **Partly answered** — memo 04 gives a family envelope (65–115 V, 12–24 A peak, 8–13 A hold, 40–100 A/ms) sufficient to design the driver | Boost rail *target* voltage, not the driver sheet itself | Photograph the injector body for a Bosch `0445 1xx xxx` or Kirloskar `F6.xxx.xx.x.pr`. **Separately: the calibration data is a different problem — see §9 and memo 04** |
 | U6 | Pin 09 `SYNCHRONIZATION GROUND` function | Open | Power/ground plan | OEM pin list; drawn red despite the name |
 | U7 | Pins 04/06 — sense only, or load feeds? | Open | Power sheet current rating | Measure on the live engine, or OEM pin list |
 | U8 | 6-pin intake throttle — on the ECU at all? | Open | Whether a throttle driver is in scope | Trace the cable by hand — brief task 3.11; not in this diagram |
 | U9 | Catalyst temp sensor — connected where? | Open | Whether an EGT front-end is in scope | Trace on the engine |
 | U10 | `SENT` in the colour legend — which signal? | Open | Possible digital sensor front-end | Inspect harness; SENT is SAE J2716 |
-| U11 | Engine identity — "GK550" vs Kirloskar range | **Answered** — Kirloskar 3R550ETA 4G1 in a KG4-25WS1, inferred, high confidence (memo 01) | Emissions tier, sensor sourcing | Engine rating plate photograph — brief task 3.1, closes outright |
+| U11 | Engine identity | **CLOSED 18 Sep 2026** — rating plate reads **3GK550ETA 4SR1**, app code **GK3.8703**, 26.5 kW at 1500 rpm, type approval `ARAI/MoEF/DGTA/IGES4/KOEL-P25/2825/24`. Memo 01's inferred `3R550ETA 4G1` was **wrong**; the original "GK550" was right | — | Closed by plate |
+| U13 | **Which controller is actually fitted — KG640C or DSE4522?** | **NEW 18 Sep 2026** | **Memo 02 and spec §3 in their entirety.** The safety position is built on the KG640C's behaviour | Photograph the controller's front panel and rear terminal strip |
+| U14 | Pre-heat / post-heat: driven by the controller or by the ECU? | **NEW 18 Sep 2026** | Whether a heater output is in scope. The design currently has none | The DSE4522 config enables both at 50 °C. Trace the heater's supply at the machine |
+| U15 | What does `CRS-878` denote in the controller's engine profile? | **NEW 18 Sep 2026** | Possibly bears on U5 — "CRS" plausibly identifies the common-rail system | Ask KOEL, or find DSE's engine-profile list |
 | U12 | **Does the 70 A ignition relay `-13RB1` remove power from the ECU and fuel metering unit, or only signal the ECU?** | Open | **The §3 safety gate.** The entire relaxation from "mandatory trip module" to "recommended" rests on this | Measure at the machine: with the ignition relay de-energised, check for battery voltage at ECU pins 21, 04, 06 and at the fuel metering unit's supply pin. Voltage present ⇒ signal only ⇒ §3 reverts. **Do brief task 1.4 first** — a normally-closed relay gives the same reading with the opposite meaning |
 
-**U12 and U1 are now the two that matter most.** U12 is the safety gate and nothing
-substitutes for the measurement; U1 decides whether the board mates.
+**U13 and U12 are now the two that matter most.** U13 asks whether the device this
+project's entire safety analysis describes is the device on the machine; U12 is the
+safety gate within that analysis, and nothing substitutes for the measurement. Both
+are answered at the machine, and U13 needs only a photograph.
 
 U3 and U11 were the other two on that list and are now answered, both by inference
 from primary documents rather than by confirmation. Neither answer is fragile — but
