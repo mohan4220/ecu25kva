@@ -150,6 +150,9 @@ figcaption{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);margin-
   padding:12px 14px}
 .chain .lk b{display:block;font-family:var(--f-disp);font-size:14px;color:var(--ink);margin-bottom:3px}
 .chain .lk span{font-size:13px;color:var(--ink-2)}
+.chain .lk.brk{border-color:var(--fail);border-width:2px;background:var(--fail-wash)}
+.chain .lk.brk b{color:var(--fail)}
+.note.stop p.sm{font-size:12.5px;color:var(--ink-2)}
 .chain .ar{align-self:center;font-family:var(--f-mono);color:var(--ink-3);flex:none}
 
 footer.doc{margin-top:64px;padding-top:20px;border-top:2px solid var(--ink);
@@ -5922,7 +5925,7 @@ z
     <div class="ar">→</div>
     <div class="lk"><b>Fuel relay, terminal 3</b><span>DC Output A. 5 A continuous — a coil driver, consistent with operating the 70 A <span class="m">-13RB1</span> contactor.</span></div>
     <div class="ar">→</div>
-    <div class="lk"><b>Fuel system unpowered?</b><span>Only if that relay's contacts carry the supply. <b>This link is unverified.</b></span></div>
+    <div class="lk brk"><b>Fuel system stays powered</b><span><b>Measured 18 Sep 2026: the relay signals, it does not remove power.</b> The chain ends here, and it ends broken.</span></div>
   </div>
 
   <div class="col">
@@ -5935,16 +5938,25 @@ z
   </div>
 
   <div class="note stop">
-    <span class="lbl">The gate that remains</span>
+    <span class="lbl">The gate closed, and it closed badly</span>
     <p>Every protective action this controller can take ends at the same place: it
-    de-energises the fuel relay on terminal 3. If those contacts remove supply from the
-    ECU and the fuel system, the chain works. If they merely signal a hung ECU,
-    <strong>the chain terminates in the failure it was meant to catch</strong> and there
-    is no independent protection at all.</p>
-    <p>Confirm by measurement before any build takes injection authority. De-energise the
-    relay and check for battery voltage at ECU pins 21, 04, 06 and the metering unit's
-    supply pin — but check the relay's contact type <em>first</em>, because a
-    normally-closed relay gives the same reading with the opposite meaning.</p>
+    de-energises the fuel relay on terminal 3. The question was whether those contacts
+    remove supply, or merely signal. <strong>Measured at the machine on 18 September
+    2026: they signal.</strong></p>
+    <p>So the chain terminates in the failure it was meant to catch. Read together with
+    the CAN finding above, the two compound into one sentence worth being blunt about:
+    <strong>the controller either cannot see the fault or cannot act on it.</strong>
+    Overspeed it reads from our CAN, so a hung ECU hides it. Over-frequency it measures
+    for itself — and then acts through a relay that only signals.</p>
+    <p><strong>Nothing on this machine currently interrupts fuelling without the
+    cooperation of the ECU being protected against.</strong> That is what the standalone
+    trip module now exists to fix, and it is why its contacts have to sit in series with
+    the fuel metering unit's own battery feed through fuse <span class="m">8F1</span> —
+    not in the GCU relay chain, which has just failed this exact test.</p>
+    <p class="sm">One caveat kept for honesty: the contact-type check that disambiguates
+    a normally-closed relay is not confirmed to have been done first. It is still wanted.
+    Nothing above changes if it comes back the other way, because the unsafe reading is
+    already the one being designed to.</p>
   </div>
 
   <div class="note stop">
@@ -6060,7 +6072,7 @@ z
     <table>
       <thead><tr><th>#</th><th>Still open</th><th>Blocks</th><th>How it closes</th></tr></thead>
       <tbody>
-        <tr><td class="pin">U12</td><td class="k">Does the fuel relay remove power, or only signal?</td><td>The §04 safety gate — now the only load-bearing unknown</td><td>Measure with the relay de-energised. Check its contact type first.</td></tr>
+        <tr><td class="pin">U12</td><td class="k">Does the fuel relay remove power, or only signal?</td><td><b>CLOSED 18 Sep 2026 — it only signals.</b> §04's safety gate, resolved against us</td><td>Closed by measurement. The trip module becomes the only ECU-independent shutdown.</td></tr>
         <tr><td class="pin">U4</td><td class="k">Exact J1939 PGN set</td><td>CAN firmware</td><td>Mostly answered — addresses 234 / 44, and the controller wants oil pressure, coolant temp, coolant level and speed from us. Log the bus for the rest.</td></tr>
         <tr><td class="pin">U2</td><td class="k">Boost air temp — NTC or ratiometric?</td><td>One sensor front-end</td><td>One resistance reading across the sensor, engine cold</td></tr>
         <tr><td class="pin">U5</td><td class="k">Injector part number</td><td>Boost rail target, not the driver itself</td><td>Read the injector body</td></tr>

@@ -168,7 +168,37 @@ be excited and producing measurable output, and the AVR must be working. An exci
 failure removes the protection. That is a narrower guarantee than a magnetic pickup
 watching the flywheel, and it should not be described as equivalent to one.
 
-### Where the chain terminates — and why U12 is now the whole question
+### Where the chain terminates — U12 CLOSED 18 Sep 2026, and it closed badly
+
+> **The measurement came back: the fuel relay cuts a signal. It does not remove power.**
+>
+> Reported from the machine alongside two other findings — the intake throttle and the
+> pre-heat/post-heat heaters are all fed **from the battery**, not from the ECU.
+>
+> This is the outcome the inspection brief told the reader to flag immediately rather
+> than save for a writeup, and the reasoning below was written before the answer was
+> known. It stands as written; what follows is what it now means.
+>
+> **Both independent lines of defence are gone, for two separate reasons.**
+>
+> The controller has no independent speed path — it takes engine speed from this ECU
+> over CAN (U13, closed 18 Sep). And its every protective action terminates in a relay
+> that only signals. So a hung ECU keeps the fuel metering unit energised, and the
+> device that is supposed to catch that is asking the hung ECU how fast the engine is
+> turning.
+>
+> What survives: generator over-frequency at 56 Hz, measured from the alternator, which
+> does not depend on this ECU for its *measurement* — but which acts through the same
+> signalling relay. It can detect the runaway. It cannot stop it.
+>
+> **Confidence, stated honestly.** Brief task 1.4 exists because a normally-closed relay
+> produces the same voltage reading with the opposite meaning, and it is not confirmed
+> that 1.4 was performed before this result. The wording reported ("cuts signal") is a
+> statement about function rather than a raw voltage, which suggests tracing rather than
+> a single measurement — but that is an inference about how the work was done, not
+> evidence. Adopting the unsafe reading costs nothing if it is wrong; adopting the safe
+> one and being wrong costs the machine. Confirmation is still wanted, and it does not
+> gate anything, because nothing below changes if it comes back the other way.
 
 Every protective action this controller can take ends at the same place: it
 de-energises **DC Output A, terminal 3, the FUEL relay** (rated 10 A for 10 s, 5 A
@@ -201,9 +231,21 @@ section.
    to carry a 25 kVA set on its own. Two candidates are costed in memo 02
    (GAC SSW675, Murphy HD9063) — that costing survives even though the memo's device
    analysis does not.
-4. **The gate: U12 must be closed by measurement before any build takes injection
-   authority.** A clean U12 result strengthens line 2 but does not by itself restore the
-   relaxation, because line 2's excitation dependency is separate from U12.
+4. ~~**The gate: U12 must be closed by measurement before any build takes injection
+   authority.**~~ **Closed 18 Sep 2026, in the failing direction.** The gate was written
+   to admit the possibility that U12 came back clean. It did not. The relay signals, so
+   line 2 detects a runaway without being able to act on it, and item 3's "mandatory" is
+   no longer a precaution against an unverified relay — it is the only shutdown path on
+   this machine that does not run through the ECU being protected against.
+
+5. **The trip module must break the fuel metering unit's supply directly.** This follows
+   from U12 and is now a requirement, not a preference. A trip module that signals the
+   same GCU relay chain inherits exactly the defect U12 just exposed. Its contacts have
+   to sit in series with the metering unit's own battery feed — the one through fuse
+   `8F1` — so that tripping removes fuel authority regardless of what the ECU, the
+   controller, or the GCU relay board is doing. Both costed candidates in memo 02 are
+   contact-output devices and can be wired this way; the costing survives, the wiring
+   assumption behind it does not.
 
 The owners may of course revisit item 3 with evidence. What they should not do is
 inherit the previous revision's conclusion, because the fact it was built on turned out
@@ -482,22 +524,36 @@ needs the machine.
 | U5 | Injector part number and drive profile | **Partly answered** — memo 04 gives a family envelope (65–115 V, 12–24 A peak, 8–13 A hold, 40–100 A/ms) sufficient to design the driver | Boost rail *target* voltage, not the driver sheet itself | Photograph the injector body for a Bosch `0445 1xx xxx` or Kirloskar `F6.xxx.xx.x.pr`. **Separately: the calibration data is a different problem — see §9 and memo 04** |
 | U6 | Pin 09 `SYNCHRONIZATION GROUND` function | Open | Power/ground plan | OEM pin list; drawn red despite the name |
 | U7 | Pins 04/06 — sense only, or load feeds? | Open | Power sheet current rating | Measure on the live engine, or OEM pin list |
-| U8 | 6-pin intake throttle — on the ECU at all? | Open | Whether a throttle driver is in scope | Trace the cable by hand — brief task 3.11; not in this diagram |
+| U8 | 6-pin intake throttle — on the ECU at all? | **Partially answered 18 Sep 2026** — reported **battery-fed**, so the ECU does not supply it | Whether a throttle *driver* is in scope. Supply and control are separate questions and only supply is answered | Still needs brief task 3.11: follow the cable and see whether it terminates at the 94-way connector. A battery-fed actuator can still be ECU-commanded |
 | U9 | Catalyst temp sensor — connected where? | Open | Whether an EGT front-end is in scope | Trace on the engine |
 | U10 | `SENT` in the colour legend — which signal? | Open | Possible digital sensor front-end | Inspect harness; SENT is SAE J2716 |
 | U11 | Engine identity | **CLOSED 18 Sep 2026** — rating plate reads **3GK550ETA 4SR1**, app code **GK3.8703**, 26.5 kW at 1500 rpm, type approval `ARAI/MoEF/DGTA/IGES4/KOEL-P25/2825/24`. Memo 01's inferred `3R550ETA 4G1` was **wrong**; the original "GK550" was right | — | Closed by plate |
 | U13 | Which controller is fitted | **CLOSED 18 Sep 2026** — **DSE4522 MKII AMF (India SP)**, part `4522-001-01`, serial 11021794. Photographed front and rear. **Not a KG640C.** Memo 02 superseded; spec §3 rewritten | — | Closed by photograph |
-| U14 | Pre-heat / post-heat: driven by the controller or by the ECU? | **NEW 18 Sep 2026** | Whether a heater output is in scope. The design currently has none | The DSE4522 config enables both at 50 °C. Trace the heater's supply at the machine |
+| U14 | Pre-heat / post-heat: driven by the controller or by the ECU? | **Partially answered 18 Sep 2026** — reported **battery-fed** | Whether a heater *output* is in scope. As with U8, supply is not control | Who switches that battery feed is still open. The DSE4522 config enables both at 50 °C, so the controller is the likely switch — photograph the heater relay and trace its coil |
 | U15 | What does `CRS-878` denote in the controller's engine profile? | **NEW 18 Sep 2026** | Possibly bears on U5 — "CRS" plausibly identifies the common-rail system | Ask KOEL, or find DSE's engine-profile list |
-| U12 | **Does the 70 A ignition relay `-13RB1` remove power from the ECU and fuel metering unit, or only signal the ECU?** | Open | **The §3 safety gate.** The entire relaxation from "mandatory trip module" to "recommended" rests on this | Measure at the machine: with the ignition relay de-energised, check for battery voltage at ECU pins 21, 04, 06 and at the fuel metering unit's supply pin. Voltage present ⇒ signal only ⇒ §3 reverts. **Do brief task 1.4 first** — a normally-closed relay gives the same reading with the opposite meaning |
+| U12 | **Does the 70 A ignition relay `-13RB1` remove power from the ECU and fuel metering unit, or only signal the ECU?** | **CLOSED 18 Sep 2026 — it only signals.** Reported from the machine. The relay does not remove power; a hung ECU keeps the fuel metering unit energised | **§3's safety gate, resolved against us.** The trip module is mandatory, and §3 item 5 now requires its contacts to break the metering unit's own battery feed rather than signal the same relay chain | Closed. Task 1.4's normally-closed check is still wanted as confirmation, but nothing depends on it — the unsafe reading is already adopted |
 
-**U12 now stands alone as the load-bearing unknown.** U13 is closed and it cost this
-project its safety argument: the fitted DSE4522 takes engine speed from our ECU over
-CAN, so the controller's overspeed trip is not independent of the thing it is meant to
-protect against. What independence remains is the generator over-frequency shutdown at
-56 Hz — and every protective action the controller can take terminates in the same
-fuel relay on terminal 3. **U12 asks what that relay's contacts actually carry, and the
-entire second line of defence rests on the answer.**
+~~**U12 now stands alone as the load-bearing unknown.**~~ **U12 closed 18 Sep 2026, and
+the answer was the bad one.** U13 cost this project its safety argument: the fitted
+DSE4522 takes engine speed from our ECU over CAN, so the controller's overspeed trip is
+not independent of the thing it is meant to protect against. What independence remained
+was the generator over-frequency shutdown at 56 Hz — and every protective action the
+controller can take terminates in the same fuel relay on terminal 3.
+
+**That relay signals. It does not remove power.** So the second line of defence can
+detect a runaway and cannot stop one. The two findings compound: the controller either
+cannot see the fault (overspeed, read from our CAN) or cannot act on it (over-frequency,
+acting through a signalling relay).
+
+Nothing on this machine currently interrupts fuelling without the cooperation of the ECU
+being protected against. The trip module in §3 item 3 is what closes that, and §3 item 5
+now specifies where its contacts have to sit — in series with the metering unit's own
+battery feed, not in the GCU relay chain that just failed this test.
+
+Worth stating plainly, because it is the pattern of this whole phase: **four of the five
+unknowns closed by field evidence closed against what this project had reasoned.** U11
+(engine identity), U13 (which controller), U1 (connector — this one closed *for* us),
+and now U12. Desk inference has a measured track record here, and it is poor.
 
 U1, U3, U11 and U13 all closed on 18 September from photographs and one manufacturer's
 manual. Three of the four closed *against* an inference this project had made, which is

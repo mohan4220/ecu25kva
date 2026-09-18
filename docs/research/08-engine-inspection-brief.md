@@ -12,10 +12,18 @@
 > MKII AMF**, not a KG640C — this was not a task in this brief, it was raised by the
 > evidence itself) · U3 no speed pickup (from DSE's manual).
 >
-> **The one that matters most is still open.** Task 1.4 then task 2.1 — U12. With the
-> controller now identified, every protective action it can take ends by de-energising
-> one fuel relay, and U12 asks what that relay's contacts carry. Nothing else on this
-> list substitutes for it.
+> **UPDATE, later on 18 Sep: U12 is CLOSED, and it closed badly.** Reported from the
+> machine: **the fuel relay cuts a signal, it does not remove power.** That is the
+> outcome task 2.1's table told the reader to flag immediately. §3's second line of
+> defence terminates in the failure it was meant to catch, and the standalone trip
+> module is now the only shutdown path on this machine that does not require the
+> cooperation of the ECU being protected against. Task 1.4's contact-type check is still
+> wanted as confirmation — see `refs/field-evidence-2026-09-18.md` §4 for why nothing
+> depends on it.
+>
+> **Also reported:** the intake throttle and the pre/post-heaters are **battery-fed**.
+> That answers who supplies them, not who commands them — tasks 3.11 and the U14 trace
+> both still stand.
 >
 > **Also still open and cheap:** task 1.3 (U2, one resistance reading) and task 3.11
 > (U8, follow one cable by hand).
@@ -109,7 +117,7 @@ isolated.
 
 ---
 
-- [ ] **1.4 — Ignition relay contact type. Do this BEFORE task 2.1; it decides how 2.1's
+- [ ] **1.4 — Ignition relay contact type.** *(Still wanted 18 Sep as confirmation; task 2.1 has since been answered the other way round — see the status banner.)* **Do this BEFORE task 2.1; it decides how 2.1's
   result is read.** Locate ignition relay `-13RB1` on the GCU relay board. With the
   battery disconnected and the relay coil unpowered, measure continuity across its
   **load contacts** (not the coil).

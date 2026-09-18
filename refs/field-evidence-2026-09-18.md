@@ -466,3 +466,82 @@ delay, 20 s warming, 30 s fail-to-stop delay, 30 s cooling.
 4. **Whether the ECU or the controller drives the pre-heat/post-heat output.**
 5. **The connector's maker.** The photograph advances the structure but the two
    circular logos are unresolved.
+
+---
+
+# Second batch, 18 Sep 2026 — verbal report, no photographs
+
+Reported by the on-site engineer. **Verbal, not documented** — no photograph,
+meter reading or wiring trace accompanies these, so they are recorded at lower
+confidence than the first batch and each is marked with what would raise it.
+
+## 4. U12 CLOSED — the fuel relay signals, it does not remove power
+
+> "fuel relay cuts signal"
+
+This is the outcome the inspection brief instructed be reported immediately
+rather than saved for a writeup, and the reason is that it resolves §3's safety
+gate against the design.
+
+**What it means.** Every protective action the DSE4522 can take ends by
+de-energising the FUEL relay on its terminal 3. If those contacts had carried the
+fuel system's supply, the controller could physically stop the engine without the
+ECU's cooperation. They do not. A hung ECU keeps the fuel metering unit
+energised.
+
+**It compounds with U13** rather than merely adding to it. The controller's
+overspeed trip reads engine speed from our CAN, so a hung ECU hides the fault
+from it. Its generator over-frequency trip measures the alternator directly and
+does see the fault — and then acts through this relay. So:
+
+| Protection | Can it *see* a hung-ECU runaway? | Can it *act* on one? |
+|---|---|---|
+| Engine overspeed, 1710 rpm | No — reads our CAN | (moot) |
+| Generator over-frequency, 56.0 Hz | Yes — reads the alternator | **No — acts through the signalling relay** |
+
+**Nothing on this machine currently interrupts fuelling without the cooperation
+of the ECU being protected against.**
+
+**Confidence and what would raise it.** Brief task 1.4 exists precisely because a
+normally-closed relay produces the same voltage reading with the opposite
+meaning, and it is not confirmed that 1.4 was performed first. The phrasing
+reported is a statement about function rather than a raw voltage, which suggests
+the circuit was traced rather than measured at one point — but that is an
+inference about method, not evidence. **The unsafe reading is adopted regardless**,
+because being wrong in that direction costs nothing and being wrong in the other
+direction costs the machine. A photograph of the relay's contact arrangement, or
+the 1.4 continuity result, would settle it.
+
+## 5. Intake throttle and the pre/post-heaters are battery-fed — U8 and U14 partially answered
+
+> "for intake throttle, preheat and post heat, its battery"
+
+**What this answers:** the ECU does not *supply* any of these three loads. That
+removes them from the power budget and from any consideration of high-current
+outputs on our side.
+
+**What it does not answer, and the distinction matters:** supply and control are
+separate questions. A battery-fed actuator can still be ECU-commanded — the OEM
+fuel metering unit is exactly that, fed from battery through fuse `8F1` and
+switched by the ECU's low-side PWM on pin 88 (spec §2.2). The same arrangement on
+the throttle would put a driver back in scope.
+
+So U8 still needs brief task 3.11 — follow the 6-pin throttle cable by hand and
+see whether it terminates at the 94-way ECU connector or joins the XC11/XC1 panel
+loom. And U14 still needs to know who switches the heater feed; the DSE4522's
+configuration enables pre-heat and post-heat at 50 °C, which makes the controller
+the likely switch, but "likely" is the word that has cost this project three
+unknowns already.
+
+## The pattern, recorded because it is now a measurement rather than an impression
+
+Five unknowns have been closed by field evidence. **Four closed against what this
+project had reasoned:** U11 (engine identity — memo 01 was wrong and had advised
+discarding the correct search term), U13 (which controller — memo 02 analysed a
+device that is not fitted), U12 (the safety gate), and only U1 (the connector)
+closed in favour of an inference.
+
+Desk research on this project has a measured track record, and it is poor. That
+is not an argument against doing it — it is an argument for marking its outputs
+as provisional and for weighting a single multimeter reading above a chain of
+plausible reasoning.
