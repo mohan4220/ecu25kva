@@ -125,7 +125,7 @@ Vadv  vadv 0 DC 10
 Vdrv2   vd2 0 PWL(0 0  1n 10  5u 10)
 Rdrv2   vd2 g2pd 100
 Cg2pd   g2pd 0 {Ciss}
-Rpd2    g2pd 0 10k
+Rpd2    g2pd 0 470
 Vmon2   mon2 0 DC 3.3
 S2      g2pd 0 0 mon2 SWK
 
@@ -203,6 +203,64 @@ Rpd1000p  g1000p 0      10k
 .control
 tran 20n 80u uic
 wrdata supervisor_claim3.dat v(g20p) v(g50p) v(g100p) v(g200p) v(g500p) v(g1000p)
+.endc
+
+* ============================================================
+* CLAIM 6 -- what Rpd actually has to be
+* ============================================================
+* Added 18 Sep 2026, after claim 3 falsified memo 11 sec.4's 10 kOhm.
+* Claim 3 swept Crss at a FIXED 10 kOhm, which answers "does 10 k
+* work" (no) but not "what does". The pulldown is the free
+* parameter, so sweep it.
+*
+* This closes a gap the correction opened. The corrected requirement
+* is a WINDOW, not a number:
+*
+*   upper bound  Rpd < Vgs(th)/(Crss*dV/dt), so the Miller-coupled
+*                current cannot lift the gate to threshold
+*   lower bound  the gate driver has to overpower Rpd continuously
+*                while the FET conducts, so Rpd cannot be arbitrarily
+*                small
+*
+* Only the upper bound is a transient question, and only it is
+* simulated here. The lower bound is DC arithmetic and is stated in
+* the RESULT NOTE rather than simulated, because nothing about it
+* needs a time-domain solver.
+*
+* Swept at Crss = 500 pF. That is the pessimistic end of the class
+* range rather than the middle: the upper bound scales as 1/Crss, so
+* a value chosen at 500 pF stays valid if the eventual FET turns out
+* gentler, and a value chosen at 200 pF would not survive a coarser
+* one. Same reasoning load_dump.cir used picking the low end of the
+* source-impedance range. INFERRED, like every Crss figure here --
+* no FET is chosen.
+* ============================================================
+
+Vd6 drain6 0 PWL(0 0  35.7u 100  60u 100)
+
+Ccpl6a drain6 grr1 500p
+Cga    grr1     0   {Ciss}
+Rpda   grr1     0   220
+
+Ccpl6b drain6 grr2 500p
+Cgb    grr2     0   {Ciss}
+Rpdb   grr2     0   470
+
+Ccpl6c drain6 grr3 500p
+Cgc    grr3     0   {Ciss}
+Rpdc   grr3     0   1k
+
+Ccpl6d drain6 grr4 500p
+Cgd    grr4     0   {Ciss}
+Rpdd   grr4     0   2.2k
+
+Ccpl6e drain6 grr5 500p
+Cge    grr5     0   {Ciss}
+Rpde   grr5     0   4.7k
+
+.control
+tran 20n 80u uic
+wrdata supervisor_claim6.dat v(grr1) v(grr2) v(grr3) v(grr4) v(grr5)
 .endc
 
 * ============================================================
@@ -507,4 +565,66 @@ wrdata supervisor_claim4_slow.dat v(mon4s1) v(g4s1) v(mon4s2) v(g4s2) v(mon4s3) 
 *   injector_turnoff.cir and load_dump.cir already flag for their own
 *   ideal switches and diodes.
 * - Claim 5's watchdog window itself, per memo 11 sec.5 -- see above.
+* WHAT CLAIM 6 SETTLED, AND WHAT IT COST
+* ------------------------------------------------------------
+* Claim 3 killed memo 11's 10 kOhm. Claim 6 was added to answer the
+* question that left open -- not "does 10k work" but "what does".
+*
+* Swept at Crss = 500 pF, the pessimistic end of the class range:
+*
+*     Rpd  220 ohm  ->  peak V(gate)  0.308 V   ok
+*     Rpd  470 ohm  ->  peak V(gate)  0.658 V   ok
+*     Rpd 1000 ohm  ->  peak V(gate)  1.401 V   over Vgsth
+*     Rpd 2200 ohm  ->  peak V(gate)  3.077 V   over
+*     Rpd 4700 ohm  ->  peak V(gate)  6.267 V   over
+*
+* So 470 ohm, twenty times smaller than the memo's figure. It costs
+* 21.3 mA per gate held at 10 V, and 1.28 W across all six driver
+* gates -- continuous, whenever the FETs conduct. That is not free
+* and it is not negligible; it is the price of the correction.
+*
+* THE PART THAT WAS NOT OBVIOUS UNTIL THE VALUE CHANGED. At 10 kOhm
+* the pulldown was a rounding error next to the gate driver and
+* claim 2 measured its cost as a 3% slowing of the turn-on edge. At
+* 470 ohm it is no longer a perturbation on the driver -- it is the
+* bottom half of a DIVIDER with the driver's own output impedance.
+* This netlist assumed a 100 ohm driver, and 10 V across
+* 470/(470+100) settles at 8.25 V. The gate never reaches 9 V at
+* all, which is why claim 2's original time-to-9V probe returned
+* infinity: not a slow edge, a moved destination.
+*
+* Claim 2 now measures the destination, and states the requirement
+* that falls out of it:
+*
+*     Vgs = Vdrv * Rpd/(Rpd + Rdrv)
+*     holding 9.5 V across 470 ohm needs Rdrv <= 24.7 ohm
+*
+* The 100 ohm driver assumed here is four times too weak. The
+* pulldown and the gate driver cannot be specified apart, and
+* stating the pulldown as a single number -- which is what the spec
+* did until this block was written -- hid that they are coupled at
+* all.
+*
+* WHERE THIS LEAVES THE TOPOLOGY. Memo 11 considered an active
+* clamp and dismissed it, on the strength of the arithmetic claim 3
+* has now falsified. With that gone, the case reopens: a passive
+* pulldown strong enough to reject Miller coupling at 500 pF is
+* strong enough to fight its own driver and burn over a watt doing
+* it. That is precisely the trade an active clamp exists to avoid,
+* and it is also what an integrated driver in the MC33814 class
+* handles internally. This block does not settle which way to go --
+* it establishes that the passive-only answer has a real cost, which
+* the design did not know when it chose the passive-only answer.
+*
+* What this model does NOT cover:
+*   - Any actual FET. Crss, Ciss and Vgs(th) are all class figures,
+*     INFERRED. The 470 ohm result scales as 1/Crss, so it moves
+*     with the part.
+*   - The gate driver as a real part. It is 10 V behind a resistor
+*     here, which is enough to expose the divider but says nothing
+*     about its own transient current capability.
+*   - The watchdog's fault-DETECTION time. Claim 5 bounds only the
+*     response after RESET asserts.
+*   - Per-pin reset pull defaults, which need the PTxx pin map
+*     (spec sec.5, phase 2) that does not exist yet.
 * ------------------------------------------------------------

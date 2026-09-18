@@ -449,9 +449,26 @@ with nothing downstream able to remove its power either.
    > `Rpd < Vgs(th) / (Crss · dV/dt)`, with dV/dt = 2.8 V/µs from `injector_turnoff.cir`
 
    At a 1.0 V threshold that is **under 1.79 kΩ for Crss = 200 pF, 714 Ω at 500 pF,
-   357 Ω at 1000 pF** — halve for margin. It is bounded from below by the gate driver's
-   source current, because the pulldown fights the driver continuously while the FET
-   conducts: 300 Ω holding a 10 V gate costs 33 mA, and there are six gates.
+   357 Ω at 1000 pF**. `sim/blocks/supervisor.cir` claim 6 sweeps this directly and
+   lands on **470 Ω** at Crss = 500 pF — twenty times smaller than the figure this
+   requirement first carried.
+
+   **That value constrains the gate driver, and the two cannot be specified apart.**
+   At 10 kΩ the pulldown was a perturbation on the driver. At 470 Ω it is the bottom
+   half of a divider with the driver's own output impedance:
+
+   > `Vgs = Vdrv · Rpd/(Rpd + Rdrv)` — holding 9.5 V across 470 Ω needs **Rdrv ≤ 24.7 Ω**
+
+   It also costs **21.3 mA per gate and 1.28 W across all six**, continuously, whenever
+   the FETs conduct. Stating the pulldown as a single number hid both the coupling and
+   the power.
+
+   **This reopens a topology question memo 11 closed on the bad arithmetic.** The memo
+   considered an active clamp and dismissed it. A passive pulldown strong enough to
+   reject Miller coupling at 500 pF is strong enough to fight its own driver and burn
+   over a watt doing it — which is the trade an active clamp exists to avoid, and which
+   an integrated driver in the MC33814 class handles internally. That decision is now
+   coupled to the driver-architecture decision below and should be taken with it.
 
    **This requirement said "10 kΩ" when first written on 18 Sep 2026, and that was
    wrong.** Memo 11 §4 computed the Miller-coupled current correctly at 140–560 µA and

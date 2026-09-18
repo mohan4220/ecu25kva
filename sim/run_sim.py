@@ -1058,10 +1058,31 @@ def check_supervisor():
     t_pd = t_cross(g2pd, t12, 9.0, rising=True)
     t_nopd = t_cross(g2nopd, t12, 9.0, rising=True)
     slowdown = (t_pd - t_nopd) / t_nopd
-    c.that("claim 2: 10k pulldown slows the turn-on edge (to 9 V) by",
-           slowdown * 100, 10.0, tol=None, ok=slowdown < 0.10, unit="%")
-    c.that("  ... in absolute terms", (t_pd - t_nopd) * 1e9, 14.0, tol=5.0,
-           unit="ns")
+    # Claim 2 asks what the pulldown costs the intended turn-on. It was
+    # written against 10k, where the answer was 3% and uninteresting.
+    # Claim 6 below shows the pulldown has to be ~470 ohm, and at that
+    # value the question changes shape entirely: the pulldown and the
+    # gate driver's output impedance form a DIVIDER, so the gate never
+    # reaches the rail at all. Time-to-9V is the wrong probe -- it goes
+    # to infinity not because the edge is slow but because the
+    # destination moved. Measure the destination instead.
+    vg_final = float(g2pd[-1])
+    vg_nopd = float(g2nopd[-1])
+    c.that("claim 2: final V(gate) with the 470 ohm pulldown fitted",
+           vg_final, 8.25, tol=0.3, unit="V")
+    c.that("  ... vs the same driver with no pulldown", vg_nopd, 10.0,
+           tol=0.3, unit="V")
+    # 100 ohm is what this netlist assumed for the driver. The divider
+    # says what it would have to become: Vgs = 10*Rpd/(Rpd+Rdrv), so
+    # holding 9.5 V across 470 ohm needs Rdrv <= 24.7 ohm. This is the
+    # real coupling the corrected requirement creates -- choosing the
+    # pulldown constrains the driver, and the two cannot be specified
+    # apart.
+    rdrv_needed = 470.0 * (10.0 / 9.5 - 1.0)
+    c.that("  ... driver output impedance needed to still reach 9.5 V",
+           rdrv_needed, 25.0, tol=2.0, unit="ohm")
+    c.that("  ... the 100 ohm driver this block assumed is too weak by",
+           100.0 / rdrv_needed, 4.0, tol=0.5, unit="x")
 
     # ---- claim 3: THE ONE THE TASK FLAGGED AS LOAD-BEARING. Miller/dV-dt
     # coupling at this design's own 2.8 V/us boost-rail turn-off edge,
@@ -1083,9 +1104,15 @@ def check_supervisor():
         # `expected` is a regression pin on this simulation's own output
         # (this exact R/C/edge model), not an independently derived
         # number -- the CLAIM is the ok= comparison against Vgsth.
-        c.that(f"claim 3: peak V(gate), Crss={pf} pF, Rpd=10k alone",
+        # EVIDENCE ROWS, not live gates. These are the falsification
+        # record for memo 11 sec.4's 10 kOhm: the value is rejected, so
+        # failing them forever would make this block fail for a
+        # historical reason instead of a live one. The numbers stay
+        # visible because they are the argument. The live question --
+        # what pulldown DOES work -- is claim 6.
+        c.that(f"claim 3 (evidence): peak V(gate), Crss={pf} pF, Rpd=10k",
                peak, expected, tol=max(0.05 * expected, 0.02), unit="V",
-               ok=peak < Vgsth)
+               ok=True)
     c.that("  ... memo 11's own hand arithmetic at Crss=200 pF claimed",
            "~5.6 mV -- off by 1000x (560 uA * 10 kOhm = 5.6 V, not 5.6 mV); "
            "this sim's 4.50 V independently confirms the corrected order "
@@ -1150,6 +1177,41 @@ def check_supervisor():
            "time",
            "not modelled -- Phase-2 item per memo 11 sec.5, this only "
            "bounds the response AFTER RESET asserts", None, ok=True)
+
+    # ---- claim 6: what Rpd actually has to be ----
+    # Claim 3 swept Crss at a fixed 10k and showed 10k is wrong. This
+    # sweeps the free parameter instead and reports the largest pulldown
+    # that survives, which is what the corrected spec requirement needs.
+    # Swept at Crss = 500 pF, the pessimistic end of the class range:
+    # the bound scales as 1/Crss, so a value chosen here stays valid if
+    # the eventual FET turns out gentler.
+    d6 = sim("supervisor", {"supervisor_claim6.dat":
+                            ["time", "grr1", "grr2", "grr3", "grr4", "grr5"]})["supervisor_claim6.dat"]
+    rpd_vals = [(220, "grr1"), (470, "grr2"), (1000, "grr3"),
+                (2200, "grr4"), (4700, "grr5")]
+    VGSTH = 1.0
+    peaks = [(r, float(np.abs(d6[k]).max())) for r, k in rpd_vals]
+    for r, pk in peaks:
+        # Sweep data, same treatment as claim 3's rows -- the gate is the
+        # derived result below, not each individual point.
+        c.that(f"claim 6 (sweep): peak V(gate) at Crss=500 pF, Rpd={r} ohm", pk,
+               VGSTH, tol=None, ok=True, unit="V")
+    survivors = [r for r, pk in peaks if pk < VGSTH]
+    rmax = max(survivors) if survivors else 0
+    c.that("  ... largest pulldown that holds the gate below Vgsth",
+           float(rmax), 470.0, tol=None, ok=rmax >= 220, unit="ohm")
+    # The lower bound is DC arithmetic, not a transient question: the
+    # driver fights Rpd continuously while the FET conducts. Stated as a
+    # claim so the cost is visible next to the resistance, because the
+    # two bounds together are the requirement -- a single number hid
+    # exactly this.
+    if rmax:
+        per_gate = 10.0 / rmax
+        c.that(f"  ... cost of {rmax} ohm: drive current per gate held at 10 V",
+               per_gate * 1e3, 50.0, tol=None, ok=per_gate < 0.05, unit="mA")
+        c.that("  ... and across all six driver gates",
+               6 * per_gate * 10.0, 3.0, tol=None, ok=6 * per_gate * 10.0 < 3.0,
+               unit="W")
     return c
 
 
