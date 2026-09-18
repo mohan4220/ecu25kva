@@ -1,0 +1,196 @@
+* ============================================================
+* Load dump -- ISO 7637-2 pulse 5b (suppressed/clamped) into the
+* battery input, same protection stage as transient_clamp.cir
+* ============================================================
+* Pulse 2a is a 50 us blip. This pulse is up to 400 ms -- four
+* orders of magnitude longer. That changes which physical limit
+* the TVS hits: pulse 2a is a PEAK CURRENT problem, this is a
+* dissipated-ENERGY / thermal problem, and a part that sails
+* through 2a can cook on 5b. See the RESULT NOTE.
+*
+* THE UNRESOLVED QUESTION THIS BLOCK RESTS ON -- read this before
+* the numbers below:
+*
+* Pulse 5b only exists if the alternator's rectifier is a
+* suppressed/avalanche type that clamps its own output when the
+* battery is disconnected under charge. Nobody has confirmed that
+* for THIS genset's alternator -- it is not on the unknowns
+* register (docs/superpowers/specs/2026-09-13-ecu-reconciled-spec-design.md
+* section 8) and no datasheet or nameplate has been read for it.
+* If the alternator is NOT suppressed, the real event is pulse 5a:
+* 65-87 V unclamped (ISO 7637-2:2011 table), a completely different
+* and much harder survivability problem that this block does not
+* simulate. Spec section 6 (line 441-442) states the input range
+* 6-40 V "bounds the clamped load-dump transient" -- that sentence
+* is only true under the suppressed-alternator assumption. Settling
+* this needs either the alternator's datasheet (look for a
+* suppression/avalanche diode bin in its rectifier part number) or
+* a scope on the battery terminal during a live disconnect test
+* under load -- not a simulation.
+*
+* Parameters chosen, and why:
+*
+*   Us* (clamped peak)    40 V    Taken from THIS project's own spec
+*                                 (section 6, line 441-442), which already
+*                                 assumes the clamped load dump tops out at
+*                                 40 V -- this simulation exists to test
+*                                 whether that assumption is survivable,
+*                                 not to re-derive it. It also sits inside
+*                                 the range research memo 06 quotes from a
+*                                 secondary source (40-105 V) and above the
+*                                 "commonly 35 V" figure often cited
+*                                 generically for 12 V suppressed dumps.
+*                                 INFERRED for this specific alternator --
+*                                 see the note above.
+*   Ri (source impedance) 0.5 ohm  Low end of ISO 7637-2:2011 pulse 5's
+*                                 0.5-4 ohm range. Lower Ri means more
+*                                 fault current for the same clamped
+*                                 voltage, so it is the worst case for
+*                                 the energy question this block is
+*                                 actually about -- same reasoning
+*                                 transient_clamp used picking Level IV
+*                                 for pulse 2a.
+*   td (pulse duration)   400 ms  Top of the standard's 40-400 ms range,
+*                                 worst case for absorbed energy.
+*   tr (rise time)        5 ms    Bottom of the standard's 5-10 ms range,
+*                                 i.e. the faster (worse) of the two.
+*   fall time              5 ms   NOT in the standard -- the standard only
+*                                 specifies rise time. Mirrored off tr for
+*                                 a symmetric trapezoid. INFERRED, and it
+*                                 barely matters: td dominates the energy
+*                                 integral by two orders of magnitude.
+*
+* The pulse shape here is a trapezoid (flat top), the same
+* simplification transient_clamp used for pulse 2a. The real
+* standard's pulse 5 is closer to an exponential decay; td is
+* usually defined as the time the pulse stays above 10% of peak.
+* A flat top at the FULL peak for the whole 400 ms is therefore
+* pessimistic relative to the real waveform shape -- which is the
+* right direction to be pessimistic in for a survivability check.
+*
+* Same TVS as transient_clamp: SMBJ33CA-class, 33 V working,
+* 36.7 V breakdown. Reusing it deliberately -- the question this
+* block answers is whether the part already chosen for pulse 2a
+* also survives 5b, not picking a new part and tuning it to pass.
+* ============================================================
+
+.model TVS D(Is=1e-12 N=1.6 Rs=0.35 BV=36.7 IBV=1e-3)
+
+* Source: 13.5 V baseline, 5 ms rise to 40 V, 400 ms flat top,
+* 5 ms fall back to baseline, then settle.
+Vpulse src 0 PWL(0 13.5  5m 13.5  10m 40  410m 40  415m 13.5  460m 13.5)
+Rsrc src bat 0.5
+
+* Ammeter in series with the TVS so its dissipated energy can be
+* integrated in the checks -- v(bat)*i(Vamm) is the power into D1.
+Vamm bat dtvs 0
+D1   0   dtvs TVS
+C1   bat 0    10u
+Rload bat 0   50
+
+.control
+tran 20u 460m
+wrdata load_dump.dat v(bat) v(src) i(Vamm)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE
+* ------------------------------------------------------------
+* The TVS clamps to 38.1 V (close to its 36.7 V breakdown, as
+* expected -- Us* = 40 V only just exceeds it) and holds there for
+* the full 400 ms plateau at a constant 3.04 A. Peak clamp voltage
+* stays under the buck's 100 V rating and under 60 V by a wide
+* margin -- the VOLTAGE side of this looks fine, the same way it
+* did for pulse 2a.
+*
+* The energy side does not. v(bat)*i(D1) during the plateau is
+* ~116 W, continuously, for 400 ms; integrating over the whole
+* pulse gives ~46.4 J absorbed by the TVS. SMBJ-series parts (this
+* breakdown bin included) are rated by their vendors for a single
+* ISO-style 10/1000 us exponential pulse -- commonly quoted around
+* 600 W peak, which integrates to well under 1 J for that pulse
+* shape -- and for a steady-state power dissipation on the order
+* of 1-3 W (typical across SMBJ-series datasheets, e.g.
+* Littelfuse/Vishay/onsemi bins of this part; no specific
+* manufacturer part number has been chosen yet, so this is a class
+* figure, not a pulled datasheet number). 46.4 J is roughly two
+* orders of magnitude past a plausible single-pulse energy rating,
+* and 116 W is roughly two orders of magnitude past the continuous
+* dissipation rating. The part does not survive this pulse. That
+* conclusion does not depend on exactly which SMBJ-series
+* datasheet number is used -- the gap is too large.
+*
+* This is the correct failure mode to have found: a TVS sized
+* against pulse 2a's peak voltage was never sized against pulse
+* 5b's energy, because nothing before this block asked the energy
+* question.
+*
+* THE VERDICT HINGES ON ONE INEQUALITY -- Us* vs the TVS breakdown.
+* Checked by re-running this netlist at Us* = 35 V, the figure most
+* commonly quoted for a 12 V suppressed dump:
+*
+*     Us* = 40 V  ->  v(bat) 38.1 V, TVS 3.04 A,  46.4 J   FAIL
+*     Us* = 35 V  ->  v(bat) 34.7 V, TVS 0.000 A,  0.0 J   pass
+*
+* At 35 V the TVS never reaches its 36.7 V breakdown, conducts
+* nothing, and there is no energy problem at all. The entire
+* failure is created by choosing Us* = 40 V, which is above the
+* part's breakdown -- and that 40 V came from this project's own
+* spec, not from a measurement of this alternator. So the block
+* does not show "an SMBJ33CA cannot survive a suppressed load
+* dump". It shows something sharper:
+*
+*   A TVS whose standoff voltage sits BELOW the clamped load-dump
+*   level is forced to conduct during a perfectly normal event,
+*   and then has to absorb it.
+*
+* transient_clamp.cir's RESULT NOTE already predicted this in
+* prose -- it warned against a lower-voltage TVS because it "would
+* clamp during a legitimate suppressed load dump and have to
+* absorb its energy". This block is that warning with numbers, and
+* it shows 33 V standoff is ALREADY low enough to trigger it.
+*
+* That reframes the fix. The energy does not have to be absorbed:
+* raise the standoff above the dump level (an SMBJ40CA/45CA-class
+* part, standoff above Us*) and the TVS simply stays off through
+* the dump, while the buck -- rated 100 V -- rides 40 V without
+* complaint. That is a part-number change, not an active clamp.
+* Energy absorption only becomes unavoidable under pulse 5a
+* (unsuppressed, 65-87 V), where nothing downstream can ride it
+* out. Which makes the alternator question in the header the
+* single fork this whole stage's topology hangs on, not a caveat.
+*
+* The 5 A fuse drawn on the schematic does not rescue the failing
+* case: 3.04 A is 0.6x its rating and it will not clear in 400 ms.
+*
+* What would actually work: a part whose energy rating is stated
+* for hundreds-of-ms pulses, not microsecond ones. That points at
+* an automotive load-dump-rated TVS (e.g. the AutoEfuse/TPSMB or
+* SMCJ/5KP-class parts marketed explicitly "for ISO 7637-2 pulse
+* 5" carry joule ratings in that range) or, more robustly, an
+* active clamp: a crowbar SCR or a MOSFET-based clamp that
+* diverts the fault current into a resistor or fuse sized for the
+* energy, rather than a single junction dissipating it all. Either
+* way, this needs a real datasheet and a re-run of this block
+* against it -- not a bigger guess at the same topology.
+*
+* What this model does NOT cover:
+*   - Pulse 5a (unsuppressed, 65-87 V) at all -- see the header.
+*     If the alternator turns out not to be suppressed, this
+*     entire block is testing the wrong pulse.
+*   - The TVS's actual thermal transient response (junction
+*     temperature rise vs. time). This check compares absorbed
+*     energy against steady-state and single-pulse ratings as
+*     bounds, which is enough to call a FAIL this far outside both,
+*     but a real thermal model (junction-to-lead time constant)
+*     would be needed to justify a PASS this close to either bound
+*     -- moot here since neither bound is close.
+*   - The exponential (vs. trapezoidal) real pulse shape, and fall
+*     time, which are not in the standard's own numbers -- see the
+*     header.
+*   - Whatever fuse or wiring impedance sits between the alternator
+*     and this board in the real harness, which this block folds
+*     into the single Ri = 0.5 ohm source impedance.
+* ------------------------------------------------------------

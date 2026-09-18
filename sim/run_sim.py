@@ -234,6 +234,60 @@ def check_transient_clamp():
     return c
 
 
+def check_load_dump():
+    c = Checks("load_dump -- ISO 7637-2 pulse 5b, Us*=40 V / 0.5 ohm / 400 ms")
+    d = sim("load_dump", {"load_dump.dat": ["time", "bat", "src", "iamm"]})["load_dump.dat"]
+    t, bat, src, iamm = d["time"], d["bat"], d["src"], d["iamm"]
+
+    c.that("pulse actually applied (source peak)", float(src.max()), 40, tol=None,
+           ok=float(src.max()) > 35, unit="V")
+
+    # Voltage side: same question transient_clamp asked for pulse 2a. This
+    # is the part of the story that looks fine.
+    plateau = (t > 0.05) & (t < 0.4)
+    vclamp = float(bat[plateau].mean())
+    c.that("clamped voltage through the 400 ms plateau", vclamp, 38.1, tol=0.3, unit="V")
+    c.that("  ... inside LM5164's 100 V rating", 100.0 / vclamp, 2.6, tol=None,
+           ok=vclamp < 100.0 / 1.5, unit="x")
+    c.that("  ... 60 V-class parts still viable", vclamp, 60.0, tol=None,
+           ok=vclamp < 60.0, unit="V")
+
+    # Energy side: the question pulse 2a never had to ask, because 2a is
+    # 50 us and no part-thermal limit engages in that time. 5b is 400 ms,
+    # long enough that the TVS's dissipation rating -- not its clamp
+    # voltage -- is what determines whether it survives.
+    iclamp = float(iamm[plateau].mean())
+    c.that("TVS current through the plateau", iclamp, 3.04, tol=0.3, unit="A")
+    avg_power = float(np.abs(bat[plateau] * iamm[plateau]).mean())
+    c.that("average power dissipated in the TVS", avg_power, 116.0, tol=15.0, unit="W")
+
+    energy = float(np.trapezoid(np.abs(bat * iamm), t))
+    c.that("total energy absorbed by the TVS over the pulse", energy, 46.4, tol=4.0,
+           unit="J")
+
+    # The falsifiable claims: does an SMBJ-class part actually survive this.
+    # Datasheet figures used as the bar (see the netlist's RESULT NOTE for
+    # sourcing): ~0.5 J for a single 10/1000 us pulse, ~3 W continuous
+    # dissipation. Both are class-typical, not a pulled datasheet number for
+    # a specific manufacturer part -- but the margin here is wide enough
+    # that the conclusion does not depend on which vendor's exact figure is
+    # used.
+    c.that("energy stays within a single-pulse (~0.5 J) rating", energy, 0.5,
+           tol=None, ok=energy < 0.5, unit="J")
+    c.that("average power stays within continuous (~3 W) rating", avg_power, 3.0,
+           tol=None, ok=avg_power < 3.0, unit="W")
+    c.that("  ... exceeds the continuous rating by",
+           avg_power / 3.0, 39.0, tol=5.0, unit="x")
+
+    # And the model must recover -- same sanity check transient_clamp makes.
+    # Settles to the source divided by Rsrc/Rload, not to the bare 13.5 V,
+    # same as transient_clamp.
+    settled = bat[t > 0.42]
+    c.that("recovers to nominal after pulse", float(settled.mean()), 13.37, tol=0.1,
+           unit="V")
+    return c
+
+
 def check_injector_boost():
     c = Checks("injector_boost -- why the boost stage exists (pins 03/05)")
     d = sim("injector_boost", {"injector_boost.dat": ["time", "ibat", "ibst"]})["injector_boost.dat"]
@@ -711,6 +765,7 @@ CHECKS = {
     "discrete_input": check_discrete_input,
     "sensor_ratiometric": check_sensor_ratiometric,
     "transient_clamp": check_transient_clamp,
+    "load_dump": check_load_dump,
     "injector_boost": check_injector_boost,
     "relay_driver": check_relay_driver,
     "emi_filter": check_emi_filter,

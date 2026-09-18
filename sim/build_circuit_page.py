@@ -52,6 +52,27 @@ BLOCKS = {
          "60 V-class parts viable everywhere downstream.",
          "It misses the 42 V figure the earlier documents asked for, and that figure should be dropped: "
          "it was arbitrary, with no standard behind it. The real constraints are the parts' ratings."),
+        ("load_dump", "Load dump", "pin 21",
+         "The same TVS and capacitor as transient_clamp, against ISO 7637-2 pulse 5b: a suppressed load "
+         "dump, 40 V through 0.5 ohms for 400 ms — four orders of magnitude longer than pulse 2a.",
+         "Clamps to 38 V, comfortably inside every voltage rating in the chain — the same story as pulse "
+         "2a. But 400 ms is long enough that the limit stops being clamp voltage and becomes dissipated "
+         "energy: the TVS absorbs roughly 46 J at ~116 W average, which is on the order of 100x an "
+         "SMBJ-class part's single-pulse energy rating and its continuous power rating both. This block "
+         "FAILS on purpose — a TVS sized against pulse 2a's peak voltage was never sized against pulse "
+         "5b's energy, because nothing before this block asked the energy question. But the whole failure "
+         "turns on one inequality: re-run at Us* = 35 V, the figure usually quoted for a 12 V suppressed "
+         "dump, and the TVS never reaches its 36.7 V breakdown — 0.000 A, 0 J, no problem at all. So the "
+         "finding is not that an SMBJ33CA cannot survive a load dump. It is that a TVS whose standoff sits "
+         "BELOW the dump level gets forced to conduct during a normal event and then has to absorb it. "
+         "The fix is a higher standoff (SMBJ40CA/45CA class), not a bigger energy rating: the TVS then "
+         "stays off and the buck, rated 100 V, rides 40 V without complaint. Energy absorption only "
+         "becomes unavoidable under pulse 5a.",
+         "Whether this pulse even applies: 5b assumes the alternator's rectifier is suppressed/clamping. "
+         "That has not been confirmed for this genset — if it is not, the real event is pulse 5a "
+         "(65–87 V, unclamped), a harder problem this block does not simulate. Also not modelled: the "
+         "real pulse's exponential-decay shape (approximated here as a trapezoid, which is pessimistic "
+         "in the right direction), and the TVS's actual junction thermal transient."),
         ("buck_preregulator", "Buck pre-regulator", "—",
          "6–40 V down to 5 V at 400 kHz, run open-loop at fixed duty so the output filter is visible.",
          "400 kHz is chosen against CISPR 25, not for size: the conducted band starts at 150 kHz, so a "

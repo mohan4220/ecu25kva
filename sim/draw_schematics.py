@@ -110,6 +110,42 @@ def transient_clamp(d):
     return "Transient clamp -- battery input, ISO 7637-2"
 
 
+def load_dump(d):
+    """Battery input protection -- ISO 7637-2 pulse 5b, same physical stage
+    as transient_clamp, a much longer and more energetic pulse."""
+    d += elm.Dot(open=True).label("BATT +\npin 21", "left")
+    d += elm.Line().right().length(0.5)
+    d += elm.Inductor2().right().label("FB1\nferrite")
+    d += elm.Fuse().right().label("F1\n5 A")
+    d += (node := elm.Dot())
+    d += elm.Line().right().length(1.6)
+    d += elm.Dot(open=True).label("to buck\nVIN", "right")
+
+    d += elm.Line().down().at(node.center).length(0.4)
+    d += (tvs := elm.Dot())
+    d += (d1 := elm.DiodeShockley().down())
+    d += elm.Ground()
+    # loc= on this rotated element landed on top of C1's label (same trap
+    # transient_clamp's picture has -- not fixed there, fixed here instead
+    # of copying the collision forward). Explicit coordinate to the LEFT of
+    # the diode, and the C1 branch pushed out to 2.3 pitch instead of 1.5,
+    # clears it.
+    d += elm.Label().at((tvs.center[0] - 2.7, tvs.center[1] - 1.5)).label(
+        "D1  TVS\nSMBJ33CA")
+
+    d += elm.Line().right().at(tvs.center).length(2.3)
+    d += elm.Dot()
+    d += elm.Capacitor().down().label("C1\n10u")
+    d += elm.Ground()
+
+    # Severity + result, placed by explicit coordinate well clear of every
+    # other element -- this is a lot of text to land safely.
+    d += elm.Label().at((3.3, -5.0)).label(
+        "pulse 5b: Us*=40 V, 0.5R, 400 ms\n"
+        "D1 absorbs ~46 J at ~116 W -- FAILS an SMBJ-class part's rating")
+    return "Load dump -- battery input, ISO 7637-2 pulse 5b"
+
+
 def injector_boost(d):
     """ECU pins 03/05 high side, 73/07/29 low side."""
     d += elm.Dot(open=True).label("BOOST RAIL\n~100 V", "left")
@@ -429,6 +465,7 @@ BLOCKS = {
     "discrete_input": discrete_input,
     "sensor_ratiometric": sensor_ratiometric,
     "transient_clamp": transient_clamp,
+    "load_dump": load_dump,
     "injector_boost": injector_boost,
     "relay_driver": relay_driver,
     "emi_filter": emi_filter,
