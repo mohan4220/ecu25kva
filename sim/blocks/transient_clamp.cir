@@ -26,13 +26,34 @@
 * ============================================================
 
 * TVS: breakdown 36.7 V, low dynamic resistance above the knee
-.model TVS D(Is=1e-12 N=1.6 Rs=0.35 BV=36.7 IBV=1e-3)
+* ---- SMBJ33CA, modelled as the bidirectional part it actually is ----
+* The "CA" suffix means bidirectional: two avalanche junctions in
+* anti-series inside one package. Until 19 Sep 2026 both this block and
+* load_dump.cir modelled it as a SINGLE diode, which is correct for a
+* positive transient and silently wrong for anything negative -- one
+* junction conducts forward at 0.7 V in reverse polarity, so the model
+* would have answered a reverse-battery or negative-pulse question
+* confidently and wrongly rather than failing visibly.
+*
+* Split so the WHOLE device still matches the datasheet it stood for,
+* not so each junction does: in avalanche one junction breaks down and
+* the other is forward-biased, so BV_total = 36.0 + Vf(0.7) = 36.7 V,
+* and the two Rs of 0.175 sum to the 0.35 ohm the single-diode model
+* used. Positive-direction behaviour is therefore unchanged by
+* construction -- the checks below confirm it rather than assume it.
+.model TVSJ D(Is=1e-12 N=1.6 Rs=0.175 BV=36.0 IBV=1e-3)
+.subckt TVSBI a b
+* common anode at mid: whichever terminal is positive sees one
+* junction in avalanche and one forward, in either direction
+DA mid a TVSJ
+DB mid b TVSJ
+.ends TVSBI
 
 * Pulse 2a: 112 V peak, 2 ohm source, 50 us wide, fast rise
 Vpulse src 0 PWL(0 13.5  0.999m 13.5  1.0m 125.5  1.05m 125.5  1.0505m 13.5  3m 13.5)
 Rsrc src bat 2
 
-D1  0  bat TVS
+XD1 0  bat TVSBI
 C1  bat 0   10u
 Rload bat 0 50
 

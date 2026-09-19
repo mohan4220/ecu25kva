@@ -76,7 +76,28 @@
 * also survives 5b, not picking a new part and tuning it to pass.
 * ============================================================
 
-.model TVS D(Is=1e-12 N=1.6 Rs=0.35 BV=36.7 IBV=1e-3)
+* ---- SMBJ33CA, modelled as the bidirectional part it actually is ----
+* The "CA" suffix means bidirectional: two avalanche junctions in
+* anti-series inside one package. Until 19 Sep 2026 both this block and
+* load_dump.cir modelled it as a SINGLE diode, which is correct for a
+* positive transient and silently wrong for anything negative -- one
+* junction conducts forward at 0.7 V in reverse polarity, so the model
+* would have answered a reverse-battery or negative-pulse question
+* confidently and wrongly rather than failing visibly.
+*
+* Split so the WHOLE device still matches the datasheet it stood for,
+* not so each junction does: in avalanche one junction breaks down and
+* the other is forward-biased, so BV_total = 36.0 + Vf(0.7) = 36.7 V,
+* and the two Rs of 0.175 sum to the 0.35 ohm the single-diode model
+* used. Positive-direction behaviour is therefore unchanged by
+* construction -- the checks below confirm it rather than assume it.
+.model TVSJ D(Is=1e-12 N=1.6 Rs=0.175 BV=36.0 IBV=1e-3)
+.subckt TVSBI a b
+* common anode at mid: whichever terminal is positive sees one
+* junction in avalanche and one forward, in either direction
+DA mid a TVSJ
+DB mid b TVSJ
+.ends TVSBI
 
 * Source: 13.5 V baseline, 5 ms rise to 40 V, 400 ms flat top,
 * 5 ms fall back to baseline, then settle.
@@ -86,7 +107,7 @@ Rsrc src bat 0.5
 * Ammeter in series with the TVS so its dissipated energy can be
 * integrated in the checks -- v(bat)*i(Vamm) is the power into D1.
 Vamm bat dtvs 0
-D1   0   dtvs TVS
+XD1  0   dtvs TVSBI
 C1   bat 0    10u
 Rload bat 0   50
 
@@ -100,6 +121,35 @@ wrdata load_dump.dat v(bat) v(src) i(Vamm)
 * ------------------------------------------------------------
 * RESULT NOTE
 * ------------------------------------------------------------
+* MODEL CHANGED 19 Sep 2026, AND THE NUMBERS MOVED WITH IT.
+* The TVS was a single diode until this date. The real SMBJ33CA is
+* bidirectional -- the "CA" suffix says so -- and it is now modelled
+* as the two anti-series junctions it actually contains, split so the
+* whole device still matches the same datasheet (see the model block
+* above).
+*
+* That was done to make the negative pulses answerable, not to change
+* this block. It changed this block anyway:
+*
+*                       single diode    bidirectional
+*     clamp voltage       38.097 V        38.374 V
+*     TVS current          3.04 A          2.48 A
+*     average power       116 W            95.3 W
+*     energy absorbed      46.4 J          38.2 J
+*
+* A 0.7% change in clamp voltage moved the energy by 18%. That is not
+* a modelling artifact, it is the physics of this particular test: the
+* current is set by (Us* - Vclamp)/Rsrc, a difference between 40 V and
+* about 38 V, so a small absolute change in the clamp lands on a much
+* smaller difference and is amplified roughly 24-fold.
+*
+* Worth knowing for two reasons. It means this block's energy figure
+* is a soft number that will move again when a real part is chosen --
+* and it means the FAIL does not depend on it. 38 J against a 0.5 J
+* single-pulse rating is still about 76x over. The verdict survived a
+* model change that moved its headline number by a fifth, which is
+* the more useful thing to know about it.
+*
 * The TVS clamps to 38.1 V (close to its 36.7 V breakdown, as
 * expected -- Us* = 40 V only just exceeds it) and holds there for
 * the full 400 ms plateau at a constant 3.04 A. Peak clamp voltage

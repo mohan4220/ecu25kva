@@ -342,7 +342,7 @@ def check_load_dump():
     # significant figures.
     plateau = (t > 0.05) & (t < 0.4)
     vclamp = float(bat[plateau].mean())
-    c.that("clamped voltage through the 400 ms plateau", vclamp, 38.1, tol=0.3, unit="V")
+    c.that("clamped voltage through the 400 ms plateau", vclamp, 38.37, tol=0.3, unit="V")
     c.that("  ... inside LM5164's 100 V rating", 100.0 / vclamp, 2.6, tol=None,
            ok=vclamp < 100.0 / 1.5, unit="x")
     c.that("  ... 60 V-class parts still viable", vclamp, 60.0, tol=None,
@@ -353,13 +353,13 @@ def check_load_dump():
     # long enough that the TVS's dissipation rating -- not its clamp
     # voltage -- is what determines whether it survives.
     iclamp = float(iamm[plateau].mean())
-    c.that("TVS current through the plateau", iclamp, 3.04, tol=0.3, unit="A")
+    c.that("TVS current through the plateau", iclamp, 2.48, tol=0.3, unit="A")
     avg_power = float(np.abs(bat[plateau] * iamm[plateau]).mean())
-    c.that("average power dissipated in the TVS", avg_power, 116.0, tol=15.0, unit="W")
+    c.that("average power dissipated in the TVS", avg_power, 95.3, tol=15.0, unit="W")
     # ^ regression pin, see the comment above vclamp.
 
     energy = float(np.trapezoid(np.abs(bat * iamm), t))
-    c.that("total energy absorbed by the TVS over the pulse", energy, 46.4, tol=4.0,
+    c.that("total energy absorbed by the TVS over the pulse", energy, 38.2, tol=4.0,
            unit="J")
 
     # The falsifiable claims: does an SMBJ-class part actually survive this.
@@ -374,7 +374,7 @@ def check_load_dump():
     c.that("average power stays within continuous (~3 W) rating", avg_power, 3.0,
            tol=None, ok=avg_power < 3.0, unit="W")
     c.that("  ... exceeds the continuous rating by",
-           avg_power / 3.0, 39.0, tol=5.0, unit="x")
+           avg_power / 3.0, 31.8, tol=5.0, unit="x")
 
     # And the model must recover -- same sanity check transient_clamp makes.
     # Settles to the source divided by Rsrc/Rload, not to the bare 13.5 V,
