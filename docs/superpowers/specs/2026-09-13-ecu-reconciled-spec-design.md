@@ -472,10 +472,24 @@ with nothing downstream able to remove its power either.
    At 200 Ω the gate driver would need an output impedance near 10 Ω; at 71 Ω a passive
    pulldown cannot be driven at all. **So the 470 Ω answer survives only at the assumed
    average**, and a modest factor on the real slew rate removes the passive-pulldown
-   topology entirely rather than merely resizing it. Treat 470 Ω as conditional until a
-   FET is chosen and its Miller-plateau slew is taken from a datasheet — and read this
-   as further weight behind the active-clamp / integrated-driver option below, not as a
-   number to build to.
+   topology entirely rather than merely resizing it.
+
+   **A second assumption pulls the other way.** The 470 Ω also assumes Vgs(th) = 1.0 V,
+   the conservative end of a 1.0–2.5 V class range with no part chosen. Read at 2.5 V the
+   same sweep gives **1000 Ω and a ≤52.6 Ω driver**. So:
+
+   | Assumption | Direction | Effect on 470 Ω |
+   |---|---|---|
+   | Vgs(th) 1.0 V vs 2.5 V | permissive if wrong | 470 Ω is **pessimistic** — costs drive current, not safety |
+   | dV/dt 2.8 V/µs (an average, not a plateau slew) | **unsafe if wrong** | 470 Ω is **optimistic** — a real slew of 10 V/µs demands 200 Ω |
+
+   The slew-rate assumption is the larger lever and the dangerous direction. **Treat
+   470 Ω as a demonstration, not a value to build to:** what it actually shows is that a
+   passive pulldown alone lives in a narrow window bounded by two numbers nobody has
+   measured. That conclusion holds whichever way either assumption lands, and it is the
+   argument for the active clamp — which `sim/blocks/supervisor.cir` has already
+   validated, and which research memo 12 recommends building discretely regardless of
+   the driver-architecture decision.
 
    At a 1.0 V threshold that is **under 1.79 kΩ for Crss = 200 pF, 714 Ω at 500 pF,
    357 Ω at 1000 pF**. `sim/blocks/supervisor.cir` claim 6 sweeps this directly and

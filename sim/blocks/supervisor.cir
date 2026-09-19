@@ -408,15 +408,27 @@ wrdata supervisor_claim4_slow.dat v(mon4s1) v(g4s1) v(mon4s2) v(g4s2) v(mon4s3) 
 * nowhere near millivolts:
 *
 *     Crss      peak V(gate)   memo's naive I*R   vs Vgsth=1.0 V
-*     20 pF      0.235 V         0.28 V             pass
+*     20 pF      0.465 V         0.56 V             pass
 *     50 pF      1.155 V         1.40 V             FAIL (memo's own low end)
 *     100 pF     2.289 V         2.80 V             FAIL
 *     200 pF     4.497 V         5.60 V             FAIL (memo's own high end)
 *     500 pF    10.647 V        14.0  V             FAIL
 *     1000 pF   19.490 V        28.0  V             FAIL
 *
-* (Read straight off this simulation's own supervisor_claim3.dat --
-* not hand-typed -- and matching what the check below asserts. Ciss's
+* (The 20 pF row read 0.235 V and its naive column 0.28 V until
+* 19 Sep 2026. Both were wrong by exactly 2x -- the real figures are
+* 0.465 V and 0.56 V, and 56 uA through 10 kOhm is 0.56 V, not 0.28.
+* Corrected after an independent review re-ran the row. The other
+* five rows reproduce exactly.
+*
+* Worth stating plainly, because this file exists to fix memo 11's
+* 1000x hand-arithmetic error and then made a 2x one of its own in
+* the very table doing the fixing. The claim below it -- that these
+* were read off the simulation rather than hand-typed -- was not
+* true of that row. It is now.
+*
+* Read off this simulation's own supervisor_claim3.dat and
+* matching what the check below asserts. Ciss's
 * own filtering brings the simulated peak to roughly 80% of the naive
 * I*R figure at these Crss values, not the many-orders-of-magnitude
 * reduction memo 11 implies -- because Rpd*Ciss = 10k*2n = 20 us is
@@ -627,4 +639,42 @@ wrdata supervisor_claim4_slow.dat v(mon4s1) v(g4s1) v(mon4s2) v(g4s2) v(mon4s3) 
 *     response after RESET asserts.
 *   - Per-pin reset pull defaults, which need the PTxx pin map
 *     (spec sec.5, phase 2) that does not exist yet.
+* ------------------------------------------------------------
+* TOLERANCE -- added 19 Sep 2026
+* ------------------------------------------------------------
+* This was the only one of the 20 blocks with no tolerance section,
+* which a review pointed out is a poor place for the omission to be:
+* this block's outputs are binding requirements in spec section 4.
+*
+* Two parameters set the 470 ohm answer, and they pull opposite ways.
+*
+* Vgs(th) -- assumed 1.0 V, class range 1.0-2.5 V, no part chosen.
+* It is the PERMISSIVE direction: a higher threshold tolerates a
+* larger pulldown. Reading the same claim-6 sweep at the other end:
+*
+*     Vgs(th) = 1.0 V  ->  Rpd <= 470 ohm,  driver <= 24.7 ohm
+*     Vgs(th) = 2.5 V  ->  Rpd <= 1000 ohm, driver <= 52.6 ohm
+*
+* So 470 ohm is the conservative read, and the penalty for being
+* wrong here is wasted drive current, not a gate that turns on.
+*
+* dV/dt -- assumed 2.8 V/us, and this one runs the other way. It is
+* memo 10's INFERRED average over a whole 36 us turn-off, while
+* Miller coupling happens during the plateau, where a real FET slews
+* faster. At 10 V/us the pulldown must be under 200 ohm; at 28 V/us
+* under 71 ohm, which cannot be driven at all.
+*
+* THE TWO TOGETHER ARE THE HONEST POSITION. The threshold assumption
+* makes 470 ohm pessimistic; the slew-rate assumption makes it
+* optimistic, and the slew-rate one is the larger lever and the
+* unsafe direction. Net, 470 ohm is not a number to build to. It is
+* a demonstration that a passive pulldown alone sits in a narrow
+* window bounded by two figures nobody has measured -- which is the
+* argument for the active clamp, and it does not depend on which way
+* either assumption finally lands.
+*
+* Neither parameter is settled by simulation. Both are datasheet
+* questions that need a chosen FET.
+* ------------------------------------------------------------
+*
 * ------------------------------------------------------------

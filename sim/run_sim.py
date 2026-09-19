@@ -1092,7 +1092,7 @@ def check_supervisor():
     # RESULT NOTE for the arithmetic error this exposes in the memo. ----
     d3 = d["supervisor_claim3.dat"]
     crss_checks = [
-        ("g20p", 20, 0.235),
+        ("g20p", 20, 0.465),
         ("g50p", 50, 1.155),
         ("g100p", 100, 2.289),
         ("g200p", 200, 4.497),
@@ -1106,13 +1106,19 @@ def check_supervisor():
         # number -- the CLAIM is the ok= comparison against Vgsth.
         # EVIDENCE ROWS, not live gates. These are the falsification
         # record for memo 11 sec.4's 10 kOhm: the value is rejected, so
-        # failing them forever would make this block fail for a
-        # historical reason instead of a live one. The numbers stay
-        # visible because they are the argument. The live question --
-        # what pulldown DOES work -- is claim 6.
+        # gating on Vgsth here would make the block fail forever for a
+        # historical reason instead of a live one.
+        #
+        # But they are NOT ok=True, which is what they were until
+        # 19 Sep 2026. A review found the 20 pF row stated 0.235 V
+        # against an actual 0.465 V -- a 2x hand-arithmetic error that
+        # ok=True made structurally uncatchable, in the file written to
+        # fix a 1000x hand-arithmetic error. An evidence row still has
+        # to reproduce; it just does not gate on the design threshold.
+        # So: pin to the stated value with a tolerance, and let drift
+        # fail.
         c.that(f"claim 3 (evidence): peak V(gate), Crss={pf} pF, Rpd=10k",
-               peak, expected, tol=max(0.05 * expected, 0.02), unit="V",
-               ok=True)
+               peak, expected, tol=max(0.05 * expected, 0.02), unit="V")
     c.that("  ... memo 11's own hand arithmetic at Crss=200 pF claimed",
            "~5.6 mV -- off by 1000x (560 uA * 10 kOhm = 5.6 V, not 5.6 mV); "
            "this sim's 4.50 V independently confirms the corrected order "
@@ -1191,13 +1197,25 @@ def check_supervisor():
                 (2200, "grr4"), (4700, "grr5")]
     VGSTH = 1.0
     peaks = [(r, float(np.abs(d6[k]).max())) for r, k in rpd_vals]
+    # Sweep data, same treatment as claim 3's rows: pinned to the values
+    # actually produced, so drift fails, but not gated on Vgsth -- the
+    # derived result below is the gate.
+    claim6_expected = {220: 0.308, 470: 0.658, 1000: 1.401,
+                       2200: 3.077, 4700: 6.267}
     for r, pk in peaks:
-        # Sweep data, same treatment as claim 3's rows -- the gate is the
-        # derived result below, not each individual point.
         c.that(f"claim 6 (sweep): peak V(gate) at Crss=500 pF, Rpd={r} ohm", pk,
-               VGSTH, tol=None, ok=True, unit="V")
+               claim6_expected[r], tol=max(0.05 * claim6_expected[r], 0.02),
+               unit="V")
     survivors = [r for r, pk in peaks if pk < VGSTH]
     rmax = max(survivors) if survivors else 0
+    # Vgsth is itself a class figure with a stated 1.0-2.5 V range and no
+    # part chosen. It is the permissive direction -- a higher threshold
+    # allows a larger pulldown -- so 1.0 V is the conservative end. Report
+    # the other end too, because the spec quotes the 1.0 V answer as
+    # though it were fixed.
+    rmax_hi = max([r for r, pk in peaks if pk < 2.5] or [0])
+    c.that("  ... same sweep read at Vgsth=2.5 V, the permissive end",
+           float(rmax_hi), 1000.0, tol=None, ok=rmax_hi >= rmax, unit="ohm")
     c.that("  ... largest pulldown that holds the gate below Vgsth",
            float(rmax), 470.0, tol=None, ok=rmax >= 220, unit="ohm")
     # The lower bound is DC arithmetic, not a transient question: the
