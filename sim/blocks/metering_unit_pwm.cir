@@ -165,5 +165,55 @@ wrdata metering_unit_pwm.dat i(Vs1) i(Vs2) i(Vs3)
 * pessimistic, once self-heating is considered. That is a thermal
 * question this block does not simulate, the same kind of gap
 * transient_clamp's RESULT NOTE leaves open for TVS temperature
-* coefficient (2026-09-18 review F11).
+* coefficient (2026-09-18 review F11) -- CLOSED for the TVS in this
+* pass, see that file's own TEMPERATURE section; the self-heating
+* question here specifically remains open, ambient is handled below.
+* ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* Closes the ambient half of the note above (self-heating is a
+* separate, still-open question -- see above). Copper's resistance-
+* temperature coefficient is a physical constant, ~0.39%/C, sourced
+* to copper itself rather than any specific part. Over the full
+* -40/+125 C ambient range (not counting any self-heating on top):
+* R = 10 ohm * (1 + 0.0039*(T-25)):
+*
+*     -40 C   R = 7.39 ohm  (-26%)
+*     +125 C  R = 13.82 ohm (+38%)
+*
+* Both are much larger swings than the +/-10% part-tolerance corner
+* already run above. Re-ran the full three-frequency network at both
+* in a scratch copy, not this file:
+*
+*                R=7.39 (cold)   R=10 (27C, nom)   R=13.82 (hot)
+*   mean i1 (A)     0.862           0.639              0.463
+*   mean i2 (A)     0.863           0.639              0.463
+*   mean i3 (A)     0.858           0.634              0.459
+*
+* BOTH CORNERS FAIL THE "0.675 A" CHECK, in OPPOSITE directions --
+* cold overshoots the 0.765 A ceiling by ~12%, hot undershoots the
+* 0.585 A floor by ~21%, both well past the already-flagged 11 ohm
+* corner's narrow miss (0.577-0.581 A). Ambient alone, no self-
+* heating stacked on top, is a bigger effect than the part-to-part
+* tolerance this file already used to make the point about the
+* target being unreal.
+*
+* THE INVARIANT THAT ACTUALLY MATTERS SURVIVES BOTH CORNERS: the
+* three frequencies still agree with each other to under 1% at
+* either temperature (0.862/0.863/0.858 cold; 0.463/0.463/0.459
+* hot), exactly the same shape the existing TOLERANCE section
+* already established for the +10% R corner. This is the same
+* conclusion, now shown to hold across the full ambient range, not
+* just a part-tolerance bin: a "0.675 A" FAIL at either temperature
+* extreme should be read as coil-resistance-vs-ambient doing exactly
+* what copper does, not as the control law failing. The control law
+* (frequency-independence) is what should gate PASS/FAIL, and it
+* does not move.
+*
+* MOSFET Ron (25 mOhm nominal, up to ~50 mOhm at a doubled hot
+* corner) was not separately swept: it is 500x smaller than the coil
+* resistance even at its own worst case, and this check's numbers
+* are utterly insensitive to it by construction.
 * ------------------------------------------------------------

@@ -181,3 +181,24 @@ wrdata boost_converter.dat v(ra) v(rb)
 * 26.67 ms budget, so the charging current would have to be wrong
 * by roughly 4x before this check's verdict moved.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* Already dominated by the existing TOLERANCE section, not a new
+* mechanism needing a new run. Ca/Cb are ideal capacitors in this
+* charge-balance model -- no ESR is modelled at all, so the
+* electrolytic-ESR mechanism mcu_pdn.cir found sensitive does not
+* even apply here (there is nothing in this netlist for it to act
+* on). That leaves only capacitance value, which temperature moves
+* by an amount smaller than what the TOLERANCE section already
+* tried: X7R's own +/-15% envelope (if MLCC) or an electrolytic's
+* -40 C capacitance loss (commonly 15-25%, INFERRED, class-typical)
+* are both inside the -20%/-60% range already run above, and the
+* -60% corner (18.8 uF) already cleared the >60 V design floor by
+* 20+ V with room to spare. No plausible temperature-driven
+* capacitance shift gets anywhere near that corner, so this does
+* not need a separate run -- the existing tolerance sweep already
+* covers it by construction, the same reasoning that section uses
+* for why the recovery-time check does not depend on C at all.
+* ------------------------------------------------------------

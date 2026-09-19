@@ -141,3 +141,42 @@ wrdata vr_conditioner.dat v(zr) v(fr) v(zc) v(fc)
 * decade of headroom below the 2 V design-time estimate before it
 * would matter.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* This is the most safety-critical input on the board, so this
+* deserves more than a reflexive "immune" -- confirmed rather than
+* assumed. Two candidate mechanisms:
+*
+* THE COMPARATOR (ZCSW/FIXSW). Confirmed elsewhere in this pass that
+* ngspice's SW model does not respond to `option temp=` at all --
+* Vt is a fixed parameter. A real comparator IC's threshold does
+* drift with temperature, via its input offset voltage's own
+* tempco -- typically single-digit microvolts to low tens of
+* microvolts per C for this class of part (INFERRED, no part
+* chosen), i.e. a few mV of total drift across the whole -40/+125 C
+* range. That is two orders of magnitude below the +/-0.2 V
+* hysteresis window this design deliberately sized, and the
+* TOLERANCE section above already showed the design keeps roughly a
+* decade of amplitude margin below the 2 V nominal cranking estimate
+* before the hysteresis window itself becomes the limit. A few mV of
+* offset drift does not move a check whose failure point is set by
+* a 200 mV window with a decade of amplitude margin behind it.
+*
+* THE SENSOR COIL. A VR sensor is copper wire; its DC resistance
+* rises about 0.4%/C (a physical constant, not a part choice) over
+* -40/+125 C, i.e. roughly 65% more resistance hot than cold. Against
+* a comparator's high input impedance this loads the source
+* negligibly -- signal amplitude is set by Faraday induction (speed
+* and airgap), not by how much the coil's own resistance drops
+* across a load it barely drives. Even if this were entirely wrong
+* and coil resistance directly attenuated the signal 1:1, a 65% swing
+* is still far inside the 90% (10x) amplitude margin the TOLERANCE
+* section already established.
+*
+* Neither mechanism comes close to threatening this block's verdict.
+* The real open question for this input remains what the TOLERANCE
+* section already named: the actual sensor's worst-case cranking
+* amplitude on real hardware, not anything temperature adds on top.
+* ------------------------------------------------------------

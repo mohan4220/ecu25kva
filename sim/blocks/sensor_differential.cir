@@ -131,3 +131,28 @@ wrdata sensor_differential.dat v(nse) v(nd) v(gs)
 * (chip choice, or harness-driven source-impedance imbalance), not
 * as the differential front-end failing to do its job.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* R1/R2 (single-ended divider): near-immune, same matched-family
+* resistor reasoning as battery_sense.cir -- not the binding
+* parameter here either way.
+*
+* CMRR is the binding parameter (established above), and it is a
+* real in-amp chip spec that commonly degrades a few dB at
+* temperature extremes on top of its 25 C datasheet number (no part
+* chosen, so no specific curve to apply -- INFERRED direction and
+* order of magnitude only). This does not need a new corner run: the
+* TOLERANCE section above already swept CMRR itself down to 60 dB
+* and 70 dB and found what a degraded CMRR does to both checks
+* (70 dB fails the absolute-error check, 60 dB fails both). A few dB
+* of temperature-driven CMRR loss on top of a marginal real part
+* lands inside a range this file has already characterised -- it is
+* not a separate temperature axis, it is the SAME sensitivity this
+* block already reports, with one more real-world cause (ambient
+* temperature, alongside harness imbalance) feeding into it. The
+* header's own point holds: read a degraded-CMRR failure as CMRR
+* uncertainty from any of several causes now including temperature,
+* not as the differential topology failing to do its job.
+* ------------------------------------------------------------

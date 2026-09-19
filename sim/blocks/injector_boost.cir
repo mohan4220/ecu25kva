@@ -85,3 +85,59 @@ wrdata injector_boost.dat i(Vbat) i(Vbst)
 * DO move with L/R tolerance, proportionally, but nothing here gates
 * a pass/fail threshold on either one alone.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature, and a correction to the claim above
+* ------------------------------------------------------------
+* THE "INVARIANT TO L/R" CLAIM ABOVE IS ONLY HALF RIGHT, and
+* temperature is what exposes the half that is wrong -- caught
+* re-checking the calculation rather than trusting the algebra, per
+* this project's own history of exactly this kind of error. t =
+* (L/R)*ln(V/(V-I_th*R)). L/R is indeed a common front-factor that
+* cancels in the ratio t_bat/t_bst REGARDLESS of L or R -- that part
+* is correct, and the ratio genuinely does not depend on L at all.
+* But R does NOT only appear in that front factor -- it also appears
+* INSIDE each log term, via I_th*R, and that occurrence does NOT
+* cancel between the two branches. So the ratio is L-invariant, but
+* it is NOT R-invariant, and "L/R cancels" is not the same claim as
+* "R cancels."
+*
+* Copper's coil resistance moves with ambient the same way it does
+* in metering_unit_pwm.cir and relay_driver.cir -- ~0.39%/C, giving
+* R=0.37 ohm at -40 C (-26%) and R=0.69 ohm at +125 C (+38%) over
+* the same physical injector coil in both branches (this is one
+* part, not two, so the same ambient acts on both R's identically --
+* consistent with the header's "same coil model" framing, just not
+* with the conclusion drawn from it). Re-ran the actual netlist (not
+* just the formula) at both R values in a scratch copy, not this
+* file, to verify rather than trust the algebra:
+*
+*                R=0.37 (cold)   R=0.50 (27C, nom)   R=0.69 (hot)
+*   t_bat (us)     367.6            439.5               732.1
+*   t_bst (us)      37.3             37.8                38.5
+*   ratio           9.86            11.63               19.02
+*
+* BOTH TEMPERATURE CORNERS FAIL THE RATIO CHECK (want 11.6+/-1.5,
+* i.e. 10.1-13.1): 9.86 at cold (just under), 19.02 at hot (nearly
+* 64% high). The hot corner is not a near miss -- it is the clearest
+* single number in this note. It happens because R gets big enough,
+* relative to Vbat=13.5 V specifically, that I_th*R starts eating a
+* much larger fraction of the available voltage on the LOW-voltage
+* battery branch than on the 100 V boost branch, which the boost
+* branch is by design mostly immune to (I_th*R is a small fraction
+* of 100 V at any of these R values). That asymmetry is exactly why
+* the boost stage exists, so in one sense this reinforces the
+* design's own argument -- but it also means the "11.6x faster"
+* headline number is not a temperature-stable constant the way the
+* TOLERANCE section above claims.
+*
+* THE PRACTICAL NUMBER, not just the ratio: t_bat itself grows from
+* 439.5 us to 732.1 us at +125 C -- a 67% increase in injector dead
+* time on the (hypothetical, no-boost) battery-only drive, which is
+* the more physically meaningful figure since nothing in this design
+* actually runs the injector off battery alone. On the ACTUAL boost
+* rail (t_bst), the swing is tiny (37.3-38.5 us) because the 100 V
+* drive is so far above I_th*R at any of these R values -- this is
+* the number that matters for the real design, and it is not
+* temperature-sensitive at all.
+* ------------------------------------------------------------

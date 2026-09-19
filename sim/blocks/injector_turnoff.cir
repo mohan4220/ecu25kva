@@ -269,3 +269,43 @@ wrdata injector_turnoff.dat v(rail) i(Vamm_i) i(Vamm_rc) i(Vamm_fw) v(lo) i(Vamm
 * argument the RESULT NOTE already gives for why arrangement A
 * cannot overshoot, and that argument does not depend on C.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* Two candidate mechanisms: the injector coil's copper resistance
+* (0.39%/C, same physical part as injector_boost.cir and this
+* block's own R) and DREC's forward drop (a real junction, `option
+* temp=` moves it correctly, same as relay_driver.cir's DFLY).
+*
+* R: injector_boost.cir's own TEMPERATURE section found copper R
+* swings drastically affect turn-ON time from the 13.5 V battery
+* branch (+67% at hot) but barely touch the 100 V boost branch,
+* because 100 V so thoroughly dominates I_th*R. Claim 1 here (turn-
+* OFF time into the ~100 V clamped rail) is the same shape: the coil
+* discharges against a clamp voltage an order of magnitude above
+* I*R (18 A * 0.5 ohm = 9 V against ~100 V), so R is a second-order
+* effect on this timing, not first-order. Checked with a simplified
+* single-event RL-into-a-fixed-100V-clamp model (same L, R, DREC;
+* not a full re-run of this file's three-event netlist, given this
+* block is not on the priority list and the boost-branch precedent
+* from injector_boost.cir already argues the direction) -- turn-off
+* time moved only ~3-4% across the same -40/+125 C copper-R corners
+* that produced a 67% swing on the battery-only branch elsewhere.
+* Consistent with, not independently re-deriving, that finding.
+*
+* DREC forward drop: falls with temperature (same physical
+* mechanism confirmed on relay_driver.cir's DFLY and
+* reverse_battery.cir's SCH), which would shift claim 2's droop/
+* bump numbers by a few tenths of a volt -- small against the
+* 0.5-1.2 V tolerance those checks already carry, and the same order
+* of magnitude relay_driver.cir already found and dismissed for the
+* equivalent mechanism. Not separately re-run here for the same
+* proportionality-to-priority reason as the R check above.
+*
+* Nothing here is expected to flip a check; the reasoning is by
+* analogy to two mechanisms already fully quantified elsewhere in
+* this pass (injector_boost.cir's R effect, relay_driver.cir's
+* diode-drop effect), not a fresh, independently verified result for
+* this specific netlist's three-event transient.
+* ------------------------------------------------------------

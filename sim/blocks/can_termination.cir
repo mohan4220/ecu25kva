@@ -160,3 +160,37 @@ wrdata can_termination.dat zdiff_split zcm_split zdiff_single zcm_single
 * board house -- would cost this design its margin on both checks
 * at once, not just one.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* The differential-impedance check's margin was already flagged
+* above as "barely wider than what a single-direction 1% resistor
+* shift already consumes." Ordinary resistor ambient tempco stacks
+* on top of that, and this is the LESS adverse assumption from the
+* TOLERANCE section reused (both resistors shifting TOGETHER, same
+* direction, matched batch -- the more pessimistic opposite-
+* direction case was not even needed to find something here).
+*
+* Re-ran Rah=Ral together at 100 ppm/C and 200 ppm/C (INFERRED,
+* standard-to-decent metal/thick-film range) over the full 165 C
+* span, in a scratch copy, not this file:
+*
+*     R=60.00 ohm (nominal)              zdiff@250kbit 119.99 ohm  PASS
+*     R=60.99 ohm (100 ppm/C, +1.65%)    zdiff@250kbit 121.97 ohm  PASS, margin 0.03/2 ohm
+*     R=61.65 ohm (200 ppm/C, +3.3%)     zdiff@250kbit 123.29 ohm  FAIL
+*
+* AT A PLAUSIBLE, UNREMARKABLE RESISTOR TEMPCO, THIS CHECK FAILS.
+* 200 ppm/C is not an exotic corner -- it is standard-grade thick-
+* film, not even the cheapest available -- and 100 ppm/C already
+* leaves 0.03 ohm of a 2 ohm window, which is not a margin, it is
+* rounding error. This is the same shape of finding as emi_filter's
+* C1: a check already flagged as thin turns out to have essentially
+* no headroom left once ordinary, unremarkable component behaviour
+* over temperature is actually run, rather than assumed small. The
+* fix flagged in the TOLERANCE section above (spec 1% resistors on
+* the BOM line) does not fully cover this -- 1% tolerance parts
+* still commonly carry 100-200 ppm/C tempco ratings unless the BOM
+* line specifies BOTH; this needs a tempco spec, not just a
+* tolerance bin, to actually hold the margin this check assumes.
+* ------------------------------------------------------------

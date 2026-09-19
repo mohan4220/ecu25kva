@@ -372,3 +372,35 @@ wrdata egr_recirc.dat v(ma5) v(mb5) v(ma6) v(mb6) i(Vbat5)
 * that Vbat effects on this board are real but second-order next to
 * an unpinned component value.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* Rm is a DC gearmotor's copper winding -- the same physical
+* mechanism as the coils in metering_unit_pwm.cir and
+* injector_boost.cir, 0.39%/C. Over -40/+125 C: Rm=3 ohm (nominal)
+* becomes 2.22 ohm cold (-26%) / 4.14 ohm hot (+38%).
+*
+* BOTH TEMPERATURE-DRIVEN VALUES FALL INSIDE THE 2-5 OHM RANGE THE
+* TOLERANCE SECTION ABOVE ALREADY SWEPT, so this needs no new run:
+* that section's own conclusion -- "the conclusion holds at every
+* value tried, active current limiting is required regardless of
+* Rm" -- already covers the temperature-driven range as a subset of
+* the class range it explored for a different reason (part-to-part
+* spread on an unchosen actuator). Unlike can_termination.cir or
+* metering_unit_pwm.cir, where the ambient swing EXCEEDED the
+* already-tested tolerance corner and produced a new finding, here
+* it does not: 2.22-4.14 ohm sits inside 2-5 ohm with room on both
+* sides. What flips: nothing, because nothing here was on the edge
+* of the range already explored.
+*
+* SWH/DBODY/SWK (switches, body diode, kill FET): SWH and SWK's Ron
+* are confirmed elsewhere in this pass to ignore `option temp=`
+* entirely. DBODY's forward drop is a real junction and would move
+* with temperature (same mechanism as relay_driver.cir's DFLY), but
+* this bridge runs off 13.5 V with an already-large-current stall
+* condition dominating every check that matters -- a diode-drop
+* shift of a few tenths of a volt is second-order here for the same
+* reason relay_driver.cir's own Vbat-vs-diode-drop comparison found
+* it second-order there. Not separately re-run.
+* ------------------------------------------------------------

@@ -95,3 +95,28 @@ wrdata relay_driver.dat v(db) v(eb)
 * cite the actual part's Vds rating instead of a round number. Left
 * unresolved rather than silently loosened or a value changed here.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* D1's forward conduction drop (what sets drain peak = Vbat + Vf,
+* per the TOLERANCE section above) is a real junction effect --
+* unlike the TVS breakdown parameters elsewhere, `option temp=`
+* moves plain forward conduction correctly (confirmed on this exact
+* model). Re-ran the with-diode network at -40/+125 C, both Vbat
+* cases already in the file, in a scratch copy, not this file:
+*
+*                    Vbat=13.5 V (nominal)   Vbat=14.4 V (charging)
+*   27 C  (this file)     14.274 V PASS           15.177 V FAIL
+*   -40 C                 14.372 V PASS           15.276 V FAIL
+*   +125 C                14.124 V PASS           15.028 V FAIL
+*
+* What flips: nothing. Temperature moves the drain peak by
+* +/-0.10-0.15 V, an order of magnitude smaller than the ~0.9 V the
+* Vbat question above already accounts for. The 13.5 V case stays a
+* clean PASS at both temperature extremes; the 14.4 V case, already
+* FAILING at 27 C for the Vbat reason already flagged, stays FAILING
+* at both extremes too -- temperature does not create or cure that
+* failure, it just nudges it by a few tenths of a volt either way.
+* The Vbat question remains the thing to resolve, not this one.
+* ------------------------------------------------------------
