@@ -58,12 +58,14 @@ FONTS = (
 # that binds the design, then the research the spec rests on, then the plan.
 #   (output stem, source path relative to docs/, title, one-line gloss)
 BOOK = [
+    ("00-status", "status.md", "Build Status",
+     "What is done, what is not, and what each gap is waiting on"),
     ("01-handbook", "handbook/index.html", "Field Handbook",
      "The machine, its interface, the circuits in narrative, and how to run it"),
     ("02-sensors", "handbook/sensors.html", "Sensor Reference",
      "Every sensor: what it measures, how we read it, what we do with it"),
     ("03-circuits", "handbook/circuits.html", "Circuit Reference",
-     "All 17 circuit blocks: schematic, reasoning, simulated result, limits"),
+     "Every circuit block: schematic, reasoning, simulated result, limits"),
     ("04-spec", "superpowers/specs/2026-09-13-ecu-reconciled-spec-design.md",
      "Reconciled Specification",
      "Binding source of truth -- pin map, power, deviations, unknowns"),
@@ -87,6 +89,12 @@ BOOK = [
     ("13-frontends", "research/09-resistive-sensor-frontends.md",
      "Memo 09 -- Resistive Sensor Front-Ends",
      "How DSE and SEDEMAC build temperature inputs, and what transfers"),
+    ("15-turnoff", "research/10-injector-turnoff.md",
+     "Memo 10 -- Injector Turn-Off",
+     "What production drivers do with the coil energy, and the circuit to build"),
+    ("16-supervisor", "research/11-supervisor-and-fail-safe-outputs.md",
+     "Memo 11 -- Supervisor & Fail-Safe Outputs",
+     "Watchdog, brownout, and what the outputs do while the MCU is in reset"),
     ("14-plan", "superpowers/plans/2026-09-13-phase1-research.md",
      "Phase 1 Research Plan",
      "The plan the eight memos were written against"),
