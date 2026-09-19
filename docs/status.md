@@ -1,6 +1,6 @@
 # Build Status — What Is Done and What Is Not
 
-**As of 19 September 2026.** Counts in this document are generated from the repository,
+**As of 19 September 2026, end of session.** Counts in this document are generated from the repository,
 not maintained by hand: the block results come from `sim/run_sim.py`, the unknowns from
 the specification's own register.
 
@@ -10,10 +10,11 @@ the specification's own register.
 
 | | Count |
 |---|---|
-| Circuit blocks simulated | **22** |
-| Blocks passing their checks | **21** |
+| Circuit blocks simulated | **23** |
+| Blocks passing their checks | **22** |
 | Blocks failing deliberately | **1** (`load_dump`) |
 | Research memos | **12** |
+| Documents in the bible | **18** (254 pages) |
 | Unknowns closed | **4** |
 | Unknowns partly answered | **4** |
 | Unknowns still open | **8** |
@@ -51,7 +52,7 @@ the TVS stays off during a normal clamped load dump, rather than a larger part t
 it. **Blocked on U16** — whether the alternator is suppressed at all decides which pulse
 applies.
 
-### 1.2 Sensor front-ends — 6 blocks
+### 1.2 Sensor front-ends — 7 blocks
 
 | Block | What it covers | Status |
 |---|---|---|
@@ -61,6 +62,7 @@ applies.
 | `battery_sense` | Pins 04/06, 6–40 V rail into a 3.3 V ADC | Passing |
 | `discrete_input` | Pins 20/24/71, active-high switched battery | Passing |
 | `trip_module_sense` | Trip-module state, supervised three-state loop | Passing |
+| `cam_frontend` | Pin 46 cam Hall, 5 V swing divided into the 3.3 V domain | Passing |
 
 `ntc_frontend` simulates **both** candidate topologies because **U2** is unresolved. One
 resistance measurement at the machine picks between them; the front-end is designed so
@@ -107,7 +109,6 @@ These have no netlist, no schematic and no checks. They are the real gaps.
 
 | Missing circuit | Pins | Why it is not built |
 |---|---|---|
-| **Cam sensor front-end** | 46 capture, 45 excitation | **Found 19 Sep by the pin-map work.** Spec §4 specified a pull-up to the 5 V sensor rail straight into a capture pin on a 3.3 V part — over the MCU's absolute maximum. It survived because no block simulated it: there is a `vr_conditioner` for crank and no cam equivalent |
 | **Intake throttle driver** | 6-pin connector | **Blocked on U8.** Reported battery-fed, which answers who supplies it, not who commands it. May be out of scope entirely |
 | **Pre/post-heat output** | unknown | **Blocked on U14.** Same distinction — battery-fed is not the same as ECU-switched. The DSE4522 enables both at 50 °C and this design has no heater output |
 
@@ -194,7 +195,7 @@ contact-type confirmation, which gates nothing
 |---|---|---|
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
-| **1.5** | **Block-level simulation** | **In progress — 22 blocks, 21 passing** |
+| **1.5** | **Block-level simulation** | **In progress — 23 blocks, 22 passing** |
 | 2 | KiCad hierarchical schematic capture | Not started |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
 | 4 | Firmware skeleton | Not started |
@@ -218,3 +219,74 @@ Ordered by what it unblocks.
 | Trace who switches the heater feed | **U14** | Whether a heater output is in scope |
 | Injector part number from the body | **U5** | The boost rail's target voltage |
 | Relay contact-type check | U12 confirmation | Nothing — recorded for completeness |
+
+---
+
+## 9. Resume here — next session
+
+Written at the end of 19 September so the next session does not have to
+re-derive where things stand. **Nothing is half-finished: the tree is clean, the
+suite passes, everything is pushed.**
+
+### The two pieces of phase 1.5 that remain
+
+**1. Replace the TVS model, then simulate the negative pulses.** In that order — the
+second is not answerable until the first is done.
+
+`sim/blocks/transient_clamp.cir` and `load_dump.cir` share this model:
+
+```
+.model TVS D(Is=1e-12 N=1.6 Rs=0.35 BV=36.7 IBV=1e-3)
+```
+
+That is a **single diode**. The real part is an SMBJ33CA, and the `CA` suffix means
+bidirectional. A single diode conducts forward at 0.7 V in reverse polarity, so any
+reverse-polarity or negative-pulse question put to it gets a confident wrong answer
+rather than a visible failure.
+
+Build a bidirectional subcircuit — two junctions back to back — and switch both blocks
+to it. **Both must reproduce their current results**: `transient_clamp` passing,
+`load_dump` failing at ~46 J absorbed. If either moves, that is a finding about the old
+model and should be reported, not tuned away.
+
+Then add a `negative_pulses` block for ISO 7637-2 pulses **1** and **3a** on a 12 V
+system. Spec §6 requires ISO 7637-2 and only 2a and 5b exist. Take severity from
+memo 06 if it is there; otherwise state the values and label them INFERRED.
+
+**2. Temperature corners across all 23 blocks.** Every result in this repo is a 27 °C
+result. The tolerance pass built the pattern to follow — see `load_dump.cir` and
+`supervisor.cir` for how a corner is stated. This is the piece most likely to be cut off
+part-way, and it survives that well: each block's corner is self-contained, which is how
+the tolerance pass came back cleanly from being truncated at 11 of 19 blocks.
+
+### Also outstanding
+
+**Four artifacts built on 19 September have never been independently reviewed:**
+`egr_hbridge`, `trip_module_sense`, `cam_frontend`, and `docs/pinmap.md`. The last review
+ran before any of them existed. Both review passes so far found real errors, including a
+2× arithmetic slip inside the block written to fix a 1000× one.
+
+### Needs a person, not an agent
+
+| Item | Why |
+|---|---|
+| **MC33816AE last-time-buy 06/08/2027** | Distributor conversation. Gates memo 12's fallback path |
+| **L9781 datasheet** | Five failed retrievals across two sessions. Needs FAE or distributor access. It is the runner-up to the driver decision and cannot be confirmed without it |
+
+### At the machine
+
+**U16 is now the one that gates most** — whether the alternator's rectifier is suppressed
+decides which ISO 7637-2 pulse applies and therefore whether `load_dump`'s failure is
+fixed by a part number or a different circuit. Then U2, U8, U14, U5.
+
+### The pattern worth carrying forward
+
+Across 19 September, **four wrong numbers were found in prose — comments, memos, the
+specification — and none in a check.** A factor of 1000, a factor of 6, a factor of 2,
+and a stale 0.19 V that should have been 0.308 V. Every one of them became or nearly
+became a requirement, and every one was caught by something executing the claim rather
+than reading it.
+
+Two circuits have now been specified in a way that would have destroyed an MCU pin. The
+first was caught by a simulation block. The second — the cam input — survived precisely
+because no block existed for it.
