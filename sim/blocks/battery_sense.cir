@@ -78,3 +78,28 @@ wrdata battery_sense.dat v(old) v(new)
 * -40..125 C range, so it is dominated by the tolerance case above,
 * not an independent corner worth its own run.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* Two same-family resistors in a divider are close to the textbook
+* immune case -- a matched TC cancels in the ratio -- and this block
+* already reasoned its way to that conclusion above (100 ppm/C
+* dominated by the 1% tolerance corner). Made explicit and quantified
+* rather than left as an assertion: worst case is the two resistors
+* drifting in OPPOSITE directions (R3 low, R4 high), same sense as
+* the tolerance corner but from a temperature coefficient instead of
+* a bin. At 100 ppm/C (INFERRED, standard metal-film) over the full
+* -40..125 C span (165 C), that is +/-1.65% per resistor -- worse
+* than the +/-1% tolerance corner already run:
+*
+*     R3=118.02k, R4=10.165k (worst-case opposite-direction TC drift)
+*     new.max() at 40 V = 3.172 V, headroom 0.128 V
+*
+* Thinner than the tolerance corner's 0.174 V, as expected (1.65% >
+* 1%), but still positive -- does not flip the check. Two INFERRED
+* assumptions are stacked here (100 ppm/C, and that the two resistors
+* track OPPOSITELY rather than together, which a same-reel/same-batch
+* pair would not do) so this is a conservative bound, not a measured
+* result -- but even the conservative bound clears the rail.
+* ------------------------------------------------------------

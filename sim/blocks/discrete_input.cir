@@ -109,3 +109,32 @@ wrdata discrete_input_tran.dat v(ntr) v(swtr)
 * about 0.2-0.3 V, an order of magnitude less than the pre-zener
 * divider would have moved it against a 6-40 V battery swing.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* Closes the "temperature" half of the NOT MODELLED bullet above.
+* Unlike the TVS parts elsewhere in this pass, a low-voltage
+* (<~5 V) zener operates in the true Zener-tunnelling regime, not
+* avalanche, which gives it a NEGATIVE breakdown tempco -- BV falls
+* as temperature rises, opposite sign from the TVS/avalanche parts.
+* INFERRED at -2 mV/C (class-typical magnitude for a 3.0 V low-power
+* zener; no specific 1N47xx-family part pulled from a datasheet this
+* session). Over -40/+125 C that is BV=3.13 V cold, 2.80 V hot,
+* re-run on the full R5a/R6a/D1a network in a scratch copy, not this
+* file (same topology and method as the BV tolerance corners above):
+*
+*             BV=2.80 (hot)   BV=3.0 (27 C)   BV=3.13 (cold)
+*   at 6 V       2.669 V         2.863 V         2.988 V
+*   at 40 V      2.755 V         2.954 V         3.084 V
+*
+* What flips: nothing, at either corner. Logic-high floor (>=2.31 V)
+* keeps 0.36 V margin even at the hot corner where BV is lowest;
+* abs-max ceiling (<=3.6 V) keeps 0.52 V even at the cold corner
+* where BV is highest. Both corners stay INSIDE the +/-5% part-
+* tolerance corners already run above (2.718-3.104 V) -- the
+* INFERRED -2 mV/C tempco used here is a smaller swing over the full
+* temperature range than a single part's binning tolerance, so this
+* does not add a new risk beyond what the TOLERANCE section already
+* cleared with wide margin.
+* ------------------------------------------------------------

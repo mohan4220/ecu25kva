@@ -385,6 +385,118 @@ def check_load_dump():
     return c
 
 
+def check_negative_pulses():
+    c = Checks("negative_pulses -- ISO 7637-2 pulses 1 & 3a, negative excursions "
+               "into the battery input")
+    d = sim("negative_pulses", {
+        "negative_pulses_p1.dat": ["time", "bat1", "src1", "iamm1", "vbuck_on1",
+                                    "vbuck_off1"],
+        "negative_pulses_p3a.dat": ["time", "bat3a", "src3a", "iamm3a",
+                                     "vbuck_on3a", "vbuck_off3a"],
+    })
+    p1, p3a = d["negative_pulses_p1.dat"], d["negative_pulses_p3a.dat"]
+    t1, bat1, src1, iamm1 = p1["time"], p1["bat1"], p1["src1"], p1["iamm1"]
+    vbon1, vboff1 = p1["vbuck_on1"], p1["vbuck_off1"]
+    t3, bat3a, src3a, iamm3a = p3a["time"], p3a["bat3a"], p3a["src3a"], p3a["iamm3a"]
+    vbon3a, vboff3a = p3a["vbuck_on3a"], p3a["vbuck_off3a"]
+
+    LM5164_VIN_MIN = -0.3  # TI LM5164 datasheet, Absolute Maximum Ratings, VIN
+    # to GND: MIN -0.3 V, MAX 100 V -- fetched and text-extracted directly for
+    # this block, not carried over unverified. The positive (100 V) rating is
+    # already checked elsewhere (transient_clamp/load_dump); this is the first
+    # block to need the negative one, and it is a completely different number.
+
+    c.that("pulse 1 actually applied (source peak)", float(src1.min()), -136.5,
+           tol=None, ok=float(src1.min()) < -130, unit="V")
+    c.that("pulse 3a actually applied (source peak)", float(src3a.min()), -206.5,
+           tol=None, ok=float(src3a.min()) < -195, unit="V")
+
+    # ---- Q1: what the buck's VIN pin actually sees ----
+    # bat1/bat3a and vbuck_on1/on3a are regression pins (the TVS's nonlinear
+    # clamping plus C1's own RC dynamics make these numbers impractical to
+    # derive by hand, same reason load_dump's TVS figures are pinned rather
+    # than formula-checked) -- the FALSIFIABLE claim is the comparison against
+    # LM5164_VIN_MIN two lines below each.
+    vbon1_min = float(vbon1.min())
+    c.that("TVS clamp, pulse 1 (bat1, FET assumed on)", float(bat1.min()), -40.68,
+           tol=1.0, unit="V")
+    c.that("buck VIN pin, pulse 1 (vbuck_on1)", vbon1_min, -40.67, tol=1.0, unit="V")
+    c.that("  ... vs LM5164's OWN -0.3 V negative abs max (sourced, not INFERRED)",
+           vbon1_min, LM5164_VIN_MIN, tol=None, ok=vbon1_min >= LM5164_VIN_MIN,
+           unit="V")
+    c.that("  ... margin past that rating", vbon1_min / LM5164_VIN_MIN, 135.0,
+           tol=20.0, unit="x")
+
+    vbon3a_min = float(vbon3a.min())
+    c.that("TVS clamp, pulse 3a (bat3a, FET assumed on, nominal C1)",
+           float(bat3a.min()), -27.78, tol=1.5, unit="V")
+    c.that("buck VIN pin, pulse 3a (vbuck_on3a)", vbon3a_min, -27.77, tol=1.5,
+           unit="V")
+    c.that("  ... vs LM5164's OWN -0.3 V negative abs max", vbon3a_min,
+           LM5164_VIN_MIN, tol=None, ok=vbon3a_min >= LM5164_VIN_MIN, unit="V")
+    c.that("  ... margin past that rating", vbon3a_min / LM5164_VIN_MIN, 93.0,
+           tol=15.0, unit="x")
+
+    # ---- Q2: does the reverse-battery stage help or hurt ----
+    # vbuck_off reproduces reverse_battery.cir's own optimistic, no-turn-off-
+    # delay switch model -- comparison only, per that file's own RESULT NOTE
+    # ("will always look perfect in reverse"), NOT a claim this stage protects
+    # the buck. No controller part is chosen, so no turn-off delay exists to
+    # check pulse 3a's 0.1 ms width against -- the FET-on branch above is the
+    # one this block trusts.
+    c.that("  ... comparison only: IF the FET had already opened (idealized, "
+           "reverse_battery.cir's own optimistic model, not verified against "
+           "any real turn-off delay)", abs(float(vboff1.min())), 0.0, tol=0.01,
+           unit="V")
+    c.that("  ... same comparison, pulse 3a", abs(float(vboff3a.min())), 0.0,
+           tol=0.01, unit="V")
+    c.that("  ... so the reverse-battery stage helps only if it reacts in time, "
+           "and nothing sources that time",
+           "FET-on branch tracks the bare TVS clamp to within its 8 mOhm "
+           "drop for both pulses -- reverse_battery.cir's own turn-off delay "
+           "is undocumented, not zero", None, ok=True)
+
+    # ---- recovery: divider baseline, not bare 13.5 V (see RESULT NOTE) ----
+    settled1 = bat1[t1 > 3.2e-3]
+    c.that("bat1 recovers to its own Rsrc1/Rload divider baseline (11.25 V, "
+           "not 13.5 V)", float(settled1.mean()), 11.25, tol=0.05, unit="V")
+    pre_vals = [float(bat3a[(t3 > cc - 1e-3) & (t3 < cc - 0.5e-3)].mean())
+                for cc in (0.095, 0.185, 0.275, 0.365)]
+    c.that("bat3a recovers to its own divider baseline (6.75 V) between every "
+           "burst pulse", float(np.mean(pre_vals)), 6.75, tol=0.02, unit="V")
+
+    # ---- Q4: pulse 3a is a burst -- does anything accumulate ----
+    centers = [0.005, 0.095, 0.185, 0.275, 0.365]
+    peaks = [float(bat3a[(t3 > cc - 0.2e-3) & (t3 < cc + 0.2e-3)].min())
+             for cc in centers]
+    spread = max(peaks) - min(peaks)
+    c.that("burst: peak-to-peak spread across all 5 repeats (accumulation "
+           "would show up here)", spread, 0.0, tol=0.01, unit="V")
+
+    # ---- TVS energy ----
+    energy1 = float(np.trapezoid(np.abs(bat1 * iamm1), t1))
+    c.that("TVS energy, pulse 1 (single event, Level IV)", energy1, 0.707,
+           tol=0.05, unit="J")
+    # load_dump.cir's own class-typical ~0.5 J single-pulse bound, reused
+    # deliberately (same TVS class, not re-derived) -- NOT the ~3 W continuous
+    # bound, which would compare a 2 ms pulse against a steady-state rating
+    # four decades removed from it and answer a different question. See the
+    # netlist's RESULT NOTE for why this one is a real finding, not a
+    # manufactured one, and TOLERANCE for how it moves with severity level.
+    c.that("  ... vs load_dump's own ~0.5 J single-pulse class bound", energy1,
+           0.5, tol=None, ok=energy1 < 0.5, unit="J")
+
+    energy3a = float(np.trapezoid(np.abs(bat3a * iamm3a), t3))
+    c.that("TVS energy, pulse 3a (nominal C1 -- TVS stays below its own "
+           "breakdown, does not conduct)", energy3a, 0.0, tol=1e-6, unit="J")
+    c.that("  ... so nothing here can accumulate at nominal C1 -- see "
+           "TOLERANCE for the corner where it would",
+           "TVS current is numerically zero throughout the burst at "
+           "C1 = 10 uF; the accumulation question only bites once C1 is "
+           "derated enough for the TVS to conduct at all", None, ok=True)
+    return c
+
+
 def check_injector_boost():
     c = Checks("injector_boost -- why the boost stage exists (pins 03/05)")
     d = sim("injector_boost", {"injector_boost.dat": ["time", "ibat", "ibst"]})["injector_boost.dat"]
@@ -1454,6 +1566,7 @@ CHECKS = {
     "sensor_ratiometric": check_sensor_ratiometric,
     "transient_clamp": check_transient_clamp,
     "load_dump": check_load_dump,
+    "negative_pulses": check_negative_pulses,
     "injector_boost": check_injector_boost,
     "injector_turnoff": check_injector_turnoff,
     "relay_driver": check_relay_driver,

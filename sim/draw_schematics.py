@@ -237,6 +237,66 @@ def load_dump(d):
     return "Load dump -- battery input, ISO 7637-2 pulse 5b"
 
 
+def negative_pulses(d):
+    """Battery input protection -- ISO 7637-2 pulses 1 and 3a, the NEGATIVE
+    excursions. Same physical stage as transient_clamp/load_dump (F1/TVS/C1
+    reused unchanged), but this drawing adds what those two don't need: the
+    downstream reverse-battery FET's uncertain state during a fast negative
+    spike, drawn as two explicit branches rather than one FET symbol, because
+    that is what negative_pulses.cir actually models -- two resistor bookends
+    (Ron if the FET is still conducting, Roff if it has already opened), not
+    a switch with a turn-off delay nobody has sourced. Drawing a single FET
+    symbol here, the way reverse_battery.cir does, would imply this file
+    knows which state it's in. It does not, and says so.
+
+    loc= on the rotated diode lands unpredictably -- same trap transient_clamp
+    and load_dump already work around, worked around the same way here."""
+    d += elm.Dot(open=True).label("from EMI\nfilter", "left")
+    d += elm.Line().right().length(0.5)
+    d += elm.Fuse().right().linestyle("--").label("F1\n5 A")
+    d += (node := elm.Dot())
+
+    d += elm.Line().down().at(node.center).length(0.4)
+    d += (tvs := elm.Dot())
+    d += elm.DiodeShockley().down()
+    d += elm.Ground()
+    d += elm.Label().at((tvs.center[0] - 2.7, tvs.center[1] - 1.5)).label(
+        "D1  TVS\nSMBJ33CA\n(same TVSBI subckt,\ncopied from\ntransient_clamp.cir)")
+
+    d += elm.Line().right().at(tvs.center).length(2.3)
+    d += (c1node := elm.Dot())
+    d += elm.Capacitor().down().label("C1\n10u")
+    d += elm.Ground()
+
+    # Two bookend branches off c1node -- not a single FET, see the
+    # docstring. Routed well clear of C1's own branch (past it, not
+    # through it -- an earlier version put the split BEFORE c1node and
+    # the Rfet_off branch's label landed on top of C1's) and vertically
+    # apart so neither label collides with the other, explicit
+    # coordinates throughout per this file's own trap list (loc= on
+    # rotated elements, direction inheritance).
+    d += elm.Line().right().at(c1node.center).length(1.0)
+    d += (split := elm.Dot())
+
+    d += elm.Line().up().at(split.center).length(1.0)
+    d += elm.Resistor().right().label("Rfet_on\n8 mR", loc="top")
+    d += elm.Line().right().length(0.6)
+    d += elm.Dot(open=True).label("buck VIN,\nIF FET STAYS ON", "right")
+
+    d += elm.Line().down().at(split.center).length(1.0)
+    d += elm.Resistor().right().label("Rfet_off\n~1G (idealized)", loc="bottom")
+    d += elm.Line().right().length(0.6)
+    d += elm.Dot(open=True).label("buck VIN,\nIF FET ALREADY OPEN", "right")
+
+    d += elm.Label().at((1.0, -5.0)).label(
+        "pulse 1: -150 V / 10R / 2 ms -- pulse 3a: -220 V / 50R / 0.1 ms x5\n"
+        "FET-on branch: buck sees -40.7 V (pulse 1) / -27.8 V (pulse 3a) --\n"
+        "90-135x past the LM5164's OWN -0.3 V negative abs max (sourced).\n"
+        "FET-off branch is reverse_battery.cir's own optimistic, no-delay\n"
+        "model reproduced, not a verified result -- no turn-off time is sourced.")
+    return "Negative transients -- battery input, ISO 7637-2 pulses 1 / 3a"
+
+
 def injector_boost(d):
     """ECU pins 03/05 high side, 73/07/29 low side. The netlist is a
     turn-on-only step response (ideal source straight onto L/R): neither
@@ -948,6 +1008,7 @@ BLOCKS = {
     "sensor_ratiometric": sensor_ratiometric,
     "transient_clamp": transient_clamp,
     "load_dump": load_dump,
+    "negative_pulses": negative_pulses,
     "injector_boost": injector_boost,
     "injector_turnoff": injector_turnoff,
     "relay_driver": relay_driver,

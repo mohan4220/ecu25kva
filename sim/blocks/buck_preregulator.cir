@@ -144,3 +144,47 @@ wrdata buck_prereg.dat v(o1) i(VsL1) v(o2) i(VsL2)
 * prevent. Whoever owns that file next should make this change in
 * both places together.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature (Ron, and the inductor saturation gap)
+* ------------------------------------------------------------
+* Two candidate mechanisms, per the task brief: switch Ron and
+* inductor saturation current. The SW model used for both switches
+* is confirmed NOT to respond to `option temp=` at all (checked
+* directly: identical current at -40 C and 125 C for a test SW
+* device) -- ngspice's behavioural switch has no temperature
+* coefficient, so Ron has to be varied explicitly, same as the L
+* tolerance corner above. Re-ran the full open-loop netlist (both
+* line cases, 400 us, tail-settled) at Ron=50 mOhm (2x nominal, the
+* aggressive end of the task brief's own +50/+100% class figure for
+* 25 C->125 C) in a scratch copy, not this file:
+*
+*             Ron=25m (nominal)   Ron=50m (+100%, hot)
+*   vo1 (13.5 V in)   4.9256 V         4.8985 V   (-27 mV)
+*   vo2 (40 V in)     4.9449 V         4.9176 V   (-27 mV)
+*   ripple1 (A)       0.2558           0.2579     (+0.8%)
+*   ripple2 (A)       0.3484           0.3507     (+0.7%)
+*   output ripple mV  13.9 / 21.4      10.5 / 17.2  (improves slightly)
+*
+* What flips: nothing. The DC-accuracy checks have 150 mV of
+* tolerance and Ron's effect is 27 mV even at a doubled, worst-case
+* Ron -- this is an open-loop fixed-duty test, so Ron only adds a
+* static IR drop, it does not touch the ripple mechanism (L, C, duty
+* cycle), which barely moves. A real closed-loop regulator would
+* absorb this drop entirely; it is visible here only because the
+* test is deliberately open loop.
+*
+* Inductor saturation current is the other named mechanism, and it
+* is a real gap this block cannot currently answer: no Isat has been
+* modelled or checked anywhere in this netlist -- there is no part
+* number, so there is no datasheet curve to apply a temperature
+* corner to. Worst-case peak inductor current from the numbers above
+* is Iload + ripple/2 ~= 1 + 0.35/2 ~= 1.18 A at 40 V line, and that
+* figure does not move meaningfully with Ron (see ripple2 above).
+* Ferrite-core Isat commonly falls 20-30% from 25 C to 125 C
+* (INFERRED, class-typical for MnZn power ferrites; powder/iron-alloy
+* cores derate less). Whether 1.18 A clears a real 33 uH part's Isat
+* at 125 C is unanswerable until a part is chosen -- flagged here so
+* it is checked THEN, not assumed clear because ripple “only” looked
+* like 35-45% of load.
+* ------------------------------------------------------------

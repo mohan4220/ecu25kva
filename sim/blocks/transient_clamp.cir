@@ -99,4 +99,34 @@ wrdata transient_clamp.dat v(bat) v(src)
 * would only move if the TVS's own breakdown voltage or dynamic
 * resistance moved (temperature, part-to-part spread), which is
 * F11 in the 2026-09-18 review -- out of scope here, not modelled.
+*
+* TEMPERATURE -- F11, closed. Checked first whether ngspice's `option
+* temp=` moves this model at all: it does, but only ~0.48% over the
+* full -40/+125 C span (via IS/Rs implicit temperature terms), because
+* this TVSJ model has no TBV1/TBV2 set -- BV itself is not tied to
+* temperature in this netlist. That is far smaller than a real TVS's
+* quoted breakdown tempco, so `.temp` alone would understate the
+* effect; BV is varied explicitly instead, same treatment as the C1
+* sweep above, in scratch copies, not this file. Range -40/+125 C
+* (see run_sim.py's report for provenance). Tempco figure is INFERRED
+* -- class-typical for small SMB-package TVS arrays, commonly quoted
+* in the 0.06-0.14%/C range; SMBJ33CA's own datasheet tempco was not
+* pulled in this session. BV(T) = BV25 * (1 + tempco*(T-25)):
+*
+*     27 C  (BV=36.0, nominal)              vmax = 50.50 V
+*     -40 C (0.1%/C, BV=33.66)              vmax = 48.52 V
+*     +125 C (0.1%/C, BV=39.60)             vmax = 53.54 V
+*     +125 C (0.14%/C, aggressive INFERRED, BV=41.04)  vmax = 54.76 V
+*
+* What flips: nothing, at either corner, for the checks that actually
+* constrain this design (60 V-class parts: 5+ V margin even at the
+* aggressive hot corner; LM5164's 100 V rating: >45 V margin). But the
+* netlist's own self-described-as-unsourced 55.0 V trip-wire check
+* (see the comment on that check in run_sim.py) goes from a 4.5 V
+* margin at nominal to a 0.24 V margin at the aggressive hot corner --
+* it does not fail, but it is no longer meaningfully passing either;
+* a tempco at the high end of the class-typical range, or a colder
+* ambient extreme, could flip it. That check was already flagged as
+* not tied to any datasheet or standard; this is one more reason not
+* to read it as a spec. The checks that matter are not close.
 * ------------------------------------------------------------

@@ -80,6 +80,39 @@ BLOCKS = {
          "in the right direction), and the TVS's actual junction thermal transient. The 5 A fuse (dashed "
          "in the schematic, not a netlist element) does not rescue this failing case either: the fault "
          "current is 3.04 A, 0.6x the fuse's rating, and it will not clear in 400 ms."),
+        ("negative_pulses", "Negative transients", "pin 21",
+         "The same TVS and bulk capacitor as transient_clamp/load_dump, against ISO 7637-2's two worst "
+         "NEGATIVE pulses: pulse 1 (−150 V through 10 Ω for 2 ms, a supply disconnection from an inductive "
+         "load) and pulse 3a (−220 V through 50 Ω for 0.1 ms, simulated as a 5-pulse burst at the "
+         "standard's own 90 ms minimum repeat). Both Level IV, both sourced from research memo 06's own "
+         "severity table. This became answerable only once the TVS stopped being modelled as a single "
+         "diode, which conducts forward — and silently wrong — in reverse polarity.",
+         "The buck's own datasheet (LM5164, Absolute Maximum Ratings, fetched directly) rates VIN at "
+         "−0.3 V to 100 V — the negative limit is not a mirror of the positive one. With the reverse-"
+         "battery FET assumed to still be conducting — the honest assumption, since no turn-off delay is "
+         "sourced anywhere and pulse 3a is only 0.1 ms wide — the buck's VIN pin sees −40.7 V on pulse 1 "
+         "and −27.8 V on pulse 3a: 90–135× past that −0.3 V rating, not a thin margin. The reverse-battery "
+         "stage does nothing to prevent this on the timescale these pulses occupy; it would help enormously "
+         "if the controller reacts fast enough, and nothing here — or in reverse_battery.cir — says whether "
+         "it does. Pulse 1's TVS energy (0.707 J single event) exceeds load_dump's own ~0.5 J class bound "
+         "by 41%, a second genuine failure, not a manufactured one — TOLERANCE shows it flips to a PASS at "
+         "Level III instead of IV, the same one-inequality shape load_dump's own Us* finding has. Pulse "
+         "3a's bulk capacitor (C1) does something transient_clamp never needed to consider: its own RC "
+         "(500 µs) is five times the pulse's 90 µs flat top, so C1 arrests the excursion before the TVS "
+         "ever reaches its 36.7 V breakdown at nominal value — the TVS carries zero current, and nothing "
+         "accumulates across the 5-pulse burst. TOLERANCE shows this is fragile: the same MLCC DC-bias "
+         "derating emi_filter.cir already documents (up to 60% loss) is enough to flip the TVS into "
+         "conducting at −38.4 V instead of −27.8 V — still a small energy (4.2 mJ/pulse, far under any "
+         "rating), but a different regime, and the buck sees more negative voltage either way.",
+         "The FET's actual turn-off delay is not modelled anywhere in this repo — reverse_battery.cir's own "
+         "RESULT NOTE says its switch model 'will always look perfect in reverse' because it has none, and "
+         "no controller part is chosen to pull one from a datasheet. Both bookends (FET fully on, FET "
+         "already open) are simulated directly rather than guessing at a number in between. The burst is 5 "
+         "repeats, not the standard's ~40000 (1 hr at 90 ms minimum repeat); nothing here rules out a slow "
+         "thermal drift that would only show up over the full count, and TVS junction temperature is not "
+         "modelled at all, the same gap load_dump's own RESULT NOTE states for its much larger energy "
+         "question. Pulse 1's real ISO waveform is a decaying transient, not the flat top used here — "
+         "pessimistic in the right direction, same simplification load_dump uses for pulse 5b."),
         ("buck_preregulator", "Buck pre-regulator", "—",
          "6–40 V down to 5 V at 400 kHz, run open-loop at fixed duty so the output filter is visible.",
          "400 kHz is chosen against CISPR 25, not for size: the conducted band starts at 150 kHz, so a "

@@ -1,0 +1,335 @@
+* ============================================================
+* Negative transients -- ISO 7637-2 pulses 1 and 3a into the
+* battery input
+* ============================================================
+* transient_clamp.cir (pulse 2a) and load_dump.cir (pulse 5b) are
+* both POSITIVE excursions. Spec sec.6 requires ISO 7637-2 in full,
+* and the standard's two worst NEGATIVE pulses have never been
+* modelled -- not because they were judged less important, but
+* because until 19 Sep 2026 the TVS in this repo was a single
+* diode, which conducts forward at 0.7 V in reverse polarity. A
+* negative-pulse question put to that model would have gotten a
+* confident, silently wrong answer. TVSBI (below, copied verbatim
+* from transient_clamp.cir) is what makes this block answerable at
+* all.
+*
+* Severity parameters -- SOURCED, research memo 06 (docs/research/
+* 06-standards.md), Step 2 table, itself drawn from an ON
+* Semiconductor technical note reproducing the ISO 7637-2:2011(E)
+* severity table (secondary source, standard text itself not
+* accessed -- memo 06's own caveat, carried forward here unchanged):
+*
+*     Pulse 1  (supply disconnection, inductive load switch-off)
+*         amplitude          -150 V   (Level IV, 12 V system)
+*         source impedance    10 ohm
+*         pulse width          2 ms
+*
+*     Pulse 3a (fast transient bursts, switching-type, EFT-like)
+*         amplitude          -220 V   (Level IV, 12 V system)
+*         source impedance    50 ohm
+*         pulse width         0.1 ms
+*         repetition          90 ms min. repeat, 1 hr test time
+*
+* Both Level IV -- the same "worst case for the question this block
+* asks" reasoning transient_clamp used picking Level IV for 2a.
+* Neither figure is INFERRED; both are in memo 06's own table.
+*
+* Pulse shape: a trapezoid (fast ramp, flat top, fast ramp), the
+* same simplification transient_clamp and load_dump already use,
+* not the real waveform's shape (pulse 1 is closer to a decaying
+* exponential in the real standard; pulse 3a's real edges are far
+* faster than what is used here, ~ns, which no downstream node in
+* this circuit could distinguish from the faster-than-Rsrc*C
+* transitions used instead). Amplitude is added to the 13.5 V
+* nominal rail (13.5 - 150 = -136.5 V, 13.5 - 220 = -206.5 V),
+* matching transient_clamp's own additive convention -- the 13.5 V
+* offset is under 10% of either pulse and does not change any
+* conclusion below.
+*
+* Pulse 3a is simulated as a BURST of 5 repeats at the standard's
+* OWN minimum 90 ms spacing (worst case for accumulation, same
+* reasoning as choosing Level IV and the low end of an impedance
+* range elsewhere in this repo) -- not a single pulse. The standard
+* specifies a 1 hr test at this repetition rate (order 40000
+* pulses); 5 is a practical sample, not the full test, and the
+* TOLERANCE section says what that leaves unverified.
+* ============================================================
+
+* ---- SMBJ33CA, modelled as the bidirectional part it actually is ----
+* The "CA" suffix means bidirectional: two avalanche junctions in
+* anti-series inside one package. Until 19 Sep 2026 both this block and
+* load_dump.cir modelled it as a SINGLE diode, which is correct for a
+* positive transient and silently wrong for anything negative -- one
+* junction conducts forward at 0.7 V in reverse polarity, so the model
+* would have answered a reverse-battery or negative-pulse question
+* confidently and wrongly rather than failing visibly.
+*
+* Split so the WHOLE device still matches the datasheet it stood for,
+* not so each junction does: in avalanche one junction breaks down and
+* the other is forward-biased, so BV_total = 36.0 + Vf(0.7) = 36.7 V,
+* and the two Rs of 0.175 sum to the 0.35 ohm the single-diode model
+* used. Positive-direction behaviour is therefore unchanged by
+* construction -- the checks below confirm it rather than assume it.
+.model TVSJ D(Is=1e-12 N=1.6 Rs=0.175 BV=36.0 IBV=1e-3)
+.subckt TVSBI a b
+* common anode at mid: whichever terminal is positive sees one
+* junction in avalanche and one forward, in either direction
+DA mid a TVSJ
+DB mid b TVSJ
+.ends TVSBI
+
+* ============================================================
+* Downstream of the TVS node ("bat1"/"bat3a"), spec sec.4's stage
+* order puts the reverse-battery FET before the buck: EMI filter ->
+* fuse -> TVS -> reverse-battery FET -> buck VIN. reverse_battery
+* .cir's ideal-diode controller is modelled there as a switch with
+* NO turn-off delay, and its own RESULT NOTE says outright that this
+* makes it "always look perfect in reverse" and that the real
+* turn-off time is "a datasheet question, not a SPICE question with
+* this model." No controller part has been chosen, so that delay is
+* not sourced here either -- not estimated, not guessed at.
+*
+* Rather than pick a delay number this file cannot defend, both
+* bookends are modelled directly, from the same TVS-clamped node, as
+* two parallel branches:
+*
+*   _on   FET conducting the whole pulse (Rds(on) = 8 mOhm, the same
+*         figure reverse_battery.cir uses) -- the assumption that has
+*         to be treated as live for anything faster than a turn-off
+*         delay nobody has measured. Pulse 3a's 0.1 ms width is
+*         short enough that "the FET had time to react" cannot be
+*         assumed without that number.
+*   _off  FET open (Roff = 1e9, the same figure reverse_battery.cir
+*         uses) -- the idealized, instant-response case. This is
+*         reverse_battery.cir's own optimistic result reproduced
+*         faithfully, not inherited as fact: it shows what the stage
+*         COULD buy if the controller is fast enough, not what it
+*         does buy.
+*
+* The _on branch's own 50 ohm (Rload_on) IS this circuit's
+* transient_clamp/load_dump-style "everything downstream" load --
+* there is no separate standalone Rload at the TVS node here, unlike
+* those two files. Adding one on top of Rload_on would load the node
+* twice for the same current path and pull the baseline down to a
+* number nothing downstream actually presents (an early version of
+* this file did exactly that, at ~9.6 V instead of the ~11.25 V the
+* corrected single-load circuit settles to -- caught by hand-checking
+* the DC operating point against Rsrc1/(Rsrc1+Rload) before trusting
+* any pulse result, the same discipline load_dump's own RESULT NOTE
+* asks for). The _off branch's 1e9 draws negligible current either
+* way, so it never contends with _on for the same current.
+* ============================================================
+
+* ---- Pulse 1: -150 V (Level IV), 10 ohm, 2 ms flat top ----
+Vp1    src1 0 PWL(0 13.5  0.2m 13.5  0.24m -136.5  2.24m -136.5
++                  2.26m 13.5  3.5m 13.5)
+Rsrc1  src1 bat1 10
+
+Vamm1  bat1 dtvs1 0
+XD1a   0 dtvs1 TVSBI
+C1a    bat1 0 10u
+
+Rfet_on1   bat1 vbuck_on1  8m
+Rload_on1  vbuck_on1 0     50
+Rfet_off1  bat1 vbuck_off1 1e9
+Rload_off1 vbuck_off1 0    50
+
+* ---- Pulse 3a: -220 V (Level IV), 50 ohm, 0.1 ms, 5x at 90 ms ----
+* Each pulse: 5 us rise, 90 us flat top, 5 us fall = 100 us total,
+* matching the table's 0.1 ms pulse width. Starts at t = 5, 95, 185,
+* 275, 365 ms -- 90 ms apart, the standard's own minimum repeat.
+Vp3a   src3a 0 PWL(
++  0       13.5    4.995m  13.5    5.000m  -206.5   5.090m  -206.5
++  5.095m  13.5    94.995m 13.5    95.000m -206.5   95.090m -206.5
++  95.095m 13.5    184.995m 13.5   185.000m -206.5  185.090m -206.5
++  185.095m 13.5   274.995m 13.5   275.000m -206.5  275.090m -206.5
++  275.095m 13.5   364.995m 13.5   365.000m -206.5  365.090m -206.5
++  365.095m 13.5   370m    13.5)
+Rsrc3a src3a bat3a 50
+
+Vamm3a bat3a dtvs3a 0
+XD1b   0 dtvs3a TVSBI
+C1b    bat3a 0 10u
+
+Rfet_on3a   bat3a vbuck_on3a  8m
+Rload_on3a  vbuck_on3a 0      50
+Rfet_off3a  bat3a vbuck_off3a 1e9
+Rload_off3a vbuck_off3a 0     50
+
+.control
+tran 1u 3.5m
+wrdata negative_pulses_p1.dat v(bat1) v(src1) i(Vamm1) v(vbuck_on1) v(vbuck_off1)
+.endc
+
+.control
+tran 2u 370m
+wrdata negative_pulses_p3a.dat v(bat3a) v(src3a) i(Vamm3a) v(vbuck_on3a) v(vbuck_off3a)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE
+* ------------------------------------------------------------
+* Q1 -- what the buck's input pin actually sees:
+*
+* The LM5164 datasheet's own Absolute Maximum Ratings table (TI,
+* fetched and text-extracted directly, not carried over from an
+* earlier memo) gives VIN to GND as MIN -0.3 V, MAX 100 V. The
+* positive and negative ratings are not mirror images of one
+* another -- the negative one is a hundred-plus V tighter.
+*
+* With the FET assumed ON (see the header -- the assumption that has
+* to be treated as live), vbuck_on reaches:
+*
+*     pulse 1   -40.67 V   (bat1 clamps to -40.68 V, FET drop negligible)
+*     pulse 3a  -27.77 V   (bat3a clamps to -27.78 V, at nominal C1 -- see TOLERANCE)
+*
+* Both are 90-135x past the sourced -0.3 V rating. This is not a
+* thin margin the way emi_filter.cir's CISPR gates are -- it is a
+* different regime entirely, the same shape as transient_clamp's own
+* finding that the buck's 100 V positive rating and pulse 2a's ~50 V
+* clamp are comfortably compatible: here the polarity flips the
+* verdict, not just the number. FAILS below, on purpose -- see the
+* engineering-discipline note in sim/README's own spirit: a check
+* that would need weakening to pass is telling you something real.
+*
+* Q2 -- does the reverse-battery FET help or hurt:
+*
+* vbuck_off (the idealized, instant-turn-off branch) sits within
+* microvolts of 0 V for both pulses -- reproducing reverse_battery
+* .cir's own optimistic result faithfully, not endorsing it. That
+* file's RESULT NOTE says its switch model "will always look perfect
+* in reverse" because it has no turn-off delay, and no controller
+* part has been chosen, so no real delay number exists to check
+* pulse 3a's 0.1 ms width against. Until one does, the FET-ON branch
+* is the one this block trusts, and on that branch the reverse-
+* battery stage buys the buck nothing: vbuck_on tracks bat to within
+* the FET's negligible 8 mOhm drop, for both pulses. The honest
+* answer is "it would help enormously if it reacts in time, and
+* nothing here shows whether it does" -- not "it helps."
+*
+* Q3 -- what the bulk capacitance does:
+*
+* Pulse 1's 2 ms flat top is long against Rsrc1*C1 = 10*10u = 100 us
+* -- C1 has time to fully track the clamp, and removing it in a
+* scratch run changes bat1's peak by nothing (-40.6781 V with C1,
+* -40.6781 V without, to 4 decimal places). Same conclusion
+* transient_clamp reached for pulse 2a, different reason: there it
+* was the TVS's own low dynamic resistance dominating a fast pulse;
+* here it is C1 having time to fully settle against a slow one.
+*
+* Pulse 3a is the opposite case, and this is the block's real
+* finding. Rsrc3a*C1 = 50*10u = 500 us is FIVE TIMES the 90 us the
+* pulse is actually at full amplitude, so C1 cannot follow it --
+* the capacitor itself arrests the excursion before the TVS ever
+* sees its own breakdown voltage. At nominal C1 = 10 uF, bat3a peaks
+* at -27.78 V, which is BELOW the TVS's 36.7 V breakdown -- the TVS
+* never conducts at all (i(Vamm3a) is numerically zero throughout).
+* See TOLERANCE: this is not a robust result.
+*
+* Q4 -- pulse 3a is repetitive, does anything accumulate:
+*
+* Simulated as 5 repeats at the standard's own 90 ms minimum
+* spacing (not the full ~40000-pulse, 1 hr test -- see TOLERANCE).
+* At nominal C1, every one of the 5 repeats clamps to exactly the
+* same -27.7793 V (spread across the burst: 0.0000 V to the
+* precision this run resolves), and bat3a returns to exactly its
+* 6.7505 V baseline before each subsequent pulse. Nothing drifts.
+* Given the TVS carries no current at all in this regime, that is
+* almost definitional rather than a finding -- the real accumulation
+* question only bites in the TOLERANCE corner where the TVS does
+* conduct, addressed there.
+*
+* A note on the baseline itself: bat1 and bat3a settle to 11.25 V
+* and 6.75 V, not 13.5 V, even with no pulse applied. That is
+* Rsrc1/Rsrc3a (10 ohm, 50 ohm -- the table's own source-impedance
+* figures) forming a divider against the 50 ohm downstream load,
+* exactly the same simplification transient_clamp (Rsrc=2 ohm,
+* settles to 12.98 V) and load_dump (Rsrc=0.5 ohm, settles to
+* 13.37 V) already use and already check against -- pulses 1 and 3a
+* simply have much higher table source impedances than 2a or 5b, so
+* the same simplification produces a much more visible sag here. Not
+* a new approximation, just a more visible instance of the existing
+* one. An earlier version of this file accidentally doubled the
+* downstream load (a standalone Rload in parallel with the FET
+* branch's own Rload_on) and produced a 9.64 V baseline instead --
+* caught by hand-checking Vsrc*Rload/(Rload+Rsrc) before trusting any
+* pulse result, not by the simulator complaining.
+*
+* TVS energy, pulse 1 (single event, Level IV): 0.707 J, peak
+* instantaneous power 357 W. load_dump.cir's own RESULT NOTE cites a
+* class-typical ~0.5 J single-pulse rating (SMBJ-series, no specific
+* manufacturer part chosen) for a vendor reference pulse on the order
+* of 1 ms -- pulse 1's 2 ms flat top is the same order of magnitude,
+* not the four-decades mismatch a "3 W continuous" comparison would
+* be (deliberately not used here for that reason: a 2 ms pulse
+* dumping 357 W briefly is not a continuous-dissipation question).
+* 0.707 J is 41% over that ~0.5 J bound -- a real finding, not
+* manufactured: the flat-top pulse shape is pessimistic relative to
+* the real standard's decaying pulse (same direction load_dump's own
+* trapezoid-vs-exponential note already flags), so this may overstate
+* the true energy somewhat, but not by 41%'s worth with any
+* confidence -- see TOLERANCE for how much this depends on severity
+* level.
+* ------------------------------------------------------------
+
+* ------------------------------------------------------------
+* TOLERANCE
+* ------------------------------------------------------------
+* Parameter 1 -- C1, the bulk capacitance at the TVS node. This is
+* the parameter Q3 above already flagged as load-bearing for pulse
+* 3a specifically. Re-ran in scratch copies, not this file:
+*
+*     C1 = 10 uF (nominal)   bat3a peak -27.78 V   TVS energy/pulse ~0 J (idle)
+*     C1 =  4 uF (-60%)      bat3a peak -38.42 V   TVS energy/pulse 4.23 mJ
+*     C1 -> 0                bat3a peak -38.42 V   TVS energy/pulse 9.27 mJ
+*
+* -60% is not an arbitrary corner -- it is the same DC-bias-under-
+* rated-voltage MLCC effect emi_filter.cir's own TOLERANCE section
+* documents ("MLCC capacitance under DC bias can lose up to ~60% of
+* rated value... a well-documented X7R/X5R effect") for a capacitor
+* on the same battery rail. Whether THIS C1 is the same dielectric
+* class is not established here -- no part is chosen -- but the
+* mechanism is not exotic, and the corner is enough to flip the TVS
+* from idle to conducting. The energy at either derated point is
+* still two orders of magnitude under the ~0.5 J single-pulse bound,
+* so this does NOT change the TVS survivability verdict for pulse
+* 3a -- but it means "the TVS never engages during pulse 3a" is a
+* nominal-value result, not a robust one, and the buck-exposure
+* number for pulse 3a should be read as -27.8 V to -38.4 V, not a
+* single figure.
+*
+* Pulse 1 does not move: bat1 peaks at -40.6781 V with C1 = 10 uF and
+* -40.6781 V with C1 removed entirely (Rsrc1*C1 = 100 us against a
+* 2 ms flat top -- C1 fully settles either way). The verdict there
+* does not hinge on this parameter.
+*
+* Parameter 2 -- severity level. Level IV (the level memo 06's table
+* marks worst-case, and the level transient_clamp/load_dump both
+* picked for the same reason) is used throughout above. Re-ran pulse
+* 1 at Level III (-112 V, one column left in memo 06's table) in a
+* scratch copy:
+*
+*     Level IV (-150 V, chosen)   bat1 -40.68 V   TVS energy 0.707 J   FAILS 0.5 J bound
+*     Level III (-112 V)          bat1 -39.36 V   TVS energy 0.396 J   PASSES 0.5 J bound
+*
+* Same shape as load_dump's own Us*-vs-breakdown finding: the pulse-1
+* energy verdict is not "an SMBJ33CA cannot survive pulse 1," it is
+* "at Level IV specifically, it cannot" -- and memo 06 does not state
+* which level applies to this installation, only that IV is the
+* standard's own worst case for a 12 V system. The buck-exposure
+* finding (Q1) does NOT hinge on this: -39.36 V is still ~130x past
+* the -0.3 V rating, Level III or IV.
+*
+* What this section does not cover: the FET-on-vs-off question (Q2)
+* is not swept because it is not a continuous parameter -- both ends
+* are already modelled directly in the netlist, not estimated. And
+* the burst is 5 repeats, not the standard's ~40000 (1 hr at 90 ms
+* min. repeat); nothing here rules out a slow thermal drift that
+* would only show up over the full test count, and this block does
+* not model TVS junction temperature at all (same limitation
+* load_dump's own RESULT NOTE states for its own, much larger,
+* single-pulse energy question).
+* ------------------------------------------------------------
+* ------------------------------------------------------------

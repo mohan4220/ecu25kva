@@ -169,3 +169,54 @@ wrdata mcu_pdn.dat vm(n) vm(m)
 * -- at 150 uF, Lldo would have to reach about 1 uH to threaten the
 * target, which is far outside this class of part.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature (Rb, the bulk capacitor's ESR)
+* ------------------------------------------------------------
+* This is a pure AC network -- no diode or BJT junctions -- so
+* `option temp=` has nothing to move. The mechanism the task brief
+* asked to check here is real anyway: aluminium/tantalum electrolytic
+* ESR rises sharply as the part gets cold, and Rb (the bulk cap's
+* ESR) is exactly the parameter the tolerance note above just showed
+* this block is sensitive to. Varied explicitly, in scratch copies
+* not this file, same as Lldo's own corner above.
+*
+* Multiplier is INFERRED -- class-typical for standard aluminium
+* electrolytics, no specific part chosen yet (consistent with the
+* rest of this file's Cb/Rb treatment). Vendor cold-ESR-derate curves
+* for this cap class commonly run 2-6x at -40 C vs. 25 C depending on
+* grade; "wide temp"/automotive-grade parts sit at the low end of
+* that, standard parts at the high end.
+*
+*     Rb= 50 mOhm (nominal, 27 C)     peak  60.4 mOhm at 2630 kHz   PASS
+*     Rb=100 mOhm (2x, low end)       peak  99.3 mOhm at  457 kHz   marginal PASS
+*     Rb=120 mOhm (2.4x)              peak 118.9 mOhm at  447 kHz   FAIL
+*     Rb=200 mOhm (4x, mid-range)     peak 196.7 mOhm at  427 kHz   FAIL
+*     Rb=300 mOhm (6x, high end)      peak 292.5 mOhm at  417 kHz   FAIL
+*
+* The flip point is right at 2x -- inside the low end of the INFERRED
+* range, not at some exotic extreme. Note also the direction that
+* matters: this peak is NOT monotonic in Rb (Rb=25 mOhm, half nominal,
+* gives 79.8 mOhm -- WORSE than the 50 mOhm nominal, because the
+* bulk/ceramic anti-resonance is under-damped there). But the physical
+* cold-temperature direction is upward, not downward, so the relevant
+* corner is the FAIL side: cold ESR drift alone, with no other
+* tolerance stacked on it, plausibly exceeds the 100 mOhm target,
+* which is derived (50 mV / 0.5 A) rather than rounded, so this is
+* not a soft failure to wave off.
+*
+* Hot corner: electrolytic ESR falls with rising temperature (the
+* opposite mechanism), so +125 C moves AWAY from this check's failure
+* direction and was not swept further -- the design is not at risk
+* from the hot end of the range for this parameter.
+*
+* What flips: the peak-impedance check plausibly FAILS at -40 C for
+* any ESR cold-derate at or above roughly 2x, which is the low end of
+* a normal electrolytic's cold behaviour, not a stretch. This is the
+* same shape as the Lldo finding this file already fixed once: a
+* margin that depends on treating a cold, real-world parameter as
+* pinned at its 25 C nominal. Not fixed here -- picking a real bulk
+* part with a datasheet cold-ESR curve (and checking it clears
+* 100 mOhm at its OWN worst case, the way the Lldo fix did) is a part
+* selection decision, not a simulation-pass decision.
+* ------------------------------------------------------------

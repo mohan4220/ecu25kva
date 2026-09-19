@@ -202,3 +202,26 @@ wrdata cam_frontend_fault.dat v(nc) i(Vflt)
 * resolution, which nothing in this repo suggests exists), not the
 * 1-vs-3 ambiguity that is actually open.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* D1's fault-clamp network (R1=10k, R2=16k, DZ3V3) is not just the
+* same TOPOLOGY as sensor_ratiometric.cir's fault network -- it is
+* the numerically IDENTICAL network (same nominal clamp voltage,
+* 3.308 V, same fault current, 3.669 mA, confirmed against this
+* file's own check output). sensor_ratiometric.cir's own TEMPERATURE
+* section already ran this exact network at an INFERRED -2 mV/C
+* zener tempco: 3.442 V at the cold corner (BV=3.434), 3.112 V at
+* the hot corner (BV=3.104), against the same 3.6 V abs-max ceiling.
+* That result applies verbatim here rather than needing a second run
+* -- same algebra sensor_ratiometric.cir's own divider-tolerance
+* section already used to justify reuse instead of re-simulation.
+*
+* What flips: nothing. Cold-corner margin shrinks from 0.292 V
+* (nominal) to 0.158 V but stays positive; hot corner gains margin.
+* Normal-operation signal levels (2.769-3.231 V, the rail-tolerance
+* range above) never approach the zener's knee at any corner, so the
+* zener's temperature behaviour only matters for the fault case, and
+* the fault case survives it.
+* ------------------------------------------------------------

@@ -678,3 +678,48 @@ wrdata supervisor_claim4_slow.dat v(mon4s1) v(g4s1) v(mon4s2) v(g4s2) v(mon4s3) 
 * ------------------------------------------------------------
 *
 * ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* This block gates a safety function, so it earns more than a
+* two-line dismissal even where the answer turns out to be "already
+* covered." Two things could move with ambient: the supervisor's own
+* assert threshold (Vt=-3.05, modelling the low end of the 3.05-
+* 3.10 V window), and the RC timing that sets kill-path latency
+* (Rpd/Crss, claims 3 and 6).
+*
+* THE THRESHOLD IS ALREADY A TEMPERATURE-INCLUSIVE NUMBER, sourced,
+* not INFERRED here. docs/research/11-supervisor-and-fail-safe-
+* outputs.md sec.2.1 confirms the TPS3850's electrical table --
+* including its +/-0.8% SENSE threshold accuracy, the figure memo 11
+* built the 3.05-3.10 V window from -- is specified by TI's own
+* datasheet "at 1.6 V <= VDD <= 6.5 V, -40 C to 125 C." That is not
+* a 25 C typ with a separate temp-drift adder to stack on top; it is
+* the full over-temperature accuracy band as one number, covering
+* exactly this design's -40/+125 C range. So Vt=-3.05 V, "the low
+* end of the window, the least margin, the conservative choice"
+* (this file's own words, above), IS the worst-case-temperature
+* corner already -- there is nothing to re-run, because the number
+* this block already uses was chosen to be worst-case across the
+* full range, not typical-case at 27 C with temperature left open.
+* Confirms F11-shaped gaps do not automatically apply to every
+* block: sometimes the sourced spec already did the work.
+*
+* THE RC TIMING IS NOT A JUNCTION EFFECT, so `option temp=` has
+* nothing to move (SWK's Ron is fixed, confirmed elsewhere in this
+* pass that ngspice's SW model ignores temperature entirely). Crss/
+* Ciss is a class figure (1-4 nF, no FET chosen) already swept an
+* order of magnitude in the TOLERANCE section above and in claim 6's
+* own sweep -- an MLCC gate-cap's temperature/DC-bias derate (X7R,
+* commonly -15 to -30% at temperature extremes, INFERRED) is a small
+* fraction of the range already exercised by "no part chosen yet,"
+* and claim 5's margin (1.14 million x against the 1 ms cylinder
+* interval) has so much headroom that no plausible RC shift touches
+* it. Rpd itself (220-4700 ohm) is a fixed resistor with the usual
+* small ppm/C drift -- not the binding parameter either way, per the
+* TOLERANCE section above (Vgs(th) and dV/dt are what move this).
+*
+* What flips: nothing. Not because the mechanism was dismissed, but
+* because the one parameter that could plausibly flip it (the
+* supervisor's own threshold) was already pinned to its sourced,
+* full-temperature-range worst case before this pass started.
+* ------------------------------------------------------------

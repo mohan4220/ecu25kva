@@ -289,3 +289,38 @@ wrdata trip_bounce.dat v(nd) v(vb)
 * nothing here has been re-optimized past the values stated) --
 * not something this file resolves, only quantifies.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* Updates the "NOT re-modelled here" placeholder in the NOT COVERED
+* list above with actual numbers, now that discrete_input.cir's own
+* TEMPERATURE section has run the corner: at an INFERRED -2 mV/C
+* zener tempco (class-typical for a low-voltage, Zener-mechanism
+* device -- BV goes DOWN as temperature rises, the opposite sign
+* from the avalanche-mechanism TVS parts elsewhere in this pass),
+* the identical healthy-state network reads 2.67-2.75 V hot (BV
+* lower) and 2.99-3.08 V cold (BV higher), against nominal 2.86-
+* 2.95 V. That band stays far clear of the tripped band's ceiling
+* (2.068 V at nominal Rt) at either corner -- the tripped/healthy
+* margin (0.795 V nominal) is not the tight one and temperature does
+* not make it so.
+*
+* THE TIGHT MARGIN (0.160 V, wire-fault/tripped boundary, 0.147 V at
+* the +5% Rt tolerance corner) is NOT governed by the zener at all
+* -- it lives entirely in the Rt branch, a plain unclamped resistor
+* divider (confirmed above: zener never reaches its knee there).
+* Same near-immune reasoning as battery_sense.cir's divider applies:
+* an ordinary resistor's ambient tempco (100-200 ppm/C, INFERRED)
+* over the full range is on the order of 1.5-3.3%, which against a
+* 0.310 V nominal reading moves it by single-digit millivolts --
+* nowhere near the 0.147-0.160 V margin. Not run in SPICE, same as
+* the Rt tolerance corner above: it is arithmetic, not a SPICE
+* question.
+*
+* What actually threatens this margin is NOT ambient temperature --
+* it is Rt's unchosen VALUE (this file's own INFERRED figure, no
+* part selected, no EOL-resistor convention to inherit) and harness
+* leakage, both already flagged above. Temperature is not the risk
+* to this block; component selection and harness quality are.
+* ------------------------------------------------------------

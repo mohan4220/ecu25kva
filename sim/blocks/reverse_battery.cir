@@ -125,3 +125,35 @@ wrdata reverse_battery_rev.dat v(sc) v(rd)
 * mind; a FET would have to be an order of magnitude worse than any
 * realistic part to lose that comparison.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* CHOSEN PATH (FET/ideal-diode controller): already covered by the
+* TOLERANCE section above. Ron's +50/+100% class tempco was already
+* run there (16 mOhm at hot, 0.080 V at 5 A, 3.75x inside the 0.3 V
+* spec) -- restating here only to confirm this block does not have a
+* second, unexamined temperature-sensitive parameter on the path
+* that was actually selected. It does not.
+*
+* REJECTED PATH (series Schottky): worth checking anyway, because a
+* Schottky forward drop falling with temperature is one of the named
+* mechanisms this pass was asked to look for, and this is the one
+* block with a Schottky in it. Unlike the TVS models elsewhere in
+* this repo, ngspice's `option temp=` genuinely moves this -- it is
+* forward conduction, not a breakdown parameter with no TBV set.
+* Confirmed directly on the SCH model at 3 A and 5 A:
+*
+*                -40 C     27 C (nominal)   +125 C
+*     Vf at 3 A   0.639 V    0.467 V          0.207 V
+*     Vf at 5 A   0.690 V    ~0.52 V (est.)   0.265 V
+*
+* What flips: the Schottky's OWN comparison against the 0.3 V spec,
+* which this block already reports it losing at 27 C, would actually
+* be WON at +125 C (0.265 V < 0.3 V at the full 5 A worst case) and
+* lost more badly at -40 C (0.690 V, worse than nominal). This does
+* not change anything about the design, because the Schottky path
+* was already rejected in favour of the FET -- it is recorded here
+* for completeness on a named mechanism, not because it moves a
+* verdict this block's conclusion depends on.
+* ------------------------------------------------------------

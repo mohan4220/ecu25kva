@@ -282,3 +282,65 @@ wrdata load_dump.dat v(bat) v(src) i(Vamm)
 * chose." Nothing to fix here; this strengthens the existing
 * conclusion rather than changing it.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature, and why this is the sharpest corner
+* in the whole simulation pass
+* ------------------------------------------------------------
+* This block already established that its verdict hinges on ONE
+* inequality (Us* = 40 V vs. TVS breakdown ~36.7 V) and that a 0.7%
+* change in clamp voltage moved absorbed energy 18%. Temperature
+* moves breakdown voltage directly. This is therefore the single
+* most temperature-sensitive check in the whole pass, and it deserves
+* more care than a two-line note.
+*
+* Same method as transient_clamp.cir's TEMPERATURE section: ngspice's
+* `option temp=` barely moves this TVSJ model (no TBV1 set), so BV is
+* varied explicitly in scratch copies, not this file, using
+* BV(T) = BV25 * (1 + tempco*(T-25)) with tempco INFERRED at
+* 0.1%/C (class-typical for SMB TVS, no SMBJ33CA datasheet tempco
+* pulled this session -- see transient_clamp.cir for the same
+* caveat). Same pulse shape, Ri=0.5 ohm, Us*=40 V, td=400 ms
+* throughout -- only BV changes:
+*
+*     -40 C (BV=33.66, -0.1%/C x 65 C)
+*         v(bat)=37.04 V   ipeak=5.18 A   energy=76.93 J
+*         WORSE than nominal -- energy roughly DOUBLES. Still FAILS,
+*         by more, not less.
+*     27 C  (BV=36.0, nominal, already established)
+*         v(bat)=38.37 V   ipeak=2.48 A   energy=38.17 J   FAILS
+*     +125 C (BV=39.60, +0.1%/C x 100 C)
+*         v(bat)=39.60 V   ipeak=0.00 A   energy=0.00 J
+*         The TVS never turns on. Breakdown (39.6 V equiv., ~40.3 V
+*         total device) has moved ABOVE Us*=40 V, so this corner
+*         would PASS the energy check outright.
+*
+* THIS IS NOT A "THE DESIGN IS FINE AT 125 C" FINDING. It is the
+* opposite: it shows the FAIL/PASS line sits on a knife edge that
+* moves with a tempco figure that is INFERRED, not sourced from any
+* SMBJ33CA datasheet. Swept the tempco itself, holding T=+125 C, to
+* see how much of the class-typical range (0.06-0.14%/C) it takes to
+* cross that edge:
+*
+*     0.06%/C (BV=38.16)   energy=2.90 J   still FAILS the ~0.5 J bound (5.8x over)
+*     0.10%/C (BV=39.60)   energy=0.00 J   PASSES (no conduction)
+*
+* So: across the INFERRED-but-plausible tempco range, +125 C reduces
+* absorbed energy by somewhere between 13x and total elimination,
+* while -40 C roughly doubles it. The cold-corner conclusion is
+* robust (FAILS harder, no tempco assumption needed to see that
+* direction). The hot-corner conclusion is NOT robust -- whether it
+* fails-by-a-lot or doesn't fail at all depends on a number nobody
+* has pulled from a real datasheet yet, for a design that is already
+* known (Us* itself is INFERRED, see the header) to be sitting right
+* on top of this same TVS's breakdown voltage by construction.
+*
+* ESCALATE: do not read the hot corner as evidence this design
+* survives pulse 5b at high ambient. The right conclusion is the
+* same one the rest of this file already reached, now reinforced --
+* raise the TVS standoff above Us* so the part stays off across the
+* WHOLE temperature range, rather than off only when ambient happens
+* to be hot enough that an unsourced tempco pushes breakdown above an
+* unsourced clamp figure. Two unknowns landing on the same side of a
+* knife edge is not a design margin.
+* ------------------------------------------------------------

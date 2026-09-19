@@ -150,3 +150,37 @@ wrdata sensor_ratio_rail.dat v(nd) v(ncorr)
 * already in hand. Neither check is close enough to any standard
 * resistor tolerance to be worth a SPICE corner run.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* R1/R2 in normal operation: same near-immune divider reasoning as
+* battery_sense.cir (matched-family resistor tempco cancels in the
+* ratio, dwarfed by the +/-1% corner already cleared above with wide
+* margin) -- not re-run for the same reason.
+*
+* D1 (the fault-only zener clamp) is the parameter worth an actual
+* corner, since this is the one place in the front-end where a
+* single junction, not a divider, sets the answer. Confirmed
+* ngspice's `option temp=` barely moves this DZ3V3 model on its own
+* (no TBV1 set, same limitation as the TVSJ models elsewhere), so BV
+* is varied explicitly, network C only (the 40 V harness-short fault
+* network), in a scratch copy, not this file. Unlike the TVS/
+* avalanche parts, a low-voltage (<5 V) zener operates in the true
+* Zener regime, which has a NEGATIVE breakdown tempco -- BV falls as
+* temperature rises. INFERRED at -2 mV/C (class-typical magnitude,
+* no specific part datasheet pulled), giving BV=3.434 V cold
+* (-40 C), BV=3.104 V hot (+125 C):
+*
+*            BV=3.104 (hot)   BV=3.3 (27 C, nominal)   BV=3.434 (cold)
+*   node        3.112 V          3.308 V                  3.442 V
+*   ifault      3.689 mA         3.669 mA                 3.656 mA
+*
+* What flips: nothing. Node stays under the 3.6 V abs-max ceiling at
+* both corners -- margin shrinks from 0.292 V nominal to 0.158 V at
+* the cold corner (higher BV pushes the clamp level up) and widens
+* to 0.488 V hot. Fault current barely moves (dominated by R1, not
+* the zener drop) and stays far inside the 5 mA limit throughout.
+* This result is reused verbatim by cam_frontend.cir, which contains
+* the numerically identical fault network.
+* ------------------------------------------------------------

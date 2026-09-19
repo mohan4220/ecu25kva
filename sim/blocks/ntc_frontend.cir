@@ -159,3 +159,39 @@ wrdata ntc_frontend.dat v(nd) v(nc) v(pd)
 * it as "several volts over compliance," not as a number accurate
 * to two decimal places.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature (ambient vs. measurand -- these are
+* two different "temperature"s in this one block)
+* ------------------------------------------------------------
+* This block is unusual on the priority list: temperature is not an
+* error source here, it is the signal. The Vrt sweep (88 ohm to
+* 59 kOhm) already IS a temperature sweep -40/+150 C on the sensed
+* medium (charge-air), and that range is wider than the -40/+125 C
+* ECU-ambient range used everywhere else in this pass. So the
+* question actually worth asking is a different one: does ECU-board
+* AMBIENT temperature (acting on the front-end's own passive parts,
+* not on the sensor) move anything on top of the sensor sweep that
+* is already the whole point of this netlist?
+*
+* The only components in this front-end with any tempco of their own
+* are Rpu (2.2k pull-up) and the 100 uA current source (an idealised
+* SPICE source here, standing in for whatever regulates a real
+* current-source IC's bias -- not simulated, so not correctable).
+* The TOLERANCE section above already re-ran Rpu at +/-1% (part
+* tolerance) and found single-digit-mV shifts against 30-100 mV
+* checks -- not sensitive. A resistor's own -40/+125 C ambient drift
+* is typically 100-200 ppm/C for a decent metal-film part (INFERRED,
+* class-typical), i.e. roughly 1.65-3.3% over the full range -- the
+* SAME ORDER as the +/-1% already dismissed, and the structural
+* argument in the TOLERANCE section (the divider output is bounded
+* by the rail regardless of Rpu's value) applies just as well to a
+* temperature-driven Rpu shift as to a part-tolerance one.
+*
+* So: no, ambient temperature does not move this block's verdict.
+* The mechanism that matters for this front-end -- the NTC's own
+* resistance-temperature curve -- is not a temperature-CORNER
+* question at all, it is the sweep this netlist already runs in
+* full. V5's own tempco (LDO output over ambient) is covered under
+* buck_preregulator.cir and mcu_pdn.cir, not re-litigated here.
+* ------------------------------------------------------------

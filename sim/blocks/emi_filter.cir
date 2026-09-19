@@ -137,3 +137,58 @@ wrdata emi_filter.dat vdb(d) vdb(r)
 * well above 40 V) is worth doing on cost/robustness grounds
 * regardless of what the eventual measured target turns out to be.
 * ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* RESULT NOTE -- temperature
+* ------------------------------------------------------------
+* C1 is X7R (stated in the TOLERANCE section above). "X7R" is not a
+* class description here, it is an EIA/AVX dielectric CODE: X = -55 C
+* low-temp limit, 7 = +125 C high-temp limit, R = +/-15% MAXIMUM
+* capacitance change anywhere across that range, referenced to its
+* 25 C value. That +/-15% is the definition of the part, not an
+* INFERRED figure -- and per the task brief's own framing, X7R loses
+* capacitance at BOTH temperature extremes (a shallow "smile" curve
+* around room temperature), so -15% is a legitimate worst-case bound
+* at EITHER end of this design's -40/+125 C range, even though that
+* range sits inside the wider -55/+125 C the code itself certifies.
+*
+* Re-ran the AC network (ngspice `.temp` has nothing to move here --
+* passive values, not junctions) at C1 = 4.7 uF * 0.85 = 3.995 uF,
+* L1 held at nominal (isolating the temperature mechanism from the
+* DC-bias one already in the TOLERANCE section), in a scratch copy,
+* not this file:
+*
+*     nominal (C1=4.70 uF)          IL@150kHz -41.09 dB   IL@400kHz -51.60 dB
+*     temp only (C1=3.995 uF, -15%) IL@150kHz -39.75 dB   IL@400kHz -50.12 dB
+*
+* THIS FLIPS THE 150 kHz CHECK BY ITSELF. No DC-bias derate, no L1
+* tolerance, no part-to-part spread -- just C1's OWN DEFINED
+* temperature behaviour, the thing "X7R" on the BOM line already
+* promises it will do, is enough on its own to fail the -40 dB gate
+* (by 0.25 dB) and leave the 400 kHz gate with 0.12 dB of margin,
+* effectively none. This is the same finding the TOLERANCE section
+* already reported for DC bias, now shown to not even need DC bias
+* to happen -- the "thinnest margin in this repo" comment at the top
+* of that section was not overstating it.
+*
+* Stacked with the DC-bias corner already in the file (C1 at -60%
+* bias derate AND -15% temperature together, C1=1.60 uF, L1 still at
+* its own -20% tolerance corner):
+*
+*     DC-bias only (existing)          IL@150kHz -33.64 dB   IL@400kHz -42.40 dB
+*     DC-bias + temperature (stacked)  IL@150kHz -32.47 dB   IL@400kHz -40.97 dB
+*
+* Temperature adds a further ~1.2-1.4 dB on top of an already-failing
+* corner -- worse, but not the headline finding; the headline is that
+* temperature ALONE, un-stacked, already flips one gate and guts the
+* other. Same caveat the TOLERANCE section already states applies
+* here too: the -40/-50 dB gates are themselves placeholders pending
+* a LISN measurement, so this is not "the filter fails," it is "this
+* filter's margin against its OWN placeholder target evaporates from
+* ordinary, specified X7R behaviour before any tolerance or bias
+* effect is even considered." A larger-case or higher-voltage-rated
+* C1 (already recommended above for the DC-bias finding) would help
+* here for the same underlying reason -- more dielectric volume per
+* farad generally derates less over both bias and temperature -- but
+* that is a part-selection question, not something changed here.
+* ------------------------------------------------------------

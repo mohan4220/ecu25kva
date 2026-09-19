@@ -113,4 +113,46 @@ wrdata sensor_rail.dat v(raila) v(ab) v(railb) v(bb) i(V5A)
 * owned by a concurrently-edited file, and picking a real part
 * number is an actual design decision this simulation pass should
 * not make unilaterally.
+*
+* TEMPERATURE -- a PTC's resistance is temperature-defined by
+* construction, so this is the one block on the priority list where
+* ambient temperature was expected to move the verdict on its own,
+* before even touching part-to-part spread. ngspice's `.temp` does
+* nothing useful here -- these are plain resistors, not devices with
+* a modelled tempco -- so the corners are hand-computed off the same
+* topology, same as the TOLERANCE section above. Range used:
+* -40/+125 C, see run_sim.py's report for provenance; multipliers are
+* INFERRED from typical radial-leaded/SMD PTC resistance-temperature
+* curves (no part number chosen yet, consistent with the rest of this
+* file), not pulled from a specific datasheet:
+*
+*     -40 C  (~0.8x R25, INFERRED)   Rptc=1.6 ohm
+*         raila=4.699 V  ab=4.625 V  fault current=2.919 A
+*         Both checks still PASS (ab>4.5, ifault<3.0), but the
+*         fault-current headroom drops from 0.635 A at nominal to
+*         0.081 A -- effectively gone.
+*     +125 C
+*         Exceeds the standard ~85 C max-ambient rating most
+*         commercial PTCs are characterised to at all. There is no
+*         defensible resistance figure to extrapolate to without a
+*         specific automotive-rated (125 C) part's own curve -- so
+*         the honest finding at this corner is not a number, it is
+*         that the class of part assumed here (a generic "200 mA
+*         hold" PTC) may not have a 125 C rating in the first place.
+*         That is a part-selection question, not a simulation one.
+*
+* What flips: nothing flips outright from ambient temperature alone
+* at the -40 C end, but it removes essentially all of the margin the
+* TOLERANCE section already found thin. Stacked with that section's
+* own -30% part-to-part corner (cold ambient AND low-tolerance part
+* together: Rptc = 2.0 x 0.8 x 0.7 = 1.12 ohm), fault current is
+* 4.058 A -- a clear FAIL against the 3.0 A ceiling. This is the same
+* finding as the TOLERANCE section, sharpened: a real cold-climate
+* genset (this design's stated environment) will see -40 C ambient
+* routinely, so "PTC spread alone might fail" becomes "PTC spread
+* AND a cold morning will fail" unless a specific part's minimum
+* cold-ambient, minimum-tolerance resistance is checked and found to
+* clear 3.0 A. Not fixed here, for the same reason as above: it is a
+* part-selection decision, not a value to tune until the check
+* passes.
 * ------------------------------------------------------------
