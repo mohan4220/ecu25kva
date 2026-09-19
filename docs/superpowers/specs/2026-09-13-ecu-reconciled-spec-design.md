@@ -664,6 +664,17 @@ Two items deferred to Phase 2: confirming how many ADC channels the 144-pin pack
 actually breaks out (needs the reference manual's pin-mux table, not the datasheet), and
 pad-by-pad verification of the SOT486-2 package drawing before the footprint is locked.
 
+**Pin map done, 19 Sep 2026 — see [`docs/pinmap.md`](../../pinmap.md).** The first of
+the two deferred items above is closed: the Reference Manual's own embedded
+`S32K148_IO_Signal_Description_Input_Multiplexing.xlsx` (not the datasheet) gives 128
+GPIO-capable pins on the 144-pin package, of which this design commits 37, including all
+94-way connector signals with a confirmed identity (spec §4). It also settles §4's
+own deferred fail-safe detail: all six gate pins (88, 73/07/29, 03/05) are confirmed
+high-impedance with no pull at reset, exactly the condition §4's hardware kill-clamp was
+already designed against. One new finding surfaced in the process: pin 46's cam
+front-end, as specified above, would put a 5 V swing on a 3.3 V MCU pin — flagged there,
+not fixed here. Package pad-pitch verification remains open.
+
 ---
 
 ## 6. Power architecture

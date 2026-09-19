@@ -106,6 +106,7 @@ These have no netlist, no schematic and no checks. They are the real gaps.
 | Missing circuit | Pins | Why it is not built |
 |---|---|---|
 | **EGR actuator H-bridge** | 59 / 81 drive, 37 position feedback | Not started. In scope, specified in §4, simply not reached |
+| **Cam sensor front-end** | 46 capture, 45 excitation | **Found 19 Sep by the pin-map work.** Spec §4 specified a pull-up to the 5 V sensor rail straight into a capture pin on a 3.3 V part — over the MCU's absolute maximum. It survived because no block simulated it: there is a `vr_conditioner` for crank and no cam equivalent |
 | **Trip-module sense input** | new — not in the OEM harness | Created by U12 closing badly. The ECU should sense whether the trip module has cut fuel and report it, rather than reading the result as a fuelling anomaly |
 | **Intake throttle driver** | 6-pin connector | **Blocked on U8.** Reported battery-fed, which answers who supplies it, not who commands it. May be out of scope entirely |
 | **Pre/post-heat output** | unknown | **Blocked on U14.** Same distinction — battery-fed is not the same as ECU-switched. The DSE4522 enables both at 50 °C and this design has no heater output |
