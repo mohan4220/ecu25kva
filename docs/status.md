@@ -10,8 +10,8 @@ the specification's own register.
 
 | | Count |
 |---|---|
-| Circuit blocks simulated | **20** |
-| Blocks passing their checks | **19** |
+| Circuit blocks simulated | **22** |
+| Blocks passing their checks | **21** |
 | Blocks failing deliberately | **1** (`load_dump`) |
 | Research memos | **12** |
 | Unknowns closed | **4** |
@@ -51,7 +51,7 @@ the TVS stays off during a normal clamped load dump, rather than a larger part t
 it. **Blocked on U16** — whether the alternator is suppressed at all decides which pulse
 applies.
 
-### 1.2 Sensor front-ends — 5 blocks
+### 1.2 Sensor front-ends — 6 blocks
 
 | Block | What it covers | Status |
 |---|---|---|
@@ -60,6 +60,7 @@ applies.
 | `ntc_frontend` | Pin 79 charge-air temperature, divider vs current source | Passing |
 | `battery_sense` | Pins 04/06, 6–40 V rail into a 3.3 V ADC | Passing |
 | `discrete_input` | Pins 20/24/71, active-high switched battery | Passing |
+| `trip_module_sense` | Trip-module state, supervised three-state loop | Passing |
 
 `ntc_frontend` simulates **both** candidate topologies because **U2** is unresolved. One
 resistance measurement at the machine picks between them; the front-end is designed so
@@ -84,12 +85,13 @@ source regulates the rail from below only. Harmless while current flowed outward
 `injector_turnoff` now pushes energy back in, and a hold-current cutoff would climb the
 rail about 2 V per event with no way down.
 
-### 1.5 Actuators — 2 blocks
+### 1.5 Actuators — 3 blocks
 
 | Block | What it covers | Status |
 |---|---|---|
 | `metering_unit_pwm` | Pin 88, low-side PWM into the fuel metering solenoid | Passing |
 | `relay_driver` | Pins 50/69, low-side FET with flyback | Passing |
+| `egr_hbridge` | Pins 59/81, positional actuator, feedback on 37 | Passing |
 
 ### 1.6 Communications — 1 block
 
@@ -105,9 +107,7 @@ These have no netlist, no schematic and no checks. They are the real gaps.
 
 | Missing circuit | Pins | Why it is not built |
 |---|---|---|
-| **EGR actuator H-bridge** | 59 / 81 drive, 37 position feedback | Not started. In scope, specified in §4, simply not reached |
 | **Cam sensor front-end** | 46 capture, 45 excitation | **Found 19 Sep by the pin-map work.** Spec §4 specified a pull-up to the 5 V sensor rail straight into a capture pin on a 3.3 V part — over the MCU's absolute maximum. It survived because no block simulated it: there is a `vr_conditioner` for crank and no cam equivalent |
-| **Trip-module sense input** | new — not in the OEM harness | Created by U12 closing badly. The ECU should sense whether the trip module has cut fuel and report it, rather than reading the result as a fuelling anomaly |
 | **Intake throttle driver** | 6-pin connector | **Blocked on U8.** Reported battery-fed, which answers who supplies it, not who commands it. May be out of scope entirely |
 | **Pre/post-heat output** | unknown | **Blocked on U14.** Same distinction — battery-fed is not the same as ECU-switched. The DSE4522 enables both at 50 °C and this design has no heater output |
 
@@ -194,7 +194,7 @@ contact-type confirmation, which gates nothing
 |---|---|---|
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
-| **1.5** | **Block-level simulation** | **In progress — 20 blocks, 19 passing** |
+| **1.5** | **Block-level simulation** | **In progress — 22 blocks, 21 passing** |
 | 2 | KiCad hierarchical schematic capture | Not started |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
 | 4 | Firmware skeleton | Not started |

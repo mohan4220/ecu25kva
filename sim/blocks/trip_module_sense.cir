@@ -1,0 +1,291 @@
+* ============================================================
+* Trip-module sense input -- NEW pin, not in the OEM harness
+* ============================================================
+* Spec sec.3 "What this ECU must do about the trip module":
+* U12 closed badly on 18 Sep 2026 -- the fitted DSE4522's fuel
+* relay only signals, it does not remove power, so nothing
+* external to this ECU can stop fuelling without this ECU's
+* cooperation. A standalone overspeed trip module is therefore
+* mandatory again, its contacts in series with the fuel metering
+* unit's own battery feed through fuse 8F1 -- a power path this
+* file does NOT touch. This file is the ECU's SENSE of that
+* module's state: one input telling firmware whether the trip
+* contacts are open or closed, so a trip is reported as a trip
+* rather than read as a fuelling anomaly and compensated for
+* (spec sec.3's own wording).
+*
+* PRECEDENT, AND WHY IT IS NOT ENOUGH HERE. discrete_input.cir
+* conditions switched-battery inputs (pins 20/24/71) with a
+* 47k/68k bias into a 3.0 V zener clamp -- proven, and reused
+* below almost unchanged. But that file's own RESULT NOTE records
+* a limitation, sourced to spec sec.2.4: an open wire on those
+* inputs reads identically to "not asserted", and it is ACCEPTED
+* as undetectable because changing the sense would break harness
+* compatibility with the OEM wiring.
+*
+* THIS INPUT HAS NO OEM HARNESS. There is no compatibility to
+* break -- spec sec.3 says so explicitly ("a new connector
+* position... it does not exist in the OEM harness"). So the
+* constraint that justified accepting the limitation for 20/24/71
+* does not apply here, and the consequence of inheriting it
+* anyway is worse: this input reports a SAFETY DEVICE's state, not
+* a button. An undetectable broken wire on pin 24 (override
+* switch) costs a missed override. An undetectable broken wire
+* HERE reads "not tripped" continuously and PERMANENTLY, including
+* at the exact moment the module actually trips -- which is the
+* one moment the spec exists to catch: "producing a fault the ECU
+* should recognise and report... rather than reading it as a
+* fuelling anomaly." A wire that silently defeats its own
+* diagnostic input the day it is needed is a worse failure than
+* an unbuilt input, because it is invisible until the trip
+* happens. CONCLUSION: this input needs open-wire detection, and
+* nothing about the harness forces accepting the limitation
+* discrete_input.cir accepts. Built below.
+*
+* TOPOLOGY -- a supervised (end-of-line-resistor) loop, not a
+* plain switched-battery contact. The trip module's status is
+* reported through an AUXILIARY contact (separate from the power
+* contact in series with 8F1) -- normally-closed, so it reads
+* "closed" when healthy/not-tripped and opens on a trip. That
+* contact is wired in PARALLEL with Rt, an end-of-line resistor
+* physically located AT OR NEAR THE TRIP MODULE, at the far end of
+* the new harness run -- placement matters: a resistor at the ECU
+* end could not distinguish "wire cut" from "resistor is now the
+* only path", but one at the module end means EVERY break in the
+* run between the module and the ECU removes Rt from the circuit
+* exactly the same way an open contact does not. Three states,
+* three distinguishable ADC bands on the SAME 47k/68k/zener
+* front-end discrete_input.cir already validates:
+*
+*   contact CLOSED  (healthy, not tripped) -- Rt shorted, full
+*     switched battery reaches R5/R6/zener exactly as in
+*     discrete_input.cir: clamped ~2.86-2.95 V, flat across 6-40 V.
+*   contact OPEN    (tripped)              -- Rt (1.2 Mohm) now in
+*     series before R5/R6. This is deliberately NOT clamped: at
+*     1.2M in series with a 115k divider, the zener never reaches
+*     its conduction knee anywhere in 6-40 V (checked below), so
+*     the reading is a plain, PREDICTABLE linear divider that
+*     tracks battery voltage -- 0.31-2.07 V nominal -- clearly
+*     separated from both other states across the whole range.
+*   wire OPEN       (harness fault, either segment)    -- neither
+*     battery nor Rt reaches the divider at all. R6 pulls the node
+*     to ~0 V, same mechanism discrete_input.cir's own "switch
+*     open" state uses, just now a THIRD state instead of the
+*     second.
+*
+* This makes it an ANALOG input, not a digital one -- three bands
+* need more resolution than a single GPIO threshold gives. It must
+* land on an ADC-capable pin, a pin-mux consideration for whoever
+* assigns the physical PTxx map (same class of open item as spec
+* sec.4's pins 88/73/07/29/03/05).
+*
+* WHAT THIS DOES NOT SOLVE. This loop is HIGH IMPEDANCE (the same
+* few-hundred-microamp class discrete_input.cir's divider already
+* runs at, so Rt's effect is visible at all) rather than the
+* low-impedance, milliamp-class loop industrial security/fire
+* panels typically use for supervised contacts. A dedicated
+* low-Z loop is far less sensitive to insulation leakage or
+* connector corrosion mimicking a resistance change; this one
+* reuses the existing high-Z front end on purpose (spec's own
+* "check how sensor_ratiometric.cir/discrete_input.cir conditions
+* a similar signal rather than inventing a new front-end"), and
+* that reuse is not free -- see the TOLERANCE section below for
+* how tight the margin actually is at the low end of the range.
+* ============================================================
+
+.model DZ3V0 D(Is=1e-14 N=1 Rs=5 BV=3.0 IBV=5e-3)
+.model SWC   SW(Ron=0.05 Roff=1e9 Vt=2.5 Vh=0.2)
+
+* ---- network A: healthy / not tripped -- contact closed, shorts
+* Rt, so this reduces exactly to discrete_input.cir's own divider ----
+Vh    h  0  DC 12
+R5h   h  nh 47k
+R6h   nh 0  68k
+D1h   0  nh DZ3V0
+
+* ---- network B: tripped -- contact open, Rt (1.2 Mohm, INFERRED,
+* no trip module part chosen) in series ahead of the same divider ----
+Vt    t   0   DC 12
+Rt    t   mt  1.2meg
+R5t   mt  nt  47k
+R6t   nt  0   68k
+D1t   0   nt  DZ3V0
+
+* ---- network C: wire fault -- neither the contact nor Rt reaches
+* the divider at all (a break anywhere in the harness run looks
+* identical, by construction of Rt's placement at the module end) ----
+R6c  nc 0 68k
+D1c  0  nc DZ3V0
+
+.control
+dc Vh 6 40 0.2
+wrdata trip_healthy.dat v(nh)
+
+dc Vt 6 40 0.2
+wrdata trip_tripped.dat v(nt)
+
+op
+wrdata trip_wirefault.dat v(nc)
+.endc
+
+* ============================================================
+* NETWORK D -- contact bounce during an actual trip event. Same
+* nasty bounce shape discrete_input.cir's Vtr uses (its RESULT
+* NOTE: "a deliberately nasty bounce; real automotive contacts are
+* usually quieter"), values inverted because here HIGH means
+* CLOSED/healthy rather than asserted: starts closed, bounces, ends
+* open/tripped from 4.5 ms. Sshort (across Rt) is closed while the
+* control voltage is high, open while low -- so this network
+* actually inserts and removes Rt dynamically, exercising the same
+* filter cap (C1, 220 nF, reused from discrete_input.cir) that a
+* real bouncing relay contact would drive.
+* ============================================================
+
+Vbounce vb 0 PWL(0 12  0.999m 12  1m 0  1.4m 0  1.5m 12  2.1m 12
++ 2.2m 0  2.6m 0  2.7m 12  3.3m 12  3.4m 0  3.8m 0
++ 3.9m 12  4.4m 12  4.5m 0  20m 0)
+
+Vbat_d  bd  0  DC 12
+Rt_d    bd  md 1.2meg
+Sshort  bd  md vb 0 SWC
+R5d     md  nd 47k
+R6d     nd  0  68k
+C1d     nd  0  220n
+D1d     0   nd DZ3V0
+
+.control
+* 100 ms, not 30 ms: the tripped-path Thevenin resistance seen by
+* C1 (~64.5 kohm, Rt in series with R5 paralleled by R6) is over
+* 2x discrete_input.cir's own 27.8 kohm, so this branch settles on
+* a ~14.2 ms time constant rather than that file's 6.1 ms -- 30 ms
+* is barely 2 tau past the last bounce (4.5 ms) and reads well
+* short of steady state, checked and corrected after a first pass
+* at 30 ms showed the "settled" figure still visibly drifting.
+tran 10u 100m
+wrdata trip_bounce.dat v(nd) v(vb)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE
+* ------------------------------------------------------------
+* Three bands, read off networks A/B/C (see check output for exact
+* simulated figures):
+*
+*     healthy (contact closed)   2.863 - 2.954 V   (flat, same
+*                                                    92 mV spread
+*                                                    discrete_input
+*                                                    .cir's zener
+*                                                    clamp gives)
+*     tripped (Rt in circuit)    0.310 - 2.068 V    (linear, tracks
+*                                                     Vbat -- NOT
+*                                                     clamped, see
+*                                                     below)
+*     wire fault                 ~0 V
+*
+* Decision thresholds this design assumes: below 0.15 V = wire
+* fault, 0.15-2.5 V = tripped, above 2.5 V = not tripped. Margins
+* at nominal Rt: wire-fault/tripped boundary 0.310-0.15 = 0.160 V;
+* tripped/healthy boundary 2.863-2.068 = 0.795 V. The first of
+* those is the tight one -- see TOLERANCE.
+*
+* WHY THE TRIPPED BAND IS NOT FLAT. Rt=1.2 Mohm in series with the
+* 115k divider is large enough that the zener NEVER reaches its
+* conduction knee anywhere in 6-40 V -- checked directly: 2.068 V
+* at 40 V is still well under the 3.0 V knee, so this branch is a
+* plain resistive divider (node = Vbat*68k/(1.2M+115k)), not the
+* flattened clamp discrete_input.cir's healthy state gets. That is
+* deliberate, not a compromise: firmware only needs to know WHICH
+* of three non-overlapping bands the ADC reading falls in, not a
+* flat threshold, so an unclamped-but-bounded, monotonic band is
+* sufficient and requires no new topology beyond adding Rt.
+*
+* CONTACT BOUNCE (network D) -- a genuine surprise checked rather
+* than assumed: during the 0-4.5 ms bounce itself, the reading
+* never leaves the HEALTHY band at all (stays 2.80-2.91 V). C1's
+* time constant on this branch (~14.2 ms, see the .control block's
+* own comment) is long next to the individual bounce pulses
+* (0.1-0.6 ms), so C1 filters the chatter out almost entirely --
+* the reading only starts moving toward the tripped band once the
+* contact stays open CONTINUOUSLY past 4.5 ms, and settles inside
+* the tripped band by t=100 ms. It never approaches the wire-fault
+* band (~0 V) at any point in the run -- see check output. The
+* two-state toggle a bouncing NC contact can produce (network A's
+* topology vs network B's) structurally cannot reach network C's
+* topology (nothing reaching the divider at all), which only a
+* real harness break can -- so this result did not need to be
+* checked to be true in that specific sense, but HOW CLOSE the
+* bounce gets to either boundary was not obvious before simulating
+* it, and the answer (not close at all) is worth having measured.
+* ------------------------------------------------------------
+*
+* WHAT THIS MODEL DOES NOT COVER
+* ------------------------------------------------------------
+* - No trip module is chosen (memo 02's two costed candidates, GAC
+*   SSW675 / Murphy HD9063, per docs/status.md sec.6, survive
+*   costing-wise but neither's aux-contact rating or bounce
+*   behaviour has been pulled). Rt=1.2 Mohm is this file's own
+*   INFERRED choice, not a datasheet or standard figure -- there is
+*   no EOL-resistor convention to inherit because this loop is a
+*   new addition, not a copy of an existing safety-loop design.
+* - This is a HIGH-IMPEDANCE loop (per the header) -- insulation
+*   leakage, connector corrosion, or moisture in the new harness
+*   run could shift the effective loop resistance enough to move a
+*   reading across a band boundary, especially near the tight
+*   wire-fault/tripped margin the TOLERANCE section below
+*   quantifies. A low-impedance loop would be far more robust
+*   against this and was not built, to stay inside the existing
+*   front-end's component class per the task's own instruction.
+* - Zener tolerance and temperature: NOT re-modelled here --
+*   discrete_input.cir's own tolerance section already establishes
+*   this exact zener/divider's behaviour under a +/-5% BV corner
+*   (92 mV nominal spread, ~0.2-0.3 V movement at the corners), and
+*   it applies unchanged to this file's healthy-state network,
+*   which is electrically identical.
+* - Whether the module's own aux contact is dry (needs a wetting
+*   current this high-Z loop may not supply) or rated for this
+*   duty at all is unknown -- no part chosen.
+* - ESD at the new connector, and ADC sampling-time-vs-source-
+*   impedance for the tripped state's higher (~64k) Thevenin
+*   resistance, are not modelled, the same class of gap
+*   sensor_ratiometric.cir's own RESULT NOTE already carries.
+* ------------------------------------------------------------
+* TOLERANCE
+* ------------------------------------------------------------
+* Network B is a plain resistor divider once Rt is in circuit (no
+* zener conduction anywhere in range, confirmed above) -- like
+* battery_sense.cir's and sensor_ratiometric.cir's own dividers,
+* its corner behaviour follows directly from algebra and was not
+* re-run in SPICE, per the precedent those files' own TOLERANCE
+* sections set for exactly this situation.
+*
+* node = Vbat * 68k / (Rt + 115k). At Rt +/-5% (1.14M / 1.26M):
+*
+*     Rt = 1.14 Mohm (-5%)  at 6V: 0.325 V   at 40V: 2.167 V
+*     Rt = 1.20 Mohm (this file)   0.310 V           2.068 V
+*     Rt = 1.26 Mohm (+5%)  at 6V: 0.297 V   at 40V: 1.978 V
+*
+* THE VERDICT HINGES ON THE LOW-BATTERY / HIGH-Rt CORNER. At the
+* 6 V cranking dip with Rt at +5%, the tripped band's floor is
+* 0.297 V against the 0.15 V wire-fault threshold -- a 0.147 V
+* margin, the tightest number in this design and about half the
+* nominal-case margin (0.160 V). It still clears, but by less than
+* half of what the nominal case suggests, and this is BEFORE
+* stacking any harness leakage on top of it (see "what this model
+* does not cover" above). At the other end, the tripped band's
+* ceiling at Rt -5%, Vbat 40V is 2.167 V against the healthy
+* floor's 2.863 V -- a 0.696 V margin, not the tight side.
+*
+* This is the opposite sensitivity direction from
+* sensor_ratiometric.cir's divider tolerance (where +/-1% moved the
+* clamp-clearance margin by a fraction of a percent of a much
+* larger absolute margin): here a plain 5% resistor tolerance eats
+* nearly half of the tightest margin in the design, because that
+* margin was never large to begin with. If Rt's tolerance, or the
+* real harness's leakage, turns out worse than 5%, the fix is
+* either a tighter-tolerance Rt or moving the wire-fault threshold
+* down (at the cost of the same margin on the other side, since
+* nothing here has been re-optimized past the values stated) --
+* not something this file resolves, only quantifies.
+* ------------------------------------------------------------

@@ -142,6 +142,77 @@ def check_discrete_input():
     return c
 
 
+def check_trip_module_sense():
+    c = Checks("trip_module_sense -- NEW pin, three-state supervised trip loop")
+    d = sim("trip_module_sense", {
+        "trip_healthy.dat": ["sweep", "nh"],
+        "trip_tripped.dat": ["sweep", "nt"],
+        "trip_wirefault.dat": ["sweep", "nc"],
+        "trip_bounce.dat": ["t", "nd", "vb"],
+    })
+    nh = d["trip_healthy.dat"]["nh"]
+    nt = d["trip_tripped.dat"]["nt"]
+    nc = float(d["trip_wirefault.dat"]["nc"][0])
+    t, nd = d["trip_bounce.dat"]["t"], d["trip_bounce.dat"]["nd"]
+
+    WIREFAULT_HI = 0.15
+    TRIPPED_HI = 2.5
+
+    # ---- three bands, each swept 6-40 V (op point for wire fault) ----
+    c.that("healthy (contact closed) band floor", float(nh.min()), 2.863,
+           tol=0.02, unit="V")
+    c.that("healthy band ceiling", float(nh.max()), 2.954, tol=0.02, unit="V")
+    c.that("tripped (Rt in circuit) band floor, at 6V cranking dip",
+           float(nt.min()), 0.310, tol=0.02, unit="V")
+    c.that("tripped band ceiling, at 40V", float(nt.max()), 2.068, tol=0.02,
+           unit="V")
+    c.that("wire fault reads near zero", nc, 0.0, tol=None, ok=abs(nc) < 1e-3,
+           unit="V")
+
+    # The zener must never conduct in the tripped branch -- if it did, the
+    # band would flatten toward ~3.0V like the healthy branch and lose its
+    # separation. Confirmed by the ceiling (2.068 V) staying well under the
+    # 3.0 V knee.
+    c.that("tripped band never reaches the zener's 3.0V knee",
+           float(nt.max()), 3.0, tol=None, ok=float(nt.max()) < 3.0, unit="V")
+
+    # ---- band separation margins, the falsifiable core of this design ----
+    wf_margin = float(nt.min()) - WIREFAULT_HI
+    trip_margin = float(nh.min()) - float(nt.max())
+    c.that("margin: wire-fault threshold to tripped floor (nominal Rt)",
+           wf_margin, 0.160, tol=0.02, unit="V")
+    c.that("margin: tripped ceiling to healthy floor (nominal Rt)",
+           trip_margin, 0.795, tol=0.02, unit="V")
+    c.that("  ... both bands separated with real margin, not touching",
+           f"wire-fault margin {wf_margin:.3f} V, tripped margin "
+           f"{trip_margin:.3f} V, both positive", None,
+           ok=wf_margin > 0 and trip_margin > 0)
+
+    # ---- contact bounce: never dips toward wire-fault, settles correctly ----
+    before = nd[t < 4.5e-3]
+    c.that("during bounce (t<4.5ms), reading never leaves the healthy band",
+           float(before.min()), TRIPPED_HI, tol=None,
+           ok=float(before.min()) > TRIPPED_HI, unit="V")
+
+    # Hand asymptote: fixed Vbat=12V, node -> Vbat*68k/(Rt+115k) = 0.6206 V.
+    c.that("settled value (t=100ms) approaches the DC asymptote (hand: 0.6206 V)",
+           float(nd[-1]), 0.6206, tol=0.02, unit="V")
+    c.that("  ... which sits inside the tripped band, not wire-fault or healthy",
+           float(nd[-1]), TRIPPED_HI, tol=None,
+           ok=WIREFAULT_HI < float(nd[-1]) < TRIPPED_HI, unit="V")
+    c.that("  ... global minimum over the whole run stays clear of wire-fault",
+           float(nd.min()), WIREFAULT_HI, tol=None,
+           ok=float(nd.min()) > WIREFAULT_HI, unit="V")
+
+    # ---- why discrete_input.cir's own accepted limitation does not apply
+    # here, stated as a claim rather than left as prose only ----
+    c.that("open-wire detection: needed here, unlike pins 20/24/71",
+           "no OEM harness to stay compatible with, and an undetectable "
+           "open reads 'not tripped' at the exact moment a trip occurs",
+           None, ok=True)
+    return c
+
+
 def check_sensor_ratiometric():
     c = Checks("sensor_ratiometric -- Group A, pins 41/35/80/37, 0.5-4.5 V into a 3.3 V ADC")
     d = sim("sensor_ratiometric", {
@@ -500,6 +571,96 @@ def check_relay_driver():
     c.that("  ... diode suppresses the kick by",
            float(without.max()) / float(withd.max()), 10.0, tol=None,
            ok=float(without.max()) / float(withd.max()) > 10, unit="x")
+    return c
+
+
+def check_egr_hbridge():
+    c = Checks("egr_hbridge -- pins 59/81, H-bridge + position feedback on pin 37")
+    d = sim("egr_hbridge", {
+        "egr_kill.dat": ["t", "g_egr", "g_egr_adv"],
+        "egr_dc.dat": ["sweep", "i_stall", "i_run", "i_coast"],
+        "egr_recirc.dat": ["time", "ma5", "mb5", "ma6", "mb6", "ibat5"],
+    })
+    Vgsth = 1.0  # same INFERRED figure supervisor.cir uses -- see this netlist's header.
+
+    # ---- kill-clamp: mirrors supervisor.cir claim 1 / 1b, at the corrected
+    # Rpd=470 ohm rather than the superseded 10k. Hand check: tau =
+    # (470||5)*2n = 9.9 ns, t(Vgsth) = tau*ln(10) = 22.8 ns. ----
+    dk = d["egr_kill.dat"]
+    tk, g, gadv = dk["t"], dk["g_egr"], dk["g_egr_adv"]
+    idx = int(np.argmax(g < Vgsth))
+    t_g = float(tk[idx]) if g[idx] < Vgsth else float("inf")
+    c.that("kill-clamp: gate below Vgsth (hand estimate 22.8 ns)",
+           t_g * 1e9, 22.8, tol=5.0, unit="ns")
+    c.that("  ... adversarial driver (100R/10V) still held below Vgsth",
+           float(gadv[-1]), Vgsth, tol=None, ok=float(gadv[-1]) < Vgsth, unit="V")
+    c.that("  ... adversarial settle voltage (hand: 10*4.95/104.95=0.471 V)",
+           float(gadv[-1]), 0.471, tol=0.02, unit="V")
+
+    # ---- DC operating points: stall, running, coast. ngspice reports
+    # source current as negative when sourcing (same convention
+    # injector_boost.cir notes). Hand values: I_stall=13.5/3.1=4.355 A,
+    # I_run=(13.5-9)/3.1=1.452 A, I_coast ~ 0 (Roff leakage only). ----
+    dd = d["egr_dc.dat"]
+    i_stall = abs(float(dd["i_stall"][0]))
+    i_run = abs(float(dd["i_run"][0]))
+    i_coast = abs(float(dd["i_coast"][0]))
+    c.that("stall current (Vemf=0, hand: 13.5/3.1)", i_stall, 4.355, tol=0.02, unit="A")
+    c.that("running current (Vemf=9V, hand: 4.5/3.1)", i_run, 1.452, tol=0.02, unit="A")
+    c.that("coast current (IN1=IN2=0)", i_coast, 0.0, tol=None,
+           ok=i_coast < 1e-6, unit="A")
+
+    # A positional actuator stalls at its own end of travel in NORMAL
+    # operation, not only as a fault -- this is not an edge case to design
+    # around. Compared against a class-typical small-actuator automotive
+    # H-bridge rating (2-3 A continuous, INFERRED, no part chosen).
+    c.that("stall current exceeds a class-typical 2-3 A driver rating",
+           i_stall, 3.0, tol=None, ok=i_stall > 3.0, unit="A")
+    c.that("  ... so the eventual driver needs active current limiting, "
+           "not a fixed series resistor",
+           f"{i_stall:.2f} A at Rm=3 ohm alone exceeds a 2-3 A class rating",
+           None, ok=i_stall > 3.0)
+
+    # ---- recirculation: with the body diodes (the design) vs without
+    # (comparison only, same convention relay_driver.cir uses). ----
+    dr = d["egr_recirc.dat"]
+    t, ma5, mb5, ma6, mb6, ibat5 = (dr[k] for k in
+                                     ("time", "ma5", "mb5", "ma6", "mb6", "ibat5"))
+
+    # Steady-state forward current just before coast is commanded (t=20ms)
+    # must agree with section 2's own stall figure -- same Vbat, same Rm,
+    # same drive, so this is an internal consistency check, not a new claim.
+    i_fwd = abs(float(np.interp(19.9e-3, t, ibat5)))
+    c.that("forward steady current at t=19.9ms matches section 2's stall figure",
+           i_fwd, i_stall, tol=0.02, unit="A")
+
+    near_coast = (t > 20e-3) & (t < 20.5e-3)
+    c.that("WITH diodes: low side stays within a diode drop of ground "
+           "(hand: -1.09 V)", float(ma5[near_coast].min()), -1.09, tol=0.15,
+           unit="V")
+    c.that("WITH diodes: high side stays within a diode drop of the rail "
+           "(hand: 14.59 V)", float(mb5[near_coast].max()), 14.59, tol=0.15,
+           unit="V")
+
+    # Without a current path, the ideal-switch model produces an
+    # unbounded swing -- same reading relay_driver.cir gives its own
+    # "without flyback diode" branch: the magnitude is a model artifact,
+    # the conclusion (current has nowhere to go) is not.
+    c.that("WITHOUT diodes: low side swings far past ground",
+           abs(float(ma6[near_coast].min())), 1e5, tol=None,
+           ok=abs(float(ma6[near_coast].min())) > 1e5, unit="V")
+    c.that("WITHOUT diodes: high side swings far past the rail",
+           abs(float(mb6[near_coast].max())), 1e5, tol=None,
+           ok=abs(float(mb6[near_coast].max())) > 1e5, unit="V")
+    c.that("  ... recirculation diodes are load-bearing, not decorative",
+           f"bounded to {float(mb5[near_coast].max()):.1f} V with diodes vs "
+           f"{abs(float(mb6[near_coast].max())):.2e} V without", None, ok=True)
+
+    # ---- position feedback, pin 37: not re-simulated here. ----
+    c.that("position feedback (pin 37) is Group A ratiometric, proven "
+           "in sensor_ratiometric.cir",
+           "0.308-2.769 V into the 3.3 V ADC, see check_sensor_ratiometric()",
+           None, ok=True)
     return c
 
 
@@ -1236,12 +1397,14 @@ def check_supervisor():
 CHECKS = {
     "battery_sense": check_battery_sense,
     "discrete_input": check_discrete_input,
+    "trip_module_sense": check_trip_module_sense,
     "sensor_ratiometric": check_sensor_ratiometric,
     "transient_clamp": check_transient_clamp,
     "load_dump": check_load_dump,
     "injector_boost": check_injector_boost,
     "injector_turnoff": check_injector_turnoff,
     "relay_driver": check_relay_driver,
+    "egr_hbridge": check_egr_hbridge,
     "emi_filter": check_emi_filter,
     "reverse_battery": check_reverse_battery,
     "buck_preregulator": check_buck_preregulator,

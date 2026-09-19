@@ -18,7 +18,12 @@
 * the corner. D1 clamps to the 3.3 V rail.
 *
 * Scale: 10k/16k gives a ratio of 16/26 = 0.615, so the sensor's
-* 4.5 V full scale maps to 2.77 V and its 0.5 V zero to 0.19 V.
+* 4.5 V full scale maps to 2.77 V and its 0.5 V zero to 0.308 V.
+* (That zero read 0.19 V until 19 Sep 2026, which is not what
+* 0.5 * 16/26 gives. The check below has asserted 0.308 V with a
+* 10 mV tolerance the whole time and has always passed, so only the
+* prose was wrong -- but the prose is what a reader designing the
+* ADC scaling would have used.)
 * Full scale deliberately sits below the 3.3 V clamp rather than
 * hard against the ADC ceiling, so the clamp can protect the pin
 * on a harness fault without ever touching the signal in normal

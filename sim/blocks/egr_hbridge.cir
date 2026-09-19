@@ -1,0 +1,374 @@
+* ============================================================
+* EGR actuator H-bridge -- ECU pins 59 (EGR HIGH) / 81 (EGR LOW),
+* position feedback on pin 37
+* ============================================================
+* Spec sec.4 outputs table: "H-bridge + position feedback on pin 37",
+* never built (docs/status.md sec.2). refs/ecu-pinout-extracted.md:
+* pin 59 is magenta (PWM-output class), pin 81 is black (low-side
+* class); "High/Low pair => bridge drive". Spec sec.5's S32K148
+* FlexTimer budget lists "2 EGR bridge PWM" channels explicitly --
+* BOTH pins carry PWM, not one PWM plus one static direction bit.
+*
+* THIS IS THE ONE POSITIONAL ACTUATOR ON THE BOARD. Every other
+* output in the table (50/69 relay, 88 metering) is a low-side
+* switch: one direction, on or off, and "off" is unambiguously
+* the safe state. An EGR valve is held at a COMMANDED POSITION by
+* driving a DC gearmotor both ways against its own return spring,
+* which is why this is a bridge and not a FET.
+*
+* TOPOLOGY. Two logic/PWM lines into an external H-bridge -- an
+* integrated automotive smart H-bridge (DRV887x/TLE9201-class) or
+* discrete FETs behind a half-bridge gate driver, matching the
+* class of part memo 12 chose for the injector/metering stages
+* but NOT itself decided for EGR (open item, stated here rather
+* than assumed). Either way the four power switch positions this
+* netlist models are the same: two high-side (bat -> motor
+* terminal), two low-side (motor terminal -> gnd), one pair per
+* leg. IN1 (pin 59) commands the diagonal S1+S4 (forward); IN2
+* (pin 81) commands the diagonal S3+S2 (reverse) -- the standard
+* two-input "sign" scheme (DRV887x-class truth table: IN1=IN2=0
+* is COAST -- all four off -- used here as the INFERRED reference
+* class, no part chosen).
+*
+* WHY COAST, NOT BRAKE, IS THE SAFE STATE ASSUMED HERE. An EGR
+* actuator of this class is built with a return spring that closes
+* the valve when undriven (INFERRED -- no actuator part chosen,
+* but this is standard practice for automotive EGR valve motors).
+* Coast lets that spring act; brake (both low-sides on, shorting
+* the motor) would electrically fight it and hold the valve at
+* whatever position the MCU last commanded. This design accepts
+* IN1=IN2=LOW as the fail-safe target for exactly that reason -- it
+* is a choice this file states rather than a property SPICE proves.
+*
+* GATE KILL-CLAMP (spec sec.4's binding requirement, REQUIRED
+* 18 Sep 2026: "every driver gate is held off by hardware, not
+* firmware"). The outputs table lists 59/81 in the SAME row set as
+* the six gates supervisor.cir already protects -- but supervisor
+* .cir's own header enumerates only "pin 88 (metering), 73/07/29
+* (injector low side), 03/05 (injector bank high side)". EGR was
+* not in that list because this block did not exist yet. This
+* file closes that gap for its own two lines, reusing supervisor
+* .cir's validated kill-path model rather than re-deriving it:
+* same Ron=5 (kill FET), same Ciss=2n and Vgsth=1.0 (INFERRED
+* class figures, see supervisor.cir's header for the sourcing).
+*
+* Rpd = 470 ohm, NOT 10 kOhm. supervisor.cir's claim 3 found 10k
+* wrong (Miller coupling at the 100 V boost-rail edge) and claim 6
+* corrected it to 470 ohm. That correction was against the
+* injector/metering gates' own 100 V, 2.8 V/us edge -- EGR runs off
+* 13.5 V, roughly an order of magnitude smaller swing, so the same
+* Miller argument does not obviously reproduce here, and whether
+* EGR's eventual driver even exposes a raw FET gate to this kind of
+* coupling depends on the undecided integrated-vs-discrete question
+* above. Rather than invent a new dV/dt figure with no more basis
+* than the one memo 11 got wrong, this file builds to the SAME
+* 470 ohm standard as every other protected gate on this board --
+* the conservative, uniform choice, not a fresh derivation for this
+* voltage domain. Only one control line is drawn and simulated;
+* the mechanism is identical at the other (same component values,
+* independent kill FET and pulldown per line, no cross-coupling).
+*
+* SHOOT-THROUGH. A leg's own high-side and low-side switch are
+* never commanded by the same input line in this scheme (IN1 drives
+* S1-and-S4, a DIAGONAL pair -- never S1-and-S2, which are the same
+* leg). So no combination of IN1/IN2 the ECU can present -- 00, 01,
+* 10, or 11 -- connects one leg's high side and low side switches
+* at once; the worst a stuck-high IN1=IN2 pair can do in THIS
+* scheme is command S2+S4 together (a low-side-only short across
+* the motor, i.e. "brake", not a rail-to-ground short through a
+* leg). Real shoot-through -- one leg's own top and bottom FET
+* conducting together -- is prevented by the eventual driver's own
+* internal dead-time/interlock logic, a datasheet property of a
+* part not yet chosen, same class of gap as every other unselected
+* FET on this board. What THIS design controls is which of the
+* four logic states IN1/IN2 sit in while the MCU is Hi-Z at reset,
+* and the kill-clamp forces that to 00 (coast) -- consistent with
+* spec sec.4's "independent of GPIO configuration" requirement --
+* rather than leaving it undefined.
+*
+* RECIRCULATION. Voltage-controlled switches have no body diode
+* (sim/lib/ngrun.py's own documented trap) -- so each of the four
+* switch positions gets an explicit anti-parallel diode standing in
+* for the eventual FET's body diode (generic small-signal power
+* MOSFET class, INFERRED, same DFLY-style model relay_driver.cir
+* uses, scaled to a 13.5 V-class breakdown instead of that file's
+* 600 V). Section 3 below runs the SAME forward-then-coast command
+* with and without those four diodes, mirroring relay_driver.cir's
+* own with/without comparison, to show directly whether reversal
+* -- here, commanding a diagonal off with motor current already
+* flowing -- has somewhere for that current to go.
+*
+* POSITION FEEDBACK, PIN 37. This is NOT a new front-end. Pin 37
+* is one of Group A's ratiometric sensors (0.5-4.5 V), already
+* built and checked by sensor_ratiometric.cir alongside pins 41
+* (boost P), 35 (rail P) and 80 (oil P) -- see that file and
+* check_sensor_ratiometric() in run_sim.py, which verifies the
+* full-scale mapping (0.308-2.769 V into the 3.3 V ADC) and the
+* ratiometric rail correction. Building a second front-end here
+* would duplicate a proven circuit rather than reuse it -- exactly
+* what the task instructions ask NOT to do. This file's own checks
+* therefore cover only the DRIVE side (59/81); the feedback side is
+* cited, not re-simulated.
+*
+* MOTOR MODEL. Rm=3 ohm, Lm=5 mH: INFERRED, a class-typical small
+* automotive actuator DC gearmotor (armature + wiring resistance,
+* electrical time constant ~1.6 ms with the switch resistance
+* included) -- no actuator part chosen (same gap class as the
+* injector/metering FETs). Vemf models back-EMF: 0 V is a STALLED
+* actuator (jammed, or simply sitting at its own end-of-travel --
+* which a positional actuator reaches in ordinary operation, not
+* only as a fault), 9 V (INFERRED, ~2/3 of Vbat) stands in for
+* running near full sweep speed.
+* ============================================================
+
+.model SWH  SW(Ron=0.05 Roff=1e9 Vt=2.5 Vh=0.2)
+.model DBODY D(Is=1e-14 N=1 Rs=0.05 BV=60 IBV=1e-6)
+.model SWK  SW(Ron=5 Roff=1e9 Vt=-3.05 Vh=0)
+
+.param Ciss=2n
+.param Vgsth=1.0
+
+* ============================================================
+* SECTION 1 -- gate kill-clamp on the shared control-line node.
+* Directly mirrors supervisor.cir's claim 1 / claim 1b: RESET
+* asserted from t=0 (Vmon_egr=0), gate node starts at an assumed
+* "on" drive voltage (ic=10, INFERRED, no driver chosen), and the
+* kill FET (Ron=5) in parallel with the corrected Rpd=470 ohm
+* pulldown must pull it below Vgsth=1.0 V fast. g_egr_adv repeats
+* it against an adversarial driver (100 ohm to 10 V, fixed,
+* INFERRED) fighting the whole time -- the GPIO-independence case.
+* ============================================================
+
+Vmon_egr mon_egr 0 DC 0
+
+Cg_egr    g_egr    0  {Ciss} ic=10
+Rpd_egr   g_egr    0  470
+Skill_egr g_egr    0  0  mon_egr SWK
+
+Cg_egr_adv    g_egr_adv 0  {Ciss} ic=10
+Rpd_egr_adv   g_egr_adv 0  470
+Skill_egr_adv g_egr_adv 0  0  mon_egr SWK
+Rdrv_adv_egr  g_egr_adv vadv_egr 100
+Vadv_egr      vadv_egr  0  DC 10
+
+.control
+tran 10n 45u uic
+wrdata egr_kill.dat v(g_egr) v(g_egr_adv)
+.endc
+
+* ============================================================
+* SECTION 2 -- three independent H-bridge + motor networks, solved
+* together in one DC operating point: stall (Vemf=0), running
+* (Vemf=9), and coast (both inputs low, the reset-safe / commanded-
+* idle state). Each carries its own four switches and four body
+* diodes -- the actual design, not a comparison branch.
+* ============================================================
+
+* ---- stall (worst case: jammed, or simply at an end-of-travel) ----
+Vbats  bats 0 DC 13.5
+Vin1s  in1s 0 DC 5
+Vin2s  in2s 0 DC 0
+S1s bats mas in1s 0 SWH
+S4s mbs  0   in1s 0 SWH
+S3s bats mbs in2s 0 SWH
+S2s mas  0   in2s 0 SWH
+D1s mas  bats DBODY
+D2s 0    mas  DBODY
+D3s mbs  bats DBODY
+D4s 0    mbs  DBODY
+Rms mas mms 3
+Lms mms mvs 5m
+Vembs mvs mbs DC 0
+
+* ---- running (assumed near-full sweep speed) ----
+Vbatr  batr 0 DC 13.5
+Vin1r  in1r 0 DC 5
+Vin2r  in2r 0 DC 0
+S1r batr mar in1r 0 SWH
+S4r mbr  0   in1r 0 SWH
+S3r batr mbr in2r 0 SWH
+S2r mar  0   in2r 0 SWH
+D1r mar  batr DBODY
+D2r 0    mar  DBODY
+D3r mbr  batr DBODY
+D4r 0    mbr  DBODY
+Rmr mar mmr 3
+Lmr mmr mvr 5m
+Vembr mvr mbr DC 9
+
+* ---- coast (IN1=IN2=0 -- the reset-safe / idle-commanded state) ----
+Vbatc  batc 0 DC 13.5
+Vin1c  in1c 0 DC 0
+Vin2c  in2c 0 DC 0
+S1c batc mac in1c 0 SWH
+S4c mbc  0   in1c 0 SWH
+S3c batc mbc in2c 0 SWH
+S2c mac  0   in2c 0 SWH
+D1c mac  batc DBODY
+D2c 0    mac  DBODY
+D3c mbc  batc DBODY
+D4c 0    mbc  DBODY
+Rmc mac mmc 3
+Lmc mmc mvc 5m
+Vembc mvc mbc DC 0
+
+.control
+op
+wrdata egr_dc.dat i(Vbats) i(Vbatr) i(Vbatc)
+.endc
+
+* ============================================================
+* SECTION 3 -- forward-drive-then-coast transient, with the body
+* diodes (network 5, the actual design) and without them (network
+* 6, comparison only -- same convention relay_driver.cir uses for
+* its own with/without branches). IN1 asserted 0.1-20 ms (build to
+* steady state, tau = Lm/(2*Ron+Rm) = 5m/3.1 = 1.61 ms, so 20 ms is
+* >12 tau), then dropped to command coast. Network 6 needs the same
+* 10 Meg leak resistors relay_driver.cir uses -- without SOME DC
+* path, ngspice cannot find an operating point at all (sim/lib/
+* ngrun.py's documented trap), and the point of this branch is to
+* show what an unbounded voltage swing looks like, not to fail to
+* simulate one.
+* ============================================================
+
+Vbat5   bat5 0 DC 13.5
+Vin1_5  in1_5 0 PWL(0 0  0.099m 0  0.1m 5  20m 5  20.0001m 0  40m 0)
+Vin2_5  in2_5 0 DC 0
+S1_5 bat5 ma5 in1_5 0 SWH
+S4_5 mb5  0   in1_5 0 SWH
+S3_5 bat5 mb5 in2_5 0 SWH
+S2_5 ma5  0   in2_5 0 SWH
+D1_5 ma5  bat5 DBODY
+D2_5 0    ma5  DBODY
+D3_5 mb5  bat5 DBODY
+D4_5 0    mb5  DBODY
+Rm5 ma5 mm5 3
+Lm5 mm5 mv5 5m
+Vemb5 mv5 mb5 DC 0
+
+Vbat6   bat6 0 DC 13.5
+Vin1_6  in1_6 0 PWL(0 0  0.099m 0  0.1m 5  20m 5  20.0001m 0  40m 0)
+Vin2_6  in2_6 0 DC 0
+S1_6 bat6 ma6 in1_6 0 SWH
+S4_6 mb6  0   in1_6 0 SWH
+S3_6 bat6 mb6 in2_6 0 SWH
+S2_6 ma6  0   in2_6 0 SWH
+Rm6 ma6 mm6 3
+Lm6 mm6 mv6 5m
+Vemb6 mv6 mb6 DC 0
+Rleak6a ma6 0    10meg
+Rleak6b mb6 bat6 10meg
+
+.control
+tran 5u 40m uic
+wrdata egr_recirc.dat v(ma5) v(mb5) v(ma6) v(mb6) i(Vbat5)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE
+* ------------------------------------------------------------
+* KILL-CLAMP (section 1) -- PASS, and not close. Both g_egr and
+* g_egr_adv fall from 10 V to under Vgsth=1.0 V in tens of ns: Ron=5
+* dominates the 470 ohm pulldown (470||5 = 4.95 ohm), giving
+* tau = 4.95*2n = 9.9 ns and t(Vgsth) = tau*ln(10) = 22.8 ns by hand
+* -- see the check output for the simulated figure. g_egr_adv,
+* fought by a fixed 100 ohm/10 V driver the whole run, settles at
+* its own divider value (10*4.95/(4.95+100) = 0.471 V by hand),
+* comfortably under Vgsth even with the driver actively working
+* against it -- reproducing supervisor.cir's own g1b finding
+* (~0.48 V there, at Rpd=10k, Ron=5 -- close because Ron still
+* dominates in both cases) as an independent cross-check that this
+* reused model is wired the same way.
+*
+* DC OPERATING POINTS (section 2). Stall current, forward drive,
+* Vemf=0: I = Vbat/(2*Ron+Rm) = 13.5/3.1 = 4.355 A by hand. Running
+* current, Vemf=9 (assumed near-full sweep speed): I =
+* (13.5-9)/3.1 = 1.452 A. Coast current: near-zero, bounded only by
+* Roff=1e9 leakage -- nanoamps, not a design quantity. See the
+* check output for the simulated figures against these hand values.
+*
+* WHAT THE STALL NUMBER MEANS. 4.355 A is not a fault condition --
+* a positional actuator reaches its own end-of-travel in ordinary
+* operation and stalls there by design. A representative small-
+* actuator automotive H-bridge (class-typical, 2-3 A continuous,
+* INFERRED, no part chosen) would be run at or past its continuous
+* rating simply by holding position at either end of travel. THE
+* DESIGN CONCLUSION THIS FORCES: whichever driver is eventually
+* chosen MUST implement active current limiting or regulation
+* (current-controlled PWM, not open-loop duty), not a fixed series
+* resistor -- this is not a corner case to design around, it is the
+* actuator's normal end-of-travel behaviour.
+*
+* RECIRCULATION (section 3) -- the with-diode network stays bounded
+* near the rail; the without-diode network does not. See the check
+* output for both. The conclusion is the same one relay_driver.cir
+* draws for its own coil: the magnitude of the "without" figure is
+* a model artifact (an ideal switch opening on an inductor with no
+* current path implies an unbounded voltage), but the argument it
+* makes is not artifact -- the motor's stored energy has to go
+* somewhere when a diagonal turns off, and without the body diodes
+* it has nowhere to go except through the switch. Forward-drive
+* current at t=20ms (steady state, before coast is commanded) is
+* cross-checked against section 2's own stall figure (same Vbat,
+* same Rm, same drive) as an internal consistency check -- both
+* come from the same physics and should agree.
+* ------------------------------------------------------------
+*
+* WHAT THIS MODEL DOES NOT COVER
+* ------------------------------------------------------------
+* - No H-bridge driver IC or FET is chosen. Ron=0.05, the DBODY
+*   diode figures, Rm=3 ohm and Lm=5 mH are all INFERRED class
+*   figures, same gap as every other unselected FET on this board.
+* - Whether the eventual EGR driver is integrated (shoot-through
+*   handled inside the package) or discrete FETs behind a gate
+*   driver (shoot-through a real per-leg dead-time question) is
+*   UNDECIDED -- memo 12 settled this for the injector and metering
+*   stages but did not address EGR. This file's Rpd=470 ohm choice
+*   is a uniform-standard decision, not a fresh Miller-coupling
+*   derivation for the 13.5 V domain EGR actually operates in.
+* - No mechanical model of the actuator: no return spring constant,
+*   no gear ratio, no end-stop switches, no armature inertia. "Coast
+*   lets the spring close the valve" is stated, not simulated --
+*   whether that spring exists, and what position it drives to, is
+*   an actuator-datasheet question with no part chosen.
+* - PWM chopping at the bridge itself is not modelled -- section 2
+*   is DC steady-state (stall/run/coast), section 3 is a single
+*   forward-then-coast transient, not a duty-cycled drive. Ripple
+*   and dither at the motor, the same question metering_unit_pwm
+*   .cir answers for the fuel solenoid, is open here.
+* - No temperature corner (repo-wide gap, docs/status.md sec.3).
+* - Position feedback (pin 37) is NOT modelled in this file -- see
+*   the header. It is proven in sensor_ratiometric.cir.
+* - Diode reverse recovery and switch transition times are not
+*   modelled, the same class of omission injector_turnoff.cir and
+*   load_dump.cir already flag for their own ideal switches/diodes.
+* ------------------------------------------------------------
+* TOLERANCE
+* ------------------------------------------------------------
+* The verdict that matters here -- "stall current is large enough
+* that current limiting is mandatory" -- hinges on Rm, the one
+* figure with the least basis (no actuator chosen at all, versus
+* Ron and the diode figures which at least track a generic small-
+* signal FET class). Re-run by hand at a plausible class range,
+* 2-5 ohm:
+*
+*     Rm = 2 ohm (low end)   I_stall = 13.5/2.1 = 6.429 A
+*     Rm = 3 ohm (this file) I_stall = 13.5/3.1 = 4.355 A
+*     Rm = 5 ohm (high end)  I_stall = 13.5/5.1 = 2.647 A
+*
+* The range spans both comfortably above and close to a class-
+* typical 2-3 A driver rating -- the conclusion (active current
+* limiting is required, a fixed series resistor cannot be sized to
+* cover this range) holds at every value tried, which is the point:
+* it does not depend on guessing Rm correctly.
+*
+* Second-order: Vbat at alternator charging voltage (14.0-14.4 V,
+* same citation relay_driver.cir's own tolerance note uses) scales
+* stall current linearly and by less than Rm does: at Rm=3,
+* 14.4/3.1 = 4.645 A versus 13.5/3.1 = 4.355 A, a 6.7% change --
+* the smaller lever, consistent with relay_driver.cir's own finding
+* that Vbat effects on this board are real but second-order next to
+* an unpinned component value.
+* ------------------------------------------------------------

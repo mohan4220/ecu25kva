@@ -76,6 +76,66 @@ def discrete_input(d):
     return "Discrete switch input -- pins 20 / 24 / 71"
 
 
+def trip_module_sense(d):
+    """NEW pin -- three-state supervised trip-module sense loop.
+
+    Rt and the NC aux contact live AT THE TRIP MODULE, physically at
+    the far end of a new harness run -- labelled, not boxed, to avoid
+    this file's own rotated/multi-anchor label traps. That placement
+    is the detail that makes "wire cut" distinguishable from "Rt is
+    the only path": a break anywhere between the module and the ECU
+    removes both the contact and Rt from the circuit the same way.
+    R5/R6/zener/C1 are discrete_input.cir's own divider, reused
+    unchanged -- drawn solid, not dashed, because they ARE this
+    netlist's elements, just fed from a new source topology."""
+    d += elm.Dot(open=True).label("BATT +\n(switched)", "left")
+    d += elm.Line().right().length(0.6)
+    d += (left := elm.Dot())
+    d += elm.Resistor().right().at(left.center).label("Rt\n1.2M", loc="bottom")
+    d += (right := elm.Dot())
+
+    d.push()
+    d += elm.Line().up().at(left.center).length(1.0)
+    d += elm.Switch().right().length(2.2).label(
+        "NC aux contact\nclosed = healthy", loc="top")
+    d += elm.Line().down().toy(right.center[1])
+    d.pop()
+
+    d += elm.Label().at((left.center[0] - 0.3, left.center[1] - 1.2)).label(
+        "-- at the trip module, remote (part TBD) --")
+
+    d += elm.Line().right().at(right.center).length(1.2).linestyle("--")
+    d += elm.Label().at((right.center[0] + 0.6, right.center[1] + 0.5)).label(
+        "new harness run\n(not on this board)")
+
+    # ECU-side divider: discrete_input.cir's own R5/R6/zener/C1, reused
+    d += elm.Resistor().right().label("R5\n47k")
+    d += (node := elm.Dot())
+    d += elm.Line().right().length(3.0)
+    d += elm.Dot(open=True).label("MCU ADC\n(3-band read)", "right")
+
+    d += elm.Resistor().down().at(node.center).label("R6\n68k", loc="bottom")
+    d += elm.Ground()
+
+    d.push()
+    d += elm.Line().right().at(node.center).length(1.2)
+    d += elm.Dot()
+    d += elm.Capacitor().down().label("C1\n220n", loc="bottom")
+    d += elm.Ground()
+    d.pop()
+
+    d += elm.Line().right().at(node.center).length(2.4)
+    d += elm.Dot()
+    d += elm.Zener().down().label("D1\n3.0 V", loc="bottom")
+    d += elm.Ground()
+
+    d += elm.Label().at((0.0, -4.2)).label(
+        "healthy 2.86-2.95 V (clamped, flat) -- tripped 0.31-2.07 V\n"
+        "(linear, Rt in circuit, never reaches the zener knee) -- wire\n"
+        "fault ~0 V (neither Rt nor battery reaches the divider at all)")
+    return "Trip-module sense -- new pin, three-state supervised loop"
+
+
 def sensor_ratiometric(d):
     """ECU pins 41/35/80/37 -- 0.5-4.5 V ratiometric sensor."""
     d += elm.Dot(open=True).label("SENSOR\n0.5-4.5 V", "left")
@@ -281,6 +341,104 @@ def relay_driver(d):
     d += elm.Ground().at(q.source)
     d += elm.Line().right().at(q.gate).length(0.7).label("MCU pin 50 / 69", loc="right")
     return "Relay driver -- pins 50 / 69"
+
+
+def egr_hbridge(d):
+    """ECU pins 59 (EGR HIGH) / 81 (EGR LOW) -- H-bridge into a positional
+    actuator, position feedback on pin 37.
+
+    The driver is drawn as one Ic block, the same convention supervisor()
+    uses for its supervisor IC: no H-bridge part is chosen (spec sec.4's
+    outputs table names the function, not a part), so the four internal
+    power switches are not drawn as discrete symbols here -- they ARE
+    modelled, as four generic switches plus body diodes, in the netlist,
+    but drawing four unlabelled switch symbols would suggest a part
+    selection that has not been made. The motor and the kill-clamp
+    pulldowns are real, modelled parts and are drawn solid; the driver
+    IC's internal FETs and the position pot are the board's actual
+    parts but are not this netlist's own elements, so the pot is dashed
+    per this file's convention (see e.g. injector_boost's R_sense) and
+    cited to sensor_ratiometric.cir rather than redrawn.
+
+    Trap from this file's own header, hit while building this one: the
+    Motor element inherits the PREVIOUS element's direction unless given
+    its own -- placed with an explicit `.right()` rather than relying on
+    the drawing's current heading."""
+    ic = elm.Ic(
+        pins=[
+            elm.IcPin(name="IN1", side="left", anchorname="in1"),
+            elm.IcPin(name="IN2", side="left", anchorname="in2"),
+            elm.IcPin(name="OUT1", side="right", anchorname="out1"),
+            elm.IcPin(name="OUT2", side="right", anchorname="out2"),
+            elm.IcPin(name="GND", side="bottom", anchorname="gnd"),
+        ],
+        size=(4.6, 3.0),
+    ).label("H-bridge\ndriver (part TBD)", "top")
+    d += ic
+    in1 = ic.absanchors["in1"]
+    in2 = ic.absanchors["in2"]
+    out1 = ic.absanchors["out1"]
+    out2 = ic.absanchors["out2"]
+    d += elm.Ground().at(ic.absanchors["gnd"])
+
+    # ---- kill-clamp pulldowns on IN1/IN2, drawn once each: the real
+    # modelled parts (Rpd=470, kill FET keyed to the supervisor's RESET,
+    # same topology supervisor.cir already validated). ----
+    k1 = (in1[0] - 2.0, in1[1])
+    d += elm.Line().left().at(in1).tox(k1[0])
+    d += (kn1 := elm.Dot())
+    d += elm.Resistor().down().at(kn1.center).length(1.2).label("Rpd\n470", loc="right")
+    d += (kf1 := elm.NFet(bulk=False).right().anchor("drain"))
+    d += elm.Ground().at(kf1.source)
+    d += elm.Line().down().at(kf1.gate).length(0.5)
+    d += elm.Dot(open=True).label("kill (RESET)", "bottom")
+    d += elm.Line().left().at(kn1.center).length(1.3)
+    d += elm.Dot(open=True).label("MCU pin 59\n(EGR HIGH)", "left")
+
+    k2 = (in2[0] - 2.0, in2[1])
+    d += elm.Line().left().at(in2).tox(k2[0])
+    d += (kn2 := elm.Dot())
+    d += elm.Resistor().down().at(kn2.center).length(1.2).label("Rpd\n470", loc="right")
+    d += (kf2 := elm.NFet(bulk=False).right().anchor("drain"))
+    d += elm.Ground().at(kf2.source)
+    d += elm.Line().down().at(kf2.gate).length(0.5)
+    d += elm.Dot(open=True).label("kill (RESET)", "bottom")
+    d += elm.Line().left().at(kn2.center).length(1.3)
+    d += elm.Dot(open=True).label("MCU pin 81\n(EGR LOW)", "left")
+
+    # ---- battery feed and the motor between OUT1/OUT2. Built from
+    # explicit .tox()/.toy() legs rather than a direct point-to-point
+    # line -- a diagonal line straight from out1 to the BATT+ label was
+    # this drawing's first version and read as a stray wire. ----
+    d += elm.Line().right().at(out1).length(1.0)
+    d += (nodeA := elm.Dot())
+    d += elm.Line().up().length(1.8)
+    d += elm.Dot(open=True).label("BATT +\n13.5 V", "top")
+
+    d += elm.Line().right().at(nodeA.center).length(0.8)
+    d += (m := elm.Motor().right())
+    d += elm.Line().right().at(m.end).length(0.8)
+    d += (nodeB := elm.Dot())
+    d += elm.Line().up().toy(out2[1])
+    d += elm.Line().left().tox(out2[0])
+    d += elm.Label().at((m.center[0], m.center[1] + 1.0)).label(
+        "EGR actuator\nRm 3R / Lm 5mH (INFERRED)")
+
+    # ---- position feedback: not this netlist's own front end ----
+    d += elm.Line().down().at((m.center[0], m.center[1] - 0.7)).length(0.5).linestyle("--")
+    d += elm.Potentiometer().down().linestyle("--").label(
+        "position pot\n(pin 37)", loc="right")
+    d += elm.Line().down().length(0.4).linestyle("--")
+    d += elm.Dot(open=True).linestyle("--")
+    d += elm.Label().at((m.center[0] - 1.6, m.center[1] - 4.2)).label(
+        "to sensor_ratiometric.cir\n(Group A, already built)")
+
+    d += elm.Label().at((0.0, -6.5)).label(
+        "dashed: on the board, not in this netlist -- the driver's internal\n"
+        "FETs are modelled generically (four switches + body diodes), the\n"
+        "position pot is a REAL front end but it is sensor_ratiometric.cir's,\n"
+        "not a new one (see that block's pins 41/35/80/37)")
+    return "EGR actuator H-bridge -- pins 59 / 81, position feedback pin 37"
 
 
 def emi_filter(d):
@@ -730,12 +888,14 @@ def supervisor(d):
 BLOCKS = {
     "battery_sense": battery_sense,
     "discrete_input": discrete_input,
+    "trip_module_sense": trip_module_sense,
     "sensor_ratiometric": sensor_ratiometric,
     "transient_clamp": transient_clamp,
     "load_dump": load_dump,
     "injector_boost": injector_boost,
     "injector_turnoff": injector_turnoff,
     "relay_driver": relay_driver,
+    "egr_hbridge": egr_hbridge,
     "emi_filter": emi_filter,
     "reverse_battery": reverse_battery,
     "buck_preregulator": buck_preregulator,

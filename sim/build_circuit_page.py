@@ -214,6 +214,37 @@ BLOCKS = {
          "The debounce capacitor went from 100 nF to 220 nF after simulation showed the smaller value "
          "let two threshold crossings through a bouncing contact — which firmware would have read as "
          "two separate presses."),
+        ("trip_module_sense", "Trip-module sense", "new pin, no OEM harness",
+         "A three-state supervised loop reading whether the mandatory standalone overspeed trip module's "
+         "contacts are open or closed — not a copy of the input above, on purpose.",
+         "Spec §3: U12 closed badly on 18 Sep 2026 — the fitted DSE4522's fuel relay only signals, it "
+         "does not remove power, so a standalone trip module in series with the fuel metering unit's own "
+         "battery feed (fuse 8F1) is mandatory again, and this ECU must sense its state rather than read "
+         "a trip as a fuelling anomaly. discrete_input.cir's own accepted limitation — an open wire reads "
+         "identically to 'not asserted', accepted there because changing the sense would break OEM "
+         "harness compatibility — does not carry over: this pin has no OEM harness to stay compatible "
+         "with, and an undetectable broken wire here would read 'not tripped' at the exact moment a trip "
+         "occurs, which is the one failure spec §3 exists to catch. So this block adds an end-of-line "
+         "resistor (Rt, 1.2 MΩ) in parallel with the module's own auxiliary contact, physically at the "
+         "module end of the new harness run, giving three distinguishable ADC bands on the same R5/R6/"
+         "zener front end discrete_input.cir already validates: healthy (contact closed, Rt shorted) "
+         "clamps to 2.86–2.95 V exactly as that file's input does; tripped (contact open, Rt in circuit) "
+         "is a plain, unclamped linear divider that stays 0.31–2.07 V across 6–40 V, never reaching the "
+         "zener's knee; wire fault (a break anywhere in the run removes both the contact and Rt the same "
+         "way) reads ~0 V. A contact-bounce transient, reusing discrete_input.cir's own nasty bounce "
+         "profile inverted, shows the reading never leaves the healthy band during the bounce itself — "
+         "C1's time constant on this branch is long enough to filter chatter shorter than a few hundred "
+         "microseconds — and settles cleanly into the tripped band only once the contact stays open.",
+         "No trip module is chosen (memo 02's costed GAC SSW675 / Murphy HD9063 candidates survive "
+         "costing but neither's aux-contact rating is pulled), so Rt=1.2 MΩ is this file's own INFERRED "
+         "choice with no datasheet or industry EOL-loop convention behind it. The loop is high impedance "
+         "(the same few-hundred-microamp class discrete_input.cir's divider runs at), not the low-Z, "
+         "milliamp-class loop industrial supervised-contact practice normally uses — chosen to reuse the "
+         "existing front-end rather than build a new one, and the cost is a genuinely tight margin: at "
+         "the 6 V cranking dip with Rt at +5% tolerance, the tripped band's floor sits only 0.147 V above "
+         "the wire-fault threshold, about half the nominal-case margin, before any harness leakage is "
+         "stacked on top. This pin also needs to land on an ADC-capable channel, not a bare GPIO — a "
+         "pin-mux consideration for whoever assigns the physical PTxx map."),
     ]),
     "speed": ("03", "Speed and position", "The most safety-critical input on the board.", [
         ("vr_conditioner", "Crank speed conditioner", "pins 52, 74, 30",
@@ -301,6 +332,38 @@ BLOCKS = {
          "taken literally. A real MOSFET avalanches at its breakdown voltage and dissipates that energy "
          "in the die instead — once per relay operation, until it fails. The magnitude is a model "
          "artifact; the conclusion is not."),
+        ("egr_hbridge", "EGR actuator H-bridge", "pins 59, 81, position feedback pin 37",
+         "Two logic/PWM lines into an external H-bridge driving a positional DC-motor actuator both ways "
+         "— the one output on this board that is not a low-side switch — modelled as four generic switch "
+         "positions with anti-parallel body diodes, plus the same active kill-clamp (Rpd 470 Ω, keyed to "
+         "the supervisor's RESET) spec §4 requires at every driver gate.",
+         "This is a positional actuator, not an on/off solenoid: it is held at a commanded position, "
+         "which is why it needs a bridge. Spec §4's outputs table lists pins 59/81 in the same row set as "
+         "the six gates supervisor.cir already protects, but that file's own header enumerates only "
+         "88/73/07/29/03/05 — EGR was never added because this block did not exist. Reusing supervisor "
+         "supervisor.cir's validated kill topology closes that gap rather than re-deriving it. The two-input "
+         "\"sign\" scheme this design assumes (IN1 drives the S1+S4 diagonal, IN2 drives S3+S2) means no "
+         "combination the ECU can present ever commands one leg's own high and low side together — real "
+         "shoot-through is a property of the eventual driver IC's internal interlock, a part not yet "
+         "chosen, not something these two lines can cause on their own. Stall current (jammed, or simply "
+         "sitting at its own end of travel — normal operation for a positional actuator, not a fault) "
+         "comes out to 4.36 A at an assumed 3 Ω armature resistance, comfortably past a class-typical "
+         "2–3 A small-actuator driver rating: the eventual part needs active current limiting, not a "
+         "fixed series resistor. Commanding coast with current already flowing is checked with and "
+         "without the body diodes, the same comparison relay_driver.cir runs for its flyback diode: with "
+         "them the bridge nodes stay within a diode drop of the rail; without them the ideal-switch model "
+         "produces a multi-megavolt artifact, because the motor's stored energy has nowhere else to go.",
+         "No H-bridge driver IC or FET is chosen — Ron, the body-diode figures, and the motor's Rm/Lm are "
+         "all INFERRED class figures, the same gap as every other unselected FET on this board. Whether "
+         "the eventual driver is integrated or discrete FETs behind a gate driver is undecided (memo 12 "
+         "settled this for the injector and metering stages but not for EGR), so the 470 Ω kill-clamp "
+         "value here is a uniform-standard choice, not a fresh Miller-coupling derivation for the 13.5 V "
+         "domain EGR actually runs in. No mechanical model of the actuator exists — no return-spring "
+         "constant, no gear ratio, no end-stop switches — so \"coast lets the spring close the valve\" is "
+         "stated as the assumed fail-safe direction, not simulated. Position feedback on pin 37 is not "
+         "modelled in this file at all: it is Group A ratiometric, already built and checked in "
+         "sensor_ratiometric.cir, and building a second front end here would duplicate a proven circuit "
+         "rather than reuse it."),
     ]),
     "comms": ("06", "Communications", "The bus to the genset controller.", [
         ("can_termination", "CAN split termination", "CAN H, CAN L",
