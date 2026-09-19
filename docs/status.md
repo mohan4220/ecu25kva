@@ -13,7 +13,7 @@ the specification's own register.
 | Circuit blocks simulated | **20** |
 | Blocks passing their checks | **19** |
 | Blocks failing deliberately | **1** (`load_dump`) |
-| Research memos | **11** |
+| Research memos | **12** |
 | Unknowns closed | **4** |
 | Unknowns partly answered | **4** |
 | Unknowns still open | **8** |
@@ -135,7 +135,7 @@ stimuli named. These are the gaps in the *verification*, not in the circuits.
 | Field Handbook | Current |
 | Sensor Reference | Current |
 | Circuit Reference | Generated from the simulations at build time, so it cannot drift |
-| Memos 01–11 | Dated records. Superseded conclusions carry banners rather than being rewritten |
+| Memos 01–12 | Dated records. Superseded conclusions carry banners rather than being rewritten |
 
 **Memo 01 and Memo 02 are substantially wrong** and say so at the top. Memo 01
 misidentified the engine and advised discarding the correct search term. Memo 02
@@ -178,8 +178,10 @@ contact-type confirmation, which gates nothing
 
 | Decision | Blocks | Why it cannot wait |
 |---|---|---|
-| **Integrated driver IC vs discrete FETs** | Injection and metering driver sheets | An MC33814-class part handles its own power-on-reset output state internally, absorbing part of §4's fail-safe requirement. Deciding after drawing gate-kill circuitry for six gates is the expensive order |
-| **Passive pulldown vs active clamp** | Same sheets | Now coupled to the above. A pulldown strong enough to reject Miller coupling fights its own driver and burns over a watt; that is the trade an active clamp exists to avoid |
+| ~~Integrated driver IC vs discrete FETs~~ | — | **DECIDED 19 Sep 2026, memo 12.** Discrete FETs, keeping the 100 V rail. MC33816 caps at 72 V, L9781 at a reported 80 V, and both are pre-drivers that need external FETs anyway |
+| ~~Passive pulldown vs active clamp~~ | — | **DECIDED 19 Sep 2026, memo 12.** Active clamp, built discretely, at every gate. The integrated route relocates this problem rather than removing it |
+| **MC33816 last-time-buy 06/08/2027** | Fallback path only | Needs a distributor conversation, not another search |
+| **L9781 datasheet unretrievable** | Confirming the decision's runner-up | Five failed fetches across two sessions. Needs FAE or distributor access |
 | **Air-intake shutoff** | Nothing electrical | Owners' decision. Nothing in this design can stop an oil-fuelled runaway |
 | **Trip-module pickup target** | Module ordering | Whether it shares our flywheel target. Sharing is cheaper; separate preserves the independence that is the reason for fitting it |
 
@@ -190,14 +192,14 @@ contact-type confirmation, which gates nothing
 | Phase | Output | State |
 |---|---|---|
 | 0 | Reconciled specification | Done |
-| 1 | Research memos | Done — eleven |
+| 1 | Research memos | Done — twelve |
 | **1.5** | **Block-level simulation** | **In progress — 20 blocks, 19 passing** |
 | 2 | KiCad hierarchical schematic capture | Not started |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
 | 4 | Firmware skeleton | Not started |
 
 **What ends phase 1.5:** the four missing circuits in §2, the verification gaps in §3,
-and the two driver decisions in §6. **What starts phase 2:** assigning `PTxx` pins to the
+and the verification gaps in §3. The two driver decisions in §6 are now taken. **What starts phase 2:** assigning `PTxx` pins to the
 94-way connector — which is also what unblocks the per-pin detail of the fail-safe
 requirement.
 

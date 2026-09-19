@@ -540,12 +540,45 @@ pull defaults cannot yet be looked up. The requirement above does not depend on 
 it exists precisely so that the answer does not matter — but the analysis cannot be
 finished until the pin map is fixed.
 
-**A decision this raises, not yet taken:** integrated injector-driver ICs in the
-MC33814 class handle their own power-on-reset output state internally ("all outputs
-turned off" in NXP's own datasheet), which would move part of this requirement off the
-board and into a part. That is a different driver architecture from the discrete
-high-side/low-side arrangement assumed above, and it should be decided before sheet 4
-is drawn rather than inherited by default.
+#### Driver architecture — DECIDED 19 Sep 2026, research memo 12
+
+**Discrete power MOSFETs with a gate-driver IC for the injector banks, keeping the
+100 V boost rail. An integrated smart low-side switch for the metering unit. An active
+kill-clamp at every gate of both, built discretely.**
+
+The decision was forced by one confirmed number. The two integrated injector-driver ICs
+that fit this design's channel count and current class both cap their boost rail **below
+the 100 V already chosen**: MC33816's `VBOOST` absolute maximum is **72 V** (NXP
+datasheet Rev 10.0), and L9781's tank voltage is reported at 80 V — snippet only, its
+datasheet having failed retrieval across two independent sourcing passes.
+
+Adopting either would force the boost rail down and re-derive three already-passing
+blocks. Memo 12 re-did that arithmetic: at 72 V the peak-phase ramp stretches from
+38 µs to **53 µs**, which still fits a pilot injection but consumes half of it.
+
+**And neither part removes the work.** Both are pre-drivers, not integrated power
+stages — external MOSFETs, external boost inductor and diode, and external sense shunt
+are required either way. MC33816 additionally brings its own microcode toolchain.
+MC33814 is the wrong class outright: 1.3 A continuous against an 18 A requirement, and
+no boost stage at all.
+
+**On the coupled clamp question, the integrated route relocates the problem rather than
+removing it** — and does so in a form worth copying. MC33816's high-side pre-driver is
+*actively forced low* on reset, falling back to a weak 500 kΩ–2 MΩ resistor only once
+its bootstrap capacitor is exhausted. That is the same two-tier structure
+`supervisor.cir` already validated, on a different bias rail, and with no datasheet
+statement about how fast that bootstrap decays under brownout — where `supervisor.cir`
+claim 4 gives a timed guarantee. **So build the active clamp discretely regardless.**
+This was never a question the IC-versus-discrete decision could have answered
+differently.
+
+**What would change this:** a retrieved L9781 datasheet showing a tank voltage at or
+above 100 V, or a decision to accept a ≤72 V rail on other grounds.
+
+**Two sourcing items escalated and unresolved:** MC33816AE carries a distributor
+last-time-buy date of 06/08/2027, and the L9781 datasheet has now failed retrieval five
+times across two sessions. Both need a human with distributor or FAE access rather than
+another automated fetch.
 
 ### CAN
 
