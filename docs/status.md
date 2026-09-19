@@ -10,15 +10,21 @@ the specification's own register.
 
 | | Count |
 |---|---|
-| Circuit blocks simulated | **23** |
-| Blocks passing their checks | **22** |
-| Blocks failing deliberately | **1** (`load_dump`) |
+| Circuit blocks simulated | **24** |
+| Blocks passing every check | **17** |
+| Blocks failing a check | **7** — see below; five of them are new *information*, not new faults |
 | Research memos | **12** |
-| Documents in the bible | **18** (254 pages) |
+| Documents in the bible | **18** |
 | Unknowns closed | **4** |
 | Unknowns partly answered | **4** |
-| Unknowns still open | **8** |
+| Unknowns still open | **9** |
 | Phase | **1.5** — block simulation, nearly complete |
+
+**The pass rate went down on 19 September, and that is progress.** It was 22 of 24 that
+morning. Nothing broke: the temperature-corner pass found six blocks that fail cold or
+hot and recorded all six in RESULT NOTE prose, where the suite could not see them. They
+are now enforced checks. A design that was always marginal at −40 °C now says so when you
+run it.
 
 **Nothing has been captured in KiCad, no PCB exists, and no firmware has been written.**
 Everything below describes design work verified by simulation, which is the stage before
@@ -31,7 +37,7 @@ schematic capture.
 Each block is a SPICE netlist plus a set of falsifiable checks. A block "passes" when
 every claim it makes about itself holds. These are design verification, not layout.
 
-### 1.1 Power chain — 8 blocks
+### 1.1 Power chain — 9 blocks
 
 | Block | What it covers | Status |
 |---|---|---|
@@ -40,9 +46,10 @@ every claim it makes about itself holds. These are design verification, not layo
 | `transient_clamp` | ISO 7637-2 pulse 2a, +112 V / 2 Ω / 50 µs | Passing |
 | `load_dump` | ISO 7637-2 pulse 5b, 40 V / 0.5 Ω / 400 ms | **FAILS — deliberately** |
 | `buck_preregulator` | 6–40 V to 5 V at 400 kHz | Passing |
-| `sensor_rail` | 5 V sensor distribution, one PTC per group | Passing |
-| `mcu_pdn` | 3V3 decoupling impedance, 100 mΩ target | Passing |
+| `sensor_rail` | 5 V sensor distribution, one PTC per group | **FAILS — cold corner** |
+| `mcu_pdn` | 3V3 decoupling impedance, 100 mΩ target | **FAILS — cold corner** |
 | `supervisor` | Watchdog, brownout, fail-safe gate kill path | Passing |
+| `negative_pulses` | ISO 7637-2 pulses 1 and 3a, negative excursions | **FAILS — real gap** |
 
 **Why `load_dump` fails, and why that is correct.** The TVS chosen against pulse 2a
 absorbs 46 J at 116 W under pulse 5b — roughly 100× both its single-pulse energy rating
@@ -78,7 +85,7 @@ that measurement selects a populate option rather than unblocking a redesign.
 
 | Block | What it covers | Status |
 |---|---|---|
-| `injector_boost` | Why the boost stage exists, pins 03/05 | Passing |
+| `injector_boost` | Why the boost stage exists, pins 03/05 | **FAILS — both corners** |
 | `injector_turnoff` | Turn-off recirculation into the boost rail | Passing |
 | `boost_converter` | Injector rail reservoir sizing | Passing |
 
@@ -91,7 +98,7 @@ rail about 2 V per event with no way down.
 
 | Block | What it covers | Status |
 |---|---|---|
-| `metering_unit_pwm` | Pin 88, low-side PWM into the fuel metering solenoid | Passing |
+| `metering_unit_pwm` | Pin 88, low-side PWM into the fuel metering solenoid | **FAILS — both corners** |
 | `relay_driver` | Pins 50/69, low-side FET with flyback | Passing |
 | `egr_hbridge` | Pins 59/81, positional actuator, feedback on 37 | Passing |
 
@@ -99,7 +106,50 @@ rail about 2 V per event with no way down.
 
 | Block | What it covers | Status |
 |---|---|---|
-| `can_termination` | Split vs single termination, J1939 250 kbit/s | Passing |
+| `can_termination` | Split vs single termination, J1939 250 kbit/s | **FAILS — tempco** |
+
+---
+
+### 1.7 The seven failures, and what each one means
+
+A failing block here is a finding, not a broken simulation. Three different kinds:
+
+**Wrong part selected — 1 block.**
+
+- **`load_dump`** — the TVS absorbs 38 J under pulse 5b against roughly a 0.5 J
+  single-pulse class rating. The fix is a *higher standoff* voltage so the part stays off
+  during a normal clamped dump, not a bigger part to absorb it. Blocked on **U16**: if the
+  alternator turns out unsuppressed, the applicable pulse is 5a and the topology changes
+  rather than the part number.
+
+**Missing component — 1 block.**
+
+- **`negative_pulses`** — the buck's VIN pin is rated **−0.3 V to 100 V**, and the
+  negative limit is not a mirror of the positive one. It sees −40.7 V on pulse 1 and
+  −27.8 V on pulse 3a. The TVS clamps correctly; −38 V is a good clamp that is still two
+  orders of magnitude outside what the buck tolerates. Nothing in the chain addresses a
+  negative excursion at all.
+
+**Marginal at a temperature corner — 5 blocks.** These were always true; until 19
+September nothing asked.
+
+- **`sensor_rail`** — 4.148 A against a real 3.0 A polyfuse trip ceiling, at the stacked
+  cold-and-tolerance corner.
+- **`mcu_pdn`** — 196.7 mΩ against the derived 100 mΩ target at a 4× cold-ESR derate. The
+  bulk electrolytic's ESR *is* the damping in this block, so cold attacks the mechanism
+  the design depends on.
+- **`can_termination`** — 123.96 Ω differential against J1939's 120 ± 2, from 200 ppm/°C
+  resistor tempco alone. An ordinary part, not an exotic one.
+- **`metering_unit_pwm`** and **`injector_boost`** — their *target* checks fail while
+  their *control-law invariants* hold. Both halves are checked deliberately so a reader
+  sees which is fragile. A target that moves with temperature is not the same as a design
+  that stops working.
+
+**One block passes in a way worth reading.** `emi_filter` was not failed at its corner,
+because its −40 dB gate is documented in its own final check as being of unknown adequacy
+pending measured hardware emissions. Failing a corner against an admittedly arbitrary
+number manufactures a verdict. The X7R −15% corner is recorded as regression pins with a
+note that the value sits below the nominal gate.
 
 ---
 
@@ -229,7 +279,14 @@ Written at the end of 19 September so the next session does not have to
 re-derive where things stand. **Nothing is half-finished: the tree is clean, the
 suite passes, everything is pushed.**
 
-### The two pieces of phase 1.5 that remain
+### Done since this section was written
+
+Both items below are complete: the TVS is bidirectional, ISO 7637-2's negative pulses are
+simulated, and temperature corners are run and enforced across all 24 blocks. What they
+produced is in §1.7 and §2. The text of the two items is kept as written because it
+records what was expected, and the negative-pulse result was not it.
+
+### The two pieces of phase 1.5 that were outstanding — now done
 
 **1. Replace the TVS model, then simulate the negative pulses.** In that order — the
 second is not answerable until the first is done.
