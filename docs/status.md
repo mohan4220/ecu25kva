@@ -11,8 +11,8 @@ the specification's own register.
 | | Count |
 |---|---|
 | Circuit blocks simulated | **24** |
-| Blocks passing every check | **17** |
-| Blocks failing a check | **7** — see below; five of them are new *information*, not new faults |
+| Blocks passing every check | **16** |
+| Blocks failing a check | **8** — see below; six of them are new *information*, not new faults |
 | Research memos | **12** |
 | Documents in the bible | **18** |
 | Unknowns closed | **4** |
@@ -100,7 +100,7 @@ rail about 2 V per event with no way down.
 |---|---|---|
 | `metering_unit_pwm` | Pin 88, low-side PWM into the fuel metering solenoid | **FAILS — both corners** |
 | `relay_driver` | Pins 50/69, low-side FET with flyback | Passing |
-| `egr_hbridge` | Pins 59/81, positional actuator, feedback on 37 | Passing |
+| `egr_hbridge` | Pins 59/81, positional actuator, feedback on 37 | **FAILS — shoot-through** |
 
 ### 1.6 Communications — 1 block
 
@@ -110,7 +110,7 @@ rail about 2 V per event with no way down.
 
 ---
 
-### 1.7 The seven failures, and what each one means
+### 1.7 The eight failures, and what each one means
 
 A failing block here is a finding, not a broken simulation. Three different kinds:
 
@@ -121,6 +121,16 @@ A failing block here is a finding, not a broken simulation. Three different kind
   during a normal clamped dump, not a bigger part to absorb it. Blocked on **U16**: if the
   alternator turns out unsuppressed, the applicable pulse is 5a and the topology changes
   rather than the part number.
+
+**A fault state nothing prevents — 1 block.**
+
+- **`egr_hbridge`** — the file argued no IN1/IN2 combination could short a leg, because
+  each input drives a *diagonal* pair. False against its own wiring: IN1 commands
+  leg-A-high and leg-B-low, IN2 commands leg-B-high and leg-A-low, so asserting both
+  turns all four switches on and shorts **both legs** at once. **270 A**, matching the
+  hand figure. The requirement is now a driver that decodes IN1/IN2 internally so 11
+  means brake, not shoot-through — and a per-leg dead time does not cover it, because
+  this is a logic state rather than a timing overlap.
 
 **Missing component — 1 block.**
 

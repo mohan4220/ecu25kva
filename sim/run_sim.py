@@ -733,7 +733,7 @@ def check_egr_hbridge():
     c = Checks("egr_hbridge -- pins 59/81, H-bridge + position feedback on pin 37")
     d = sim("egr_hbridge", {
         "egr_kill.dat": ["t", "g_egr", "g_egr_adv"],
-        "egr_dc.dat": ["sweep", "i_stall", "i_run", "i_coast"],
+        "egr_dc.dat": ["sweep", "i_stall", "i_run", "i_coast", "i_shoot"],
         "egr_recirc.dat": ["time", "ma5", "mb5", "ma6", "mb6", "ibat5"],
     })
     Vgsth = 1.0  # same INFERRED figure supervisor.cir uses -- see this netlist's header.
@@ -816,6 +816,25 @@ def check_egr_hbridge():
            "in sensor_ratiometric.cir",
            "0.308-2.769 V into the 3.3 V ADC, see check_sensor_ratiometric()",
            None, ok=True)
+    # ---- shoot-through: the state this file used to claim was impossible ----
+    # Added 19 Sep 2026. The header argued that because IN1 drives a DIAGONAL
+    # pair (S1+S4), no IN1/IN2 combination could short a leg. It checked each
+    # input line alone and never asked what the two do together: IN2 drives
+    # S3+S2, so asserting both turns all four switches on and shorts BOTH legs
+    # rail-to-ground at once.
+    #
+    # This is a real fault state with nothing on the board preventing it, so it
+    # is a failing claim, not an evidence row. It clears when the driver's own
+    # decode logic is specified -- see the netlist header.
+    i_shoot = abs(float(dd["i_shoot"][0]))
+    c.that("shoot-through: rail current with IN1=IN2 asserted", i_shoot, 1.0,
+           tol=None, ok=i_shoot < 1.0, unit="A")
+    # Hand check, to catch the sim disagreeing with the topology: each leg is
+    # two SWH in series from rail to ground, Ron 0.05 each, so 13.5/0.1 = 135 A
+    # per leg and 270 A for the two legs together.
+    c.that("  ... and it matches the two-legs-of-2x50mOhm hand figure",
+           i_shoot, 270.0, tol=15.0, unit="A")
+
     return c
 
 

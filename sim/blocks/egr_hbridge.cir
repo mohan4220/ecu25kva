@@ -68,19 +68,33 @@
 * the mechanism is identical at the other (same component values,
 * independent kill FET and pulldown per line, no cross-coupling).
 *
-* SHOOT-THROUGH. A leg's own high-side and low-side switch are
-* never commanded by the same input line in this scheme (IN1 drives
-* S1-and-S4, a DIAGONAL pair -- never S1-and-S2, which are the same
-* leg). So no combination of IN1/IN2 the ECU can present -- 00, 01,
-* 10, or 11 -- connects one leg's high side and low side switches
-* at once; the worst a stuck-high IN1=IN2 pair can do in THIS
-* scheme is command S2+S4 together (a low-side-only short across
-* the motor, i.e. "brake", not a rail-to-ground short through a
-* leg). Real shoot-through -- one leg's own top and bottom FET
-* conducting together -- is prevented by the eventual driver's own
-* internal dead-time/interlock logic, a datasheet property of a
-* part not yet chosen, same class of gap as every other unselected
-* FET on this board. What THIS design controls is which of the
+* SHOOT-THROUGH -- THIS PARAGRAPH WAS WRONG UNTIL 19 SEP 2026, AND
+* THE CORRECTION IS THE MOST IMPORTANT THING IN THIS FILE.
+*
+* It used to argue that because IN1 drives S1-and-S4, a DIAGONAL
+* pair, no combination of IN1/IN2 could connect one leg's high and
+* low side at once -- and that the worst a stuck-high IN1=IN2 pair
+* could do was command S2+S4, a low-side brake.
+*
+* That is false, and it is false about this netlist's own wiring.
+* IN1 commands S1 (leg A high) and S4 (leg B low). IN2 commands S3
+* (leg B high) and S2 (leg A low). Assert both and all four are on:
+* S1+S2 short leg A from rail to ground, and S3+S4 short leg B, at
+* the same time. The reasoning failed by checking each input line
+* on its own and never asking what the two do together.
+*
+* Simulated rather than argued, in the network below: 270 A.
+*
+* What this means for the design. Nothing on this board currently
+* prevents that state -- not the pulldowns, which hold both lines
+* LOW at reset and are fine, but any fault or firmware error that
+* drives both lines high. A real integrated driver decodes IN1/IN2
+* internally so 11 means brake or coast and never shoot-through,
+* and that decode is now a REQUIREMENT on driver selection rather
+* than a convenience. If the eventual driver is discrete, the
+* interlock has to be built, and a per-leg dead time is not enough
+* on its own -- the fault here is a logic state, not a timing
+* overlap. What THIS design controls is which of the
 * four logic states IN1/IN2 sit in while the MCU is Hi-Z at reset,
 * and the kill-clamp forces that to 00 (coast) -- consistent with
 * spec sec.4's "independent of GPIO configuration" requirement --
@@ -212,9 +226,34 @@ Rmc mac mmc 3
 Lmc mmc mvc 5m
 Vembc mvc mbc DC 0
 
+
+* ---- SHOOT-THROUGH: both input lines asserted at once ----
+* Added 19 Sep 2026 after a review falsified this file's own claim
+* that no IN1/IN2 combination could short a leg. It can, and this
+* network is that state rather than an argument about it.
+* IN1 commands S1 (leg A high) and S4 (leg B low); IN2 commands S3
+* (leg B high) and S2 (leg A low). Assert both and EVERY switch is
+* on: S1+S2 short leg A rail-to-ground and S3+S4 short leg B, at
+* the same time.
+Vbatt_st stsrc 0 DC 13.5
+Vamm_st  stsrc bst DC 0
+Vin1st in1st 0 DC 5
+Vin2st in2st 0 DC 5
+S1t bst mat in1st 0 SWH
+S4t mbt 0   in1st 0 SWH
+S3t bst mbt in2st 0 SWH
+S2t mat 0   in2st 0 SWH
+D1t mat bst DBODY
+D2t 0   mat DBODY
+D3t mbt bst DBODY
+D4t 0   mbt DBODY
+Rmt mat mmt 3
+Lmt mmt mvt 5m
+Vembt mvt mbt DC 0
+
 .control
 op
-wrdata egr_dc.dat i(Vbats) i(Vbatr) i(Vbatc)
+wrdata egr_dc.dat i(Vbats) i(Vbatr) i(Vbatc) i(Vamm_st)
 .endc
 
 * ============================================================

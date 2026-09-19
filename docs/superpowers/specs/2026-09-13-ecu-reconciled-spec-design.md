@@ -590,6 +590,31 @@ pull defaults cannot yet be looked up. The requirement above does not depend on 
 it exists precisely so that the answer does not matter — but the analysis cannot be
 finished until the pin map is fixed.
 
+#### The EGR driver must decode IN1/IN2 internally — REQUIRED 19 Sep 2026
+
+`sim/blocks/egr_hbridge.cir` argued that no IN1/IN2 combination could short a leg,
+because each input line drives a *diagonal* pair. A review falsified it against the
+block's own wiring: IN1 commands leg-A-high and leg-B-low, IN2 commands leg-B-high and
+leg-A-low, so asserting **both** turns all four switches on and shorts **both legs**
+rail-to-ground at once. Simulated at **270 A**, matching the hand figure of two legs of
+2 × 50 mΩ across 13.5 V.
+
+The reasoning failed by checking each input line alone and never asking what the two do
+together.
+
+**Nothing on this board currently prevents that state.** The gate pulldowns hold both
+lines low at reset, which is correct and not the issue — the exposure is any fault or
+firmware error that drives both high.
+
+**The requirement:** the EGR driver must decode IN1/IN2 so that the 11 state means brake
+or coast and never shoot-through. Integrated H-bridge drivers do this internally, and
+that now counts as a reason to prefer one here — note that memo 12's driver decision
+covered the *injectors* and explicitly did not address EGR. If the driver is discrete,
+the interlock has to be built, and **a per-leg dead time is not sufficient on its own**:
+this fault is a logic state, not a timing overlap.
+
+The block fails this check until a driver with that decode is specified.
+
 #### Driver architecture — DECIDED 19 Sep 2026, research memo 12
 
 **Discrete power MOSFETs with a gate-driver IC for the injector banks, keeping the

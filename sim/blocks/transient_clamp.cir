@@ -64,6 +64,12 @@ wrdata transient_clamp.dat v(bat) v(src)
 
 .end
 
+* (Clamp figures updated 19 Sep 2026: the bidirectional TVS model
+* clamps 0.7-1.0% higher than the single diode it replaced, because
+* the second junction's forward drop is not the 0.7 V assumed at
+* the low test current -- at the ~37 A this pulse actually runs it
+* is higher. The split's construction is right; the constant-Vf
+* shorthand used to justify it was not.)
 * ------------------------------------------------------------
 * RESULT NOTE
 * ------------------------------------------------------------
@@ -87,8 +93,8 @@ wrdata transient_clamp.dat v(bat) v(src)
 * is charge the TVS does not have to clamp. Re-ran with C1 swept to
 * 0 (effectively removed) in a scratch copy, not this file:
 *
-*     C1 = 10 uF (nominal)  ->  vmax = 49.998 V
-*     C1 = 0 (removed)      ->  vmax = 49.998 V
+*     C1 = 10 uF (nominal)  ->  vmax = 50.499 V
+*     C1 = 0 (removed)      ->  vmax = 50.499 V
 *
 * Identical to three decimal places. The TVS's own 0.35 ohm dynamic
 * resistance dominates the clamp against this 2 ohm/50 us source
