@@ -946,6 +946,59 @@ def check_vr_conditioner():
     return c
 
 
+def check_cam_frontend():
+    c = Checks("cam_frontend -- ECU pins 45/46/44, cam Hall sensor into PTB3/FTM1_CH1")
+    d = sim("cam_frontend", {
+        "cam_frontend_dc.dat": ["vraila", "na"],
+        "cam_frontend_tran.dat": ["time", "nb", "ctrl"],
+        "cam_frontend_fault.dat": ["sweep", "nc", "iflt"],
+    })
+    va, na = d["cam_frontend_dc.dat"]["vraila"], d["cam_frontend_dc.dat"]["na"]
+    t, nb = d["cam_frontend_tran.dat"]["time"], d["cam_frontend_tran.dat"]["nb"]
+
+    # PTB3 is not 5 V tolerant for guaranteed logic recognition (Vih max =
+    # VDD+0.3 = 3.6 V, S32K1xx datasheet Rev.15 Table 17) -- a literal
+    # pull-up to 5V_SENSOR is out of spec. This block's whole point is that
+    # the divider keeps the pad inside [2.31 V, 3.6 V] across the rail's
+    # own plausible range, not just at one nominal value.
+    at5 = float(np.interp(5.0, va, na))
+    at45 = float(np.interp(4.5, va, na))
+    at525 = float(np.interp(5.25, va, na))
+    c.that("sensor off, 5V_SENSOR nominal (5.0 V) -> pad", at5, 3.072, tol=0.01,
+           unit="V")
+    c.that("  ... clears the 3.6 V abs max", 3.6 - at5, 0.528, tol=0.02, unit="V")
+    c.that("sensor_rail.cir's own fault floor (4.5 V) -> pad", at45, 2.769,
+           tol=0.01, unit="V")
+    c.that("  ... still reads logic high (>=2.31 V, 0.7*VDD)", at45, 2.31,
+           tol=None, ok=at45 >= 2.31, unit="V")
+    c.that("above-nominal rail (5.25 V) -> pad", at525, 3.147, tol=0.01, unit="V")
+    c.that("  ... still clears the 3.6 V abs max", 3.6 - at525, 0.453, tol=0.02,
+           unit="V")
+
+    # Never exceeds the pad's absolute maximum anywhere in the transient,
+    # sensor toggling at its own rate.
+    c.that("never exceeds 3.6 V abs max in transient", float(nb.max()), 3.6,
+           tol=None, ok=float(nb.max()) <= 3.6, unit="V")
+
+    # Edge count: 170 ms window, PULSE period 80 ms -> exactly 2 complete
+    # rising edges (at ~40 ms and ~120 ms -- floor(170/80) = 2), same
+    # rising-edge-counting convention vr_conditioner.cir uses.
+    edges = int(np.sum(np.diff((nb > 1.65).astype(int)) > 0))
+    c.that("rising edges, 170 ms window at 12.5 Hz (80 ms period)", edges, 2,
+           tol=0, unit="edges")
+
+    # 40 V harness short on the signal line: the clamp must hold the pad
+    # inside the abs max, same bound sensor_ratiometric.cir checks for its
+    # own 5V_SENSOR-fed channels.
+    vf = float(d["cam_frontend_fault.dat"]["nc"][0])
+    i_f = abs(float(d["cam_frontend_fault.dat"]["iflt"][0]))
+    c.that("40 V harness short on signal line clamps pad to", vf, 3.6,
+           tol=None, ok=vf <= 3.6, unit="V")
+    c.that("  ... fault current limited to", i_f * 1e3, 5.0, tol=None,
+           ok=i_f < 5e-3, unit="mA")
+    return c
+
+
 def check_sensor_differential():
     c = Checks("sensor_differential -- shared ground on pin 34, single vs diff")
     d = sim("sensor_differential", {
@@ -1411,6 +1464,7 @@ CHECKS = {
     "sensor_rail": check_sensor_rail,
     "mcu_pdn": check_mcu_pdn,
     "vr_conditioner": check_vr_conditioner,
+    "cam_frontend": check_cam_frontend,
     "sensor_differential": check_sensor_differential,
     "boost_converter": check_boost_converter,
     "ntc_frontend": check_ntc_frontend,

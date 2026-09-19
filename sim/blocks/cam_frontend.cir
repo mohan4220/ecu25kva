@@ -1,0 +1,204 @@
+* ============================================================
+* Cam signal front-end -- ECU pins 45/46/44 (5V excitation /
+* Frequency I/P / ground), MCU pin PTB3 / FTM1_CH1 (input capture)
+* ============================================================
+* docs/pinmap.md sec.4, "Cam signal front-end (pin 46) -- a finding,
+* not a fix," and spec sec.4's own front-end column for pin 46 both
+* read "Pull-up to 5V_SENSOR -> timer capture": the cam Hall sensor's
+* output pulled straight to the 5 V sensor rail and fed into a
+* 3.3 V-rail MCU pin. No block in sim/blocks/ ever simulated it --
+* there is vr_conditioner.cir for the crank sensor and no cam
+* equivalent -- so a 5 V swing on that pin was never caught. This
+* block is that check.
+*
+* WHAT THE SENSOR ACTUALLY IS. refs/ecu-pinout-extracted.md's Speed
+* sensors table draws the cam sensor as a 3-pin device -- 5 V
+* excitation (pin 45), Frequency I/P (pin 46), ground (pin 44) --
+* with a "square-wave symbol," i.e. a digital Hall speed sensor, not
+* the crank's variable-reluctance coil. Spec sec.4's own front-end
+* text for pin 46, "Pull-up to 5V_SENSOR," only makes sense for an
+* OPEN-COLLECTOR output -- a push-pull Hall output would never need
+* an external pull-up specified for it. So the sensor pulls its
+* output near 0 V when a target passes and otherwise leaves it
+* floating, relying on an external resistor to define the high state
+* -- exactly the topology below, just landing in the 3.3 V domain
+* instead of the 5 V one spec sec.4 literally asked for.
+*
+* IS PTB3 5 V TOLERANT? No, not for anything this design should rely
+* on. NXP "S32K1xx Data Sheet," Rev. 15, 5 March 2026 (fetched and
+* text-extracted this session from nxp.com/docs/en/data-sheet/
+* S32K1xx.pdf, not taken from memory) -- Table 17, "DC electrical
+* specifications at 3.3 V Range": Vih max = VDD + 0.3 V, ~3.6 V at
+* VDD = 3.3 V. A full 5 V swing exceeds that, so it is not a
+* guaranteed valid logic level -- matching docs/pinmap.md sec.4's own
+* conclusion for this exact pin. Table 1, "Absolute maximum ratings,"
+* separately allows VIN_DC of -0.8 V to +5.8 V on ANY I/O pin -- but
+* only "while respecting the maximum current injection limit"
+* (IINJPAD_DC_ABS = +/-3 mA per pin, its footnote 5), and the
+* datasheet's own words are that "functional operation at the
+* maximum values is not guaranteed": it is a fault/stress margin, not
+* a design basis for a signal that sits at 5 V continuously, every
+* cam revolution, for the machine's running life. A raw pull-up to
+* 5V_SENSOR with no dedicated attenuation relies on the MCU's own
+* internal ESD/clamp structure to carry that current permanently,
+* with no margin against a smaller pull-up value, a harness fault, or
+* ESD stacking on top of the steady-state current. So the swing has
+* to be divided into the 3.3 V domain before the pad, the same
+* treatment already applied to battery_sense.cir and
+* discrete_input.cir.
+*
+* CAM SIGNAL FREQUENCY AT 1500 RPM, shown not asserted:
+*   crank   1500 rpm = 1500/60 = 25 Hz shaft rotation
+*   cam turns at HALF crank speed (a camshaft turns once per two
+*   crank revolutions on a 4-stroke engine) = 12.5 Hz shaft rotation
+*   = 750 rpm
+* Tooth/lobe count for the cam target is NOT recorded anywhere in
+* this repo (checked docs/research/*.md, the spec, and
+* refs/ecu-pinout-extracted.md). ASSUMED 1 lobe per cam revolution
+* (INFERRED -- typical for a cylinder-sync Hall sensor, unlike the
+* crank's 60-tooth wheel built for fine angle resolution): signal
+* fundamental = 12.5 Hz, period 80 ms. If it is actually N lobes
+* (e.g. N=3, one per cylinder), the fundamental becomes N*12.5 Hz --
+* 37.5 Hz at N=3 -- see the TOLERANCE section for why the filter
+* corner below does not care which.
+*
+* TOPOLOGY. R1 is both the sensor's own required pull-up AND the top
+* half of a divider into the 3.3 V domain: R1/R2 = 10k/16k, the SAME
+* ratio and the SAME 5V_SENSOR rail sensor_ratiometric.cir already
+* uses for its own channels, reused rather than invented:
+*     5.00 V (sensor off, floating high)      -> 5.00 * 16/26 = 3.077 V
+*     4.50 V (sensor_rail.cir's own fault floor for a healthy group)
+*                                              -> 4.50 * 16/26 = 2.769 V
+* both inside [2.31 V logic-high floor (0.7*3.3), 3.6 V abs-max
+* ceiling]. C1 = 22 nF, the SAME value sensor_ratiometric.cir uses,
+* gives the SAME corner, because R1||R2 is the identical 6.154 kohm
+* Thevenin resistance:
+*     fc = 1 / (2*pi * 6154 * 22e-9) = 1176 Hz
+* -- about 94x above the 12.5 Hz fundamental (31x above a 3-lobe
+* 37.5 Hz fundamental), comfortably inside a front end this project
+* has already validated at that exact corner (sensor_ratiometric.cir:
+* -0.0 dB at the sensor's own bandwidth, -38.6 dB at 100 kHz). D1 is
+* a 3.3 V zener, the same model sensor_ratiometric.cir uses, clamping
+* the pad against a harness short on the 5V_SENSOR excitation line or
+* on the signal line itself -- it does not touch the signal in normal
+* operation, since 3.077 V sits 0.22 V clear of the 3.3 V knee.
+* ============================================================
+
+.model DZ3V3 D(Is=1e-14 N=1 Rs=5 BV=3.3 IBV=5e-3)
+* Hall output stage: saturates near 0 V when the control node is
+* high (magnet present), else open -- the open-collector behaviour.
+.model HALLSW SW(Ron=10 Roff=1e9 Vt=2.5 Vh=0.1)
+
+* ---- network A: DC transfer, sensor OFF (floating high), 5V_SENSOR
+* swept across sensor_rail.cir's own fault-floor-to-nominal range
+* (4.5-5.25 V) ----
+Vraila rail_a 0 DC 5
+R1a rail_a na 10k
+R2a na  0   16k
+C1a na  0   22n
+D1a 0   na  DZ3V3
+
+* ---- network B: transient at nominal 5V_SENSOR, sensor switching at
+* the cam's own 12.5 Hz (80 ms period), 50% duty (INFERRED target
+* geometry -- no lobe-width figure exists anywhere in this repo) ----
+Vrailb rail_b 0 DC 5
+R1b rail_b nb 10k
+S1  nb 0 ctrl 0 HALLSW
+R2b nb  0   16k
+C1b nb  0   22n
+D1b 0   nb  DZ3V3
+Vctrl ctrl 0 PULSE(0 5 0 1u 1u 40m 80m)
+
+* ---- network C: harness short to battery on the signal line -- R1
+* limits fault current, D1 clamps. Same fault sensor_ratiometric.cir
+* checks for its own 5V_SENSOR-fed channels. ----
+Vflt sc 0 DC 40
+R1c sc  nc  10k
+R2c nc  0   16k
+C1c nc  0   22n
+D1c 0   nc  DZ3V3
+
+.control
+dc Vraila 4.5 5.25 0.01
+wrdata cam_frontend_dc.dat v(na)
+
+tran 20u 170m
+wrdata cam_frontend_tran.dat v(nb) v(ctrl)
+
+op
+wrdata cam_frontend_fault.dat v(nc) i(Vflt)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE
+* ------------------------------------------------------------
+* Proved here: the pull-up/divider keeps the pad inside [2.31 V,
+* 3.6 V] across the 5V_SENSOR fault-floor-to-nominal range, the
+* filter corner sits two orders of magnitude above the cam's own
+* 12.5 Hz signal while still rejecting switching-frequency noise
+* (same corner sensor_ratiometric.cir already validated for that),
+* the transient behaviour produces clean edges at the sensor's own
+* rate, and a 40 V harness short on the signal line is survivable
+* (clamped, current-limited) rather than destructive.
+*
+* NOT modelled:
+*   - The real Hall sensor's saturation voltage, output current
+*     rating, and internal pull-up presence -- no part chosen.
+*     HALLSW's Ron=10 ohm is a stand-in for a saturated transistor,
+*     not a datasheet number.
+*   - Lobe count / target geometry -- see the header. The TOLERANCE
+*     section below shows the filter margin survives the plausible
+*     range.
+*   - A real cam signal is not a clean square wave any more than a
+*     real VR signal is a clean sine (vr_conditioner.cir's own
+*     RESULT NOTE makes the equivalent point for the crank input).
+*     Edge transition time and any target-geometry-driven duty-cycle
+*     asymmetry are not modelled.
+*   - ESD at the connector.
+*   - ADC/timer-capture sampling behaviour itself -- this block ends
+*     at the pad voltage, not at what FTM1_CH1 resolves from it.
+* ------------------------------------------------------------
+*
+* ------------------------------------------------------------
+* TOLERANCE
+* ------------------------------------------------------------
+* Two parameters this verdict could plausibly move on: the 5V_SENSOR
+* rail's own tolerance, and the lobe-count/frequency assumption.
+*
+* RAIL TOLERANCE -- already swept in this file, not a hand wave: the
+* DC sweep above covers 4.5-5.25 V, sensor_rail.cir's own fault floor
+* to above nominal. At the low end (4.5 V) the node still reads
+* 2.769 V, 0.459 V clear of the 2.31 V logic-high floor; at the high
+* end (5.25 V) it reads 3.231 V, 0.369 V clear of the 3.6 V abs-max
+* ceiling. Both margins are real, not razor-thin.
+*
+* DIVIDER RESISTOR TOLERANCE -- not re-run in SPICE here, for the
+* same reason sensor_ratiometric.cir's RESULT NOTE gives: R1/R2 are
+* the IDENTICAL 10k/16k topology at the IDENTICAL ratio, so that
+* block's own re-derivation applies verbatim rather than needing a
+* second SPICE pass -- a linear resistor divider's response to a
+* component tolerance is algebra, not something SPICE resolves any
+* more precisely. At +/-1% (standard resistor tolerance), that
+* analysis found the ratio moves about 1.4%, i.e. roughly 43 mV on
+* this block's 3.077 V nominal figure -- against a 0.223 V
+* clamp-clearance margin and a 0.459 V logic-high margin (the tighter
+* of the two, at the 4.5 V rail floor), neither of which a 43 mV
+* shift threatens.
+*
+* LOBE COUNT / SIGNAL FREQUENCY -- the header's 12.5 Hz fundamental
+* assumes 1 lobe per cam revolution, INFERRED and unconfirmed. Re-
+* read at N=3 lobes (one per cylinder, the other plausible geometry,
+* since this is a 3-cylinder engine): fundamental becomes 37.5 Hz.
+* The filter corner (1176 Hz) is 94x the N=1 case and 31x the N=3
+* case -- both comfortably in the "does not touch the signal" regime
+* sensor_ratiometric.cir's own AC sweep already demonstrated at a
+* smaller margin (its 100 Hz sensor signal sits 11.8x below the same
+* 1176 Hz corner and passes with 0.0 dB loss). So this verdict does
+* not depend on which lobe count is correct -- what would actually
+* move it is a much higher cam-side event rate than either geometry
+* plausibly produces (e.g. a many-toothed cam wheel used for fine
+* resolution, which nothing in this repo suggests exists), not the
+* 1-vs-3 ambiguity that is actually open.
+* ------------------------------------------------------------

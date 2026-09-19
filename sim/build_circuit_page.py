@@ -260,6 +260,23 @@ BLOCKS = {
          "produces one large excursion per revolution. Amplitude at true cranking speed on a cold engine "
          "with a weak battery can be under a volt, which is when starting matters most, and the "
          "hysteresis window needs checking against the real sensor rather than this 2 V estimate."),
+        ("cam_frontend", "Cam signal front-end", "pins 45, 46, 44",
+         "A cam Hall sensor's open-collector output, pulled up and divided into the 3.3 V domain before "
+         "PTB3/FTM1_CH1, instead of the spec's literal pull-up straight to the 5 V sensor rail.",
+         "PTB3 is not 5 V tolerant for anything this design should rely on — the S32K148's own datasheet "
+         "puts guaranteed valid-high recognition at VDD+0.3 V, about 3.6 V, and treats a higher DC "
+         "injection allowance as a fault margin, not a design basis for a pin that sees 5 V every cam "
+         "revolution for the machine's whole life. Nothing in sim/blocks/ ever modelled this pin before — "
+         "there is a conditioner for the crank sensor and no cam equivalent — so the overvoltage sat "
+         "uncaught. The divider (10k/16k) and filter (22 nF, 1176 Hz corner) reuse sensor_ratiometric.cir's "
+         "own values exactly, since both share the same 5V_SENSOR rail and the same target domain: 94x "
+         "above the cam's 12.5 Hz signal (half crank speed at 1500 rpm, one lobe per revolution assumed) "
+         "and still well below switching-frequency noise.",
+         "The real Hall sensor's saturation voltage, sink current, and internal pull-up (if any) are not "
+         "modelled — no part chosen. Lobe count is INFERRED at 1 per cam revolution; the TOLERANCE section "
+         "shows the filter margin survives a 3-lobe alternative just as well. A real cam signal's edge "
+         "shape and any duty-cycle asymmetry from target geometry are not modelled, the same limitation "
+         "vr_conditioner.cir already states for the crank signal's own non-ideal waveform."),
     ]),
     "injection": ("04", "Injection", "The most expensive stage on the board and the reason it exists.", [
         ("injector_boost", "Why the boost rail exists", "pins 03, 05",

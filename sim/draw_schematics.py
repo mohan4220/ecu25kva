@@ -595,6 +595,62 @@ def vr_conditioner(d):
     return "Crank VR conditioner -- zero-cross, not a fixed threshold"
 
 
+def cam_frontend(d):
+    """ECU pins 45/46/44 -- cam Hall sensor, open-collector, into
+    PTB3/FTM1_CH1. Drawn as network B (the transient/switching network):
+    R1/R2/C1/D1 identical in value to sensor_ratiometric.cir's own front
+    end, just with the sensor's open-collector output (S1, a switch to
+    ground) standing in place of an analog source."""
+    d += elm.Dot(open=True).label("5V_SENSOR\npin 45", "left")
+    d += elm.Line().right().length(0.6)
+    d += elm.Resistor().right().label("R1\n10k")
+    d += (node := elm.Dot())
+    d += elm.Line().right().length(3.5)
+    d += elm.Dot(open=True).label("MCU capture\nPTB3 / FTM1_CH1", "right")
+
+    d += elm.Resistor().down().at(node.center).length(1.6).label("R2\n16k",
+                                                                   loc="bottom")
+    d += elm.Ground()
+
+    d.push()
+    d += elm.Line().right().at(node.center).length(1.3)
+    d += elm.Dot()
+    d += elm.Capacitor().down().label("C1\n22n", loc="bottom")
+    d += elm.Ground()
+    d.pop()
+
+    d += elm.Line().right().at(node.center).length(2.6)
+    d += elm.Dot()
+    d += elm.Zener().down().label("D1\n3.3 V", loc="bottom")
+    d += elm.Ground()
+
+    # The sensor itself: open-collector to ground. Routed OFF to the left
+    # of the R2/ground column below the node -- dropping it straight down
+    # from node.center would stack it on top of R2's own ground symbol.
+    # It IS a real netlist element (S1/HALLSW), not a dashed/undrawn part,
+    # so it is drawn solid.
+    hall_x = node.center[0] - 2.2
+    d += elm.Line().left().at(node.center).tox(hall_x)
+    d += elm.Line().down().length(1.0)
+    d += (sw := elm.Switch().down())
+    d += elm.Line().down().length(0.8)
+    d += elm.Dot(open=True).label("pin 44, sensor gnd", "bottom")
+    # loc= on this rotated element lands unpredictably (this file's own
+    # trap, worked around everywhere else here too) -- explicit
+    # coordinate, clear of both the switch glyph and the pin-44 label.
+    d += elm.Label().at((sw.center[0] - 2.6, sw.center[1])).label(
+        "Hall sensor\n(open collector)")
+
+    d += elm.Label().at((hall_x - 2.2, node.center[1] - 6.2)).label(
+        "R1/R2/C1/D1: identical values to sensor_ratiometric.cir's own\n"
+        "5V_SENSOR front end -- same divider ratio, same filter corner,\n"
+        "same clamp. Not a coincidence: pin 46 is not 5 V tolerant on this\n"
+        "MCU (S32K1xx datasheet Vih max = VDD+0.3 V), so the spec's literal\n"
+        "'pull-up to 5V_SENSOR' has to be divided into the 3.3 V domain\n"
+        "before PTB3, the same treatment every other 5 V-rail input gets.")
+    return "Cam signal front-end -- pins 45 / 46 / 44"
+
+
 def sensor_differential(d):
     """Shared sensor ground on pin 34 -- single-ended divider plus a
     differential front end, both reading the boost sensor's output (sa),
@@ -902,6 +958,7 @@ BLOCKS = {
     "sensor_rail": sensor_rail,
     "mcu_pdn": mcu_pdn,
     "vr_conditioner": vr_conditioner,
+    "cam_frontend": cam_frontend,
     "sensor_differential": sensor_differential,
     "boost_converter": boost_converter,
     "ntc_frontend": ntc_frontend,
