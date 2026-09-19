@@ -446,7 +446,36 @@ with nothing downstream able to remove its power either.
 1. A **gate–source pulldown** at each gate node, sized by the FET actually chosen rather
    than fixed here:
 
-   > `Rpd < Vgs(th) / (Crss · dV/dt)`, with dV/dt = 2.8 V/µs from `injector_turnoff.cir`
+   > `Rpd < Vgs(th) / (Crss · dV/dt)`
+
+   **The dV/dt in that formula is the weakest number in this requirement, and this
+   document previously overstated its standing.** It read "2.8 V/µs from
+   `injector_turnoff.cir`", which is a citation that file explicitly refuses: its own
+   comments say reporting a dV/dt from that model "would be exactly the kind of
+   promotion-to-sourced the project's own discipline rules out." The figure is memo 10's
+   **inferred** estimate — 100 V in ~36 µs — and `supervisor.cir` imports it as an
+   assumed input waveform, labelled INFERRED there too. Every file closer to the number
+   than this one hedges it; only the spec stated it flatly, beside genuinely simulated
+   figures, where it read as one of them.
+
+   **It is also an average, not a peak, and the error runs in the unsafe direction.**
+   100 V over 36 µs is the mean slope of the whole turn-off. Miller coupling happens
+   during the plateau, where a real FET slews far faster. The requirement's sensitivity
+   to that, at Crss = 500 pF:
+
+   | dV/dt | gate through 470 Ω | Rpd actually needed |
+   |---|---|---|
+   | 2.8 V/µs (the assumed average) | 0.66 V — ok | < 714 Ω |
+   | 10 V/µs | 2.35 V — over threshold | < 200 Ω |
+   | 28 V/µs | 6.58 V — over threshold | < 71 Ω |
+
+   At 200 Ω the gate driver would need an output impedance near 10 Ω; at 71 Ω a passive
+   pulldown cannot be driven at all. **So the 470 Ω answer survives only at the assumed
+   average**, and a modest factor on the real slew rate removes the passive-pulldown
+   topology entirely rather than merely resizing it. Treat 470 Ω as conditional until a
+   FET is chosen and its Miller-plateau slew is taken from a datasheet — and read this
+   as further weight behind the active-clamp / integrated-driver option below, not as a
+   number to build to.
 
    At a 1.0 V threshold that is **under 1.79 kΩ for Crss = 200 pF, 714 Ω at 500 pF,
    357 Ω at 1000 pF**. `sim/blocks/supervisor.cir` claim 6 sweeps this directly and
@@ -525,10 +554,21 @@ The argument for MPC5744P was angle-synchronous injection timing needing the eTP
 > was right to. This section first argued that constant 1500 rpm operation relaxes the
 > timing problem because a crank degree is 111 µs and a 60-tooth wheel gives an edge
 > every 667 µs. That checks the wrong variable. Crank-edge *capture* rate was never the
-> binding constraint in either case — at 6000 rpm a 60-tooth wheel still only produces
-> an edge every 28 µs, which is over 2000 CPU cycles at 80 MHz against an NVIC latency
+> binding constraint in either case — at 6000 rpm a 60-tooth wheel produces an edge
+> every **83 µs**, which is about **6,700 CPU cycles** at 80 MHz against an NVIC latency
 > of roughly 12. The comparison was never close, so constant speed cannot be what makes
 > it comfortable. The reasoning below replaces it.
+>
+> **Re-corrected 18 Sep 2026.** This box said "an edge every 28 µs, which is over 2000
+> CPU cycles". 28 µs is the **one-degree-of-crank** period at 6000 rpm (10,000 µs ÷ 360),
+> not a tooth-edge period — a unit conflation, off by a factor of six, sitting inside a
+> box that was itself written to fix an earlier reasoning error. A 60-tooth wheel at
+> 6000 rpm gives 166.7 µs per tooth and 83.3 µs per edge counting both polarities.
+>
+> The conclusion is unaffected and in fact strengthened: the correct figure gives *more*
+> margin, not less. It is corrected because a wrong number that happens to support the
+> right answer is still a wrong number, and this one would have been inherited by anyone
+> reasoning forward from it.
 
 **What the eTPU2 actually buys.** It is a co-processor that autonomously schedules and
 re-schedules many angle-domain output-compare events across a wide and *rapidly changing*
