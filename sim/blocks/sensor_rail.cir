@@ -50,9 +50,27 @@ Rlb2 bb 0 100
 Rqc  railb bc 1m
 Rlc2 bc 0 100
 
+* ---- network C: stacked temperature-and-tolerance corner ----
+* Same topology as network A (per-group PTC protection), but Rptc is
+* the STACKED corner from the TEMPERATURE RESULT NOTE below: -40 C
+* ambient (~0.8x R25, INFERRED) AND the TOLERANCE section's own -30%
+* part-to-part spread, together: Rptc = 2.0 * 0.8 * 0.7 = 1.12 ohm.
+* This is the check the TEMPERATURE note's own finding calls for --
+* see run_sim.py's check_sensor_rail for why this is checked (not
+* just the -40 C ambient case alone, which still passes).
+.param Rptc=1.12
+V5C  rc 0 DC 5
+Rsc  rc railc 0.1
+Rxa  railc xa {Rptc}
+Rfx  xa 0 10m
+Rxb  railc xb {Rptc}
+Rlxb xb 0 100
+Rxc  railc xc {Rptc}
+Rlxc xc 0 100
+
 .control
 op
-wrdata sensor_rail.dat v(raila) v(ab) v(railb) v(bb) i(V5A)
+wrdata sensor_rail.dat v(raila) v(ab) v(railb) v(bb) i(V5A) v(xb) i(V5C)
 .endc
 
 .end
@@ -146,13 +164,23 @@ wrdata sensor_rail.dat v(raila) v(ab) v(railb) v(bb) i(V5A)
 * TOLERANCE section already found thin. Stacked with that section's
 * own -30% part-to-part corner (cold ambient AND low-tolerance part
 * together: Rptc = 2.0 x 0.8 x 0.7 = 1.12 ohm), fault current is
-* 4.058 A -- a clear FAIL against the 3.0 A ceiling. This is the same
-* finding as the TOLERANCE section, sharpened: a real cold-climate
-* genset (this design's stated environment) will see -40 C ambient
-* routinely, so "PTC spread alone might fail" becomes "PTC spread
-* AND a cold morning will fail" unless a specific part's minimum
-* cold-ambient, minimum-tolerance resistance is checked and found to
-* clear 3.0 A. Not fixed here, for the same reason as above: it is a
-* part-selection decision, not a value to tune until the check
-* passes.
+* 4.15 A (network C below, verified against the actual ngspice run,
+* not just this note's arithmetic) -- a clear FAIL against the 3.0 A
+* ceiling. This is the same finding as the TOLERANCE section,
+* sharpened: a real cold-climate genset (this design's stated
+* environment) will see -40 C ambient routinely, so "PTC spread alone
+* might fail" becomes "PTC spread AND a cold morning will fail"
+* unless a specific part's minimum cold-ambient, minimum-tolerance
+* resistance is checked and found to clear 3.0 A. Not fixed here, for
+* the same reason as above: it is a part-selection decision, not a
+* value to tune until the check passes.
+*
+* ENFORCED: network C above and the "stacked -40C + -30%" check in
+* run_sim.py's check_sensor_rail turn this into a checked claim
+* rather than a prose note. Shape chosen: the design is inadequate at
+* this corner (the 3.0 A ceiling is a real requirement -- something a
+* polyfuse has to trip on -- not an arbitrary number), so the check
+* FAILS and stays failing until a real PTC part is chosen with a
+* datasheet minimum that clears it, or series resistance is added
+* ahead of the PTC. Not fixed by changing Rptc here.
 * ------------------------------------------------------------

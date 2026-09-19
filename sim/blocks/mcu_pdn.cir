@@ -79,9 +79,32 @@ Cs   m  s1 1u
 Rs   s1 s2 30m
 Ls   s2 0  0.8n
 
+* ---- temperature corner: bulk ESR at a plausible cold derate ----
+* Same ten-part network as the primary (n) branch, Rb only replaced.
+* ngspice's `option temp` has nothing to move here -- pure RLC, no
+* junctions -- so this is a component-value corner like the others.
+* 200 mOhm = 4x nominal, the MID of the INFERRED 2-6x class-typical
+* aluminium/tantalum electrolytic cold-ESR-derate range (see the
+* RESULT NOTE below for the range's sourcing). Deliberately not the
+* 2x low end: that value sits within a few percent of the 100 mOhm
+* target itself (99.3 mOhm, verified separately) -- a corner chosen
+* right at a check's own noise floor invites arguing about
+* measurement precision instead of the finding. 4x is still inside
+* the same INFERRED range and fails with room to spare.
+.param RbCorner=200m
+Iac3 n3 0 AC 1
+Rldo3 n3 l3 0.01
+Lldo3 l3 0 0.15u
+Cb3  n3 b3 150u
+Rb3  b3 b4 {RbCorner}
+Lb3  b4 0  2n
+Cc3  n3 c3 1u
+Rc3  c3 c4 3m
+Lc3  c4 0  0.08n
+
 .control
 ac dec 100 1k 100meg
-wrdata mcu_pdn.dat vm(n) vm(m)
+wrdata mcu_pdn.dat vm(n) vm(m) vm(n3)
 .endc
 
 .end
@@ -219,4 +242,15 @@ wrdata mcu_pdn.dat vm(n) vm(m)
 * part with a datasheet cold-ESR curve (and checking it clears
 * 100 mOhm at its OWN worst case, the way the Lldo fix did) is a part
 * selection decision, not a simulation-pass decision.
+*
+* ENFORCED: network n3 above (Rb=200 mOhm, 4x nominal, mid of the
+* INFERRED 2-6x range) and the corresponding check in run_sim.py's
+* check_mcu_pdn turn this into a checked claim. Shape chosen: the
+* design is inadequate at this corner -- the 100 mOhm target is
+* derived, not a round convention, so the check FAILS and stays
+* failing. Deliberately did not pin the check at the 2x/100 mOhm flip
+* point itself (99.3 mOhm, a marginal PASS by a fraction of a percent)
+* -- that value is too close to the target to be a stable corner to
+* check against; 4x fails with margin and is still squarely inside the
+* same INFERRED range.
 * ------------------------------------------------------------

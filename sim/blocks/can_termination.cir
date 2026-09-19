@@ -70,6 +70,26 @@ Rd   dh dl 120
 Rldh dh 0 1meg
 Rldl dl 0 1meg
 
+* ---- temperature corner: Rah/Ral at 200 ppm/C, matched direction ----
+* Same split-termination topology as network A's differential drive,
+* Rah/Ral only. 200 ppm/C is ordinary standard-grade thick-film, not
+* an exotic corner (see the RESULT NOTE below). Both resistors shift
+* TOGETHER (matched batch, the LESS adverse of the two directions the
+* TOLERANCE section already considered -- the more pessimistic
+* opposite-direction case was not even needed to find something here).
+* Delta = 200 ppm/C * 165 C (the full -40/+125 span, the same
+* convention the RESULT NOTE's own 100 ppm/C figure uses and that
+* figure is verified below to reproduce) = +3.3%, R = 60 * 1.033 =
+* 61.98 ohm.
+.param Rtempco=61.98
+Ied1 0 eh  AC 1
+Ied2 el 0  AC 1
+Reh  eh mhe {Rtempco}
+Rel  mhe el {Rtempco}
+Cse  mhe 0  4.7n
+Rleh eh 0 1meg
+Rlel el 0 1meg
+
 .control
 * 10 kHz to 100 MHz: from below the bit rate to the top of the
 * CISPR 25 conducted band.
@@ -81,7 +101,8 @@ let zdiff_split  = mag(v(ah) - v(al))
 let zcm_split    = mag(v(bh))
 let zdiff_single = mag(v(ch) - v(cl))
 let zcm_single   = mag(v(dh))
-wrdata can_termination.dat zdiff_split zcm_split zdiff_single zcm_single
+let zdiff_tcorner = mag(v(eh) - v(el))
+wrdata can_termination.dat zdiff_split zcm_split zdiff_single zcm_single zdiff_tcorner
 .endc
 
 .end
@@ -178,7 +199,13 @@ wrdata can_termination.dat zdiff_split zcm_split zdiff_single zcm_single
 *
 *     R=60.00 ohm (nominal)              zdiff@250kbit 119.99 ohm  PASS
 *     R=60.99 ohm (100 ppm/C, +1.65%)    zdiff@250kbit 121.97 ohm  PASS, margin 0.03/2 ohm
-*     R=61.65 ohm (200 ppm/C, +3.3%)     zdiff@250kbit 123.29 ohm  FAIL
+*     R=61.98 ohm (200 ppm/C, +3.3%)     zdiff@250kbit 123.95 ohm  FAIL
+*
+* (60 * 1.033 = 61.98, not the 61.65 this note originally had -- a
+* small arithmetic slip caught re-deriving the number for the
+* enforced check below and corrected here, per this project's own
+* history of exactly this kind of error. Does not change the
+* verdict: still a clear FAIL either way.)
 *
 * AT A PLAUSIBLE, UNREMARKABLE RESISTOR TEMPCO, THIS CHECK FAILS.
 * 200 ppm/C is not an exotic corner -- it is standard-grade thick-
@@ -193,4 +220,14 @@ wrdata can_termination.dat zdiff_split zcm_split zdiff_single zcm_single
 * still commonly carry 100-200 ppm/C tempco ratings unless the BOM
 * line specifies BOTH; this needs a tempco spec, not just a
 * tolerance bin, to actually hold the margin this check assumes.
+*
+* ENFORCED: network "e" above and the "200 ppm/C resistor tempco"
+* check in run_sim.py's check_can_termination turn this into a
+* checked claim. Shape chosen: the design is inadequate at this
+* corner -- 120 ohm is what J1939 specifies (the header says so
+* plainly), not a round convention, so the check FAILS against the
+* SAME 120+/-2 ohm target the nominal check already uses, and stays
+* failing until the BOM line specifies a tempco, not just a
+* tolerance bin, on Rah/Ral. Not fixed here by changing the resistor
+* value.
 * ------------------------------------------------------------

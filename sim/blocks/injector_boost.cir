@@ -39,6 +39,26 @@ Rc   cm 0  0.5
 .control
 tran 100n 800u uic
 wrdata injector_boost.dat i(Vbat) i(Vbst)
+
+* ---- temperature corners: same coil, R altered ----
+* Copper's coil resistance is one physical part in both branches (see
+* the header's own framing), so the same ambient tempco (~0.39%/C,
+* physical constant) moves Rb and Rc together: R=0.37 ohm at -40C,
+* R=0.69 ohm at +125C. `option temp` does nothing here (no junctions
+* in this RL model), so this is a component-value corner, done with
+* `alter` + a second/third `tran` on the SAME two branches, same
+* technique as metering_unit_pwm.cir's temperature corners (and for
+* the same reason: keeps the netlist's own complexity instead of
+* adding parallel branches).
+alter rb = 0.37
+alter rc = 0.37
+tran 100n 800u uic
+wrdata injector_boost_cold.dat i(Vbat) i(Vbst)
+
+alter rb = 0.69
+alter rc = 0.69
+tran 100n 800u uic
+wrdata injector_boost_hot.dat i(Vbat) i(Vbst)
 .endc
 
 .end
@@ -140,4 +160,17 @@ wrdata injector_boost.dat i(Vbat) i(Vbst)
 * drive is so far above I_th*R at any of these R values -- this is
 * the number that matters for the real design, and it is not
 * temperature-sensitive at all.
+*
+* ENFORCED: the `alter`-based cold/hot re-runs in the .control block
+* above, and check_injector_boost in run_sim.py, turn both halves into
+* checked claims, per the task's own instruction to express both. The
+* "boost is faster by 11.6x" ratio check uses the SAME target/
+* tolerance as the nominal check -- not invented for this pass -- and
+* genuinely FAILS at both corners, which is the correction to this
+* file's own "invariant by construction" claim above made executable.
+* The "time to 18 A from 100 V boost" check, same target/tolerance as
+* its own nominal line, PASSES at both corners -- that pass is what
+* says the real (boost-driven) design is fine across temperature; it
+* is the ratio's dependence on the unused battery-only comparison that
+* is fragile, not the actual injector drive.
 * ------------------------------------------------------------

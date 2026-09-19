@@ -499,14 +499,19 @@ def check_negative_pulses():
 
 def check_injector_boost():
     c = Checks("injector_boost -- why the boost stage exists (pins 03/05)")
-    d = sim("injector_boost", {"injector_boost.dat": ["time", "ibat", "ibst"]})["injector_boost.dat"]
+    dd = sim("injector_boost", {
+        "injector_boost.dat": ["time", "ibat", "ibst"],
+        "injector_boost_cold.dat": ["time", "ibat", "ibst"],
+        "injector_boost_hot.dat": ["time", "ibat", "ibst"],
+    })
+    d = dd["injector_boost.dat"]
     t = d["time"]
     # ngspice reports source current as negative when sourcing.
     ibat, ibst = np.abs(d["ibat"]), np.abs(d["ibst"])
 
-    def t_to(cur, target):
+    def t_to(cur, target, tt=t):
         idx = np.argmax(cur >= target)
-        return float(t[idx]) if cur.max() >= target else float("inf")
+        return float(tt[idx]) if cur.max() >= target else float("inf")
 
     # The two times below have a closed form -- t = (L/R)*ln(V/(V-I_th*R)),
     # the standard RL step-response result -- but the "want" figures were
@@ -530,6 +535,44 @@ def check_injector_boost():
            100 * t_bat / 1e-3, 43.9, tol=2.0, unit="%")
     c.that("boost drive eats this much of a 1 ms injection",
            100 * t_bst / 1e-3, 3.8, tol=0.5, unit="%")
+
+    # TEMPERATURE -- express both halves, same instruction as
+    # metering_unit_pwm.cir. The TOLERANCE note above claimed the ratio
+    # is "invariant to the injector's own L/R tolerance by construction" --
+    # true for L, but R also appears inside the log term via I_th*R, which
+    # does NOT cancel between branches (re-derived and verified against
+    # the actual netlist, not just the algebra, per this project's own
+    # history of exactly this kind of error). Copper coil resistance
+    # (~0.39%/C, physical constant, same physical part in both branches --
+    # see the header) gives R=0.37 ohm at -40C / 0.69 ohm at +125C.
+    # `option temp` does nothing for this RL model (no junctions), so this
+    # is a component-value corner, via `alter` in the netlist's .control
+    # block (same technique as metering_unit_pwm.cir).
+    for label, fname in (("-40C", "injector_boost_cold.dat"),
+                          ("+125C", "injector_boost_hot.dat")):
+        dc = dd[fname]
+        tc = dc["time"]
+        ibatc, ibstc = np.abs(dc["ibat"]), np.abs(dc["ibst"])
+        t_batc = t_to(ibatc, 18.0, tc)
+        t_bstc = t_to(ibstc, 18.0, tc)
+
+        # Half 1: the ratio check IS real -- same 11.6+/-1.5x target the
+        # nominal check above uses, not invented for this pass. It fails
+        # at BOTH corners (cold undershoots, hot overshoots badly), which
+        # corrects the file's own "invariant by construction" claim: the
+        # ratio is L-invariant but not R-invariant, and R moves with
+        # ambient.
+        c.that(f"  ... boost is faster by, {label} ambient",
+               t_batc / t_bstc, 11.6, tol=1.5, unit="x")
+
+        # Half 2: the number that actually matters for the REAL design --
+        # t_bst, the boost-driven time -- uses the SAME target/tolerance
+        # as the nominal check above. It survives both corners: 100 V so
+        # thoroughly dominates I_th*R that this time is nearly
+        # temperature-insensitive, which is the real design's answer to
+        # the question this block exists to ask.
+        c.that(f"  ... time to 18 A from 100 V boost, {label} ambient",
+               t_bstc * 1e6, 38, tol=4, unit="us")
     return c
 
 
@@ -869,7 +912,7 @@ def check_buck_preregulator():
 def check_sensor_rail():
     c = Checks("sensor_rail -- 5V_SENSOR, one PTC per sensor group")
     d = sim("sensor_rail", {
-        "sensor_rail.dat": ["sweep", "raila", "ab", "railb", "bb", "isrc"],
+        "sensor_rail.dat": ["sweep", "raila", "ab", "railb", "bb", "isrc", "xb", "ic"],
     })["sensor_rail.dat"]
     raila, ab = float(d["raila"][0]), float(d["ab"][0])
     railb, bb = float(d["railb"][0]), float(d["bb"][0])
@@ -903,12 +946,32 @@ def check_sensor_rail():
     ifault = abs(float(d["isrc"][0]))
     c.that("fault current drawn from the 5 V rail", ifault, 3.0, tol=None,
            ok=0.3 < ifault < 3.0, unit="A")
+
+    # TEMPERATURE, network C -- the design is inadequate at this corner.
+    # PTC resistance is temperature-defined by construction, and ngspice's
+    # `option temp` does nothing for a plain resistor, so the corner is a
+    # component value (network C in the netlist), same mechanism as the
+    # TOLERANCE section's own -30% spread. Stacked here because that is
+    # what the netlist's TEMPERATURE note found: -40 C ambient alone still
+    # passes (fault current 2.92 A, margin 0.08 A -- not asserted here,
+    # since it does not flip anything), but a real cold-climate genset (this
+    # design's stated environment) sees -40 C AND ordinary PTC part spread
+    # together, not one or the other. Rptc = 2.0 * 0.8 (cold, INFERRED) *
+    # 0.7 (-30% tolerance, TOLERANCE section) = 1.12 ohm.
+    #
+    # This is a real requirement (the polyfuse has to trip, not the rail's
+    # own regulator), so a fail here is not manufactured -- it is the same
+    # 3.0 A ceiling as the line above, just no longer met once the PTC sits
+    # at a plausible worst case instead of its 27 C nominal value.
+    ifault_corner = abs(float(d["ic"][0]))
+    c.that("  ... stacked -40C-cold-ambient + -30%-tolerance PTC corner",
+           ifault_corner, 3.0, tol=None, ok=ifault_corner < 3.0, unit="A")
     return c
 
 
 def check_mcu_pdn():
     c = Checks("mcu_pdn -- 3V3_MCU decoupling impedance, 100 mOhm target")
-    d = sim("mcu_pdn", {"mcu_pdn.dat": ["frequency", "z10", "z1"]})["mcu_pdn.dat"]
+    d = sim("mcu_pdn", {"mcu_pdn.dat": ["frequency", "z10", "z1", "z10c"]})["mcu_pdn.dat"]
     f, z10, z1 = d["frequency"], d["z10"], d["z1"]
 
     # Driven by 1 A, so node voltage reads directly as ohms. The sweep stops
@@ -954,17 +1017,32 @@ def check_mcu_pdn():
     c.that("  ... one-part net is LOWER there (its ESR damps it)",
            f"{float(z1[ar])*1e3:.0f} mOhm vs {float(z10[ar])*1e3:.0f} -- "
            "more ESR, better damping", None, ok=float(z1[ar]) < float(z10[ar]))
+
+    # TEMPERATURE -- design is inadequate at a plausible cold-ESR corner.
+    # Rb (bulk electrolytic ESR) is exactly the parameter the tolerance
+    # check above shows this block is sensitive to; ngspice's `option temp`
+    # does not move a plain RLC network, so the corner is the explicit
+    # component-value network (n3) added to the netlist -- Rb at 200 mOhm,
+    # 4x nominal, the mid of an INFERRED 2-6x class-typical cold-ESR-derate
+    # range for aluminium/tantalum electrolytics (no part chosen). The
+    # 100 mOhm target itself is derived (50 mV allowed ripple / 0.5 A
+    # transient step), not a round convention, so this is a real fail, not
+    # a manufactured one against an arbitrary gate.
+    z10c = d["z10c"]
+    peakc = float(z10c.max())
+    c.that("  ... peak at a plausible cold bulk-ESR corner (Rb=200 mOhm, 4x)",
+           peakc * 1e3, 100.0, tol=None, ok=peakc < 0.1, unit="mOhm")
     return c
 
 
 def check_emi_filter():
     c = Checks("emi_filter -- CISPR 25 conducted, differential mode")
-    d = sim("emi_filter", {"emi_filter.dat": ["frequency", "out", "ref"]})["emi_filter.dat"]
-    f, out, ref = d["frequency"], d["out"], d["ref"]
+    d = sim("emi_filter", {"emi_filter.dat": ["frequency", "out", "ref", "outt"]})["emi_filter.dat"]
+    f, out, ref, outt = d["frequency"], d["out"], d["ref"], d["outt"]
 
-    def il(hz):
+    def il(hz, o=out):
         i = int(np.argmin(np.abs(f - hz)))
-        return float(out[i] - ref[i])
+        return float(o[i] - ref[i])
 
     # CISPR 25's conducted band starts at 150 kHz. The switching
     # fundamental sits at 400 kHz, inside it by design -- see the netlist.
@@ -1016,6 +1094,39 @@ def check_emi_filter():
     c.that("is 40 dB enough for Class 5?",
            "unknown -- needs measured unfiltered emissions on hardware", None,
            ok=True)
+
+    # TEMPERATURE -- shape 2: the -40/-50 dB gates above are the ones the
+    # line just above says are unvalidated round numbers, not a spec pulled
+    # from a measurement. Re-running them at a temperature corner and
+    # asserting PASS/FAIL against those same numbers would manufacture a
+    # verdict this block cannot support either way (same reasoning the
+    # existing TOLERANCE result-note already applied to the DC-bias
+    # corner, which also never got a pass/fail check here).
+    #
+    # What IS real and checkable: C1 is X7R, and X7R's +/-15% capacitance
+    # limit over its rated temperature range is the part's own EIA/AVX
+    # definition (X=-55C, 7=+125C, R=+/-15% max) -- SOURCED, not INFERRED,
+    # unlike most other corners in this pass. So these two lines are
+    # regression pins on the corner's actual measured value (real
+    # tolerance, not ok=True) -- they catch drift in the corner network or
+    # the temperature assumption -- without asserting the corner passes or
+    # fails the placeholder -40/-50 dB gates.
+    il150_t = il(150e3, outt)
+    il400_t = il(400e3, outt)
+    c.that("  ... IL@150kHz, C1 at X7R's own -15% temp derate (C1=3.995uF)",
+           il150_t, -39.74, tol=0.3, unit="dB")
+    c.that("  ... IL@400kHz, same corner",
+           il400_t, -50.07, tol=0.3, unit="dB")
+    # Read against the nominal-27C -40 dB check above by eye, not by a new
+    # assertion here (a pass/fail line against that gate would be exactly
+    # the manufactured verdict this note opened by declining to make): the
+    # pinned -39.74 dB is numerically below -40 dB, worse than the nominal
+    # check's -41.07 dB pass -- temperature ALONE, no DC bias, no L1
+    # tolerance, is enough to do that, purely from what "X7R" on the BOM
+    # line already promises. Whether that means the filter needs a
+    # different C1 case size/voltage rating, or whether -40 dB was never
+    # the right gate to begin with, is the same open measurement question
+    # the "is 40 dB enough" line above already leaves open.
     return c
 
 
@@ -1240,9 +1351,12 @@ def check_ntc_frontend():
 
 def check_metering_unit_pwm():
     c = Checks("metering_unit_pwm -- ECU pin 88, low-side PWM into the solenoid")
-    d = sim("metering_unit_pwm", {
+    dd = sim("metering_unit_pwm", {
         "metering_unit_pwm.dat": ["time", "i100", "i1k", "i10k"],
-    })["metering_unit_pwm.dat"]
+        "metering_unit_pwm_cold.dat": ["time", "i100", "i1k", "i10k"],
+        "metering_unit_pwm_hot.dat": ["time", "i100", "i1k", "i10k"],
+    })
+    d = dd["metering_unit_pwm.dat"]
     t = d["time"]
     tail = t > 50e-3
     i100, i1k, i10k = (np.abs(d[k][tail]) for k in ("i100", "i1k", "i10k"))
@@ -1281,6 +1395,51 @@ def check_metering_unit_pwm():
     c.that("100 Hz is not dither, it is chopping",
            f"{r100/float(i100.mean())*100:.0f}% ripple -- valve follows the PWM",
            None, ok=r100 / float(i100.mean()) > 0.8)
+
+    # TEMPERATURE -- express both halves of the finding, per the task's own
+    # instruction for this block: the "0.675 A" target and the control-law
+    # invariant move in opposite directions at a temperature corner, and
+    # that split is itself the thing worth checking.
+    #
+    # Copper's ~0.39%/C resistance tempco is a physical constant (not
+    # INFERRED like most other corners in this pass): R = 10*(1+0.0039*
+    # (T-25)) gives 7.39 ohm at -40 C, 13.82 ohm at +125 C. ngspice's
+    # `option temp` does nothing for a plain resistor, so this is a
+    # component-value corner, done with `alter` on the SAME three
+    # branches (see the netlist's TEMPERATURE note for why three more
+    # parallel branches broke ngspice's convergence).
+    def corner(fname):
+        dc = dd[fname]
+        tc = dc["time"]
+        tailc = tc > 50e-3
+        return (np.abs(dc["i100"][tailc]), np.abs(dc["i1k"][tailc]),
+                np.abs(dc["i10k"][tailc]))
+
+    for label, fname in (("-40C", "metering_unit_pwm_cold.dat"),
+                          ("+125C", "metering_unit_pwm_hot.dat")):
+        c100, c1k, c10k = corner(fname)
+
+        # Half 1: the target check IS real (it's the same 0.675+/-0.09 A
+        # band the nominal checks above already enforce), so running it at
+        # a temperature corner and letting it fail is not manufacturing a
+        # verdict -- it is the same claim, at a condition the design has
+        # to survive. It fails in OPPOSITE directions at the two corners
+        # (cold overshoots, hot undershoots), which is itself informative:
+        # not a directional design flaw, just copper doing what copper does.
+        for name, arr in (("100 Hz", c100), ("1 kHz", c1k), ("10 kHz", c10k)):
+            c.that(f"  ... mean current at {name}, {label} ambient",
+                   float(arr.mean()), 0.675, tol=0.09, unit="A")
+
+        # Half 2: the control-law invariant -- the three frequencies must
+        # still agree with each other, which is the actual claim the
+        # pressure loop depends on (see the header). This is the check
+        # that should gate whether the DESIGN is broken, not the absolute
+        # target above. A real tolerance (2%), not ok=True: if the three
+        # frequencies ever diverge at a corner, this catches it.
+        means = np.array([c100.mean(), c1k.mean(), c10k.mean()])
+        spread_pct = float((means.max() - means.min()) / means.mean() * 100)
+        c.that(f"  ... control law: frequencies still agree, {label}",
+               spread_pct, 0.0, tol=2.0, unit="%")
     return c
 
 
@@ -1288,11 +1447,12 @@ def check_can_termination():
     c = Checks("can_termination -- split vs single, J1939 250 kbit/s")
     d = sim("can_termination", {
         "can_termination.dat": ["frequency", "zd_split", "zcm_split",
-                                "zd_single", "zcm_single"],
+                                "zd_single", "zcm_single", "zd_tcorner"],
     })["can_termination.dat"]
     f = d["frequency"]
     zds, zcs = d["zd_split"], d["zcm_split"]
     zdg, zcg = d["zd_single"], d["zcm_single"]
+    zdt = d["zd_tcorner"]
 
     # Differential impedance is what the standard specifies, and both
     # topologies meet it identically -- which is why a schematic label
@@ -1319,6 +1479,22 @@ def check_can_termination():
     # the bus: at 250 kbit/s the midpoint cap is still a high impedance.
     c.that("split common-mode at the bit rate stays high", float(zcs[lo]),
            100.0, tol=None, ok=float(zcs[lo]) > 100, unit="ohm")
+
+    # TEMPERATURE -- shape 1: design is inadequate at the corner. 120 ohm
+    # is what J1939 specifies, not a round convention (see the header), so
+    # a fail against the SAME 120+/-2 ohm target used above is a real
+    # finding, not a manufactured one. Rah/Ral at 200 ppm/C (ordinary
+    # standard-grade thick-film, not exotic) shifted together over the
+    # full -40/+125 C span -- component-value corner, not `.temp`-driven
+    # (plain resistors, no modelled junction). Network "e" in the netlist.
+    #
+    # NOTE: the netlist's own RESULT NOTE originally wrote this corner's
+    # resistance as 61.65 ohm; re-deriving it from the note's own stated
+    # formula (200 ppm/C * 165 C span = +3.3%, R = 60*1.033) gives 61.98
+    # ohm instead -- the note had a small arithmetic slip, corrected here
+    # and in the netlist comment, verified against the actual ngspice run.
+    c.that("  ... at 200 ppm/C resistor tempco (matched direction, -40/125C)",
+           float(zdt[lo]), 120.0, tol=2.0, unit="ohm")
     return c
 
 

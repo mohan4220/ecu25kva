@@ -79,9 +79,36 @@ Vs2 s2 0 AC 1
 Rs2 s2 r 50
 Rl2 r  0 50
 
+* ---- temperature corner: C1 at X7R's own +/-15% definition ----
+* Same topology as the primary filter, C1 only, held at its cold/hot
+* derate. X7R is not a class description, it is an EIA/AVX dielectric
+* code: the R means +/-15% MAXIMUM capacitance change is the part's
+* OWN DEFINITION, not an INFERRED figure -- see the RESULT NOTE below.
+* L1 held at nominal so this isolates temperature from the existing
+* DC-bias corner already in the TOLERANCE section.
+.param C1temp=3.995u
+Vst  st 0 AC 1
+Rst  st at 50
+L1t  at bt 22u
+C1t  bt ct1 {C1temp}
+Rc1t ct1 ct2 5m
+Lc1t ct2 0  1.5n
+
+Lft  bt dt 0.5u
+Rft  bt dt 120
+
+C2t  dt et1 100n
+Rc2t et1 et2 20m
+Lc2t et2 0  0.5n
+
+Cdt  dt dpt 1u
+Rdt  dpt 0 2.2
+
+Rlt  dt 0 50
+
 .control
 ac dec 200 10k 200meg
-wrdata emi_filter.dat vdb(d) vdb(r)
+wrdata emi_filter.dat vdb(d) vdb(r) vdb(dt)
 .endc
 
 .end
@@ -191,4 +218,19 @@ wrdata emi_filter.dat vdb(d) vdb(r)
 * here for the same underlying reason -- more dielectric volume per
 * farad generally derates less over both bias and temperature -- but
 * that is a part-selection question, not something changed here.
+*
+* ENFORCED: the "st/at/bt/..." network above and the two regression
+* pins in run_sim.py's check_emi_filter turn the measured corner value
+* into a checked claim, not just this prose. Shape chosen: shape 2,
+* not shape 1 -- the -40/-50 dB gates are the SAME ones the block's own
+* final check already calls unvalidated pending a LISN measurement, so
+* asserting PASS or FAIL against them at this corner would manufacture
+* a verdict the block cannot support either way. What is enforced
+* instead: two real-tolerance regression pins on the corner's actual
+* IL@150kHz/400kHz (SOURCED mechanism -- X7R's own +/-15% definition,
+* not INFERRED), so a future change to the corner assumption or the
+* filter topology gets caught, without pretending -39.74 dB "passing"
+* or "failing" -40 dB means anything about Class 5 compliance. Read the
+* stacked pin numbers by eye against the nominal check above, the same
+* way the "is 40 dB enough" line already asks the reader to.
 * ------------------------------------------------------------

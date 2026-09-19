@@ -81,6 +81,30 @@ D3  c3  bat DFW
 * state well before the measurement window at the end.
 tran 5u 60m uic
 wrdata metering_unit_pwm.dat i(Vs1) i(Vs2) i(Vs3)
+
+* ---- temperature corners: same three branches, R1/R2/R3 altered ----
+* Copper's resistance-temperature coefficient is a physical constant,
+* ~0.39%/C, sourced to copper itself: R = 10 * (1 + 0.0039*(T-25)).
+* Cold (-40C): R=7.39 ohm (-26%). Hot (+125C): R=13.82 ohm (+38%).
+* Done with `alter` + a second/third `tran`, not three more parallel
+* branches: running six-plus switched RL branches off one ideal DC
+* source in the same transient made ngspice's timestep collapse to
+* ~1e-18 s around 5.5 ms ("trouble with node a1/a2") even with each
+* corner given its own gate source -- a real ngspice convergence
+* limit of this topology, not a modelling choice. Altering the SAME
+* three branches' R and re-running keeps exactly the netlist's own
+* marginal complexity instead of adding to it.
+alter r1 = 7.39
+alter r2 = 7.39
+alter r3 = 7.39
+tran 5u 60m uic
+wrdata metering_unit_pwm_cold.dat i(Vs1) i(Vs2) i(Vs3)
+
+alter r1 = 13.82
+alter r2 = 13.82
+alter r3 = 13.82
+tran 5u 60m uic
+wrdata metering_unit_pwm_hot.dat i(Vs1) i(Vs2) i(Vs3)
 .endc
 
 .end
@@ -216,4 +240,18 @@ wrdata metering_unit_pwm.dat i(Vs1) i(Vs2) i(Vs3)
 * corner) was not separately swept: it is 500x smaller than the coil
 * resistance even at its own worst case, and this check's numbers
 * are utterly insensitive to it by construction.
+*
+* ENFORCED: the `alter`-based cold/hot re-runs in the .control block
+* above, and check_metering_unit_pwm in run_sim.py, turn BOTH halves
+* of this finding into checked claims, per the task's own instruction
+* to express both rather than pick one. The "0.675 A" target check is
+* the SAME check the nominal-27C lines already enforce -- running it
+* at a corner is not a new/arbitrary target, it's the same claim at a
+* condition the design has to survive, so it is allowed to genuinely
+* FAIL (both directions). The control-law invariant (the three
+* frequencies still agreeing with each other, under 1% spread) is a
+* separate, real, tolerance-checked claim that PASSES at both
+* corners -- that pass is what says the pressure loop's control law
+* is not what's broken; the coil-resistance assumption behind
+* "0.675 A" is.
 * ------------------------------------------------------------

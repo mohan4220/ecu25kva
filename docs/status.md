@@ -109,6 +109,7 @@ These have no netlist, no schematic and no checks. They are the real gaps.
 
 | Missing circuit | Pins | Why it is not built |
 |---|---|---|
+| **Negative-input protection for the buck** | pin 21 chain | **Found 19 Sep.** The LM5164's VIN is rated −0.3 V to 100 V; the negative limit is not a mirror of the positive one and nothing was sized against it. The TVS clamps correctly to −38 V, which is still two orders of magnitude outside what the buck tolerates. A missing component, not a mis-sized one |
 | **Intake throttle driver** | 6-pin connector | **Blocked on U8.** Reported battery-fed, which answers who supplies it, not who commands it. May be out of scope entirely |
 | **Pre/post-heat output** | unknown | **Blocked on U14.** Same distinction — battery-fed is not the same as ECU-switched. The DSE4522 enables both at 50 °C and this design has no heater output |
 
@@ -121,10 +122,10 @@ stimuli named. These are the gaps in the *verification*, not in the circuits.
 
 | Gap | Consequence |
 |---|---|
-| **No temperature corner anywhere** | Every result is a 27 °C result. An engine bay is not 27 °C |
-| **ISO 7637-2 negative pulses unsimulated** | And the TVS model is a single diode, so reusing it for reverse-polarity transients would give a confidently wrong answer rather than failing visibly. The model must be replaced before the test is meaningful |
+| ~~No temperature corner anywhere~~ | **Done 19 Sep**, −40/+125 °C across all blocks. Six fail at a corner — `emi_filter` and `can_termination` from *ordinary specified* component behaviour, not stacked worst cases. Being converted from prose into enforced checks |
+| ~~ISO 7637-2 negative pulses unsimulated~~ | **Done 19 Sep.** The TVS is now modelled as the bidirectional part it is, which is what made the question answerable. Result: the buck's VIN sees −40.7 V against a sourced −0.3 V absolute maximum — see the new gap below |
 | **Common-mode EMI unmodelled** | `emi_filter` covers differential mode only. Most real automotive failures are common mode, and modelling it honestly needs a layout to give the return path |
-| **Reverse-battery transient** | The switch model turns off instantly, so it always looks perfect. The real number is a controller-datasheet question |
+| **Reverse-battery transient — now load-bearing** | The switch model turns off instantly, so it always looks perfect. That was a caveat; since `negative_pulses` it is a design dependency. If the controller opens fast enough the buck is isolated; if not it sees the full clamped negative voltage. No controller part is chosen and no turn-off delay is sourced, so both bookends are simulated and neither is claimed |
 | **Watchdog fault-detection time** | `supervisor` bounds only what happens *after* reset asserts, not how long detection takes |
 
 ---

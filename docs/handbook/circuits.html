@@ -116,7 +116,7 @@ tr.bad{background:var(--fail-wash)}
 
   <div class="blk">
     <header><h3>EMI input filter</h3><span class="pins">pin 21</span>
-      <span class="tag">8/8 checks</span></header>
+      <span class="tag">10/10 checks</span></header>
     <div class="body">
       <figure class="sch"><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="469.578pt" height="288.678884pt" viewBox="0 0 469.578 288.678884" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
@@ -1414,7 +1414,7 @@ z
         <p class="lim"><b>What the model does not cover.</b> Differential mode only. Common-mode noise — both wires swinging together against chassis, which is most real automotive failures — needs the common-mode choke, and that cannot be modelled honestly without a layout to give it a return path.</p>
       </div>
     </div>
-    <table class="res"><tbody><tr class="ok"><td>insertion loss at 150 kHz (band start)</td><td class="v">-41.071 dB</td></tr><tr class="ok"><td>insertion loss at 400 kHz (switching f)</td><td class="v">-51.546 dB</td></tr><tr class="ok"><td>insertion loss at 1 MHz</td><td class="v">-74.812 dB</td></tr><tr class="ok"><td>insertion loss at 30 MHz</td><td class="v">-141.697 dB</td></tr><tr class="ok"><td>insertion loss at 100 MHz (FM band)</td><td class="v">-128.977 dB</td></tr><tr class="ok"><td>worst insertion loss anywhere above 150 kHz</td><td class="v">-41.171 dB</td></tr><tr class="ok"><td>  ... worst point sits at</td><td class="v">151.5 kHz</td></tr><tr class="ok"><td>is 40 dB enough for Class 5?</td><td class="v">unknown -- needs measured unfiltered emissions on hardware</td></tr></tbody></table>
+    <table class="res"><tbody><tr class="ok"><td>insertion loss at 150 kHz (band start)</td><td class="v">-41.071 dB</td></tr><tr class="ok"><td>insertion loss at 400 kHz (switching f)</td><td class="v">-51.546 dB</td></tr><tr class="ok"><td>insertion loss at 1 MHz</td><td class="v">-74.812 dB</td></tr><tr class="ok"><td>insertion loss at 30 MHz</td><td class="v">-141.697 dB</td></tr><tr class="ok"><td>insertion loss at 100 MHz (FM band)</td><td class="v">-128.977 dB</td></tr><tr class="ok"><td>worst insertion loss anywhere above 150 kHz</td><td class="v">-41.171 dB</td></tr><tr class="ok"><td>  ... worst point sits at</td><td class="v">151.5 kHz</td></tr><tr class="ok"><td>is 40 dB enough for Class 5?</td><td class="v">unknown -- needs measured unfiltered emissions on hardware</td></tr><tr class="ok"><td>  ... IL@150kHz, C1 at X7R&#x27;s own -15% temp derate (C1=3.995uF)</td><td class="v">-39.736 dB</td></tr><tr class="ok"><td>  ... IL@400kHz, same corner</td><td class="v">-50.070 dB</td></tr></tbody></table>
     <p class="src">Netlist: <code>sim/blocks/emi_filter.cir</code></p>
   </div>
 
@@ -8966,7 +8966,7 @@ z
 
   <div class="blk">
     <header><h3>5V_SENSOR distribution</h3><span class="pins">—</span>
-      <span class="tag">6/6 checks</span></header>
+      <span class="tag">6/7 checks</span></header>
     <div class="body">
       <figure class="sch"><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="500.2875pt" height="211.06pt" viewBox="0 0 500.2875 211.06" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
@@ -10172,13 +10172,13 @@ z
         <p class="lim"><b>What the model does not cover.</b> The polyfuse is modelled cold, which is the worst case for the healthy groups: the instant after the short, before the device has heated and tripped. Once tripped the healthy groups recover further. Firmware still has to notice — a tripped fuse and a dead sensor look identical from the ADC's side.</p>
       </div>
     </div>
-    <table class="res"><tbody><tr class="ok"><td>healthy group with PTCs, group A shorted</td><td class="v">4.661 V</td></tr><tr class="ok"><td>  ... rail itself holds up</td><td class="v">4.754 V</td></tr><tr class="ok"><td>healthy group WITHOUT PTCs, same fault</td><td class="v">0.495 V</td></tr><tr class="ok"><td>  ... so one harness short blinds the whole ECU</td><td class="v">0.50 V -- every analog channel lost at once</td></tr><tr class="ok"><td>protection improves the healthy group by</td><td class="v">9.409 x</td></tr><tr class="ok"><td>fault current drawn from the 5 V rail</td><td class="v">2.458 A</td></tr></tbody></table>
+    <table class="res"><tbody><tr class="ok"><td>healthy group with PTCs, group A shorted</td><td class="v">4.661 V</td></tr><tr class="ok"><td>  ... rail itself holds up</td><td class="v">4.754 V</td></tr><tr class="ok"><td>healthy group WITHOUT PTCs, same fault</td><td class="v">0.495 V</td></tr><tr class="ok"><td>  ... so one harness short blinds the whole ECU</td><td class="v">0.50 V -- every analog channel lost at once</td></tr><tr class="ok"><td>protection improves the healthy group by</td><td class="v">9.409 x</td></tr><tr class="ok"><td>fault current drawn from the 5 V rail</td><td class="v">2.458 A</td></tr><tr class="bad"><td>  ... stacked -40C-cold-ambient + -30%-tolerance PTC corner</td><td class="v">4.148 A</td></tr></tbody></table>
     <p class="src">Netlist: <code>sim/blocks/sensor_rail.cir</code></p>
   </div>
 
   <div class="blk">
     <header><h3>3V3_MCU decoupling</h3><span class="pins">—</span>
-      <span class="tag">8/8 checks</span></header>
+      <span class="tag">8/9 checks</span></header>
     <div class="body">
       <figure class="sch"><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="412.330719pt" height="176pt" viewBox="0 0 412.330719 176" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
@@ -11433,7 +11433,7 @@ z
         <p class="lim"><b>What the model does not cover.</b> Lumped: no planes, no via inductance, no spreading inductance, so it is optimistic above about 100 MHz — which is exactly where the sweep stops. An earlier version swept to 1 GHz and obediently reported ESL times omega at the last point as a 'peak'.</p>
       </div>
     </div>
-    <table class="res"><tbody><tr class="ok"><td>peak impedance, 1 kHz to 100 MHz</td><td class="v">60.355 mOhm</td></tr><tr class="ok"><td>  ... and it has moved to the MHz anti-resonance</td><td class="v">2.630 MHz</td></tr><tr class="ok"><td>  ... i.e. bulk against ceramic, no longer regulator L against bulk</td><td class="v">2.63 MHz -- the LDO resonance is no longer the limiter</td></tr><tr class="ok"><td>ten 100 nF parts at 100 MHz</td><td class="v">46.923 mOhm</td></tr><tr class="ok"><td>one 1 uF part at 100 MHz</td><td class="v">357.421 mOhm</td></tr><tr class="ok"><td>  ... same capacitance, this much worse</td><td class="v">7.617 x</td></tr><tr class="ok"><td>ten-part net at the 3.5 MHz anti-resonance</td><td class="v">55.862 mOhm</td></tr><tr class="ok"><td>  ... one-part net is LOWER there (its ESR damps it)</td><td class="v">34 mOhm vs 56 -- more ESR, better damping</td></tr></tbody></table>
+    <table class="res"><tbody><tr class="ok"><td>peak impedance, 1 kHz to 100 MHz</td><td class="v">60.355 mOhm</td></tr><tr class="ok"><td>  ... and it has moved to the MHz anti-resonance</td><td class="v">2.630 MHz</td></tr><tr class="ok"><td>  ... i.e. bulk against ceramic, no longer regulator L against bulk</td><td class="v">2.63 MHz -- the LDO resonance is no longer the limiter</td></tr><tr class="ok"><td>ten 100 nF parts at 100 MHz</td><td class="v">46.923 mOhm</td></tr><tr class="ok"><td>one 1 uF part at 100 MHz</td><td class="v">357.421 mOhm</td></tr><tr class="ok"><td>  ... same capacitance, this much worse</td><td class="v">7.617 x</td></tr><tr class="ok"><td>ten-part net at the 3.5 MHz anti-resonance</td><td class="v">55.862 mOhm</td></tr><tr class="ok"><td>  ... one-part net is LOWER there (its ESR damps it)</td><td class="v">34 mOhm vs 56 -- more ESR, better damping</td></tr><tr class="bad"><td>  ... peak at a plausible cold bulk-ESR corner (Rb=200 mOhm, 4x)</td><td class="v">196.700 mOhm</td></tr></tbody></table>
     <p class="src">Netlist: <code>sim/blocks/mcu_pdn.cir</code></p>
   </div>
 
@@ -24198,7 +24198,7 @@ z
 
   <div class="blk">
     <header><h3>Why the boost rail exists</h3><span class="pins">pins 03, 05</span>
-      <span class="tag">5/5 checks</span></header>
+      <span class="tag">7/9 checks</span></header>
     <div class="body">
       <figure class="sch"><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="605.205pt" height="183.2pt" viewBox="0 0 605.205 183.2" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
@@ -25665,7 +25665,7 @@ z
         <p class="lim"><b>What the model does not cover.</b> An RL model of the injector with no magnetic saturation and no moving needle. The envelope it sits in — 65–115 V, 12–24 A peak — is family-wide from memo 04, not this injector's measured values. That is U5. Also not modelled: the high/low-side switches and the sense resistor, dashed in the schematic — this is a turn-on-only step response straight onto L/R, and R already stands in for whatever series resistance the real drive path adds.</p>
       </div>
     </div>
-    <table class="res"><tbody><tr class="ok"><td>time to 18 A peak from 13.5 V battery</td><td class="v">439.496 us</td></tr><tr class="ok"><td>time to 18 A peak from 100 V boost</td><td class="v">37.796 us</td></tr><tr class="ok"><td>boost is faster by</td><td class="v">11.628 x</td></tr><tr class="ok"><td>battery drive eats this much of a 1 ms injection</td><td class="v">43.950 %</td></tr><tr class="ok"><td>boost drive eats this much of a 1 ms injection</td><td class="v">3.780 %</td></tr></tbody></table>
+    <table class="res"><tbody><tr class="ok"><td>time to 18 A peak from 13.5 V battery</td><td class="v">439.496 us</td></tr><tr class="ok"><td>time to 18 A peak from 100 V boost</td><td class="v">37.796 us</td></tr><tr class="ok"><td>boost is faster by</td><td class="v">11.628 x</td></tr><tr class="ok"><td>battery drive eats this much of a 1 ms injection</td><td class="v">43.950 %</td></tr><tr class="ok"><td>boost drive eats this much of a 1 ms injection</td><td class="v">3.780 %</td></tr><tr class="bad"><td>  ... boost is faster by, -40C ambient</td><td class="v">9.856 x</td></tr><tr class="ok"><td>  ... time to 18 A from 100 V boost, -40C ambient</td><td class="v">37.296 us</td></tr><tr class="bad"><td>  ... boost is faster by, +125C ambient</td><td class="v">19.017 x</td></tr><tr class="ok"><td>  ... time to 18 A from 100 V boost, +125C ambient</td><td class="v">38.496 us</td></tr></tbody></table>
     <p class="src">Netlist: <code>sim/blocks/injector_boost.cir</code></p>
   </div>
 
@@ -29070,7 +29070,7 @@ z
 
   <div class="blk">
     <header><h3>Fuel metering unit driver</h3><span class="pins">pin 88</span>
-      <span class="tag">9/9 checks</span></header>
+      <span class="tag">11/17 checks</span></header>
     <div class="body">
       <figure class="sch"><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="244.412062pt" height="331pt" viewBox="0 0 244.412062 331" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
@@ -30128,7 +30128,7 @@ z
         <p class="lim"><b>What the model does not cover.</b> The correct dither amplitude is a property of the specific metering unit's mechanics and is manufacturer data tied to a part number — the same gap as U5, in a smaller form. Keeping the frequency a firmware constant rather than a hardware one means it can be tuned on the machine. Coil inductance is also not constant: it falls as the armature moves and as the core saturates.</p>
       </div>
     </div>
-    <table class="res"><tbody><tr class="ok"><td>mean current at 100 Hz</td><td class="v">0.639 A</td></tr><tr class="ok"><td>mean current at 1 kHz</td><td class="v">0.639 A</td></tr><tr class="ok"><td>mean current at 10 kHz</td><td class="v">0.634 A</td></tr><tr class="ok"><td>ripple at 100 Hz</td><td class="v">0.969 A</td></tr><tr class="ok"><td>  ... as fraction of mean</td><td class="v">151.786 %</td></tr><tr class="ok"><td>ripple at 1 kHz</td><td class="v">0.118 A</td></tr><tr class="ok"><td>ripple at 10 kHz</td><td class="v">0.012 A</td></tr><tr class="ok"><td>ripple scales as 1/f</td><td class="v">9.974 x</td></tr><tr class="ok"><td>100 Hz is not dither, it is chopping</td><td class="v">152% ripple -- valve follows the PWM</td></tr></tbody></table>
+    <table class="res"><tbody><tr class="ok"><td>mean current at 100 Hz</td><td class="v">0.639 A</td></tr><tr class="ok"><td>mean current at 1 kHz</td><td class="v">0.639 A</td></tr><tr class="ok"><td>mean current at 10 kHz</td><td class="v">0.634 A</td></tr><tr class="ok"><td>ripple at 100 Hz</td><td class="v">0.969 A</td></tr><tr class="ok"><td>  ... as fraction of mean</td><td class="v">151.786 %</td></tr><tr class="ok"><td>ripple at 1 kHz</td><td class="v">0.118 A</td></tr><tr class="ok"><td>ripple at 10 kHz</td><td class="v">0.012 A</td></tr><tr class="ok"><td>ripple scales as 1/f</td><td class="v">9.974 x</td></tr><tr class="ok"><td>100 Hz is not dither, it is chopping</td><td class="v">152% ripple -- valve follows the PWM</td></tr><tr class="bad"><td>  ... mean current at 100 Hz, -40C ambient</td><td class="v">0.862 A</td></tr><tr class="bad"><td>  ... mean current at 1 kHz, -40C ambient</td><td class="v">0.863 A</td></tr><tr class="bad"><td>  ... mean current at 10 kHz, -40C ambient</td><td class="v">0.858 A</td></tr><tr class="ok"><td>  ... control law: frequencies still agree, -40C</td><td class="v">0.514 %</td></tr><tr class="bad"><td>  ... mean current at 100 Hz, +125C ambient</td><td class="v">0.463 A</td></tr><tr class="bad"><td>  ... mean current at 1 kHz, +125C ambient</td><td class="v">0.463 A</td></tr><tr class="bad"><td>  ... mean current at 10 kHz, +125C ambient</td><td class="v">0.459 A</td></tr><tr class="ok"><td>  ... control law: frequencies still agree, +125C</td><td class="v">0.925 %</td></tr></tbody></table>
     <p class="src">Netlist: <code>sim/blocks/metering_unit_pwm.cir</code></p>
   </div>
 
@@ -33305,7 +33305,7 @@ z
 
   <div class="blk">
     <header><h3>CAN split termination</h3><span class="pins">CAN H, CAN L</span>
-      <span class="tag">7/7 checks</span></header>
+      <span class="tag">7/8 checks</span></header>
     <div class="body">
       <figure class="sch"><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="263.863906pt" height="259.9pt" viewBox="0 0 263.863906 259.9" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
@@ -34390,7 +34390,7 @@ z
         <p class="lim"><b>What the model does not cover.</b> Termination is not the whole common-mode story; the choke is the other half and needs a layout. And this does not decide whether to fit termination at all: a 120 ohm terminator belongs at each END of the backbone, and if this ECU is not an end node, fitting one makes the bus worse. That is U4 — so the board should carry the parts with a link and let the machine decide. The DSE4522 terminates CAN on its terminals 18/19/20 and DSE specify 120 ohm cable, which settles the cable but not which nodes carry the terminators.</p>
       </div>
     </div>
-    <table class="res"><tbody><tr class="ok"><td>split termination, differential at 250 kbit/s</td><td class="v">119.993 ohm</td></tr><tr class="ok"><td>single 120R, differential at 250 kbit/s</td><td class="v">119.993 ohm</td></tr><tr class="ok"><td>  ... identical differentially</td><td class="v">0.000 ohm</td></tr><tr class="ok"><td>split termination, common-mode at 10 MHz</td><td class="v">30.189 ohm</td></tr><tr class="ok"><td>single 120R, common-mode at 10 MHz</td><td class="v">500.000 kohm</td></tr><tr class="ok"><td>  ... split shunts common mode better by</td><td class="v">16,562.490 x</td></tr><tr class="ok"><td>split common-mode at the bit rate stays high</td><td class="v">138.099 ohm</td></tr></tbody></table>
+    <table class="res"><tbody><tr class="ok"><td>split termination, differential at 250 kbit/s</td><td class="v">119.993 ohm</td></tr><tr class="ok"><td>single 120R, differential at 250 kbit/s</td><td class="v">119.993 ohm</td></tr><tr class="ok"><td>  ... identical differentially</td><td class="v">0.000 ohm</td></tr><tr class="ok"><td>split termination, common-mode at 10 MHz</td><td class="v">30.189 ohm</td></tr><tr class="ok"><td>single 120R, common-mode at 10 MHz</td><td class="v">500.000 kohm</td></tr><tr class="ok"><td>  ... split shunts common mode better by</td><td class="v">16,562.490 x</td></tr><tr class="ok"><td>split common-mode at the bit rate stays high</td><td class="v">138.099 ohm</td></tr><tr class="bad"><td>  ... at 200 ppm/C resistor tempco (matched direction, -40/125C)</td><td class="v">123.952 ohm</td></tr></tbody></table>
     <p class="src">Netlist: <code>sim/blocks/can_termination.cir</code></p>
   </div>
 </section>
