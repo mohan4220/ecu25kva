@@ -382,7 +382,7 @@ a dedicated return because it is the most accuracy-critical analog channel on th
 |---|---|---|
 | 52 / 74 | Crank VR: Frequency I/P High / Low | Differential adaptive-threshold conditioner → timer capture |
 | 30 | Crank sensor ground | Shield terminates here, ECU end only |
-| 45 / 46 | Cam Hall: 5 V / Frequency I/P | Pull-up to `5V_SENSOR` → timer capture |
+| 45 / 46 | Cam Hall: 5 V / Frequency I/P | **This row was wrong — see the correction below** |
 | 44 | Cam sensor ground | — |
 
 ### Discrete inputs
@@ -422,6 +422,56 @@ the extraction. Queued as a continuity measurement.
 | 59 / 81 | EGR High / EGR Low | H-bridge + position feedback on pin 37 |
 | 50 | Main relay | Low-side FET + flyback |
 | 69 | Buzzer relay | Low-side FET + flyback |
+
+#### Cam front-end (pin 46) — this row was wrong, CORRECTED 19 Sep 2026
+
+The outputs table said "pull-up to `5V_SENSOR` → timer capture" for the cam frequency
+input. A Hall sensor pulled up to the 5 V sensor rail swings to 5 V, and the S32K148 is a
+3.3 V part. Taken literally, that drives an MCU pin above its absolute maximum.
+
+It survived because **nothing simulated it.** There is a `vr_conditioner` block for the
+crank sensor and no cam equivalent, so the mechanism that catches this class of error
+never looked. Found by the pin-map work, on the way to something else.
+
+This is the second front-end here specified in a way that would have destroyed a pin. The
+first was a divider on the battery sense — caught by `battery_sense.cir`, precisely
+because a block existed.
+
+**Now built:** `sim/blocks/cam_frontend.cir` divides the 5 V swing into the 3.3 V domain
+and verifies it across the rail's own range — 3.072 V nominal, 3.147 V at 5.25 V high
+line, 2.769 V at the 4.5 V fault floor `sensor_rail.cir` established, where it still
+reads a valid logic high. All clear the 3.6 V absolute maximum. It also checks a 40 V
+harness short, which clamps the pad to 3.308 V with fault current held to 3.7 mA.
+
+#### Nothing on this board protects the buck against a NEGATIVE input — GAP, found 19 Sep 2026
+
+`sim/blocks/negative_pulses.cir` simulated ISO 7637-2's negative transients for the first
+time, which became possible only once the TVS stopped being modelled as a single diode.
+
+**The LM5164's VIN pin is rated −0.3 V to 100 V.** The negative limit is not a mirror of
+the positive one, and nothing in this design was ever sized against it. Read from TI's own
+absolute-maximum table.
+
+With the reverse-battery FET assumed still conducting — the honest assumption, since no
+turn-off delay is sourced anywhere and pulse 3a is only 0.1 ms wide:
+
+| Pulse | Buck VIN | Past the −0.3 V rating by |
+|---|---|---|
+| 1 (−150 V / 10 Ω / 2 ms) | **−40.7 V** | 135× |
+| 3a (−220 V / 50 Ω / 0.1 ms) | **−27.8 V** | 93× |
+
+The bidirectional TVS clamps correctly. It clamps to its own breakdown, and −38 V is a
+perfectly good clamp that is still two orders of magnitude outside what the buck
+tolerates. **This is a missing component, not a mis-sized one** — the chain has no series
+element or shunt diode addressing a negative excursion.
+
+**And the reverse-battery stage cannot be assumed to cover it.** If its controller opens
+fast enough the buck is isolated almost perfectly; if not, the FET conducts and the buck
+sees the full clamped negative voltage. `reverse_battery.cir` models instant turn-off and
+its own RESULT NOTE warns it "will always look perfect in reverse". **No controller part
+is chosen and no turn-off delay is sourced**, so both bookends are simulated and neither
+is claimed. That delay is now a load-bearing number, and this decision should be taken
+with the controller selection rather than separately.
 
 #### Every driver gate is held off by hardware, not by firmware — REQUIRED 18 Sep 2026
 
