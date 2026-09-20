@@ -319,6 +319,44 @@ TLV76733 = dict(
     bottom=[("GND", "4", "power_in"), ("GND", "6", "power_in")])
 
 
+# --- TCAN1042HGV-Q1, high-speed CAN transceiver ----------------------
+# Source: TI SLLSES9D (Feb 2016, rev. Oct 2021), Table 6-1 Pin Functions
+# and Figure 6-3, the D (SOIC-8) package for the "V"-suffix devices.
+#
+# Not a new choice -- research memo 07 sec.10 already selected
+# TCAN1042HGVDRQ1, with DigiKey pricing and a named second source
+# (NXP TJA1051/TJA1042). What was missing was the pinout, and the
+# variant's suffixes, which matter:
+#
+#   H   bus fault protection +/-70 V instead of +/-58 V. This is a
+#       genset harness sharing a loom with contactors and an
+#       alternator, so the wider figure is worth having.
+#   V   adds the VIO pin, pin 5, where the non-V parts have NC. VIO
+#       level-shifts TXD/RXD to whatever rail it is tied to. Tied to
+#       3V3_MCU here, so the logic side matches the S32K148 directly
+#       and no level shifter is needed. Without the V suffix the logic
+#       pins sit at VCC = 5 V and every line needs translating.
+#
+# STB is an ACTIVE-HIGH standby input, so it is pulled low for normal
+# operation. It is brought to a net rather than tied at the pin, since
+# a GPIO could take it later for a low-power mode -- the pin map has no
+# channel for it today.
+TCAN1042 = dict(
+    name="TCAN1042HGV", fp="Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+    ds="https://www.ti.com/lit/ds/symlink/tcan1042-q1.pdf",
+    mpn="TCAN1042HGVDRQ1",
+    desc="TI TCAN1042HGV-Q1 high-speed CAN transceiver, SOIC-8. "
+         "+/-70 V bus fault protection, VIO pin for 3.3 V logic, "
+         "active-high standby. AEC-Q100.",
+    keywords="CAN transceiver J1939 automotive TCAN1042 ISO11898",
+    left=[("TXD", "1", "input"), ("RXD", "4", "output"),
+          ("STB", "8", "input")],
+    right=[("CANH", "7", "bidirectional"), ("CANL", "6", "bidirectional")],
+    top=[("VCC", "3", "power_in"), ("VIO", "5", "power_in")],
+    bottom=[("GND", "2", "power_in")],
+    hw=12.7)
+
+
 def main():
     rows = list(csv.DictReader(open(PINS)))
     for r in rows:
@@ -388,7 +426,7 @@ def main():
     g = {}
     out.append(build_tps3850(g))
     icgeom["TPS3850G33"] = g
-    for part in (LM5164, TLV76733):
+    for part in (LM5164, TLV76733, TCAN1042):
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g
@@ -402,7 +440,7 @@ def main():
     with open(ICPINS, "w") as f:
         json.dump(icgeom, f, indent=1, sort_keys=True)
     print(f"{OUT}: {total} pins in {len(units)} units, plus "
-          f"TPS3850G33, LM5164, TLV76733")
+          f"TPS3850G33, LM5164, TLV76733, TCAN1042HGV")
     print(f"{LAYOUT}: {len(layout)} pin positions")
     print(f"{ICPINS}: " + ", ".join(f"{k} {len(v)}p"
                                     for k, v in sorted(icgeom.items())))
