@@ -76,11 +76,68 @@ Vs3 b3  c3 0
 S3  c3  0  g3 0 NSW
 D3  c3  bat DFW
 
+* ============================================================
+* RESOLUTION -- branch 4: closed-loop (hysteretic) current control
+* ============================================================
+* Branches 1-3 are OPEN LOOP: a fixed duty cycle into a coil whose
+* resistance is copper. Copper moves 0.39%/C, so over the -40/+125 C
+* range this design has to survive, R goes 7.39 -> 13.82 ohm and the
+* mean current goes 0.862 -> 0.463 A against a 0.675 A target. That
+* is +28% / -31%, and it is NOT fixable by choosing a better part --
+* the tempco is a property of the metal.
+*
+* So this one is not answered by a part specification like
+* sensor_rail's PTC or mcu_pdn's bulk cap. It is answered by changing
+* what the driver does: regulate CURRENT, not duty. That is what
+* production metering-unit / MPROP drivers do, and this branch shows
+* the reason is not conservatism -- open loop simply cannot hold the
+* setpoint across the temperature range.
+*
+* Modelled as a hysteretic (bang-bang) regulator, the simplest form
+* of current control and the one that needs no compensation network:
+* the switch closes while sensed current is below the setpoint and
+* opens above it. Bctl4 is the comparator -- 2.5 V is NSW's own
+* threshold, and the gain of 3 against the model's +/-0.2 V
+* hysteresis sets the regulation band at 0.4/3 = 0.133 A, about
+* +/-10% ripple around the setpoint. The band is a design choice, not
+* a limitation; a tighter one costs switching frequency.
+*
+* Rsh4 is the sense element, 50 mOhm. It is in the model rather than
+* idealised away because it is a real part the schematic has to
+* carry, and because it is what makes this a SCHEMATIC requirement
+* and not just a firmware one:
+*
+*   BOM/schematic requirement (docs/bom_requirements.md, MU-ISENSE):
+*   low-side current sense on ECU pin 88's return -- 50 mOhm shunt,
+*   giving 33.75 mV at the 0.675 A setpoint, into either a
+*   current-sense amplifier feeding an ADC channel, or a gate driver
+*   with an integrated current-regulation comparator. 33.75 mV is too
+*   small to take straight to the S32K148's ADC at any useful
+*   resolution, so the amplifier is not optional.
+*
+* The claim this branch makes, checked in run_sim.py at all three
+* temperature corners: mean current holds the 0.675 A setpoint within
+* the same +/-0.09 A band the open-loop checks use, at -40 C and
+* +125 C as well as nominal. Headroom is what makes that possible and
+* it is worth stating: at the hot corner the coil can draw at most
+* 13.5/13.82 = 0.977 A at 100% duty, so the 0.675 A setpoint is still
+* reachable with 45% margin. A hotter coil, or a lower battery, would
+* eventually run the regulator out of duty -- that bound is checked
+* too, not assumed.
+* ============================================================
+Bctl4 ctl4 0 V = 2.5 + 3*(0.675 - abs(i(Vs4)))
+L4   bat a4 30m
+R4   a4  b4 10
+Rsh4 b4  s4 50m
+Vs4  s4  c4 0
+S4   c4  0  ctl4 0 NSW
+D4   c4  bat DFW
+
 .control
 * 60 ms is twenty coil time constants, so all three are in steady
 * state well before the measurement window at the end.
 tran 5u 60m uic
-wrdata metering_unit_pwm.dat i(Vs1) i(Vs2) i(Vs3)
+wrdata metering_unit_pwm.dat i(Vs1) i(Vs2) i(Vs3) i(Vs4)
 
 * ---- temperature corners: same three branches, R1/R2/R3 altered ----
 * Copper's resistance-temperature coefficient is a physical constant,
@@ -97,14 +154,16 @@ wrdata metering_unit_pwm.dat i(Vs1) i(Vs2) i(Vs3)
 alter r1 = 7.39
 alter r2 = 7.39
 alter r3 = 7.39
+alter r4 = 7.39
 tran 5u 60m uic
-wrdata metering_unit_pwm_cold.dat i(Vs1) i(Vs2) i(Vs3)
+wrdata metering_unit_pwm_cold.dat i(Vs1) i(Vs2) i(Vs3) i(Vs4)
 
 alter r1 = 13.82
 alter r2 = 13.82
 alter r3 = 13.82
+alter r4 = 13.82
 tran 5u 60m uic
-wrdata metering_unit_pwm_hot.dat i(Vs1) i(Vs2) i(Vs3)
+wrdata metering_unit_pwm_hot.dat i(Vs1) i(Vs2) i(Vs3) i(Vs4)
 .endc
 
 .end

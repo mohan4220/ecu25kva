@@ -1473,9 +1473,9 @@ def check_ntc_frontend():
 def check_metering_unit_pwm():
     c = Checks("metering_unit_pwm -- ECU pin 88, low-side PWM into the solenoid")
     dd = sim("metering_unit_pwm", {
-        "metering_unit_pwm.dat": ["time", "i100", "i1k", "i10k"],
-        "metering_unit_pwm_cold.dat": ["time", "i100", "i1k", "i10k"],
-        "metering_unit_pwm_hot.dat": ["time", "i100", "i1k", "i10k"],
+        "metering_unit_pwm.dat": ["time", "i100", "i1k", "i10k", "ireg"],
+        "metering_unit_pwm_cold.dat": ["time", "i100", "i1k", "i10k", "ireg"],
+        "metering_unit_pwm_hot.dat": ["time", "i100", "i1k", "i10k", "ireg"],
     })
     d = dd["metering_unit_pwm.dat"]
     t = d["time"]
@@ -1529,6 +1529,9 @@ def check_metering_unit_pwm():
     # component-value corner, done with `alter` on the SAME three
     # branches (see the netlist's TEMPERATURE note for why three more
     # parallel branches broke ngspice's convergence).
+    def tailc_of(dc):
+        return dc["time"] > 50e-3
+
     def corner(fname):
         dc = dd[fname]
         tc = dc["time"]
@@ -1547,9 +1550,20 @@ def check_metering_unit_pwm():
         # to survive. It fails in OPPOSITE directions at the two corners
         # (cold overshoots, hot undershoots), which is itself informative:
         # not a directional design flaw, just copper doing what copper does.
+        # EVIDENCE: these are the rows that produced the requirement for
+        # closed-loop current control. Each is pinned to its own produced
+        # value with a real tolerance -- not ok=True -- so the finding
+        # stays falsifiable, and a second row states the miss against the
+        # 0.675 A setpoint explicitly so the size of it is not buried.
+        want_ol = {"-40C": 0.862, "+125C": 0.462}[label]
         for name, arr in (("100 Hz", c100), ("1 kHz", c1k), ("10 kHz", c10k)):
-            c.that(f"  ... mean current at {name}, {label} ambient",
-                   float(arr.mean()), 0.675, tol=0.09, unit="A")
+            c.that(f"  ... evidence, OPEN LOOP: mean current at {name}, "
+                   f"{label} ambient", float(arr.mean()), want_ol, tol=0.02,
+                   unit="A")
+        ol_mean = float(np.mean([c100.mean(), c1k.mean(), c10k.mean()]))
+        c.that(f"  ... so open-loop duty misses the 0.675 A setpoint at "
+               f"{label} by", (ol_mean - 0.675) / 0.675 * 100,
+               {"-40C": 27.7, "+125C": -31.6}[label], tol=2.0, unit="%")
 
         # Half 2: the control-law invariant -- the three frequencies must
         # still agree with each other, which is the actual claim the
@@ -1561,6 +1575,33 @@ def check_metering_unit_pwm():
         spread_pct = float((means.max() - means.min()) / means.mean() * 100)
         c.that(f"  ... control law: frequencies still agree, {label}",
                spread_pct, 0.0, tol=2.0, unit="%")
+
+        # RESOLUTION: the hysteretic current regulator (branch 4). Same
+        # 0.675 +/- 0.09 A band the open-loop checks use, at the same
+        # corner -- this is the claim, not a relabelled pin.
+        ireg_c = np.abs(dd[fname]["ireg"][tailc_of(dd[fname])])
+        c.that(f"  ... RESOLVED, CLOSED LOOP: mean current at {label}",
+               float(ireg_c.mean()), 0.675, tol=0.09, unit="A")
+
+    # And the bound that makes closed-loop possible at all: at the hot
+    # corner the coil can only draw 13.5/13.82 = 0.977 A at 100% duty, so
+    # the regulator has to have duty left over at the setpoint. Checked,
+    # not assumed -- run the regulator out of headroom and it degrades
+    # silently back to open-loop behaviour.
+    i_max_hot = 13.5 / 13.82
+    c.that("closed loop needs duty headroom: max coil current at +125C",
+           i_max_hot, 0.977, tol=0.01, unit="A")
+    c.that("  ... setpoint as a fraction of that ceiling",
+           0.675 / i_max_hot * 100, 100.0, tol=None,
+           ok=0.675 / i_max_hot < 0.85, unit="%")
+
+    # Nominal too, so the regulator is shown working before the corners.
+    ireg_n = np.abs(d["ireg"][tail])
+    c.that("closed loop at nominal 25C", float(ireg_n.mean()), 0.675,
+           tol=0.09, unit="A")
+    rreg = float(ireg_n.max() - ireg_n.min())
+    c.that("  ... hysteresis band it actually regulates within", rreg, 0.133,
+           tol=0.06, unit="A")
     return c
 
 
