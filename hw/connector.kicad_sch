@@ -1,0 +1,13 @@
+(kicad_sch (version 20230121) (generator ecu25kva_gen)
+  (uuid 1a7c88fc-5de2-458e-b092-56a2f511737c)
+  (paper "A3")
+  (title_block
+    (title "94-way Bosch connector and harness mapping")
+    (company "ecu25kva")
+    (comment 1 "Sheet: connector")
+  )
+  (lib_symbols)
+  (sheet_instances
+    (path "/" (page "1"))
+  )
+)

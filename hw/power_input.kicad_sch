@@ -1,0 +1,13 @@
+(kicad_sch (version 20230121) (generator ecu25kva_gen)
+  (uuid f8e4433f-f190-4e53-b21d-62797dd6630d)
+  (paper "A3")
+  (title_block
+    (title "Power input and transient protection")
+    (company "ecu25kva")
+    (comment 1 "Sheet: power_input")
+  )
+  (lib_symbols)
+  (sheet_instances
+    (path "/" (page "1"))
+  )
+)

@@ -8,3 +8,9 @@ fp-info-cache
 __pycache__/
 *.pyc
 .review/
+
+# KiCad
+hw/*-backups/
+hw/*.kicad_prl
+hw/fp-info-cache
+hw/*.bak

@@ -1,0 +1,13 @@
+(kicad_sch (version 20230121) (generator ecu25kva_gen)
+  (uuid b9623c52-1048-4d9e-ad65-60a926ee3470)
+  (paper "A3")
+  (title_block
+    (title "S32K148, supervisor and fail-safe gating")
+    (company "ecu25kva")
+    (comment 1 "Sheet: mcu")
+  )
+  (lib_symbols)
+  (sheet_instances
+    (path "/" (page "1"))
+  )
+)

@@ -1,0 +1,13 @@
+(kicad_sch (version 20230121) (generator ecu25kva_gen)
+  (uuid 52b61d47-349f-448b-9812-a1d02a900d1a)
+  (paper "A3")
+  (title_block
+    (title "Analog sensor front-ends")
+    (company "ecu25kva")
+    (comment 1 "Sheet: sensors_analog")
+  )
+  (lib_symbols)
+  (sheet_instances
+    (path "/" (page "1"))
+  )
+)

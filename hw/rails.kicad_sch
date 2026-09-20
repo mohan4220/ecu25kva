@@ -1,0 +1,13 @@
+(kicad_sch (version 20230121) (generator ecu25kva_gen)
+  (uuid 4bea2c18-c381-4ece-a39b-c805ff710114)
+  (paper "A3")
+  (title_block
+    (title "Buck pre-regulator, 3V3 and 5V_SENSOR rails")
+    (company "ecu25kva")
+    (comment 1 "Sheet: rails")
+  )
+  (lib_symbols)
+  (sheet_instances
+    (path "/" (page "1"))
+  )
+)

@@ -1,0 +1,13 @@
+(kicad_sch (version 20230121) (generator ecu25kva_gen)
+  (uuid 2e7fa4bc-4850-44da-94b1-773e8f56ee6e)
+  (paper "A3")
+  (title_block
+    (title "Crank VR conditioner and cam front-end")
+    (company "ecu25kva")
+    (comment 1 "Sheet: speed_inputs")
+  )
+  (lib_symbols)
+  (sheet_instances
+    (path "/" (page "1"))
+  )
+)

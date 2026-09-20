@@ -1,0 +1,13 @@
+(kicad_sch (version 20230121) (generator ecu25kva_gen)
+  (uuid fb38dbbf-817b-4871-9414-f38d21a7af0c)
+  (paper "A3")
+  (title_block
+    (title "Fuel metering unit and EGR actuator")
+    (company "ecu25kva")
+    (comment 1 "Sheet: metering_egr")
+  )
+  (lib_symbols)
+  (sheet_instances
+    (path "/" (page "1"))
+  )
+)

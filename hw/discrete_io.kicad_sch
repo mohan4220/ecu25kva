@@ -1,0 +1,13 @@
+(kicad_sch (version 20230121) (generator ecu25kva_gen)
+  (uuid c76913ae-7e15-4ced-89ea-462c71fc37ed)
+  (paper "A3")
+  (title_block
+    (title "Switch inputs, trip-module sense, relay drivers")
+    (company "ecu25kva")
+    (comment 1 "Sheet: discrete_io")
+  )
+  (lib_symbols)
+  (sheet_instances
+    (path "/" (page "1"))
+  )
+)

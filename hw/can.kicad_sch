@@ -1,0 +1,13 @@
+(kicad_sch (version 20230121) (generator ecu25kva_gen)
+  (uuid 821fa194-bbb0-4981-84fa-93bea680ba1a)
+  (paper "A3")
+  (title_block
+    (title "Dual CAN, J1939 250 kbit/s")
+    (company "ecu25kva")
+    (comment 1 "Sheet: can")
+  )
+  (lib_symbols)
+  (sheet_instances
+    (path "/" (page "1"))
+  )
+)

@@ -1,0 +1,13 @@
+(kicad_sch (version 20230121) (generator ecu25kva_gen)
+  (uuid 8805f5bb-ac38-43d9-807c-0552755a583d)
+  (paper "A3")
+  (title_block
+    (title "Injector drive: boost rail, high sides, low sides")
+    (company "ecu25kva")
+    (comment 1 "Sheet: injector")
+  )
+  (lib_symbols)
+  (sheet_instances
+    (path "/" (page "1"))
+  )
+)
