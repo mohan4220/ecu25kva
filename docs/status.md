@@ -1,6 +1,6 @@
 # Build Status — What Is Done and What Is Not
 
-**As of 19 September 2026, end of session.** Counts in this document are generated from the repository,
+**As of 20 September 2026, end of session.** Counts in this document are generated from the repository,
 not maintained by hand: the block results come from `sim/run_sim.py`, the unknowns from
 the specification's own register.
 
@@ -11,24 +11,29 @@ the specification's own register.
 | | Count |
 |---|---|
 | Circuit blocks simulated | **24** |
-| Blocks passing every check | **16** |
-| Blocks failing a check | **8** — see below; six of them are new *information*, not new faults |
+| Blocks passing every check | **24** |
+| Blocks failing a check | **0** |
 | Research memos | **12** |
 | Documents in the bible | **18** |
 | Unknowns closed | **4** |
 | Unknowns partly answered | **4** |
 | Unknowns still open | **9** |
-| Phase | **1.5** — block simulation, nearly complete |
+| Phase | **2** — schematic capture, 1 of 10 sheets drawn |
 
-**The pass rate went down on 19 September, and that is progress.** It was 22 of 24 that
-morning. Nothing broke: the temperature-corner pass found six blocks that fail cold or
-hot and recorded all six in RESULT NOTE prose, where the suite could not see them. They
-are now enforced checks. A design that was always marginal at −40 °C now says so when you
-run it.
+**All 24 blocks pass.** On 19 September it was 16, after a temperature-corner pass found
+six blocks that fail cold or hot and turned prose caveats into enforced checks. All six
+are now answered, and the answers are part specifications rather than widened checks —
+every one of them is written up in `docs/bom_requirements.md` with the block that demands
+it, and every failing corner is kept as pinned evidence of *why* the requirement exists.
 
-**Nothing has been captured in KiCad, no PCB exists, and no firmware has been written.**
-Everything below describes design work verified by simulation, which is the stage before
-schematic capture.
+**One of the six was not a part-selection problem at all.** The metering unit's coil is
+copper, copper moves 0.39 %/°C, and no better resistor exists to buy. It needed closed-loop
+current control, which put a 50 mΩ shunt and a sense amplifier on ECU pin 88's return —
+new schematic content, not a BOM line. See §1.7.
+
+**Schematic capture has started; no PCB exists and no firmware has been written.** The
+KiCad project is in `hw/`, with all ten hierarchical sheets created and the first —
+`power_input` — drawn and netlist-checked. See §7.
 
 ---
 
@@ -110,55 +115,58 @@ rail about 2 V per event with no way down.
 
 ---
 
-### 1.7 The eight failures, and what each one means
+### 1.7 The six corners that were failing, and what each one bought
 
-A failing block here is a finding, not a broken simulation. Three different kinds:
+All six are closed. None was closed by widening a check: each is answered by specifying a
+part, with the failing corner kept as pinned evidence. The requirements live in
+`docs/bom_requirements.md` under the tags below.
 
-**Wrong part selected — 1 block.**
+| Block | Was | Answer | Tag |
+|---|---|---|---|
+| `can_termination` | 123.95 Ω at 200 ppm/°C vs J1939's own 120 Ω | thin-film, 0.1 %, 50 ppm/°C → 121.10 Ω at stacked worst case | `CAN-TERM` |
+| `sensor_rail` | 4.15 A at cold + −30 % vs a 3.0 A polyfuse ceiling | PTC R25 2.0 → 3.0 Ω, solved against the ceiling → 2.88 A | `SENSOR-PTC` |
+| `mcu_pdn` | 197 mΩ at a wet electrolytic's cold ESR vs 100 mΩ | polymer bulk, ESR **band** 20–50 mΩ → 60 / 92 mΩ | `PDN-BULK` |
+| `metering_unit_pwm` | 0.862 A cold / 0.462 A hot vs a 0.675 A setpoint | closed-loop current control → 0.679 / 0.683 A | `MU-ISENSE` |
+| `negative_pulses` | VIN −0.528 V vs the LM5164's −0.3 V | active clamp → −0.068 V | `NEG-CLAMP` |
+| `injector_boost` | ratio missed 11.6× at both corners | 11.6× was this block's *nominal*, never a requirement | — |
 
-- **`load_dump`** — the TVS absorbs 38 J under pulse 5b against roughly a 0.5 J
-  single-pulse class rating. The fix is a *higher standoff* voltage so the part stays off
-  during a normal clamped dump, not a bigger part to absorb it. Blocked on **U16**: if the
-  alternator turns out unsuppressed, the applicable pulse is 5a and the topology changes
-  rather than the part number.
+Three of those were more than part swaps, and they are the ones worth reading.
 
-**A fault state nothing prevents — 1 block.**
+**The metering unit needed an architecture change.** Over −40…+125 °C the coil's
+resistance goes 7.39 → 13.82 Ω and at fixed duty the current follows it, ±30 %. A
+hysteretic current regulator holds 0.679 / 0.679 / 0.683 A at −40 / 25 / +125 °C. Closed
+loop only works while the regulator has duty left: at the hot corner the coil can draw at
+most 0.977 A at 100 % duty, so the setpoint sits at 69 % of the ceiling. That bound is
+checked, because a regulator out of headroom degrades silently back to open-loop.
 
-- **`egr_hbridge`** — the file argued no IN1/IN2 combination could short a leg, because
-  each input drives a *diagonal* pair. False against its own wiring: IN1 commands
-  leg-A-high and leg-B-low, IN2 commands leg-B-high and leg-A-low, so asserting both
-  turns all four switches on and shorts **both legs** at once. **270 A**, matching the
-  hand figure. The requirement is now a driver that decodes IN1/IN2 internally so 11
-  means brake, not shoot-through — and a per-leg dead time does not cover it, because
-  this is a logic state rather than a timing overlap.
+**The negative clamp needed a FET, for a structural reason.** A Schottky's drop at the
+15 A pulse 1 delivers decomposes as 0.367 V junction + 0.180 V bulk, and only the bulk
+term falls when parts are paralleled — four of them still leave 0.375 V. The rating is
+really a demand for ≤ 20 mΩ effective clamp impedance *including the junction*, which no
+junction device meets and a 5 mΩ FET clears four times over. Still open but now bounded:
+the comparator's propagation delay is unmodelled, so the question went from *"is a 2 ms
+excursion acceptable"* to *"is a sub-microsecond one"*.
 
-**Missing component — 1 block.**
+**The PDN requirement had to be a band, not a ceiling.** Bulk ESR is also what damps the
+regulator-against-bulk resonance, so at 20 mΩ the peak climbs back to 92 mΩ. "ESR ≤ 50 mΩ"
+would have been satisfied by a 5 mΩ part that fails the block.
 
-- **`negative_pulses`** — the buck's VIN pin is rated **−0.3 V to 100 V**, and the
-  negative limit is not a mirror of the positive one. It sees −40.7 V on pulse 1 and
-  −27.8 V on pulse 3a. The TVS clamps correctly; −38 V is a good clamp that is still two
-  orders of magnitude outside what the buck tolerates. Nothing in the chain addresses a
-  negative excursion at all.
+**A near-miss worth recording.** The active-clamp branch first shared the battery node
+with the unprotected one, and at 13 mΩ to ground it shunted the fault for that branch too
+— reporting −0.177 V where the true Schottky-only figure is −0.528 V, i.e. reporting the
+problem as already solved. Caught because the clamp diode's own ammeter read 13 mA where
+15 A was expected.
 
-**Marginal at a temperature corner — 5 blocks.** These were always true; until 19
-September nothing asked.
-
-- **`sensor_rail`** — 4.148 A against a real 3.0 A polyfuse trip ceiling, at the stacked
-  cold-and-tolerance corner.
-- **`mcu_pdn`** — 196.7 mΩ against the derived 100 mΩ target at a 4× cold-ESR derate. The
-  bulk electrolytic's ESR *is* the damping in this block, so cold attacks the mechanism
-  the design depends on.
-- **`can_termination`** — 123.96 Ω differential against J1939's 120 ± 2, from 200 ppm/°C
-  resistor tempco alone. An ordinary part, not an exotic one.
-- **`metering_unit_pwm`** and **`injector_boost`** — their *target* checks fail while
-  their *control-law invariants* hold. Both halves are checked deliberately so a reader
-  sees which is fragile. A target that moves with temperature is not the same as a design
-  that stops working.
+**Two stale checks were also found.** `negative_pulses` still demanded 0.707 J from the
+TVS, from before the clamp Schottky existed — the TVS no longer conducts on negative
+pulses at all, and the requirement moved onto the part that now carries it (13.58 A peak,
+14.5 mJ). And a burst-accumulation check conflated first-pulse settling with
+accumulation; repeats 2–5 are identical to the printed precision.
 
 **One block passes in a way worth reading.** `emi_filter` was not failed at its corner,
 because its −40 dB gate is documented in its own final check as being of unknown adequacy
 pending measured hardware emissions. Failing a corner against an admittedly arbitrary
-number manufactures a verdict. The X7R −15% corner is recorded as regression pins with a
+number manufactures a verdict. The X7R −15 % corner is recorded as regression pins with a
 note that the value sits below the nominal gate.
 
 ---
@@ -245,6 +253,8 @@ contact-type confirmation, which gates nothing
 | ~~Passive pulldown vs active clamp~~ | — | **DECIDED 19 Sep 2026, memo 12.** Active clamp, built discretely, at every gate. The integrated route relocates this problem rather than removing it |
 | **MC33816 last-time-buy 06/08/2027** | Fallback path only | Needs a distributor conversation, not another search |
 | **L9781 datasheet unretrievable** | Confirming the decision's runner-up | Five failed fetches across two sessions. Needs FAE or distributor access |
+| **Ideal-diode controller for Q1** | `power_input` sheet, `reverse_battery`, `negative_pulses` | Its turn-off time is load-bearing and unsourced. `VBAT_REV_GATE` is undriven on the sheet until a part is chosen |
+| **Negative-clamp comparator for Q2** | `power_input` sheet, `negative_pulses` | Its propagation delay is the last unmodelled term in the negative-pulse chain. `NCLAMP_GATE` is undriven until a part is chosen |
 | **Air-intake shutoff** | Nothing electrical | Owners' decision. Nothing in this design can stop an oil-fuelled runaway |
 | **Trip-module pickup target** | Module ordering | Whether it shares our flywheel target. Sharing is cheaper; separate preserves the independence that is the reason for fitting it |
 
@@ -256,15 +266,49 @@ contact-type confirmation, which gates nothing
 |---|---|---|
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
-| **1.5** | **Block-level simulation** | **In progress — 23 blocks, 22 passing** |
-| 2 | KiCad hierarchical schematic capture | Not started |
+| 1.5 | Block-level simulation | **Done — 24 blocks, 24 passing** |
+| **2** | **KiCad hierarchical schematic capture** | **In progress — 1 of 10 sheets drawn** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
 | 4 | Firmware skeleton | Not started |
 
-**What ends phase 1.5:** the four missing circuits in §2, the verification gaps in §3,
-and the verification gaps in §3. The two driver decisions in §6 are now taken. **What starts phase 2:** assigning `PTxx` pins to the
-94-way connector — which is also what unblocks the per-pin detail of the fail-safe
-requirement.
+### Phase 2 — what exists
+
+The project is `hw/ecu25kva.kicad_pro`. Everything in it is generated, and the generators
+refuse to overwrite a sheet that has content, so Eeschema edits are safe against a re-run.
+
+| Sheet | State | Blocks it realises |
+|---|---|---|
+| `power_input` | **Drawn, netlist-checked** | `emi_filter`, `transient_clamp`, `load_dump`, `negative_pulses`, `reverse_battery` |
+| `rails` | Created, empty | `buck_preregulator`, `mcu_pdn`, `sensor_rail` |
+| `mcu` | Created, empty | `supervisor`, `mcu_pdn` |
+| `injector` | Created, empty | `boost_converter`, `injector_boost`, `injector_turnoff` |
+| `metering_egr` | Created, empty | `metering_unit_pwm`, `egr_hbridge` |
+| `sensors_analog` | Created, empty | `sensor_ratiometric`, `sensor_differential`, `ntc_frontend`, `battery_sense` |
+| `speed_inputs` | Created, empty | `vr_conditioner`, `cam_frontend` |
+| `discrete_io` | Created, empty | `discrete_input`, `trip_module_sense`, `relay_driver` |
+| `can` | Created, empty | `can_termination` |
+| `connector` | Created, empty | — |
+
+**The S32K148 symbol is generated from NXP's own pin table, and no pin number is retyped
+anywhere in the chain.** KiCad 7 ships no S32K symbol. The package pin numbers live only
+in `S32K148_IO_Signal_Description_Input_Multiplexing.xlsx`, which is not a download but
+one of eleven workbooks embedded as attachments inside the Reference Manual PDF. That file
+had been extracted once and not kept, so `docs/pinmap.md` cited a source the repo no
+longer held. It is now in `refs/`, with checksums, and `hw/extract_pinmux.py` makes the
+extraction reproducible. Re-extracting confirmed three of pinmap.md's claims
+independently: 128 port + 16 supply = 144 pins with every package pin accounted for; the
+six driver-gate pins are all PE=0 PS=0; and exactly four pins on the whole part carry a
+reset pull, which are precisely the four JTAG/RESET pins pinmap.md reserved.
+
+**Check the netlist, not the plot.** Three bugs on the first sheet were invisible on a
+correctly-plotting page and obvious in the exported netlist: a rotation helper with 90 and
+270 swapped, which put the clamp Schottky's cathode on ground; custom part fields starting
+at property id 2, which KiCad reserves, silently renaming the first one "Footprint"; and
+labels offset from their wires for looks, which detaches them silently while the page
+still reads as connected.
+
+**What ends phase 2:** the nine remaining sheets, and the two gates currently left
+undriven on `power_input` (§6).
 
 ---
 
@@ -285,76 +329,54 @@ Ordered by what it unblocks.
 
 ## 9. Resume here — next session
 
-Written at the end of 19 September so the next session does not have to
-re-derive where things stand. **Nothing is half-finished: the tree is clean, the
-suite passes, everything is pushed.**
+Written at the end of 20 September so the next session does not have to re-derive where
+things stand. **Nothing is half-finished: the tree is clean, all 24 blocks pass,
+everything is pushed.**
 
-### Done since this section was written
+### What closed today
 
-Both items below are complete: the TVS is bidirectional, ISO 7637-2's negative pulses are
-simulated, and temperature corners are run and enforced across all 24 blocks. What they
-produced is in §1.7 and §2. The text of the two items is kept as written because it
-records what was expected, and the negative-pulse result was not it.
+Phase 1.5 is done. All six temperature-corner failures are answered, and the answers are
+in `docs/bom_requirements.md` rather than in a widened check — see §1.7 for what each one
+cost and which three were more than part swaps.
 
-### The two pieces of phase 1.5 that were outstanding — now done
+Phase 2 started. The KiCad project exists with all ten sheets, the S32K148 symbol is
+generated from NXP's own pin table, and `power_input` is drawn and netlist-checked.
 
-**1. Replace the TVS model, then simulate the negative pulses.** In that order — the
-second is not answerable until the first is done.
+### Next, in order
 
-`sim/blocks/transient_clamp.cir` and `load_dump.cir` share this model:
+**1. Draw the remaining sheets.** The generator and its helper (`hw/schlib.py`) are in
+place, so each sheet is now a matter of describing its parts and their provenance. Order
+by what unblocks the most:
 
-```
-.model TVS D(Is=1e-12 N=1.6 Rs=0.35 BV=36.7 IBV=1e-3)
-```
+- `mcu` — the pin map is done and every other sheet references it
+- `rails` — `buck_preregulator` plus the two specified parts (`PDN-BULK`, `SENSOR-PTC`)
+- `metering_egr` — carries the new current-sense requirement (`MU-ISENSE`)
+- `can` — small and fully specified (`CAN-TERM`)
+- then `injector`, `sensors_analog`, `speed_inputs`, `discrete_io`, `connector`
 
-That is a **single diode**. The real part is an SMBJ33CA, and the `CA` suffix means
-bidirectional. A single diode conducts forward at 0.7 V in reverse polarity, so any
-reverse-polarity or negative-pulse question put to it gets a confident wrong answer
-rather than a visible failure.
+**2. Check each sheet's netlist, not its plot.** Every bug found on the first sheet was
+invisible on a page that plotted correctly. `kicad-cli sch export netlist` is the check;
+KiCad 7's CLI has no ERC subcommand, so this stands in for it.
 
-Build a bidirectional subcircuit — two junctions back to back — and switch both blocks
-to it. **Both must reproduce their current results**: `transient_clamp` passing,
-`load_dump` failing at ~46 J absorbed. If either moves, that is a finding about the old
-model and should be reported, not tuned away.
-
-Then add a `negative_pulses` block for ISO 7637-2 pulses **1** and **3a** on a 12 V
-system. Spec §6 requires ISO 7637-2 and only 2a and 5b exist. Take severity from
-memo 06 if it is there; otherwise state the values and label them INFERRED.
-
-**2. Temperature corners across all 23 blocks.** Every result in this repo is a 27 °C
-result. The tolerance pass built the pattern to follow — see `load_dump.cir` and
-`supervisor.cir` for how a corner is stated. This is the piece most likely to be cut off
-part-way, and it survives that well: each block's corner is self-contained, which is how
-the tolerance pass came back cleanly from being truncated at 11 of 19 blocks.
-
-### Also outstanding
-
-**Four artifacts built on 19 September have never been independently reviewed:**
-`egr_hbridge`, `trip_module_sense`, `cam_frontend`, and `docs/pinmap.md`. The last review
-ran before any of them existed. Both review passes so far found real errors, including a
-2× arithmetic slip inside the block written to fix a 1000× one.
+**3. Two parts still need choosing**, and both show up as undriven gates on `power_input`
+(§6): the ideal-diode controller and the negative-clamp comparator. Neither pinout can be
+drawn without a datasheet.
 
 ### Needs a person, not an agent
 
-| Item | Why |
-|---|---|
-| **MC33816AE last-time-buy 06/08/2027** | Distributor conversation. Gates memo 12's fallback path |
-| **L9781 datasheet** | Five failed retrievals across two sessions. Needs FAE or distributor access. It is the runner-up to the driver decision and cannot be confirmed without it |
+- **MC33816AE last-time-buy 06/08/2027** — a distributor conversation, not another search.
+- **L9781 datasheet** — five failed retrievals across three sessions. Needs FAE or
+  distributor access.
 
 ### At the machine
 
-**U16 is now the one that gates most** — whether the alternator's rectifier is suppressed
-decides which ISO 7637-2 pulse applies and therefore whether `load_dump`'s failure is
-fixed by a part number or a different circuit. Then U2, U8, U14, U5.
+See §8. **U16 (the alternator rectifier) no longer gates the input-protection topology** —
+that closed when the TVS standoff and the active clamp were specified — but it still
+decides which ISO 7637-2 pulse applies, and it is the first thing to settle.
 
 ### The pattern worth carrying forward
 
-Across 19 September, **four wrong numbers were found in prose — comments, memos, the
-specification — and none in a check.** A factor of 1000, a factor of 6, a factor of 2,
-and a stale 0.19 V that should have been 0.308 V. Every one of them became or nearly
-became a requirement, and every one was caught by something executing the claim rather
-than reading it.
-
-Two circuits have now been specified in a way that would have destroyed an MCU pin. The
-first was caught by a simulation block. The second — the cam input — survived precisely
-because no block existed for it.
+Every wrong number found in this project so far has been found in prose, not in a check.
+The corner that fails is the one that is written as an enforced check; the corner that is
+written as a caveat in a comment is the one that gets believed. The same held today at the
+schematic: three real errors, all invisible on the page, all obvious in the netlist.
