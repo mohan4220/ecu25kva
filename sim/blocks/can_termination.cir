@@ -90,6 +90,39 @@ Cse  mhe 0  4.7n
 Rleh eh 0 1meg
 Rlel el 0 1meg
 
+* ---- RESOLUTION: the specified part, network "f" ----
+* The 200 ppm/C corner above is a fail against a real requirement, so
+* it has to be answered by specifying a resistor rather than by
+* widening the check. Requirement written into the BOM (docs/bom_
+* requirements.md, CAN-TERM): Rah/Ral are 60.0 ohm THIN-FILM, initial
+* tolerance +/-0.1% or better, tempco +/-50 ppm/C or better.
+*
+* That is an ordinary automotive-grade thin-film chip resistor class,
+* not an exotic one -- the contrast with network "e" is thick-film
+* (100-200 ppm/C typical) versus thin-film (25-50 ppm/C typical), a
+* part-class choice with no meaningful cost or availability penalty at
+* this quantity. No specific manufacturer part number is named here:
+* none has been checked against a retrieved datasheet, and this repo's
+* rule is that an unread figure does not become a design number. What
+* the schematic carries is the REQUIREMENT -- 0.1% / 50 ppm thin-film
+* -- which is a specifiable, purchasable class.
+*
+* Corner stacked the adverse way, both mechanisms together:
+*     tempco   50 ppm/C * 165 C span   = +0.825%
+*     initial  +0.1%
+*     R = 60 * 1.00825 * 1.001 = 60.5555 ohm
+* which is the number below. Unlike network "e" this is the WORST
+* case for the specified part, not its nominal -- so passing here
+* means the requirement is sufficient, not merely that it helps.
+.param Rspec=60.5555
+Ifd1 0 fh  AC 1
+Ifd2 fl 0  AC 1
+Rfh  fh mhf {Rspec}
+Rfl  mhf fl {Rspec}
+Csf  mhf 0  4.7n
+Rlfh fh 0 1meg
+Rlfl fl 0 1meg
+
 .control
 * 10 kHz to 100 MHz: from below the bit rate to the top of the
 * CISPR 25 conducted band.
@@ -102,7 +135,8 @@ let zcm_split    = mag(v(bh))
 let zdiff_single = mag(v(ch) - v(cl))
 let zcm_single   = mag(v(dh))
 let zdiff_tcorner = mag(v(eh) - v(el))
-wrdata can_termination.dat zdiff_split zcm_split zdiff_single zcm_single zdiff_tcorner
+let zdiff_spec = mag(v(fh) - v(fl))
+wrdata can_termination.dat zdiff_split zcm_split zdiff_single zcm_single zdiff_tcorner zdiff_spec
 .endc
 
 .end
