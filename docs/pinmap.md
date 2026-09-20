@@ -51,7 +51,8 @@ against the one this document used before trusting a pin unchanged.
 **Package pin budget, checked rather than assumed:** the embedded table lists 157 `PTxx`
 port pins across the whole S32K1xx family tree; **128 of them are bonded out on the
 144-pin LQFP package** (the rest exist only on the 176-pin part or the BGA). This document
-commits **37** of those 128 to a signal. That leaves 91 GPIO-capable pins unused — enough
+commits **39** of those 128 to a signal (37 as first written, plus the two watchdog pins
+§1.8 adds). That leaves 89 GPIO-capable pins unused — enough
 margin that the 50 still-unknown OEM connector pins (spec §8) will not run the package out
 of pins once their function is known, which was an open question memo 05 flagged and this
 answers: **the 144-pin package was the right headroom call.**
@@ -197,11 +198,37 @@ specify a TPS3850-class windowed supervisor whose `RESET` output drives the S32K
 own `RESET_b` pin **and**, through one inverting stage, a dedicated kill transistor at
 each of the six gate nodes — entirely in analog/discrete hardware, with no MCU
 involvement in that path by design (that is what lets it protect against a *hung* MCU).
-The only MCU pin in this interface is:
 
-| Signal | `PTxx` | Note |
-|---|---|---|
-| `RESET_b` | `PTA5` | **Forced — this is the only `RESET_b` pin on the part.** Dedicated function, not muxed. Reset default per RM Table 4-3: weak pull-up enabled (the one deliberate exception among the pins this document touches) |
+**CORRECTED 20 Sep 2026, during schematic capture.** This section previously said "the
+only MCU pin in this interface is `RESET_b`", and that was wrong in a way that mattered:
+the *kill* path needs no MCU pin, but the **watchdog** does. A window watchdog is not a
+passive monitor — the MCU has to present a falling edge on `WDI` inside the window, every
+window, or the part asserts and resets the board on a timer. A supervisor topology with
+no pin to kick it is a supervisor that guarantees a reset loop.
+
+Two pins are therefore added here, both taken from the 91 spare GPIO the map leaves free,
+both `GPIO-HD`, both `PE=0 / PS=0` at reset (confirmed from the same embedded IO Signal
+Table as every other row in this document):
+
+| Signal | `PTxx` | Package pin | Peripheral | Reset pull | Note |
+|---|---|---|---|---|---|
+| `RESET_b` | `PTA5` | 141 | dedicated | **weak pull-up** | **Forced — this is the only `RESET_b` pin on the part.** Dedicated function, not muxed. Reset default per RM Table 4-3: weak pull-up enabled (the one deliberate exception among the pins this document touches) |
+| `WDT_KICK` | `PTE0` | 138 | GPIO output | Hi-Z, no pull | MCU → TPS3850 `WDI`. Free choice of pin; what is *not* free is that some pin must do this |
+| `WDT_FAULT` | `PTE1` | 137 | GPIO input | Hi-Z, no pull | TPS3850 `WDO` → MCU, so firmware can tell a watchdog timeout from a rail excursion. `WDO` asserts only while `RESET` is high, which is what makes the two distinguishable |
+
+That takes the committed count from 37 signals to **39**, and the spare GPIO from 91 to
+**89**.
+
+**The supervisor part is also now chosen**, which §1.8 previously left as a class:
+**TPS3850G33** (`TPS3850G33DRCT`, VSON-10). The variant matters and the reasoning is in
+`hw/gen_symbols.py` beside the symbol — briefly, the datasheet's own nomenclature table
+gives `G` = thresholds at ±4 % of nominal and `H` = ±7 %, and with the part's ±0.8 %
+accuracy that puts G33's worst-case undervoltage trip at **3.143 V** against H33's
+**3.044 V**. The supervisor has to assert *before* the S32K148's own LVD (3.0 V maximum),
+so G33 clears it by 143 mV and H33 by 44 mV — close enough that the two could fire in
+either order, and a supervisor that might lose the race to the thing it supervises is not
+doing its job. The cost is a tighter window the 3V3 rail has to live inside
+(3.143–3.459 V), which is a constraint this map now places on the rails design.
 
 ---
 

@@ -1,0 +1,1298 @@
+{
+ "1": {
+  "dx": 30.479999999999997,
+  "dy": -3.8100000000000005,
+  "label": "PTE16",
+  "port": "PTE16",
+  "side": "R",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "10": {
+  "dx": 30.479999999999997,
+  "dy": -2.540000000000001,
+  "label": "PTA25",
+  "port": "PTA25",
+  "side": "R",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "100": {
+  "dx": -30.479999999999997,
+  "dy": -6.350000000000001,
+  "label": "PTD4",
+  "port": "PTD4",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "101": {
+  "dx": -30.479999999999997,
+  "dy": -8.89,
+  "label": "PTD3",
+  "port": "PTD3",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "102": {
+  "dx": -30.479999999999997,
+  "dy": -11.430000000000001,
+  "label": "PTD2",
+  "port": "PTD2",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "103": {
+  "dx": 30.479999999999997,
+  "dy": 1.2699999999999996,
+  "label": "PTD23",
+  "port": "PTD23",
+  "side": "R",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "104": {
+  "dx": -30.479999999999997,
+  "dy": -7.62,
+  "label": "PTA3",
+  "port": "PTA3",
+  "side": "L",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "105": {
+  "dx": -30.479999999999997,
+  "dy": -10.16,
+  "label": "PTA2",
+  "port": "PTA2",
+  "side": "L",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "106": {
+  "dx": 30.479999999999997,
+  "dy": 3.8099999999999987,
+  "label": "PTD24",
+  "port": "PTD24",
+  "side": "R",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "107": {
+  "dx": -30.479999999999997,
+  "dy": 11.43,
+  "label": "PTB11",
+  "port": "PTB11",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "108": {
+  "dx": -30.479999999999997,
+  "dy": 8.889999999999997,
+  "label": "PTB10",
+  "port": "PTB10",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "109": {
+  "dx": -30.479999999999997,
+  "dy": 6.349999999999998,
+  "label": "PTB9",
+  "port": "PTB9",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "11": {
+  "dx": -30.479999999999997,
+  "dy": -8.89,
+  "label": "VDD",
+  "port": "VDD",
+  "side": "L",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "110": {
+  "dx": 30.479999999999997,
+  "dy": 6.349999999999998,
+  "label": "PTD27",
+  "port": "PTD27",
+  "side": "R",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "111": {
+  "dx": -30.479999999999997,
+  "dy": 3.8099999999999987,
+  "label": "PTB8",
+  "port": "PTB8",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "112": {
+  "dx": 30.479999999999997,
+  "dy": 8.889999999999997,
+  "label": "PTD28",
+  "port": "PTD28",
+  "side": "R",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "113": {
+  "dx": -30.479999999999997,
+  "dy": -12.7,
+  "label": "PTA1",
+  "port": "PTA1",
+  "side": "L",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "114": {
+  "dx": 30.479999999999997,
+  "dy": 11.43,
+  "label": "PTD29",
+  "port": "PTD29",
+  "side": "R",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "115": {
+  "dx": -30.479999999999997,
+  "dy": -15.24,
+  "label": "PTA0",
+  "port": "PTA0",
+  "side": "L",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "116": {
+  "dx": 30.479999999999997,
+  "dy": 13.969999999999999,
+  "label": "PTD30",
+  "port": "PTD30",
+  "side": "R",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "117": {
+  "dx": -30.479999999999997,
+  "dy": 2.540000000000001,
+  "label": "PTC7",
+  "port": "PTC7",
+  "side": "L",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "118": {
+  "dx": -30.479999999999997,
+  "dy": -0.0,
+  "label": "PTC6",
+  "port": "PTC6",
+  "side": "L",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "119": {
+  "dx": 30.479999999999997,
+  "dy": -7.62,
+  "label": "PTA16",
+  "port": "PTA16",
+  "side": "R",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "12": {
+  "dx": 30.479999999999997,
+  "dy": -8.89,
+  "label": "VSS",
+  "port": "VSS",
+  "side": "R",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "120": {
+  "dx": 30.479999999999997,
+  "dy": -10.16,
+  "label": "PTA15",
+  "port": "PTA15",
+  "side": "R",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "121": {
+  "dx": -30.479999999999997,
+  "dy": 1.2699999999999996,
+  "label": "PTE6",
+  "port": "PTE6",
+  "side": "L",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "122": {
+  "dx": -30.479999999999997,
+  "dy": -8.89,
+  "label": "PTE2",
+  "port": "PTE2",
+  "side": "L",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "123": {
+  "dx": 30.479999999999997,
+  "dy": 8.89,
+  "label": "VSS",
+  "port": "VSS",
+  "side": "R",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "124": {
+  "dx": -30.479999999999997,
+  "dy": 8.89,
+  "label": "VDD",
+  "port": "VDD",
+  "side": "L",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "125": {
+  "dx": 30.479999999999997,
+  "dy": -1.2700000000000014,
+  "label": "PTE19",
+  "port": "PTE19",
+  "side": "R",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "126": {
+  "dx": 30.479999999999997,
+  "dy": 1.2699999999999996,
+  "label": "PTE20",
+  "port": "PTE20",
+  "side": "R",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "127": {
+  "dx": 30.479999999999997,
+  "dy": -12.7,
+  "label": "PTA14",
+  "port": "PTA14",
+  "side": "R",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "128": {
+  "dx": 30.479999999999997,
+  "dy": 3.8100000000000005,
+  "label": "PTE21",
+  "port": "PTE21",
+  "side": "R",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "129": {
+  "dx": 30.479999999999997,
+  "dy": 6.35,
+  "label": "PTE22",
+  "port": "PTE22",
+  "side": "R",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "13": {
+  "dx": -30.479999999999997,
+  "dy": -6.3500000000000005,
+  "label": "VDDA",
+  "port": "VDDA",
+  "side": "L",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "130": {
+  "dx": 30.479999999999997,
+  "dy": -15.24,
+  "label": "PTA13",
+  "port": "PTA13",
+  "side": "R",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "131": {
+  "dx": 30.479999999999997,
+  "dy": 8.889999999999999,
+  "label": "PTE23",
+  "port": "PTE23",
+  "side": "R",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "132": {
+  "dx": 30.479999999999997,
+  "dy": 11.429999999999998,
+  "label": "PTE24",
+  "port": "PTE24",
+  "side": "R",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "133": {
+  "dx": 30.479999999999997,
+  "dy": 13.97,
+  "label": "PTE25",
+  "port": "PTE25",
+  "side": "R",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "134": {
+  "dx": -30.479999999999997,
+  "dy": 15.24,
+  "label": "PTA12",
+  "port": "PTA12",
+  "side": "L",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "135": {
+  "dx": -30.479999999999997,
+  "dy": 12.700000000000001,
+  "label": "PTA11",
+  "port": "PTA11",
+  "side": "L",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "136": {
+  "dx": -30.479999999999997,
+  "dy": 10.159999999999998,
+  "label": "PTA10",
+  "port": "PTA10",
+  "side": "L",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "137": {
+  "dx": -30.479999999999997,
+  "dy": -11.43,
+  "label": "PTE1",
+  "port": "PTE1",
+  "side": "L",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "138": {
+  "dx": -30.479999999999997,
+  "dy": -13.97,
+  "label": "PTE0",
+  "port": "PTE0",
+  "side": "L",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "139": {
+  "dx": -30.479999999999997,
+  "dy": -2.540000000000001,
+  "label": "PTC5[PU]",
+  "port": "PTC5",
+  "side": "L",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "14": {
+  "dx": -30.479999999999997,
+  "dy": -3.8100000000000005,
+  "label": "VREFH",
+  "port": "VREFH",
+  "side": "L",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "140": {
+  "dx": -30.479999999999997,
+  "dy": -5.08,
+  "label": "PTC4[PD]",
+  "port": "PTC4",
+  "side": "L",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "141": {
+  "dx": -30.479999999999997,
+  "dy": -2.540000000000001,
+  "label": "PTA5[PU]",
+  "port": "PTA5",
+  "side": "L",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "142": {
+  "dx": -30.479999999999997,
+  "dy": -5.08,
+  "label": "PTA4[PU]",
+  "port": "PTA4",
+  "side": "L",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "143": {
+  "dx": -30.479999999999997,
+  "dy": 7.619999999999999,
+  "label": "PTA9",
+  "port": "PTA9",
+  "side": "L",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "144": {
+  "dx": -30.479999999999997,
+  "dy": 5.08,
+  "label": "PTA8",
+  "port": "PTA8",
+  "side": "L",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "15": {
+  "dx": 30.479999999999997,
+  "dy": -6.3500000000000005,
+  "label": "VREFL",
+  "port": "VREFL",
+  "side": "R",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "16": {
+  "dx": 30.479999999999997,
+  "dy": -3.8100000000000005,
+  "label": "VSS",
+  "port": "VSS",
+  "side": "R",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "17": {
+  "dx": -30.479999999999997,
+  "dy": 1.2699999999999996,
+  "label": "PTB7",
+  "port": "PTB7",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "18": {
+  "dx": -30.479999999999997,
+  "dy": -1.2700000000000014,
+  "label": "PTB6",
+  "port": "PTB6",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "19": {
+  "dx": 30.479999999999997,
+  "dy": -0.0,
+  "label": "PTA26",
+  "port": "PTA26",
+  "side": "R",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "2": {
+  "dx": 30.479999999999997,
+  "dy": -6.3500000000000005,
+  "label": "PTE15",
+  "port": "PTE15",
+  "side": "R",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "20": {
+  "dx": 30.479999999999997,
+  "dy": -8.89,
+  "label": "PTE14",
+  "port": "PTE14",
+  "side": "R",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "21": {
+  "dx": -30.479999999999997,
+  "dy": -6.3500000000000005,
+  "label": "PTE3",
+  "port": "PTE3",
+  "side": "L",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "22": {
+  "dx": 30.479999999999997,
+  "dy": 2.540000000000001,
+  "label": "PTA27",
+  "port": "PTA27",
+  "side": "R",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "23": {
+  "dx": 30.479999999999997,
+  "dy": -13.97,
+  "label": "PTE12",
+  "port": "PTE12",
+  "side": "R",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "24": {
+  "dx": 30.479999999999997,
+  "dy": 5.08,
+  "label": "PTA28",
+  "port": "PTA28",
+  "side": "R",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "25": {
+  "dx": 30.479999999999997,
+  "dy": -8.89,
+  "label": "PTD17",
+  "port": "PTD17",
+  "side": "R",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "26": {
+  "dx": 30.479999999999997,
+  "dy": 7.619999999999999,
+  "label": "PTA29",
+  "port": "PTA29",
+  "side": "R",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "27": {
+  "dx": 30.479999999999997,
+  "dy": 10.159999999999998,
+  "label": "PTA30",
+  "port": "PTA30",
+  "side": "R",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "28": {
+  "dx": 30.479999999999997,
+  "dy": -11.430000000000001,
+  "label": "PTD16",
+  "port": "PTD16",
+  "side": "R",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "29": {
+  "dx": 30.479999999999997,
+  "dy": -13.970000000000002,
+  "label": "PTD15",
+  "port": "PTD15",
+  "side": "R",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "3": {
+  "dx": -30.479999999999997,
+  "dy": -13.970000000000002,
+  "label": "PTD1",
+  "port": "PTD1",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "30": {
+  "dx": -30.479999999999997,
+  "dy": 8.889999999999999,
+  "label": "PTE9",
+  "port": "PTE9",
+  "side": "L",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "31": {
+  "dx": 30.479999999999997,
+  "dy": -1.2700000000000005,
+  "label": "VSS",
+  "port": "VSS",
+  "side": "R",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "32": {
+  "dx": -30.479999999999997,
+  "dy": -1.2700000000000005,
+  "label": "VDD",
+  "port": "VDD",
+  "side": "L",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "33": {
+  "dx": 30.479999999999997,
+  "dy": 12.700000000000001,
+  "label": "PTA31",
+  "port": "PTA31",
+  "side": "R",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "34": {
+  "dx": 30.479999999999997,
+  "dy": -16.51,
+  "label": "PTD14",
+  "port": "PTD14",
+  "side": "R",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "35": {
+  "dx": -30.479999999999997,
+  "dy": 16.51,
+  "label": "PTD13",
+  "port": "PTD13",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "36": {
+  "dx": 30.479999999999997,
+  "dy": -6.350000000000001,
+  "label": "PTB18",
+  "port": "PTB18",
+  "side": "R",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "37": {
+  "dx": 30.479999999999997,
+  "dy": -3.8100000000000023,
+  "label": "PTB20",
+  "port": "PTB20",
+  "side": "R",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "38": {
+  "dx": 30.479999999999997,
+  "dy": -1.2700000000000014,
+  "label": "PTB21",
+  "port": "PTB21",
+  "side": "R",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "39": {
+  "dx": -30.479999999999997,
+  "dy": 6.35,
+  "label": "PTE8",
+  "port": "PTE8",
+  "side": "L",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "4": {
+  "dx": -30.479999999999997,
+  "dy": -16.51,
+  "label": "PTD0",
+  "port": "PTD0",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "40": {
+  "dx": -30.479999999999997,
+  "dy": -3.8100000000000023,
+  "label": "PTB5",
+  "port": "PTB5",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "41": {
+  "dx": -30.479999999999997,
+  "dy": -6.350000000000001,
+  "label": "PTB4",
+  "port": "PTB4",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "42": {
+  "dx": -30.479999999999997,
+  "dy": -7.62,
+  "label": "PTC3",
+  "port": "PTC3",
+  "side": "L",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "43": {
+  "dx": -30.479999999999997,
+  "dy": -10.16,
+  "label": "PTC2",
+  "port": "PTC2",
+  "side": "L",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "44": {
+  "dx": -30.479999999999997,
+  "dy": 1.2699999999999996,
+  "label": "PTD7",
+  "port": "PTD7",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "45": {
+  "dx": -30.479999999999997,
+  "dy": -1.2700000000000014,
+  "label": "PTD6",
+  "port": "PTD6",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "46": {
+  "dx": -30.479999999999997,
+  "dy": -3.8100000000000023,
+  "label": "PTD5",
+  "port": "PTD5",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "47": {
+  "dx": -30.479999999999997,
+  "dy": 13.969999999999999,
+  "label": "PTD12",
+  "port": "PTD12",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "48": {
+  "dx": -30.479999999999997,
+  "dy": 11.43,
+  "label": "PTD11",
+  "port": "PTD11",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "49": {
+  "dx": -30.479999999999997,
+  "dy": 8.889999999999997,
+  "label": "PTD10",
+  "port": "PTD10",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "5": {
+  "dx": -30.479999999999997,
+  "dy": 13.97,
+  "label": "PTE11",
+  "port": "PTE11",
+  "side": "L",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "50": {
+  "dx": 30.479999999999997,
+  "dy": 1.2699999999999996,
+  "label": "VSS",
+  "port": "VSS",
+  "side": "R",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "51": {
+  "dx": -30.479999999999997,
+  "dy": 1.2699999999999996,
+  "label": "VDD",
+  "port": "VDD",
+  "side": "L",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "52": {
+  "dx": -30.479999999999997,
+  "dy": -12.7,
+  "label": "PTC1",
+  "port": "PTC1",
+  "side": "L",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "53": {
+  "dx": -30.479999999999997,
+  "dy": -15.24,
+  "label": "PTC0",
+  "port": "PTC0",
+  "side": "L",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "54": {
+  "dx": -30.479999999999997,
+  "dy": 6.349999999999998,
+  "label": "PTD9",
+  "port": "PTD9",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "55": {
+  "dx": -30.479999999999997,
+  "dy": 3.8099999999999987,
+  "label": "PTD8",
+  "port": "PTD8",
+  "side": "L",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "56": {
+  "dx": 30.479999999999997,
+  "dy": -5.08,
+  "label": "PTC17",
+  "port": "PTC17",
+  "side": "R",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "57": {
+  "dx": 30.479999999999997,
+  "dy": -7.62,
+  "label": "PTC16",
+  "port": "PTC16",
+  "side": "R",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "58": {
+  "dx": 30.479999999999997,
+  "dy": 1.2699999999999996,
+  "label": "PTB22",
+  "port": "PTB22",
+  "side": "R",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "59": {
+  "dx": 30.479999999999997,
+  "dy": -10.16,
+  "label": "PTC15",
+  "port": "PTC15",
+  "side": "R",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "6": {
+  "dx": -30.479999999999997,
+  "dy": 11.429999999999998,
+  "label": "PTE10",
+  "port": "PTE10",
+  "side": "L",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "60": {
+  "dx": 30.479999999999997,
+  "dy": 3.8099999999999987,
+  "label": "PTB23",
+  "port": "PTB23",
+  "side": "R",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "61": {
+  "dx": 30.479999999999997,
+  "dy": -12.7,
+  "label": "PTC14",
+  "port": "PTC14",
+  "side": "R",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "62": {
+  "dx": 30.479999999999997,
+  "dy": 6.349999999999998,
+  "label": "PTB25",
+  "port": "PTB25",
+  "side": "R",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "63": {
+  "dx": -30.479999999999997,
+  "dy": -8.89,
+  "label": "PTB3",
+  "port": "PTB3",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "64": {
+  "dx": 30.479999999999997,
+  "dy": 8.889999999999997,
+  "label": "PTB27",
+  "port": "PTB27",
+  "side": "R",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "65": {
+  "dx": 30.479999999999997,
+  "dy": 11.43,
+  "label": "PTB28",
+  "port": "PTB28",
+  "side": "R",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "66": {
+  "dx": 30.479999999999997,
+  "dy": 3.8099999999999987,
+  "label": "VSS",
+  "port": "VSS",
+  "side": "R",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "67": {
+  "dx": -30.479999999999997,
+  "dy": 3.8099999999999987,
+  "label": "VDD",
+  "port": "VDD",
+  "side": "L",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "68": {
+  "dx": -30.479999999999997,
+  "dy": -11.430000000000001,
+  "label": "PTB2",
+  "port": "PTB2",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "69": {
+  "dx": 30.479999999999997,
+  "dy": 13.969999999999999,
+  "label": "PTB29",
+  "port": "PTB29",
+  "side": "R",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "7": {
+  "dx": 30.479999999999997,
+  "dy": -11.43,
+  "label": "PTE13",
+  "port": "PTE13",
+  "side": "R",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "70": {
+  "dx": 30.479999999999997,
+  "dy": -15.24,
+  "label": "PTC13",
+  "port": "PTC13",
+  "side": "R",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "71": {
+  "dx": -30.479999999999997,
+  "dy": 15.24,
+  "label": "PTC12",
+  "port": "PTC12",
+  "side": "L",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "72": {
+  "dx": 30.479999999999997,
+  "dy": -2.540000000000001,
+  "label": "PTC19",
+  "port": "PTC19",
+  "side": "R",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "73": {
+  "dx": 30.479999999999997,
+  "dy": -0.0,
+  "label": "PTC23",
+  "port": "PTC23",
+  "side": "R",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "74": {
+  "dx": -30.479999999999997,
+  "dy": 12.700000000000001,
+  "label": "PTC11",
+  "port": "PTC11",
+  "side": "L",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "75": {
+  "dx": -30.479999999999997,
+  "dy": 10.159999999999998,
+  "label": "PTC10",
+  "port": "PTC10",
+  "side": "L",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "76": {
+  "dx": 30.479999999999997,
+  "dy": 2.540000000000001,
+  "label": "PTC27",
+  "port": "PTC27",
+  "side": "R",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "77": {
+  "dx": -30.479999999999997,
+  "dy": -13.970000000000002,
+  "label": "PTB1",
+  "port": "PTB1",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "78": {
+  "dx": -30.479999999999997,
+  "dy": -16.51,
+  "label": "PTB0",
+  "port": "PTB0",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "79": {
+  "dx": 30.479999999999997,
+  "dy": 5.08,
+  "label": "PTC28",
+  "port": "PTC28",
+  "side": "R",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "8": {
+  "dx": -30.479999999999997,
+  "dy": -1.2700000000000014,
+  "label": "PTE5",
+  "port": "PTE5",
+  "side": "L",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "80": {
+  "dx": -30.479999999999997,
+  "dy": 7.619999999999999,
+  "label": "PTC9",
+  "port": "PTC9",
+  "side": "L",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "81": {
+  "dx": -30.479999999999997,
+  "dy": 5.08,
+  "label": "PTC8",
+  "port": "PTC8",
+  "side": "L",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "82": {
+  "dx": 30.479999999999997,
+  "dy": 7.619999999999999,
+  "label": "PTC29",
+  "port": "PTC29",
+  "side": "R",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "83": {
+  "dx": -30.479999999999997,
+  "dy": 2.540000000000001,
+  "label": "PTA7",
+  "port": "PTA7",
+  "side": "L",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "84": {
+  "dx": 30.479999999999997,
+  "dy": 10.159999999999998,
+  "label": "PTC30",
+  "port": "PTC30",
+  "side": "R",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "85": {
+  "dx": -30.479999999999997,
+  "dy": -0.0,
+  "label": "PTA6",
+  "port": "PTA6",
+  "side": "L",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "86": {
+  "dx": 30.479999999999997,
+  "dy": 12.700000000000001,
+  "label": "PTC31",
+  "port": "PTC31",
+  "side": "R",
+  "unit": 3,
+  "unit_name": "PTC"
+ },
+ "87": {
+  "dx": -30.479999999999997,
+  "dy": 3.8100000000000005,
+  "label": "PTE7",
+  "port": "PTE7",
+  "side": "L",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "88": {
+  "dx": 30.479999999999997,
+  "dy": -6.350000000000001,
+  "label": "PTD18",
+  "port": "PTD18",
+  "side": "R",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "89": {
+  "dx": 30.479999999999997,
+  "dy": -3.8100000000000023,
+  "label": "PTD19",
+  "port": "PTD19",
+  "side": "R",
+  "unit": 4,
+  "unit_name": "PTD"
+ },
+ "9": {
+  "dx": -30.479999999999997,
+  "dy": -3.8100000000000005,
+  "label": "PTE4",
+  "port": "PTE4",
+  "side": "L",
+  "unit": 5,
+  "unit_name": "PTE"
+ },
+ "90": {
+  "dx": 30.479999999999997,
+  "dy": 6.35,
+  "label": "VSS",
+  "port": "VSS",
+  "side": "R",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "91": {
+  "dx": -30.479999999999997,
+  "dy": 6.35,
+  "label": "VDD",
+  "port": "VDD",
+  "side": "L",
+  "unit": 6,
+  "unit_name": "PWR"
+ },
+ "92": {
+  "dx": 30.479999999999997,
+  "dy": -5.08,
+  "label": "PTA17",
+  "port": "PTA17",
+  "side": "R",
+  "unit": 1,
+  "unit_name": "PTA"
+ },
+ "93": {
+  "dx": 30.479999999999997,
+  "dy": -8.89,
+  "label": "PTB17",
+  "port": "PTB17",
+  "side": "R",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "94": {
+  "dx": 30.479999999999997,
+  "dy": -11.430000000000001,
+  "label": "PTB16",
+  "port": "PTB16",
+  "side": "R",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "95": {
+  "dx": 30.479999999999997,
+  "dy": -13.970000000000002,
+  "label": "PTB15",
+  "port": "PTB15",
+  "side": "R",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "96": {
+  "dx": 30.479999999999997,
+  "dy": -16.51,
+  "label": "PTB14",
+  "port": "PTB14",
+  "side": "R",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "97": {
+  "dx": -30.479999999999997,
+  "dy": 16.51,
+  "label": "PTB13",
+  "port": "PTB13",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "98": {
+  "dx": -30.479999999999997,
+  "dy": 13.969999999999999,
+  "label": "PTB12",
+  "port": "PTB12",
+  "side": "L",
+  "unit": 2,
+  "unit_name": "PTB"
+ },
+ "99": {
+  "dx": 30.479999999999997,
+  "dy": -1.2700000000000014,
+  "label": "PTD22",
+  "port": "PTD22",
+  "side": "R",
+  "unit": 4,
+  "unit_name": "PTD"
+ }
+}

@@ -156,6 +156,27 @@ def verify_pins():
     return len(PINS)
 
 
+def esc(s):
+    """Escape a string for a KiCad s-expression.
+
+    Newlines MUST become the two-character escape. KiCad 7's parser
+    rejects a literal newline inside a quoted string outright -- the
+    file balances, every element looks well formed, and the whole
+    schematic fails to load with "Failed to load schematic file" and no
+    line number, which is a long way to travel for a missing backslash.
+    Escaped here rather than at each call site, because the caller that
+    gets it wrong is whichever one is written next.
+    """
+    # Built with chr() rather than literals: this function is nothing
+    # but backslashes, and writing them as escapes in a generator that
+    # itself writes generators is how the bug it fixes got here.
+    out = s.replace(chr(92), chr(92) * 2)          # backslash
+    out = out.replace(chr(34), chr(92) + chr(34))  # double quote
+    out = out.replace(chr(10), chr(92) + "n")      # newline -> \n
+    out = out.replace(chr(13), "")                 # drop CR
+    return out
+
+
 def _u():
     return str(uuid.uuid4())
 
@@ -180,7 +201,8 @@ class Sheet:
 
     # -- placement ---------------------------------------------------
     def place(self, libid, ref_prefix, x, y, value, rot=0, unit=1,
-              fields=None, mirror=None, footprint="", datasheet="~"):
+              fields=None, mirror=None, footprint="", datasheet="~",
+              ref=None):
         """Drop a symbol. `fields` become extra properties on the part --
         this is where a value's provenance goes (which .cir file, which
         BOM tag), so it travels with the schematic.
@@ -193,9 +215,24 @@ class Sheet:
         `(footprint "emi_filter.cir C1 -- ESR 5 mOhm...")`.
         """
         self.libs[libid] = symbol_def(libid)
-        n = self.refs.get(ref_prefix, 0) + 1
-        self.refs[ref_prefix] = n
-        ref = f"{ref_prefix}{n}"
+        # Pass `ref` explicitly to put several symbols on the SAME
+        # component -- which is how a multi-unit part works. Allocating a
+        # fresh reference per unit instead gives six separate one-unit
+        # components that happen to share a footprint, and the netlist
+        # says so: U1A, U2B, U3C rather than U1 units A-F.
+        if ref is None:
+            n = self.refs.get(ref_prefix, 0) + 1
+            self.refs[ref_prefix] = n
+            ref = f"{ref_prefix}{n}"
+        else:
+            # An explicit reference still has to advance the counter, or
+            # the next auto-allocated part of the same prefix collides
+            # with it -- six MCU units pinned to U1 left the counter at
+            # zero and the supervisor was also numbered U1.
+            m = re.fullmatch(re.escape(ref_prefix) + r"(\d+)", ref)
+            if m:
+                self.refs[ref_prefix] = max(self.refs.get(ref_prefix, 0),
+                                            int(m.group(1)))
         uid = _u()
         mir = f"\n    (mirror {mirror})" if mirror else ""
         # A power symbol's reference (#PWR01, ...) is noise on the page --
@@ -204,7 +241,7 @@ class Sheet:
         props = [
             f'    (property "Reference" "{ref}" (id 0) (at {x} {y - 5.08} 0)\n'
             f'      {_eff(hide=hide_ref)}\n    )',
-            f'    (property "Value" "{value}" (id 1) (at {x} {y + 5.08} 0)\n'
+            f'    (property "Value" "{esc(value)}" (id 1) (at {x} {y + 5.08} 0)\n'
             f'      {_eff()}\n    )',
             f'    (property "Footprint" "{footprint}" (id 2) (at {x} {y} 0)\n'
             f'      {_eff(hide=True)}\n    )',
@@ -214,7 +251,7 @@ class Sheet:
         idx = 4
         for k, v in (fields or {}).items():
             props.append(
-                f'    (property "{k}" "{v}" (id {idx}) (at {x} {y} 0)\n'
+                f'    (property "{k}" "{esc(str(v))}" (id {idx}) (at {x} {y} 0)\n'
                 f'      {_eff(hide=True)}\n    )')
             idx += 1
         self.items.append(
@@ -238,12 +275,12 @@ class Sheet:
 
     def label(self, text, x, y, rot=0):
         self.items.append(
-            f'  (label "{text}" (at {x} {y} {rot})\n'
+            f'  (label "{esc(text)}" (at {x} {y} {rot})\n'
             f'    {_eff(justify="left bottom")}\n    (uuid {_u()})\n  )')
 
     def hlabel(self, text, x, y, shape="passive", rot=0):
         self.items.append(
-            f'  (hierarchical_label "{text}" (shape {shape}) '
+            f'  (hierarchical_label "{esc(text)}" (shape {shape}) '
             f'(at {x} {y} {rot})\n'
             f'    {_eff(justify="left")}\n    (uuid {_u()})\n  )')
 
@@ -252,7 +289,7 @@ class Sheet:
 
     def text(self, body, x, y, size=1.27):
         self.items.append(
-            f'  (text "{body}" (at {x} {y} 0)\n'
+            f'  (text "{esc(body)}" (at {x} {y} 0)\n'
             f'    {_eff(size=size, justify="left")}\n    (uuid {_u()})\n  )')
 
     # -- output ------------------------------------------------------
@@ -261,10 +298,10 @@ class Sheet:
                f'  (uuid {_u()})',
                f'  (paper "{self.paper}")',
                '  (title_block',
-               f'    (title "{self.title}")',
+               f'    (title "{esc(self.title)}")',
                '    (company "ecu25kva")']
         for i, c in enumerate(self.comments[:4], start=1):
-            out.append(f'    (comment {i} "{c}")')
+            out.append(f'    (comment {i} "{esc(c)}")')
         out.append('  )')
         out.append('  (lib_symbols')
         for _, body in sorted(self.libs.items()):
