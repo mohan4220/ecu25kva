@@ -156,6 +156,20 @@ def verify_pins():
     return len(PINS)
 
 
+def r2(v):
+    """Round a page coordinate to 2 decimals.
+
+    Symbol pins are written with %.2f, so a wire endpoint carrying full
+    float precision lands a fraction of a micron away and KiCad treats
+    the two as different points. The schematic plots correctly, the wire
+    visibly touches the pin, and the netlist says "unconnected" -- which
+    is exactly how the rails sheet came out with an unconnected input
+    capacitor on a wire drawn straight to it. Every coordinate this
+    module emits goes through here.
+    """
+    return round(float(v), 2)
+
+
 def esc(s):
     """Escape a string for a KiCad s-expression.
 
@@ -185,6 +199,41 @@ def _eff(size=1.27, justify=None, hide=False):
     j = f" (justify {justify})" if justify else ""
     h = " hide" if hide else ""
     return f"(effects (font (size {size} {size})){j}{h})"
+
+
+class Rail:
+    """A horizontal net drawn as consecutive segments.
+
+    A wire ENDPOINT landing mid-span on another wire DOES NOT CONNECT in
+    KiCad 7's netlister -- not even with an explicit junction element in
+    the file. Interactively, Eeschema splits the underlying wire when you
+    drop a junction on it; a generated file has no such split, so the two
+    wires cross without meeting. The page plots exactly as intended and
+    the netlist reports every tapped part as unconnected.
+
+    Found on the rails sheet, where a single wire from the input
+    hierarchical label to the buck's VIN pin had the input capacitor, the
+    UVLO divider and the RON resistor all tapped off its middle, and all
+    three came back unconnected.
+
+    So: one segment per interval, every tap at a segment boundary. This
+    is the only thing in the project allowed to draw a multi-tap rail.
+    """
+
+    def __init__(self, sheet, y):
+        self.sh = sheet
+        self.y = y
+        self.x = None
+
+    def to(self, x, tap=False):
+        """Extend the rail to x. `tap` marks a point where something else
+        joins, which is where a junction dot belongs."""
+        if self.x is not None and r2(x) != r2(self.x):
+            self.sh.wire(self.x, self.y, x, self.y)
+            if tap:
+                self.sh.junction(x, self.y)
+        self.x = x
+        return (x, self.y)
 
 
 class Sheet:
@@ -255,7 +304,7 @@ class Sheet:
                 f'      {_eff(hide=True)}\n    )')
             idx += 1
         self.items.append(
-            f'  (symbol (lib_id "{libid}") (at {x} {y} {rot}) '
+            f'  (symbol (lib_id "{libid}") (at {r2(x)} {r2(y)} {rot}) '
             f'(unit {unit}){mir}\n'
             f'    (in_bom yes) (on_board yes) (fields_autoplaced)\n'
             f'    (uuid {uid})\n' + "\n".join(props) + "\n  )")
@@ -265,23 +314,23 @@ class Sheet:
     # -- connectivity ------------------------------------------------
     def wire(self, x1, y1, x2, y2):
         self.items.append(
-            f'  (wire (pts (xy {x1} {y1}) (xy {x2} {y2}))\n'
+            f'  (wire (pts (xy {r2(x1)} {r2(y1)}) (xy {r2(x2)} {r2(y2)}))\n'
             f'    (stroke (width 0) (type default))\n    (uuid {_u()})\n  )')
 
     def junction(self, x, y):
         self.items.append(
-            f'  (junction (at {x} {y}) (diameter 0) (color 0 0 0 0)\n'
+            f'  (junction (at {r2(x)} {r2(y)}) (diameter 0) (color 0 0 0 0)\n'
             f'    (uuid {_u()})\n  )')
 
     def label(self, text, x, y, rot=0):
         self.items.append(
-            f'  (label "{esc(text)}" (at {x} {y} {rot})\n'
+            f'  (label "{esc(text)}" (at {r2(x)} {r2(y)} {rot})\n'
             f'    {_eff(justify="left bottom")}\n    (uuid {_u()})\n  )')
 
     def hlabel(self, text, x, y, shape="passive", rot=0):
         self.items.append(
             f'  (hierarchical_label "{esc(text)}" (shape {shape}) '
-            f'(at {x} {y} {rot})\n'
+            f'(at {r2(x)} {r2(y)} {rot})\n'
             f'    {_eff(justify="left")}\n    (uuid {_u()})\n  )')
 
     def gnd(self, x, y):
@@ -289,7 +338,7 @@ class Sheet:
 
     def text(self, body, x, y, size=1.27):
         self.items.append(
-            f'  (text "{esc(body)}" (at {x} {y} 0)\n'
+            f'  (text "{esc(body)}" (at {r2(x)} {r2(y)} 0)\n'
             f'    {_eff(size=size, justify="left")}\n    (uuid {_u()})\n  )')
 
     # -- output ------------------------------------------------------

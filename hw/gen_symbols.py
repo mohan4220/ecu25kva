@@ -46,6 +46,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PINS = os.path.join(ROOT, "refs", "s32k148-144lqfp-pins.csv")
 OUT = os.path.join(ROOT, "hw", "lib", "ecu25kva.kicad_sym")
 LAYOUT = os.path.join(ROOT, "hw", "lib", "s32k148_layout.json")
+ICPINS = os.path.join(ROOT, "hw", "lib", "ic_pins.json")
 
 NAME = "S32K148_144LQFP"
 FOOTPRINT = "Package_QFP:LQFP-144_20x20mm_P0.5mm"
@@ -154,7 +155,7 @@ TPS_RIGHT = [("~RESET", "9", "open_collector"),
 TPS_PWR = [("VDD", "1", "power_in", "up"), ("GND", "5", "power_in", "down")]
 
 
-def build_tps3850():
+def build_tps3850(geom=None):
     hw, rows = 12.7, max(len(TPS_LEFT), len(TPS_RIGHT))
     half = (rows - 1) * PITCH / 2
     top = half + PITCH
@@ -183,20 +184,139 @@ def build_tps3850():
             '        (stroke (width 0.254) (type default))',
             '        (fill (type background))',
             '      )']
+    def emit(nm, num, px, py, rot, et):
+        body.append(pin(nm, num, px, py, rot, et))
+        if geom is not None:
+            geom[num] = (round(px, 2), round(py, 2))
+
     for i, (nm, num, et) in enumerate(TPS_LEFT):
-        y = half - i * PITCH
-        body.append(pin(nm, num, -hw - PIN_LEN, y, 0, et))
+        emit(nm, num, -hw - PIN_LEN, half - i * PITCH, 0, et)
     for i, (nm, num, et) in enumerate(TPS_RIGHT):
-        y = half - i * PITCH
-        body.append(pin(nm, num, hw + PIN_LEN, y, 180, et))
+        emit(nm, num, hw + PIN_LEN, half - i * PITCH, 180, et)
     for nm, num, et, d in TPS_PWR:
-        if d == "up":
-            body.append(pin(nm, num, 0, top + PIN_LEN, 270, et))
-        else:
-            body.append(pin(nm, num, 0, -top - PIN_LEN, 90, et))
+        emit(nm, num, 0, (top + PIN_LEN) if d == "up" else (-top - PIN_LEN),
+             270 if d == "up" else 90, et)
     body.append('    )')
     body.append('  )')
     return "\n".join(body)
+
+
+# ---------------------------------------------------------------------
+# Simple rectangular parts
+# ---------------------------------------------------------------------
+# Everything below is one builder. Each part is a table of pins and the
+# side they come out of; the pin NUMBERS are the datasheet's, read from
+# the retrieved document named in each entry's comment, and nothing here
+# is transcribed twice.
+def simple_symbol(name, fp, ds, mpn, desc, keywords,
+                  left, right, top=(), bottom=(), hw=15.24, geom=None):
+    """left/right/top/bottom are (pin_name, number, electrical_type).
+
+    If `geom` is a dict it is filled with {pin_number: (dx, dy)} -- the
+    symbol-local offset of every pin, rounded the same way the pins
+    themselves are written. Sheets read that instead of re-deriving the
+    body height from the pin counts, which is how the rails sheet first
+    came out with every LDO pin two millimetres from its wire.
+    """
+    rows = max(len(left), len(right), 1)
+    half = (rows - 1) * PITCH / 2
+    top_y = half + PITCH * 1.5
+    body = [f'  (symbol "{name}" (pin_names (offset 1.016)) (in_bom yes) '
+            f'(on_board yes)',
+            f'    (property "Reference" "U" (at 0 {top_y + 2.54} 0) '
+            f'(effects (font (size 1.27 1.27))))',
+            f'    (property "Value" "{name}" (at 0 {-top_y - 2.54} 0) '
+            f'(effects (font (size 1.27 1.27))))',
+            f'    (property "Footprint" "{fp}" (at 0 0 0) '
+            f'(effects (font (size 1.27 1.27)) hide))',
+            f'    (property "Datasheet" "{ds}" (at 0 0 0) '
+            f'(effects (font (size 1.27 1.27)) hide))',
+            f'    (property "MPN" "{mpn}" (at 0 0 0) '
+            f'(effects (font (size 1.27 1.27)) hide))',
+            f'    (property "ki_description" "{desc}" (at 0 0 0) '
+            f'(effects (font (size 1.27 1.27)) hide))',
+            f'    (property "ki_keywords" "{keywords}" (at 0 0 0) '
+            f'(effects (font (size 1.27 1.27)) hide))',
+            f'    (symbol "{name}_1_1"',
+            f'      (rectangle (start {-hw} {top_y}) (end {hw} {-top_y})',
+            '        (stroke (width 0.254) (type default))',
+            '        (fill (type background))',
+            '      )']
+    def emit(nm, num, px, py, rot, et):
+        body.append(pin(nm, num, px, py, rot, et))
+        if geom is not None:
+            geom[num] = (round(px, 2), round(py, 2))
+
+    for i, (nm, num, et) in enumerate(left):
+        emit(nm, num, -hw - PIN_LEN, half - i * PITCH, 0, et)
+    for i, (nm, num, et) in enumerate(right):
+        emit(nm, num, hw + PIN_LEN, half - i * PITCH, 180, et)
+    span = (len(top) - 1) * PITCH * 2
+    for i, (nm, num, et) in enumerate(top):
+        emit(nm, num, -span / 2 + i * PITCH * 2, top_y + PIN_LEN, 270, et)
+    span = (len(bottom) - 1) * PITCH * 2
+    for i, (nm, num, et) in enumerate(bottom):
+        emit(nm, num, -span / 2 + i * PITCH * 2, -top_y - PIN_LEN, 90, et)
+    body.append('    )')
+    body.append('  )')
+    return "\n".join(body)
+
+
+# --- LM5164, 100 V / 1 A synchronous buck ---------------------------
+# Source: TI SNVSAU4D (Sep 2018, rev. Feb 2026), Table 4-1 Pin Functions
+# and Figure 4-1 DDA package.
+#
+# WHY THIS PART AND NOT THE ONE IN THE BOM MEMO. research memo 07 sec.4
+# lists TPS54360B-Q1, chosen there as "60 V-rated ... over 42 V LM5175-Q1
+# for load-dump margin". That reasoning was sound when the TVS clamped
+# below 60 V. It no longer is: raising the standoff to 43 V so the part
+# stops conducting during a normal clamped dump raised the pulse 2a clamp
+# to 73.3 V, and transient_clamp.cir now carries a passing check that says
+# so outright -- "60 V-class parts are NO LONGER viable downstream". A
+# 60 V buck on this input is a part that fails the first ISO 7637-2
+# pulse 2a event.
+#
+# The LM5164 was already the part every rating check in the suite was
+# written against (its -0.3 V / 100 V VIN limits are what negative_pulses
+# and transient_clamp check); it just had never been reconciled with the
+# BOM memo. 100 V input, 1 A, 6 V to 100 V operating range -- the 6 V end
+# covers the cranking dip the spec's own input range is built around.
+LM5164 = dict(
+    name="LM5164", fp="Package_SO:SOIC-8-1EP_3.9x4.9mm_P1.27mm_EP2.29x3mm",
+    ds="https://www.ti.com/lit/ds/symlink/lm5164.pdf", mpn="LM5164DDAR",
+    desc="TI LM5164 -- 100 V input, 1 A synchronous buck, constant on-time "
+         "with VIN feedforward. 6-100 V in, 1.2 V feedback reference.",
+    keywords="buck DCDC synchronous 100V automotive LM5164",
+    left=[("VIN", "2", "power_in"), ("EN/UVLO", "3", "input"),
+          ("RON", "4", "input"), ("FB", "5", "input")],
+    right=[("SW", "8", "output"), ("BST", "7", "power_in"),
+           ("PGOOD", "6", "open_collector")],
+    bottom=[("GND", "1", "power_in")])
+
+# --- TLV767-Q1, fixed 3.3 V LDO --------------------------------------
+# Source: TI SBVS381A (Apr 2020, rev. Dec 2020), Table 5-1 Pin Functions
+# and Figure 5-2 (the FIXED version -- the adjustable one has FB on pin 3
+# where this has SNS, and they are not interchangeable).
+#
+# Chosen for accuracy, which the supervisor made load-bearing: TPS3850G33
+# trips below 3.143 V and above 3.459 V, so the rail has to stay inside
+# that window over the whole temperature range or the board resets itself.
+# TLV767-Q1 is 1% over load AND temperature, giving 3.267-3.333 V -- about
+# 125 mV of margin at each end. research memo 07 sec.6 named
+# TLV1117-33QDCYRQ1 as a representative part, explicitly "class pricing,
+# not fetched"; this is the first 3V3 regulator in the project with a
+# retrieved datasheet behind it.
+TLV76733 = dict(
+    name="TLV76733", fp="Package_SON:VSON-8-1EP_3x3mm_P0.65mm_EP1.65x2.4mm",
+    ds="https://www.ti.com/lit/ds/symlink/tlv767-q1.pdf",
+    mpn="TLV76733QWDRBRQ1",
+    desc="TI TLV767-Q1 fixed 3.3 V LDO, 1 A, 2.5-16 V in, 1% accuracy over "
+         "load and temperature, AEC-Q100. VSON-8 (DRB).",
+    keywords="LDO regulator 3.3V automotive AEC-Q100 TLV767",
+    left=[("IN", "8", "power_in"), ("EN", "5", "input")],
+    right=[("OUT", "1", "power_out"), ("SNS", "3", "input"),
+           ("NC", "2", "no_connect"), ("NC", "7", "no_connect")],
+    bottom=[("GND", "4", "power_in"), ("GND", "6", "power_in")])
 
 
 def main():
@@ -264,7 +384,14 @@ def main():
                     "dx": (-25.4 - PIN_LEN) if side == "L" else (25.4 + PIN_LEN),
                     "dy": -(half - j * PITCH),
                 }
-    out.append(build_tps3850())
+    icgeom = {}
+    g = {}
+    out.append(build_tps3850(g))
+    icgeom["TPS3850G33"] = g
+    for part in (LM5164, TLV76733):
+        g = {}
+        out.append(simple_symbol(geom=g, **part))
+        icgeom[part["name"]] = g
     out.append(')')
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
@@ -272,8 +399,13 @@ def main():
         f.write("\n".join(out) + "\n")
     with open(LAYOUT, "w") as f:
         json.dump(layout, f, indent=1, sort_keys=True)
-    print(f"{OUT}: {total} pins in {len(units)} units, plus TPS3850G33")
+    with open(ICPINS, "w") as f:
+        json.dump(icgeom, f, indent=1, sort_keys=True)
+    print(f"{OUT}: {total} pins in {len(units)} units, plus "
+          f"TPS3850G33, LM5164, TLV76733")
     print(f"{LAYOUT}: {len(layout)} pin positions")
+    print(f"{ICPINS}: " + ", ".join(f"{k} {len(v)}p"
+                                    for k, v in sorted(icgeom.items())))
     for i, (l, r, n) in enumerate(units, start=1):
         print(f"  unit {i}  {n:4} {len(l) + len(r):3} pins")
 

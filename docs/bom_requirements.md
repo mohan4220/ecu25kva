@@ -219,6 +219,83 @@ Checked by `can_termination.cir`.
 
 ---
 
+## Chosen parts
+
+These are the entries that have moved from "a class" to "a part number",
+each against a datasheet that was actually retrieved and read. They are
+listed separately from the requirements above because they are answers,
+not constraints.
+
+| Function | Part | Why this one |
+|---|---|---|
+| Buck pre-regulator | **LM5164DDAR** | 100 V input, 1 A, 6–100 V range. See below — it replaces a 60 V part that can no longer survive this input. |
+| 3V3 regulator | **TLV76733QWDRBRQ1** | 1% over load *and* temperature. The supervisor makes that load-bearing. |
+| Supervisor | **TPS3850G33DRCT** | ±4% window variant, so its undervoltage trip clears the MCU's own LVD by 143 mV rather than 44 mV. |
+
+### `LM5164DDAR` — and the 60 V part it replaces
+
+Research memo 07 §4 selected **TPS54360B-Q1**, reasoning that a 60 V part
+beat a 42 V LM5175-Q1 "for load-dump margin". That reasoning was correct
+when it was written. It is not correct now, and the change came from the
+input-protection work above:
+
+- The TVS standoff had to rise to 43 V so the part stops conducting
+  during a *normal* clamped load dump.
+- A higher standoff clamps higher. Pulse 2a now clamps at **73.3 V**.
+- `transient_clamp.cir` carries a **passing** check that says so in as
+  many words: *"60 V-class parts are NO LONGER viable downstream."*
+
+A 60 V buck on this input is a part that fails the first ISO 7637-2
+pulse 2a event. The LM5164 was already the part every rating check in the
+suite was written against — its −0.3 V / 100 V VIN limits are what
+`negative_pulses` and `transient_clamp` check — but nothing had ever
+reconciled the BOM table with it. **This is what a contradiction between
+two documents looks like when only one of them is executable.**
+
+Operating range 6–100 V covers the spec's own 6–40 V requirement, with
+the 6 V end matching the cranking dip the input range was built around.
+1 A against an estimated 400–500 mA board load.
+
+Configuration values, all derived from the datasheet rather than picked:
+
+| Part | Value | From |
+|---|---|---|
+| `RON` | 31.6 kΩ | The tON table in §5.5 is linear in RON/VIN: at 12 V, 25 kΩ gives 830 ns, so K = 398 ns·V/kΩ. For 400 kHz at 5 V out, RON = tON·VIN/K is 31.4 kΩ at **both** 13.5 V and 40 V — the VIN feedforward is what holds the frequency fixed. E96 value 31.6 kΩ. |
+| FB divider | 38.3 kΩ / 12.1 kΩ | VREF is 1.2 V (1.181–1.218, ±1.5%), so 5 V needs 1 + R1/R2 = 4.167. |
+| EN/UVLO divider | 75 kΩ / 24.9 kΩ | Enable rises at 1.5 V typ; 0.249 ratio puts turn-on at 6.02 V, the spec's cranking-dip floor. The pin is rated to 100 V, so the divider programs the threshold rather than protecting the pin. |
+| BST cap | 2.2 nF 50 V X7R | Not a range. The datasheet specifies the part: *"a high-quality 2.2nF 50V X7R ceramic capacitor between BST and SW"*. |
+| `L` / `Cout` | 33 µH / 47 µF, 10 mΩ ESR | `buck_preregulator.cir`, sized at the 40 V worst case rather than nominal. The ESR is part of the value — it sets the ripple. |
+
+The RON figure is worth one more line: it independently reproduces
+`buck_preregulator.cir`'s own gate timings, 925 ns at 13.5 V and 312.5 ns
+at 40 V. The netlist got those from D = Vout/Vin; the datasheet gets them
+from RON. They agree.
+
+### `TLV76733QWDRBRQ1` — accuracy as a requirement
+
+Memo 07 §6 named `TLV1117-33QDCYRQ1`, explicitly *"class pricing, not
+fetched"*. Choosing the supervisor turned 3V3 accuracy into a hard
+constraint: outside **3.143–3.459 V** the board resets itself. TLV767-Q1
+is **1% over load and temperature** — 3.267–3.333 V, about 125 mV of
+margin at each end. 1 A, 2.5–16 V in, AEC-Q100, VSON-8.
+
+The fixed-output version is the one specified. Its pin 3 is `SNS` where
+the adjustable version has `FB`, and they are not interchangeable. `SNS`
+must not float; it is tied to `OUT`.
+
+### `TPS3850G33DRCT`
+
+See `docs/pinmap.md` §1.8 and `hw/gen_symbols.py`. The variant letter is
+the decision: `G` sets thresholds at ±4% of nominal and `H` at ±7%, and
+with the part's ±0.8% accuracy that is a worst-case undervoltage trip of
+**3.143 V** against **3.044 V**. The supervisor has to assert before the
+S32K148's own LVD (3.0 V max), so G33 clears it by 143 mV and H33 by
+44 mV — close enough that the two could fire in either order, and a
+supervisor that might lose the race to the thing it supervises is not
+doing its job. The cost is the tighter rail window above.
+
+---
+
 ## MCU
 
 **NXP S32K148, `FS32K148HAT0MLQT`** — 144-pin LQFP, 80 MHz, −40…+125 °C.

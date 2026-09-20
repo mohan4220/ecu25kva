@@ -18,7 +18,7 @@ the specification's own register.
 | Unknowns closed | **4** |
 | Unknowns partly answered | **4** |
 | Unknowns still open | **9** |
-| Phase | **2** — schematic capture, 1 of 10 sheets drawn |
+| Phase | **2** — schematic capture, 3 of 10 sheets drawn |
 
 **All 24 blocks pass.** On 19 September it was 16, after a temperature-corner pass found
 six blocks that fail cold or hot and turned prose caveats into enforced checks. All six
@@ -267,7 +267,7 @@ contact-type confirmation, which gates nothing
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
 | 1.5 | Block-level simulation | **Done — 24 blocks, 24 passing** |
-| **2** | **KiCad hierarchical schematic capture** | **In progress — 1 of 10 sheets drawn** |
+| **2** | **KiCad hierarchical schematic capture** | **In progress — 3 of 10 sheets drawn** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
 | 4 | Firmware skeleton | Not started |
 
@@ -279,8 +279,8 @@ refuse to overwrite a sheet that has content, so Eeschema edits are safe against
 | Sheet | State | Blocks it realises |
 |---|---|---|
 | `power_input` | **Drawn, netlist-checked** | `emi_filter`, `transient_clamp`, `load_dump`, `negative_pulses`, `reverse_battery` |
-| `rails` | Created, empty | `buck_preregulator`, `mcu_pdn`, `sensor_rail` |
-| `mcu` | Created, empty | `supervisor`, `mcu_pdn` |
+| `rails` | **Drawn, netlist-checked** | `buck_preregulator`, `mcu_pdn`, `sensor_rail` |
+| `mcu` | **Drawn, netlist-checked** | `supervisor`, `mcu_pdn` |
 | `injector` | Created, empty | `boost_converter`, `injector_boost`, `injector_turnoff` |
 | `metering_egr` | Created, empty | `metering_unit_pwm`, `egr_hbridge` |
 | `sensors_analog` | Created, empty | `sensor_ratiometric`, `sensor_differential`, `ntc_frontend`, `battery_sense` |
@@ -300,12 +300,39 @@ independently: 128 port + 16 supply = 144 pins with every package pin accounted 
 six driver-gate pins are all PE=0 PS=0; and exactly four pins on the whole part carry a
 reset pull, which are precisely the four JTAG/RESET pins pinmap.md reserved.
 
+**Three parts have moved from a class to a part number**, each against a
+retrieved datasheet, and all three are in `docs/bom_requirements.md`:
+`LM5164DDAR` (buck), `TLV76733QWDRBRQ1` (3V3), `TPS3850G33DRCT`
+(supervisor). Two of them supersede rows in research memo 07, which is
+now annotated in place.
+
+**The buck row is worth reading as a process failure, not just a part
+change.** Memo 07 chose a 60 V part for load-dump margin, correctly, at
+the time. The input-protection work then raised the TVS standoff and put
+the pulse 2a clamp at 73.3 V — and `transient_clamp.cir` has carried a
+*passing* check reading "60 V-class parts are NO LONGER viable
+downstream" ever since. The contradiction sat between an executable file
+and a prose table for days, and only the executable one knew. Nothing
+compares them. It surfaced when someone had to draw the buck and needed a
+pinout.
+
 **Check the netlist, not the plot.** Three bugs on the first sheet were invisible on a
 correctly-plotting page and obvious in the exported netlist: a rotation helper with 90 and
 270 swapped, which put the clamp Schottky's cathode on ground; custom part fields starting
 at property id 2, which KiCad reserves, silently renaming the first one "Footprint"; and
 labels offset from their wires for looks, which detaches them silently while the page
 still reads as connected.
+
+**A wire endpoint landing mid-span on another wire does not connect** —
+not in KiCad 7's netlister, and not even with an explicit junction
+element in the file. Interactively, Eeschema *splits* the underlying wire
+when you drop a junction on it; a generated file has no such split, so
+the two cross without meeting. The page plots exactly as intended and the
+netlist reports every tapped part as unconnected. Found on the rails
+sheet, where the input capacitor, the UVLO divider and the RON resistor
+all tapped the middle of one wire and all three came back unconnected.
+`schlib.Rail` now emits one segment per interval and is the only thing
+allowed to draw a multi-tap rail.
 
 **What ends phase 2:** the nine remaining sheets, and the two gates currently left
 undriven on `power_input` (§6).

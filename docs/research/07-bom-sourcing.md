@@ -66,10 +66,10 @@ session. Currency conversion where only USD was found: ₹88/US$1, noted per lin
 | 2b | Reverse-battery P-FET | Infineon **IPB80P03P4L-01** (representative AEC-Q101 P-FET) | Mouser/DigiKey (class-typical) | — | ~150 | ~90 | — | AEC-Q101 | **I** — aggregate estimate | class pricing, not fetched |
 | 3a | Transient clamp — TVS | **SMBJ33CA** bidirectional TVS (fixed by simulation) | Mouser/DigiKey (widely stocked jellybean) | — | ~18 | ~8 | — | Commercial-grade common; automotive-grade (`-13-F` type suffixes) available from Littelfuse/Vishay/onsemi | **I** — aggregate estimate | class pricing, not fetched |
 | 3b | Transient clamp — 10 µF bulk cap | Automotive X7R/electrolytic, 10 µF (fixed by simulation) | Mouser/DigiKey (class-typical) | — | ~15 | ~7 | — | AEC-Q200 (ceramic) | **I** — aggregate estimate | class pricing, not fetched |
-| 4 | Buck pre-regulator, 6–40 V → 5 V | TI **TPS54360B-Q1** | DigiKey (global; India page not confirmed live) | listed | ~458 ($5.20 × 88) | ~280 (est.) | standard | AEC-Q100 | **C** (price), 60 V-rated device chosen over 42 V LM5175-Q1 for load-dump margin — **I** (India-specific stock/lead time not confirmed) | [DigiKey search](https://www.digikey.com) — $5.20/pc found via search index |
+| 4 | Buck pre-regulator, 6–40 V → 5 V | ~~TI TPS54360B-Q1~~ → **SUPERSEDED 20 Sep 2026, see the note under this table: TI LM5164DDAR** | DigiKey (global; India page not confirmed live) | listed | ~458 ($5.20 × 88) | ~280 (est.) | standard | AEC-Q100 | **C** (price), 60 V-rated device chosen over 42 V LM5175-Q1 for load-dump margin — **I** (India-specific stock/lead time not confirmed) | [DigiKey search](https://www.digikey.com) — $5.20/pc found via search index |
 | 5a | `5V_SENSOR` LDO | TI **TLV70233-Q1**-class automotive LDO (representative) | Mouser/DigiKey (class-typical) | — | ~120 | ~70 | — | AEC-Q100 | **I** — aggregate estimate | class pricing, not fetched |
 | 5b | `5V_SENSOR` PTC resettable fuses ×4 (per sensor group) | Bourns **MF-USMF**-class automotive PTC | Mouser/DigiKey (class-typical) | — | ~100 (4×~25) | ~60 | — | AEC-Q200 | **I** — aggregate estimate | class pricing, not fetched |
-| 6 | `3V3_MCU` LDO | TI **TLV1117-33QDCYRQ1**-class (representative) | Mouser/DigiKey (class-typical) | — | ~70 | ~35 | — | AEC-Q100 | **I** — aggregate estimate | class pricing, not fetched |
+| 6 | `3V3_MCU` LDO | ~~TLV1117-33QDCYRQ1-class~~ → **SUPERSEDED 20 Sep 2026: TI TLV76733QWDRBRQ1** | Mouser/DigiKey (class-typical) | — | ~70 | ~35 | — | AEC-Q100 | **I** — aggregate estimate | class pricing, not fetched |
 | 7 | Supervisor (windowed WD + BOR) | TI **TPS3823-33QDBVRQ1** | DigiKey India | 4,605 units in stock | **162.44** | **95.60** | Mfr. standard 16 wk (moot — stock covers near-term demand) | AEC-Q100 | **C** — live DigiKey India fetch | [DigiKey.in](https://www.digikey.in/en/products/detail/texas-instruments/TPS3823-33QDBVRQ1/1894636) |
 | 8 | MCU | NXP **FS32K148HAT0MLQT**, 144-LQFP | DigiKey India | In stock, ships ~4 days (sibling SKU confirmed; exact SKU "ships today" per global listing) | **~1,950** (₹1,900–2,000 band) | ~1,400 (est., no qty100 break found) | Not a lead-time problem | AEC-Q100 | **C** — per Memo 05 | [Memo 05](./05-mcu-selection.md), [DigiKey](https://www.digikey.com/en/products/detail/nxp-usa-inc/FS32K148HAT0MLQT/8628226) |
 | 9 | Crystal (MCU osc.) | NDK/Abracon AEC-Q200 automotive crystal, 8 MHz-class (representative) | Mouser/DigiKey (class-typical) | — | ~35 | ~18 | — | AEC-Q200 | **I** — aggregate estimate | class pricing, not fetched |
@@ -93,6 +93,47 @@ session. Currency conversion where only USD was found: ₹88/US$1, noted per lin
 - ~32 fixed-value components + ~30 generic ones ≈ 60–70 small passives total, priced at India-typical qty-1 rates of ₹2–4/resistor, ₹3–6/MLCC cap, ₹8–15/zener; qty-100 rates roughly a third lower. This is the class of line the task explicitly authorizes as an honest aggregate rather than 30 invented individual prices.
 
 ---
+
+
+### Superseded 20 September 2026, during schematic capture
+
+Two rows above are struck through. Both were chosen honestly and both
+have since been overtaken — one by a design change, one by a requirement
+that did not exist when the table was written.
+
+**Row 4, the buck.** TPS54360B-Q1 was picked as a 60 V part "for
+load-dump margin" over a 42 V alternative. Correct at the time. The
+input-protection work then raised the TVS standoff to 43 V, so the
+suppressor stops conducting during a *normal* clamped load dump — and a
+higher standoff clamps higher, putting the ISO 7637-2 pulse 2a clamp at
+**73.3 V**. `sim/blocks/transient_clamp.cir` now carries a *passing*
+check whose text reads "60 V-class parts are NO LONGER viable
+downstream". A 60 V buck on this input fails the first pulse 2a event.
+
+The replacement is **LM5164DDAR**, 100 V input, 1 A, 6–100 V range. It is
+not a new candidate: it is the part every rating check in the simulation
+suite has been written against since the negative-pulse work — its
+−0.3 V / 100 V VIN limits are what `negative_pulses.cir` and
+`transient_clamp.cir` check. The BOM table had simply never been
+reconciled with the suite.
+
+That gap is the lesson worth keeping from this row. **The contradiction
+sat in the repository for days between an executable file and a prose
+table, and only the executable one knew.** Nothing flagged it, because
+nothing compares them; it surfaced when someone had to draw the buck and
+needed a pinout.
+
+**Row 6, the 3V3 LDO.** TLV1117-33QDCYRQ1 was listed as representative,
+with its own caveat "class pricing, not fetched". Choosing the supervisor
+(TPS3850G33, `docs/pinmap.md` §1.8) turned 3V3 accuracy into a hard
+constraint: outside 3.143–3.459 V the supervisor resets the board. That
+makes "representative" no longer good enough. **TLV76733QWDRBRQ1** is 1%
+over load *and* temperature — 3.267–3.333 V, ~125 mV margin at each end.
+
+Pricing for neither replacement has been fetched; the estimates in the
+table above are stale for these two rows and should be re-costed before
+BOM lock. Full reasoning and the derived configuration values are in
+`docs/bom_requirements.md`.
 
 ## 3. Single-source and long-lead flags
 
