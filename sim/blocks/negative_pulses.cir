@@ -140,10 +140,82 @@ Rfet_on1   bat1 vbuck_on1  8m
 * conducts long before the TVS does and pins the buck's VIN near -0.4 V.
 * Anode to ground, cathode to VIN: forward-biased exactly when VIN tries
 * to go negative, invisible the rest of the time.
-Dneg1 0 vbuck_on1 SCHN
+* Vsch1 is a 0 V ammeter: the clamp Schottky now carries the fault
+* current the TVS used to, and that has to be measured, not assumed.
+Vsch1 0 nsch1 0
+Dneg1 nsch1 vbuck_on1 SCHN
 Rload_on1  vbuck_on1 0     50
 Rfet_off1  bat1 vbuck_off1 1e9
 Rload_off1 vbuck_off1 0    50
+
+* ---- ACTIVE CLAMP branch, added 20 Sep 2026 ----
+* Why a third branch exists. The Schottky above is a correct clamp and
+* it still misses: 15 A through any silicon junction costs more than
+* 0.3 V. Decomposing Dneg1's own drop at the pulse-1 fault current
+* (150 V / 10 ohm = 15 A) says so directly --
+*     junction   N*Vt*ln(I/Is) = 1.05*0.02585*ln(15/2e-5) = 0.367 V
+*     bulk       I*Rs          = 15*0.012              = 0.180 V
+*     total                                             = 0.547 V
+* -- and only the second term falls when you parallel more diodes.
+* Four in parallel still leaves 0.375 V, because the junction term is
+* logarithmic in current and barely moves. This is not a
+* "bigger diode" problem; the diode class itself is the limit.
+*
+* What the -0.3 V rating actually demands is an effective clamp
+* impedance, and it is worth writing down as a number rather than as
+* "needs more margin":
+*     Rclamp <= 0.3 V / 15 A = 20 mOhm, junction drop included
+* Nothing with a PN or Schottky junction in the path meets that. A
+* MOSFET does: an ordinary 40 V logic-level N-channel at 5 mOhm drops
+* 15 A * 5 mOhm = 75 mV, four times inside the rating, because a FET
+* in its ohmic region has no junction offset at all.
+*
+* So the clamp becomes ACTIVE -- an N-channel FET, source to ground,
+* drain to VIN, turned on by a comparator when VIN goes below about
+* -0.1 V. The Schottky STAYS, in parallel, as the instant passive
+* backstop that holds the node while the comparator decides.
+*
+*   BOM/schematic requirement (docs/bom_requirements.md, NEG-CLAMP):
+*   negative active clamp on the buck's VIN -- N-channel MOSFET,
+*   Vds >= 40 V, Rds(on) <= 10 mOhm at Vgs = 4.5 V, driven by a
+*   comparator sensing VIN against a -0.1 V threshold; in parallel
+*   with the 60 V / 20 A Schottky already fitted.
+*
+* NOT MODELLED, and it is the one thing left: the comparator's own
+* propagation delay. Scl1 below switches on the instant VIN crosses
+* the threshold, so this branch shows what the clamp is worth once
+* engaged, not how long the node sits at the Schottky's -0.53 V
+* first. That interval equals the comparator delay and nothing here
+* sources it -- the same shape of gap reverse_battery.cir has with
+* its ideal-diode controller's turn-off time. What has changed is its
+* size: the unbounded question was "is a 2 ms excursion acceptable,"
+* and it is now "is a sub-microsecond one," which is a question a
+* comparator datasheet answers.
+* The active-clamp branch gets its OWN source, source impedance, TVS
+* and reservoir rather than hanging off bat1 with the others. It has
+* to: at 13 mOhm to ground it is by far the lowest-impedance path on
+* the node, so sharing bat1 let it shunt the fault for the
+* unprotected branch too -- which made the Schottky-only case read
+* -0.177 V instead of its true -0.528 V and would have reported the
+* problem as already solved. Caught by the clamp Schottky's own
+* ammeter showing 13 mA where 15 A was expected. Same separate-network
+* convention sensor_rail and can_termination use for their corners.
+.model ACLAMP SW(Ron=5m Roff=1e9 Vt=-0.1 Vh=0.02)
+Vp1c   src1c 0 PWL(0 13.5  0.2m 13.5  0.24m -136.5  2.24m -136.5
++                   2.26m 13.5  3.5m 13.5)
+Rsrc1c src1c bat1c 10
+Vamm1c bat1c dtvs1c 0
+XD1c   0 dtvs1c TVSBI
+C1c    bat1c 0 10u
+Rfet_cl1   bat1c vbuck_cl1 8m
+Vsch_cl1 0 nschc1 0
+Dneg_cl1   nschc1 vbuck_cl1 SCHN
+* Control is the clamped node itself, inverted: the switch model
+* closes on a RISING control voltage, so Bcl1 turns the sense around
+* and the threshold above is read against -v(vbuck_cl1).
+Bcl1  ncl1 0 V = -v(vbuck_cl1)
+Scl1  vbuck_cl1 0 ncl1 0 ACLAMP
+Rload_cl1  vbuck_cl1 0 50
 
 * ---- Pulse 3a: -220 V (Level IV), 50 ohm, 0.1 ms, 5x at 90 ms ----
 * Each pulse: 5 us rise, 90 us flat top, 5 us fall = 100 us total,
@@ -163,19 +235,39 @@ XD1b   0 dtvs3a TVSBI
 C1b    bat3a 0 10u
 
 Rfet_on3a   bat3a vbuck_on3a  8m
-Dneg3a 0 vbuck_on3a SCHN
+Vsch3a 0 nsch3a 0
+Dneg3a nsch3a vbuck_on3a SCHN
 Rload_on3a  vbuck_on3a 0      50
 Rfet_off3a  bat3a vbuck_off3a 1e9
 Rload_off3a vbuck_off3a 0     50
 
+* ---- same active clamp, pulse 3a ----
+Vp3ac  src3ac 0 PWL(
++  0       13.5    4.995m  13.5    5.000m  -206.5   5.090m  -206.5
++  5.095m  13.5    94.995m 13.5    95.000m -206.5   95.090m -206.5
++  95.095m 13.5    184.995m 13.5   185.000m -206.5  185.090m -206.5
++  185.095m 13.5   274.995m 13.5   275.000m -206.5  275.090m -206.5
++  275.095m 13.5   364.995m 13.5   365.000m -206.5  365.090m -206.5
++  365.095m 13.5   370m    13.5)
+Rsrc3ac src3ac bat3ac 50
+Vamm3ac bat3ac dtvs3ac 0
+XD1d    0 dtvs3ac TVSBI
+C1d     bat3ac 0 10u
+Rfet_cl3a   bat3ac vbuck_cl3a 8m
+Vsch_cl3a 0 nschc3a 0
+Dneg_cl3a   nschc3a vbuck_cl3a SCHN
+Bcl3a  ncl3a 0 V = -v(vbuck_cl3a)
+Scl3a  vbuck_cl3a 0 ncl3a 0 ACLAMP
+Rload_cl3a  vbuck_cl3a 0 50
+
 .control
 tran 1u 3.5m
-wrdata negative_pulses_p1.dat v(bat1) v(src1) i(Vamm1) v(vbuck_on1) v(vbuck_off1)
+wrdata negative_pulses_p1.dat v(bat1) v(src1) i(Vamm1) v(vbuck_on1) v(vbuck_off1) v(vbuck_cl1) i(Vsch1)
 .endc
 
 .control
 tran 2u 370m
-wrdata negative_pulses_p3a.dat v(bat3a) v(src3a) i(Vamm3a) v(vbuck_on3a) v(vbuck_off3a)
+wrdata negative_pulses_p3a.dat v(bat3a) v(src3a) i(Vamm3a) v(vbuck_on3a) v(vbuck_off3a) v(vbuck_cl3a) i(Vsch3a)
 .endc
 
 .end

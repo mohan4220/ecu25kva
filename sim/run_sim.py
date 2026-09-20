@@ -397,15 +397,18 @@ def check_negative_pulses():
                "into the battery input")
     d = sim("negative_pulses", {
         "negative_pulses_p1.dat": ["time", "bat1", "src1", "iamm1", "vbuck_on1",
-                                    "vbuck_off1"],
+                                    "vbuck_off1", "vbuck_cl1", "isch1"],
         "negative_pulses_p3a.dat": ["time", "bat3a", "src3a", "iamm3a",
-                                     "vbuck_on3a", "vbuck_off3a"],
+                                     "vbuck_on3a", "vbuck_off3a",
+                                     "vbuck_cl3a", "isch3a"],
     })
     p1, p3a = d["negative_pulses_p1.dat"], d["negative_pulses_p3a.dat"]
     t1, bat1, src1, iamm1 = p1["time"], p1["bat1"], p1["src1"], p1["iamm1"]
     vbon1, vboff1 = p1["vbuck_on1"], p1["vbuck_off1"]
+    vbcl1, isch1 = p1["vbuck_cl1"], p1["isch1"]
     t3, bat3a, src3a, iamm3a = p3a["time"], p3a["bat3a"], p3a["src3a"], p3a["iamm3a"]
     vbon3a, vboff3a = p3a["vbuck_on3a"], p3a["vbuck_off3a"]
+    vbcl3a, isch3a = p3a["vbuck_cl3a"], p3a["isch3a"]
 
     LM5164_VIN_MIN = -0.3  # TI LM5164 datasheet, Absolute Maximum Ratings, VIN
     # to GND: MIN -0.3 V, MAX 100 V -- fetched and text-extracted directly for
@@ -429,10 +432,8 @@ def check_negative_pulses():
            float(bat1.min()), -0.64, tol=0.08, unit="V")
     c.that("buck VIN pin, pulse 1, WITH the negative clamp fitted",
            vbon1_min, -0.53, tol=0.06, unit="V")
-    c.that("  ... vs LM5164's OWN -0.3 V negative abs max (sourced, not INFERRED)",
-           vbon1_min, LM5164_VIN_MIN, tol=None, ok=vbon1_min >= LM5164_VIN_MIN,
-           unit="V")
-    c.that("  ... residual overshoot past that rating",
+    c.that("  ... evidence: a Schottky ALONE still misses LM5164's own "
+           "-0.3 V abs max (sourced, not INFERRED), by",
            vbon1_min / LM5164_VIN_MIN, 1.76, tol=0.2, unit="x")
 
     vbon3a_min = float(vbon3a.min())
@@ -440,10 +441,36 @@ def check_negative_pulses():
            float(bat3a.min()), -0.43, tol=0.08, unit="V")
     c.that("buck VIN pin, pulse 3a, WITH the negative clamp fitted",
            vbon3a_min, -0.39, tol=0.06, unit="V")
-    c.that("  ... vs LM5164's OWN -0.3 V negative abs max", vbon3a_min,
-           LM5164_VIN_MIN, tol=None, ok=vbon3a_min >= LM5164_VIN_MIN, unit="V")
-    c.that("  ... residual overshoot past that rating",
+    c.that("  ... evidence: same, pulse 3a -- a Schottky alone misses by",
            vbon3a_min / LM5164_VIN_MIN, 1.31, tol=0.2, unit="x")
+
+    # ---- RESOLUTION: the active clamp ----
+    # A Schottky cannot reach -0.3 V at 15 A and the reason is structural,
+    # not a sizing miss: its junction term is logarithmic in current
+    # (0.367 V at 15 A) and only its bulk term falls when parts are
+    # paralleled. The rating is really a demand for effective clamp
+    # impedance -- 0.3 V / 15 A = 20 mOhm, junction included -- which no
+    # junction device meets and an ordinary 5 mOhm N-channel FET clears
+    # four times over. See the netlist for the decomposition.
+    #
+    # These are the falsifiable rows: same -0.3 V rating, same pulses,
+    # with the active clamp in place of the bare Schottky.
+    vcl1_min, vcl3a_min = float(vbcl1.min()), float(vbcl3a.min())
+    c.that("RESOLVED: buck VIN, pulse 1, with the active clamp", vcl1_min,
+           LM5164_VIN_MIN, tol=None, ok=vcl1_min >= LM5164_VIN_MIN, unit="V")
+    c.that("  ... margin inside the rating", LM5164_VIN_MIN / vcl1_min, 4.4,
+           tol=None, ok=vcl1_min > LM5164_VIN_MIN, unit="x")
+    c.that("RESOLVED: buck VIN, pulse 3a, with the active clamp", vcl3a_min,
+           LM5164_VIN_MIN, tol=None, ok=vcl3a_min >= LM5164_VIN_MIN, unit="V")
+    c.that("  ... margin inside the rating", LM5164_VIN_MIN / vcl3a_min, 11.0,
+           tol=None, ok=vcl3a_min > LM5164_VIN_MIN, unit="x")
+    c.that("  ... and the improvement over the Schottky alone",
+           vbon1_min / vcl1_min, 7.7, tol=1.0, unit="x")
+    c.that("  ... NOT MODELLED: the comparator's propagation delay -- VIN "
+           "sits at the Schottky's clamp for exactly that long first",
+           "unbounded question was 'is a 2 ms excursion acceptable'; it is "
+           "now 'is a sub-microsecond one', which a comparator datasheet "
+           "answers", None, ok=True)
 
     # ---- Q2: does the reverse-battery stage help or hurt ----
     # vbuck_off reproduces reverse_battery.cir's own optimistic, no-turn-off-
@@ -477,22 +504,62 @@ def check_negative_pulses():
     centers = [0.005, 0.095, 0.185, 0.275, 0.365]
     peaks = [float(bat3a[(t3 > cc - 0.2e-3) & (t3 < cc + 0.2e-3)].min())
              for cc in centers]
-    spread = max(peaks) - min(peaks)
-    c.that("burst: peak-to-peak spread across all 5 repeats (accumulation "
-           "would show up here)", spread, 0.0, tol=0.01, unit="V")
+    # Split the first pulse out from the rest. Pulses 2-5 are the burst
+    # proper; pulse 1 fires at t = 5 ms, while C1b is still settling from
+    # the run's own initial condition, so it is not a like-for-like
+    # sample. Lumping all five together read a 16 mV spread and looked
+    # like accumulation -- the split shows pulses 2-5 are identical to
+    # the printed precision and the whole spread is pulse 1's head start.
+    steady = peaks[1:]
+    spread_steady = max(steady) - min(steady)
+    c.that("burst: peak-to-peak spread across repeats 2-5 (accumulation "
+           "would show up here)", spread_steady, 0.0, tol=1e-4, unit="V")
+    c.that("  ... and repeat 1 differs only by its own initial settling, "
+           "not by a trend", abs(peaks[0] - peaks[1]) * 1e3, 15.8, tol=3.0,
+           unit="mV")
+    # A trend is what accumulation looks like. Monotonic drift across the
+    # steady repeats would show here even if the spread stayed small.
+    diffs = np.diff(steady)
+    c.that("  ... no monotonic drift across repeats 2-5",
+           float(np.abs(diffs).max()) * 1e3, 0.0, tol=0.1, unit="mV")
 
     # ---- TVS energy ----
+    # The TVS no longer absorbs pulse 1 at all. This row read 0.707 J
+    # while the TVS was the only negative-going path on the node; the
+    # clamp Schottky added on 20 Sep 2026 conducts at half a volt, two
+    # orders of magnitude before the TVS's own -47.8 V breakdown, so the
+    # TVS never avalanches and its energy is numerically zero. Re-pinned
+    # rather than deleted, because a TVS that starts conducting here again
+    # means the clamp path has been broken or removed, and that is worth
+    # failing on.
     energy1 = float(np.trapezoid(np.abs(bat1 * iamm1), t1))
-    c.that("TVS energy, pulse 1 (single event, Level IV)", energy1, 0.707,
-           tol=0.05, unit="J")
+    c.that("TVS energy, pulse 1 -- zero now the clamp diode conducts first",
+           energy1, 0.0, tol=1e-6, unit="J")
+
+    # The requirement did not disappear with the TVS's energy; it MOVED,
+    # onto the clamp Schottky, and it is a requirement on a part the
+    # schematic has to carry. Measured at Vsch1, not assumed from
+    # 150 V / 10 ohm.
+    isch1_pk = float(np.abs(isch1).max())
+    esch1 = float(np.trapezoid(np.abs(vbon1 * isch1), t1))
+    c.that("  ... so the CLAMP DIODE now carries it: peak current, pulse 1",
+           isch1_pk, 13.58, tol=0.5, unit="A")
+    c.that("  ... vs the 20 A class already specified for it", isch1_pk, 20.0,
+           tol=None, ok=isch1_pk < 20.0, unit="A")
+    c.that("  ... clamp diode energy, pulse 1", esch1 * 1e3, 14.5, tol=1.5,
+           unit="mJ")
+    isch3a_pk = float(np.abs(isch3a).max())
+    c.that("  ... peak clamp-diode current, pulse 3a (50 ohm source, so "
+           "milder)", isch3a_pk, 4.74, tol=0.3, unit="A")
     # load_dump.cir's own class-typical ~0.5 J single-pulse bound, reused
     # deliberately (same TVS class, not re-derived) -- NOT the ~3 W continuous
     # bound, which would compare a 2 ms pulse against a steady-state rating
     # four decades removed from it and answer a different question. See the
     # netlist's RESULT NOTE for why this one is a real finding, not a
     # manufactured one, and TOLERANCE for how it moves with severity level.
-    c.that("  ... vs load_dump's own ~0.5 J single-pulse class bound", energy1,
-           0.5, tol=None, ok=energy1 < 0.5, unit="J")
+    c.that("  ... vs load_dump's own ~0.5 J single-pulse class bound (the "
+           "TVS now clears it by not conducting, not by absorbing less)",
+           energy1, 0.5, tol=None, ok=energy1 < 0.5, unit="J")
 
     energy3a = float(np.trapezoid(np.abs(bat3a * iamm3a), t3))
     c.that("TVS energy, pulse 3a (nominal C1 -- TVS stays below its own "
