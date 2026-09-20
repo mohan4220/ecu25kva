@@ -590,6 +590,45 @@ pull defaults cannot yet be looked up. The requirement above does not depend on 
 it exists precisely so that the answer does not matter — but the analysis cannot be
 finished until the pin map is fixed.
 
+#### Input protection — RESOLVED 20 Sep 2026, and it moved three other parts
+
+Two decisions, taken together because they are coupled.
+
+**1. TVS: SMBJ33CA → SMCJ43CA.** The standoff had to clear the 40 V clamped load dump so
+the part stops conducting during a normal event — that is what `load_dump`'s failure was
+actually saying. 43 V is the smallest standard bin above 40 V, and smallest matters
+because clamping voltage rises with the bin and everything downstream sees it.
+
+The package changed too, and that was forced by simulation rather than chosen. At the
+600 W SMBJ size, pulse 2a clamped at **88.6 V** against the buck's 100 V absolute
+maximum — 11 % margin, too thin to design to. The 1500 W SMCJ part has half the dynamic
+resistance at the same standoff and clamps at **73.3 V**, restoring 1.37× margin.
+
+Result: `load_dump` now draws **0.000 A and absorbs 0.000 J** — the TVS simply stays off
+through the dump, which was the predicted fix and is now the simulated one.
+
+**2. A negative clamp diode at the buck input.** The TVS holds the node at its own
+−47.8 V breakdown, which is a correct clamp and still two orders of magnitude outside the
+buck's **−0.3 V** rating. A 60 V / 20 A-class Schottky, anode to ground and cathode to
+VIN, conducts long before the TVS does:
+
+| Pulse | Buck VIN before | After |
+|---|---|---|
+| 1 | −40.7 V | **−0.53 V** |
+| 3a | −27.8 V | **−0.39 V** |
+
+**The residual is honest and still fails its check.** 0.53 V is 1.76× the −0.3 V rating,
+not inside it. No silicon diode reaches 0.3 V at the ~15 A this fault delivers. Closing
+the last 0.23 V needs series impedance — the EMI filter's ferrite sits upstream and is
+not modelled here — or a judgement that a sub-microsecond 0.2 V excursion past a DC
+absolute maximum is acceptable. **That is a question for the part's manufacturer, and it
+is now a bounded one rather than a missing component.**
+
+**What this moved elsewhere:** the reverse-battery P-FET sits downstream of the clamp, so
+it now needs **100 V class, not 60 V** — its third revision, each time because the clamp
+moved. `transient_clamp.cir` now carries an explicit check stating the downstream
+requirement, so the next move does not have to be noticed by a human reading three files.
+
 #### The EGR driver must decode IN1/IN2 internally — REQUIRED 19 Sep 2026
 
 `sim/blocks/egr_hbridge.cir` argued that no IN1/IN2 combination could short a leg,

@@ -17,10 +17,25 @@
 * number rather than an opinion.
 *
 * Schottky model: a 5 A / 45 V part, roughly 0.46 V at 3 A.
-* FET: 8 mOhm Ron, mid-range for a 60 V P-channel in a footprint
+* FET: 8 mOhm Ron, mid-range for a 100 V P-channel in a footprint
 * this board can afford.
 *
-* 60 V, not the 40 V this comment said until 18 Sep 2026, and the
+* 100 V as of 20 Sep 2026, revised twice. It read 40 V until 18 Sep,
+* then 60 V, and now 100 V -- each time because the clamp upstream
+* moved and the consequence had to be carried down here by hand.
+*
+* The current reason: transient_clamp.cir's TVS standoff had to rise
+* from 33 V to 43 V so it stops conducting during a normal 40 V
+* clamped load dump. A higher standoff clamps higher, and pulse 2a
+* now clamps at 73.3 V rather than 50 V. This FET sits downstream of
+* that clamp, so 60 V-class parts are no longer viable and the next
+* standard class up is 100 V.
+*
+* transient_clamp.cir now carries a check that says so explicitly,
+* so the next time the clamp moves this does not have to be noticed
+* by a human reading three files.
+*
+* The original 40-to-60 correction, kept because the reasoning is the
 * correction matters more than a comment edit suggests. Spec
 * section 4 fixes the stage order as
 *

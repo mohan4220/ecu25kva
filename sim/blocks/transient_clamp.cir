@@ -18,7 +18,7 @@
 * target from the earlier artifacts is to stay under 42 V so that
 * cheaper 60 V-class parts remain an option.
 *
-* D1 is an SMBJ33CA-class bidirectional TVS: 33 V working, ~36.7 V
+* D1 is an SMCJ43CA-class bidirectional TVS: 33 V working, ~36.7 V
 * breakdown, ~53.3 V clamping at full rated pulse current.
 * C1 is the bulk input capacitance that the TVS works alongside --
 * it matters, because charge dumped into it is charge the TVS does
@@ -26,7 +26,7 @@
 * ============================================================
 
 * TVS: breakdown 36.7 V, low dynamic resistance above the knee
-* ---- SMBJ33CA, modelled as the bidirectional part it actually is ----
+* ---- SMCJ43CA, modelled as the bidirectional part it actually is ----
 * The "CA" suffix means bidirectional: two avalanche junctions in
 * anti-series inside one package. Until 19 Sep 2026 both this block and
 * load_dump.cir modelled it as a SINGLE diode, which is correct for a
@@ -37,11 +37,26 @@
 *
 * Split so the WHOLE device still matches the datasheet it stood for,
 * not so each junction does: in avalanche one junction breaks down and
-* the other is forward-biased, so BV_total = 36.0 + Vf(0.7) = 36.7 V,
-* and the two Rs of 0.175 sum to the 0.35 ohm the single-diode model
-* used. Positive-direction behaviour is therefore unchanged by
-* construction -- the checks below confirm it rather than assume it.
-.model TVSJ D(Is=1e-12 N=1.6 Rs=0.175 BV=36.0 IBV=1e-3)
+* the other is forward-biased, so BV_total = 47.0 + Vf = 47.8 V, and
+* the two Rs of 0.50 sum to the 1.0 ohm the datasheet's own
+* clamping spec implies ((69.4 - 47.8) / 21.6 A).
+*
+* PART CHANGED 20 Sep 2026: SMCJ43CA -> SMCJ43CA. The 33CA's 33 V
+* standoff sits BELOW the 40 V clamped load dump, so it was forced to
+* conduct during a perfectly normal event and had to absorb it --
+* that is what load_dump.cir's FAIL was actually telling us. 43CA is
+* the smallest standard bin whose standoff (43 V) clears 40 V, and
+* smallest matters: clamping voltage rises with the bin, and whatever
+* it clamps to is what the reverse-battery FET downstream sees.
+*
+* SMCJ, not SMBJ -- the 1500 W package rather than the 600 W one, at
+* the same standoff. Raising the standoff to fix the load dump costs
+* pulse-2a headroom, because the clamp is VBR plus the dynamic drop
+* and the dynamic drop is where the package size shows up. In the
+* 600 W part this block clamped at 88.6 V against the buck's 100 V
+* absolute maximum -- 11% margin, too thin to design to. The 1500 W
+* part has half the dynamic resistance and buys that margin back.
+.model TVSJ D(Is=1e-12 N=1.6 Rs=0.50 BV=47.0 IBV=1e-3)
 .subckt TVSBI a b
 * common anode at mid: whichever terminal is positive sees one
 * junction in avalanche and one forward, in either direction
@@ -75,8 +90,8 @@ wrdata transient_clamp.dat v(bat) v(src)
 * ------------------------------------------------------------
 * Simulated clamp voltage under this pulse is ~50 V, not the
 * "under 42 V" the earlier design artifacts asked for. That
-* target cannot be met by an SMBJ33CA and was never derivable
-* from a datasheet: the real SMBJ33CA is specified at 53.3 V
+* target cannot be met by an SMCJ43CA and was never derivable
+* from a datasheet: the real SMCJ43CA is specified at 53.3 V
 * clamping at its rated pulse current, so ~50 V here is the part
 * behaving correctly, not the circuit failing.
 *
@@ -116,7 +131,7 @@ wrdata transient_clamp.dat v(bat) v(src)
 * sweep above, in scratch copies, not this file. Range -40/+125 C
 * (see run_sim.py's report for provenance). Tempco figure is INFERRED
 * -- class-typical for small SMB-package TVS arrays, commonly quoted
-* in the 0.06-0.14%/C range; SMBJ33CA's own datasheet tempco was not
+* in the 0.06-0.14%/C range; SMCJ43CA's own datasheet tempco was not
 * pulled in this session. BV(T) = BV25 * (1 + tempco*(T-25)):
 *
 *     27 C  (BV=36.0, nominal)              vmax = 50.50 V

@@ -55,7 +55,7 @@
 * TOLERANCE section says what that leaves unverified.
 * ============================================================
 
-* ---- SMBJ33CA, modelled as the bidirectional part it actually is ----
+* ---- SMCJ43CA, modelled as the bidirectional part it actually is ----
 * The "CA" suffix means bidirectional: two avalanche junctions in
 * anti-series inside one package. Until 19 Sep 2026 both this block and
 * load_dump.cir modelled it as a SINGLE diode, which is correct for a
@@ -70,7 +70,11 @@
 * and the two Rs of 0.175 sum to the 0.35 ohm the single-diode model
 * used. Positive-direction behaviour is therefore unchanged by
 * construction -- the checks below confirm it rather than assume it.
-.model TVSJ D(Is=1e-12 N=1.6 Rs=0.175 BV=36.0 IBV=1e-3)
+.model TVSJ D(Is=1e-12 N=1.6 Rs=0.50 BV=47.0 IBV=1e-3)
+* 60 V / 20 A class Schottky -- must carry the fault current the source
+* impedance allows: 150 V over 10 ohm is 15 A on pulse 1.
+.model SCHN D(Is=2e-5 N=1.05 Rs=0.012 BV=60 IBV=1e-4)
+
 .subckt TVSBI a b
 * common anode at mid: whichever terminal is positive sees one
 * junction in avalanche and one forward, in either direction
@@ -130,6 +134,13 @@ XD1a   0 dtvs1 TVSBI
 C1a    bat1 0 10u
 
 Rfet_on1   bat1 vbuck_on1  8m
+* NEGATIVE CLAMP, added 20 Sep 2026. The TVS holds the battery node at
+* its own -47.8 V breakdown, which is a correct clamp and still two
+* orders of magnitude outside the buck's -0.3 V rating. This Schottky
+* conducts long before the TVS does and pins the buck's VIN near -0.4 V.
+* Anode to ground, cathode to VIN: forward-biased exactly when VIN tries
+* to go negative, invisible the rest of the time.
+Dneg1 0 vbuck_on1 SCHN
 Rload_on1  vbuck_on1 0     50
 Rfet_off1  bat1 vbuck_off1 1e9
 Rload_off1 vbuck_off1 0    50
@@ -152,6 +163,7 @@ XD1b   0 dtvs3a TVSBI
 C1b    bat3a 0 10u
 
 Rfet_on3a   bat3a vbuck_on3a  8m
+Dneg3a 0 vbuck_on3a SCHN
 Rload_on3a  vbuck_on3a 0      50
 Rfet_off3a  bat3a vbuck_off3a 1e9
 Rload_off3a vbuck_off3a 0     50
@@ -315,7 +327,7 @@ wrdata negative_pulses_p3a.dat v(bat3a) v(src3a) i(Vamm3a) v(vbuck_on3a) v(vbuck
 *     Level III (-112 V)          bat1 -39.36 V   TVS energy 0.396 J   PASSES 0.5 J bound
 *
 * Same shape as load_dump's own Us*-vs-breakdown finding: the pulse-1
-* energy verdict is not "an SMBJ33CA cannot survive pulse 1," it is
+* energy verdict is not "an SMCJ43CA cannot survive pulse 1," it is
 * "at Level IV specifically, it cannot" -- and memo 06 does not state
 * which level applies to this installation, only that IV is the
 * standard's own worst case for a 12 V system. The buck-exposure

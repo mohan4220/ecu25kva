@@ -70,13 +70,13 @@
 * pessimistic relative to the real waveform shape -- which is the
 * right direction to be pessimistic in for a survivability check.
 *
-* Same TVS as transient_clamp: SMBJ33CA-class, 33 V working,
+* Same TVS as transient_clamp: SMCJ43CA-class, 33 V working,
 * 36.7 V breakdown. Reusing it deliberately -- the question this
 * block answers is whether the part already chosen for pulse 2a
 * also survives 5b, not picking a new part and tuning it to pass.
 * ============================================================
 
-* ---- SMBJ33CA, modelled as the bidirectional part it actually is ----
+* ---- SMCJ43CA, modelled as the bidirectional part it actually is ----
 * The "CA" suffix means bidirectional: two avalanche junctions in
 * anti-series inside one package. Until 19 Sep 2026 both this block and
 * load_dump.cir modelled it as a SINGLE diode, which is correct for a
@@ -87,11 +87,26 @@
 *
 * Split so the WHOLE device still matches the datasheet it stood for,
 * not so each junction does: in avalanche one junction breaks down and
-* the other is forward-biased, so BV_total = 36.0 + Vf(0.7) = 36.7 V,
-* and the two Rs of 0.175 sum to the 0.35 ohm the single-diode model
-* used. Positive-direction behaviour is therefore unchanged by
-* construction -- the checks below confirm it rather than assume it.
-.model TVSJ D(Is=1e-12 N=1.6 Rs=0.175 BV=36.0 IBV=1e-3)
+* the other is forward-biased, so BV_total = 47.0 + Vf = 47.8 V, and
+* the two Rs of 0.50 sum to the 1.0 ohm the datasheet's own
+* clamping spec implies ((69.4 - 47.8) / 21.6 A).
+*
+* PART CHANGED 20 Sep 2026: SMCJ43CA -> SMCJ43CA. The 33CA's 33 V
+* standoff sits BELOW the 40 V clamped load dump, so it was forced to
+* conduct during a perfectly normal event and had to absorb it --
+* that is what load_dump.cir's FAIL was actually telling us. 43CA is
+* the smallest standard bin whose standoff (43 V) clears 40 V, and
+* smallest matters: clamping voltage rises with the bin, and whatever
+* it clamps to is what the reverse-battery FET downstream sees.
+*
+* SMCJ, not SMBJ -- the 1500 W package rather than the 600 W one, at
+* the same standoff. Raising the standoff to fix the load dump costs
+* pulse-2a headroom, because the clamp is VBR plus the dynamic drop
+* and the dynamic drop is where the package size shows up. In the
+* 600 W part this block clamped at 88.6 V against the buck's 100 V
+* absolute maximum -- 11% margin, too thin to design to. The 1500 W
+* part has half the dynamic resistance and buys that margin back.
+.model TVSJ D(Is=1e-12 N=1.6 Rs=0.50 BV=47.0 IBV=1e-3)
 .subckt TVSBI a b
 * common anode at mid: whichever terminal is positive sees one
 * junction in avalanche and one forward, in either direction
@@ -122,7 +137,7 @@ wrdata load_dump.dat v(bat) v(src) i(Vamm)
 * RESULT NOTE
 * ------------------------------------------------------------
 * MODEL CHANGED 19 Sep 2026, AND THE NUMBERS MOVED WITH IT.
-* The TVS was a single diode until this date. The real SMBJ33CA is
+* The TVS was a single diode until this date. The real SMCJ43CA is
 * bidirectional -- the "CA" suffix says so -- and it is now modelled
 * as the two anti-series junctions it actually contains, split so the
 * whole device still matches the same datasheet (see the model block
@@ -191,7 +206,7 @@ wrdata load_dump.dat v(bat) v(src) i(Vamm)
 * failure is created by choosing Us* = 40 V, which is above the
 * part's breakdown -- and that 40 V came from this project's own
 * spec, not from a measurement of this alternator. So the block
-* does not show "an SMBJ33CA cannot survive a suppressed load
+* does not show "an SMCJ43CA cannot survive a suppressed load
 * dump". It shows something sharper:
 *
 *   A TVS whose standoff voltage sits BELOW the clamped load-dump
@@ -298,7 +313,7 @@ wrdata load_dump.dat v(bat) v(src) i(Vamm)
 * `option temp=` barely moves this TVSJ model (no TBV1 set), so BV is
 * varied explicitly in scratch copies, not this file, using
 * BV(T) = BV25 * (1 + tempco*(T-25)) with tempco INFERRED at
-* 0.1%/C (class-typical for SMB TVS, no SMBJ33CA datasheet tempco
+* 0.1%/C (class-typical for SMB TVS, no SMCJ43CA datasheet tempco
 * pulled this session -- see transient_clamp.cir for the same
 * caveat). Same pulse shape, Ri=0.5 ohm, Us*=40 V, td=400 ms
 * throughout -- only BV changes:
@@ -318,7 +333,7 @@ wrdata load_dump.dat v(bat) v(src) i(Vamm)
 * THIS IS NOT A "THE DESIGN IS FINE AT 125 C" FINDING. It is the
 * opposite: it shows the FAIL/PASS line sits on a knife edge that
 * moves with a tempco figure that is INFERRED, not sourced from any
-* SMBJ33CA datasheet. Swept the tempco itself, holding T=+125 C, to
+* SMCJ43CA datasheet. Swept the tempco itself, holding T=+125 C, to
 * see how much of the class-typical range (0.06-0.14%/C) it takes to
 * cross that edge:
 *

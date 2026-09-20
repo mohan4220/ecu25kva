@@ -300,15 +300,22 @@ def check_transient_clamp():
     # margin-over-observed-result gate still has some value as a trip wire if
     # the clamp voltage ever moves; just do not read it as a spec.
     vmax = float(bat.max())
-    c.that("clamped voltage at buck input", vmax, 55.0, tol=None, ok=vmax < 55.0)
-    c.that("  ... inside LM5164's 100 V rating", 100.0 / vmax, 1.8, tol=None,
-           ok=vmax < 100.0 / 1.8, unit="x")
-    c.that("  ... 60 V-class parts still viable", vmax, 60.0, tol=None, ok=vmax < 60.0)
-    c.that("  ... but misses the inherited 42 V target", f"{vmax:.1f} V -- target was arbitrary",
+    c.that("clamped voltage at buck input", vmax, 80.0, tol=None,
+           ok=vmax < 80.0, unit="V")
+    # Gate raised from 55 V to 80 V on 20 Sep 2026, and this is a design
+    # change rather than a weakened check. The TVS standoff had to go from
+    # 33 V to 43 V so it stops conducting during a normal 40 V clamped load
+    # dump (see load_dump.cir). A higher standoff clamps higher, and the
+    # only real constraint is the buck's own 100 V absolute maximum. The
+    # 55 V figure was inherited from a design where the standoff sat below
+    # the dump level -- i.e. from the arrangement that was wrong.
+    c.that("  ... margin inside LM5164's 100 V rating", 100.0 / vmax, 1.3,
+           tol=None, ok=vmax < 100.0 / 1.3, unit="x")
+    c.that("  ... 60 V-class parts are NO LONGER viable downstream", vmax, 60.0,
+           tol=None, ok=vmax > 60.0, unit="V")
+    c.that("  ... so the reverse-battery FET needs 100 V class, not 60",
+           f"{vmax:.1f} V clamp -- reverse_battery.cir's 60 V figure is superseded",
            None, ok=True)
-
-    # And it must recover: a clamp that latches is not a clamp. Settles to the
-    # source divided by Rsrc/Rload, not to the bare 13.5 V.
     settled = bat[t > 1.5e-3]
     c.that("recovers to nominal after pulse", float(settled.mean()), 12.98, tol=0.1,
            unit="V")
@@ -342,7 +349,7 @@ def check_load_dump():
     # significant figures.
     plateau = (t > 0.05) & (t < 0.4)
     vclamp = float(bat[plateau].mean())
-    c.that("clamped voltage through the 400 ms plateau", vclamp, 38.37, tol=0.3, unit="V")
+    c.that("clamped voltage through the 400 ms plateau", vclamp, 39.60, tol=0.3, unit="V")
     c.that("  ... inside LM5164's 100 V rating", 100.0 / vclamp, 2.6, tol=None,
            ok=vclamp < 100.0 / 1.5, unit="x")
     c.that("  ... 60 V-class parts still viable", vclamp, 60.0, tol=None,
@@ -353,13 +360,13 @@ def check_load_dump():
     # long enough that the TVS's dissipation rating -- not its clamp
     # voltage -- is what determines whether it survives.
     iclamp = float(iamm[plateau].mean())
-    c.that("TVS current through the plateau", iclamp, 2.48, tol=0.3, unit="A")
+    c.that("TVS current through the plateau -- now ZERO, the TVS stays off", iclamp, 0.0, tol=0.01, unit="A")
     avg_power = float(np.abs(bat[plateau] * iamm[plateau]).mean())
-    c.that("average power dissipated in the TVS", avg_power, 95.3, tol=15.0, unit="W")
+    c.that("average power dissipated in the TVS", avg_power, 0.0, tol=0.5, unit="W")
     # ^ regression pin, see the comment above vclamp.
 
     energy = float(np.trapezoid(np.abs(bat * iamm), t))
-    c.that("total energy absorbed by the TVS over the pulse", energy, 38.2, tol=4.0,
+    c.that("total energy absorbed by the TVS over the pulse", energy, 0.0, tol=0.05,
            unit="J")
 
     # The falsifiable claims: does an SMBJ-class part actually survive this.
@@ -373,8 +380,8 @@ def check_load_dump():
            tol=None, ok=energy < 0.5, unit="J")
     c.that("average power stays within continuous (~3 W) rating", avg_power, 3.0,
            tol=None, ok=avg_power < 3.0, unit="W")
-    c.that("  ... exceeds the continuous rating by",
-           avg_power / 3.0, 31.8, tol=5.0, unit="x")
+    c.that("  ... fraction of the continuous rating now used",
+           avg_power / 3.0, 0.0, tol=0.2, unit="x")
 
     # And the model must recover -- same sanity check transient_clamp makes.
     # Settles to the source divided by Rsrc/Rload, not to the bare 13.5 V,
@@ -418,24 +425,25 @@ def check_negative_pulses():
     # than formula-checked) -- the FALSIFIABLE claim is the comparison against
     # LM5164_VIN_MIN two lines below each.
     vbon1_min = float(vbon1.min())
-    c.that("TVS clamp, pulse 1 (bat1, FET assumed on)", float(bat1.min()), -40.68,
-           tol=1.0, unit="V")
-    c.that("buck VIN pin, pulse 1 (vbuck_on1)", vbon1_min, -40.67, tol=1.0, unit="V")
+    c.that("battery node, pulse 1 -- now set by the clamp diode, not the TVS",
+           float(bat1.min()), -0.64, tol=0.08, unit="V")
+    c.that("buck VIN pin, pulse 1, WITH the negative clamp fitted",
+           vbon1_min, -0.53, tol=0.06, unit="V")
     c.that("  ... vs LM5164's OWN -0.3 V negative abs max (sourced, not INFERRED)",
            vbon1_min, LM5164_VIN_MIN, tol=None, ok=vbon1_min >= LM5164_VIN_MIN,
            unit="V")
-    c.that("  ... margin past that rating", vbon1_min / LM5164_VIN_MIN, 135.0,
-           tol=20.0, unit="x")
+    c.that("  ... residual overshoot past that rating",
+           vbon1_min / LM5164_VIN_MIN, 1.76, tol=0.2, unit="x")
 
     vbon3a_min = float(vbon3a.min())
-    c.that("TVS clamp, pulse 3a (bat3a, FET assumed on, nominal C1)",
-           float(bat3a.min()), -27.78, tol=1.5, unit="V")
-    c.that("buck VIN pin, pulse 3a (vbuck_on3a)", vbon3a_min, -27.77, tol=1.5,
-           unit="V")
+    c.that("battery node, pulse 3a -- now set by the clamp diode, not the TVS",
+           float(bat3a.min()), -0.43, tol=0.08, unit="V")
+    c.that("buck VIN pin, pulse 3a, WITH the negative clamp fitted",
+           vbon3a_min, -0.39, tol=0.06, unit="V")
     c.that("  ... vs LM5164's OWN -0.3 V negative abs max", vbon3a_min,
            LM5164_VIN_MIN, tol=None, ok=vbon3a_min >= LM5164_VIN_MIN, unit="V")
-    c.that("  ... margin past that rating", vbon3a_min / LM5164_VIN_MIN, 93.0,
-           tol=15.0, unit="x")
+    c.that("  ... residual overshoot past that rating",
+           vbon3a_min / LM5164_VIN_MIN, 1.31, tol=0.2, unit="x")
 
     # ---- Q2: does the reverse-battery stage help or hurt ----
     # vbuck_off reproduces reverse_battery.cir's own optimistic, no-turn-off-
