@@ -217,6 +217,65 @@ not merely that it helps.
 
 Checked by `can_termination.cir`.
 
+### `VR-CLAMP` — crank input clamp diodes, four off
+
+Reverse leakage **≤1 µA at 125 °C**. Forward drop is explicitly *not* a
+requirement.
+
+This inverts the rule every earlier clamp on this board was chosen by.
+The negative-clamp Schottky's 0.547 V at 15 A decomposes into a junction
+term and a bulk term, and that decomposition is what ruled out
+paralleling junction devices for the power path. These four diodes
+conduct only on a fault, into a 4.7 kΩ series resistor that is already
+doing the limiting — what matters is what they do when they are **off**.
+
+A reverse-biased diode's leakage flows out of the 4.489 kΩ Thévenin at
+the comparator input and appears there as an offset voltage, against a
+hysteresis window of ±198 mV:
+
+| Class | Leakage at 125 °C | Offset | Against the window |
+|---|---|---|---|
+| BAT54S-class Schottky | ~200 µA (≈2 µA at 25 °C, ~100× hotter) | 0.90 V | **4.5× the whole window** — latches |
+| BAV199-class low-leakage silicon | <1 µA (5 nA max at 25 °C) | <4.5 mV | 2% of the window |
+
+The two diodes on a leg are reverse-biased symmetrically by `VR_BIAS`,
+and the legs are matched, so leakages partly cancel and what survives is
+partly common-mode. That is not a thing to defend a speed input on, so
+the requirement is stated instead.
+
+`vr_conditioner.cir` does **not** model this — its comparator is an ideal
+switch with no input network, so no clamp, no leakage and no offset exist
+in it. Found while drawing `hw/speed_inputs.kicad_sch`.
+
+The same tag covers the **differential TVS across the pair**: bidirectional,
+standoff ≥48 V. The standoff has to clear the *signal*, not just the rail
+— VR amplitude is proportional to speed, about 20 V peak at 1500 rpm, so
+a 24 V part would clip a runaway engine's own crank signal at the one
+moment the ECU most needs to keep counting teeth. 48 V clears 3600 rpm.
+
+### `VR-COMP` — crank zero-cross comparator
+
+Single **3.3 V** supply, **push-pull** rail-to-rail output, propagation
+delay **≤1 µs**. Input common-mode range: **mid-rail only**.
+
+Drawn as `COMPARATOR_GENERIC` — placeholder pins, no footprint — because
+no part is chosen. Three of those four are unusually easy, deliberately:
+
+- The output swing *is* the hysteresis window (3.3 V × 4489/(4489+33000)
+  = 0.395 V), so an open-drain part would make the window depend on its
+  pull-up value and its V<sub>OL</sub>.
+- Biasing the floating VR coil to `VR_BIAS` means the inputs never leave
+  mid-rail, so **no common-mode range including ground is needed** — the
+  usual hard constraint on a zero-cross detector, avoided by biasing the
+  sensor rather than level-shifting it.
+- 1 µs is 0.009 crank degrees at 1500 rpm on a 60-tooth wheel.
+- Input offset voltage and its tempco are non-issues: 10 mV is 5% of the
+  window.
+
+Checked by `vr_conditioner.cir`, which establishes the topology (a fixed
+5 V threshold produces edges at 1500 rpm and **none** at cranking speed)
+and the ±0.2 V window the E24 network above lands on.
+
 ---
 
 ## Chosen parts

@@ -114,10 +114,10 @@ connector pins is accounted for, not silently dropped.
 | ECU pin | Signal | Front-end | `PTxx` | Peripheral | Reset pull | Note |
 |---|---|---|---|---|---|---|
 | 52 / 74 | Crank VR High/Low | Differential adaptive-threshold conditioner (`vr_conditioner.cir`) | *(conditioner input, no direct MCU pin)* | — | — | The conditioner's zero-cross comparator already collapses this to one digital edge stream — see next row |
-| — | Crank conditioner output | Zero-cross comparator output | `PTB2` | FTM1_CH0 (input capture) | Hi-Z, no pull | **Forced in kind, not in pin**: whatever pin is chosen must be FTM/capture-capable; `PTB2` is a free choice among many valid options. FTM configured for both-edge capture, per RM's `CnSC[ELSA:ELSB]` |
+| — | Crank conditioner output | Zero-cross comparator output, ±198 mV hysteresis (`hw/speed_inputs.kicad_sch`) | `PTB2` | FTM1_CH0 (input capture) | Hi-Z, no pull | **Forced in kind, not in pin**: whatever pin is chosen must be FTM/capture-capable; `PTB2` is a free choice among many valid options. FTM configured for both-edge capture, per RM's `CnSC[ELSA:ELSB]` |
 | 30 | Crank sensor ground | Shield termination, ECU end | — | — | — | Ground/shield net |
 | 45 | Cam Hall 5V excitation | `5V_SENSOR` distribution | — | — | — | Power net |
-| 46 | Cam frequency I/P | Pull-up to `5V_SENSOR` per spec §4 | `PTB3` | FTM1_CH1 (input capture) | Hi-Z, no pull | **Flagged in §4 below — this front-end as literally specified overvoltages the MCU pin** |
+| 46 | Cam frequency I/P | 10 k pull-up to `5V_SENSOR` **+ 16 k to ground**, 22 nF, 3.3 V zener (`cam_frontend.cir`) | `PTB3` | FTM1_CH1 (input capture) | Hi-Z, no pull | **CORRECTED 20 Sep 2026** — spec §4's literal "pull-up to `5V_SENSOR`" overvoltages the pad. See §4 |
 | 44 | Cam sensor ground | — | — | — | — | Ground net |
 
 ### 1.4 Discrete inputs
@@ -342,6 +342,15 @@ pad, matching the discipline already applied to pins 04/06 (battery sense) and 2
 (discrete inputs). **This should become a `sim/blocks/cam_frontend.cir`-class check
 before the cam sheet is drawn**, not solved here.
 
+**RESOLVED 20 September 2026 — the check was written and the sheet now carries the fix.**
+`sim/blocks/cam_frontend.cir` exists and runs in the suite, and
+`hw/speed_inputs.kicad_sch` draws the front-end it validates: the 10 k pull-up to
+`5V_SENSOR` stays (the open-collector sensor needs it), and a 16 k to ground turns it
+into the same 10 k/16 k divider the ratiometric sensor channels already use — 5.00 V
+becomes 3.077 V, and 4.50 V (`sensor_rail.cir`'s own fault floor for a healthy group)
+becomes 2.769 V, both inside `[2.31 V logic-high floor, 3.6 V Vih abs-max]`. It costs one
+resistor. The §1.3 row for pin 46 is updated accordingly.
+
 **Injector current-sense split (§1.6) is INFERRED, not confirmed.** Memo 12 leaves
 "per channel or per bank" open; this map assumes per-bank (2 channels) because that is
 the only split consistent with memo 05's stated "4 current-sense returns" total once
@@ -368,9 +377,10 @@ decided. `LPSPI1` is free and is the natural landing spot.
 
 ## 5. Open questions
 
-1. **Cam front-end overvoltage (§4)** — needs a `sim/blocks/cam_frontend.cir`-class
-   check and a level-clamp design before pin 46's sheet is drawn. This is new, found by
-   this exercise, not inherited from an existing unknown.
+1. ~~**Cam front-end overvoltage (§4)**~~ — **CLOSED 20 September 2026.**
+   `cam_frontend.cir` was written, the divider it validates is drawn on
+   `hw/speed_inputs.kicad_sch`, and the §1.3 row now states the real front-end rather
+   than spec §4's literal one.
 2. **Injector current-sense placement (§1.6)** — per-bank vs per-cylinder, decided when
    the injector driver sheet's shunt is placed.
 3. **Crystal vs FIRC (§4)** — decides whether `PTB6`/`PTB7` are reserved.

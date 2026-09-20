@@ -18,7 +18,7 @@ the specification's own register.
 | Unknowns closed | **4** |
 | Unknowns partly answered | **4** |
 | Unknowns still open | **9** |
-| Phase | **2** — schematic capture, 7 of 10 sheets drawn |
+| Phase | **2** — schematic capture, 8 of 10 sheets drawn |
 
 **All 24 blocks pass.** On 19 September it was 16, after a temperature-corner pass found
 six blocks that fail cold or hot and turned prose caveats into enforced checks. All six
@@ -267,7 +267,7 @@ contact-type confirmation, which gates nothing
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
 | 1.5 | Block-level simulation | **Done — 24 blocks, 24 passing** |
-| **2** | **KiCad hierarchical schematic capture** | **In progress — 7 of 10 sheets drawn** |
+| **2** | **KiCad hierarchical schematic capture** | **In progress — 8 of 10 sheets drawn** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
 | 4 | Firmware skeleton | Not started |
 
@@ -284,7 +284,7 @@ refuse to overwrite a sheet that has content, so Eeschema edits are safe against
 | `injector` | Created, empty | `boost_converter`, `injector_boost`, `injector_turnoff` |
 | `metering_egr` | **Half drawn** — metering unit done; EGR blocked on a rail rating | `metering_unit_pwm`, `egr_hbridge` |
 | `sensors_analog` | **Drawn, netlist-checked** | `sensor_ratiometric`, `sensor_differential`, `ntc_frontend`, `battery_sense` |
-| `speed_inputs` | Created, empty | `vr_conditioner`, `cam_frontend` |
+| `speed_inputs` | **Drawn, netlist-checked** | `vr_conditioner`, `cam_frontend` |
 | `discrete_io` | **Drawn, netlist-checked** | `discrete_input`, `trip_module_sense`, `relay_driver` |
 | `can` | **Drawn, netlist-checked** | `can_termination` |
 | `connector` | Created, empty | — |
@@ -335,7 +335,7 @@ all tapped the middle of one wire and all three came back unconnected.
 allowed to draw a multi-tap rail.
 
 **Drawing the sheets is finding things nothing else was going to find.**
-Three so far, all of the same shape — a document and an executable file
+Four so far, all of the same shape — a document and an executable file
 disagreeing, with nothing that compares them:
 
 - **No watchdog pin.** The pin map assigned 37 signals and none serviced
@@ -348,6 +348,23 @@ disagreeing, with nothing that compares them:
   `trip_module_sense.cir` designs and checks three bands with real
   margin; a GPIO reads two, which discards exactly the distinction the
   bleed resistor exists to create. Moved `PTD6` → `PTB0` (ADC0_SE4).
+- **The cam front-end put 5 V on a 3.3 V pin.** Spec §4 and pinmap §1.3
+  both gave pin 46's front-end as "pull-up to `5V_SENSOR` → timer
+  capture", and no `sim/blocks/*.cir` file simulated a cam front-end at
+  all — `vr_conditioner.cir` covers the crank and there was no cam
+  equivalent, so the swing was never checked. `cam_frontend.cir` was
+  written, and one 16 kΩ resistor turns the pull-up into the same
+  10 k/16 k divider the ratiometric channels already use.
+
+**A fifth finding came out of the parts, not the pins.** Every clamp
+earlier in this project was chosen by forward drop. The crank input's
+four clamp diodes have to be chosen by *reverse leakage* instead:
+Schottky leakage at 125 °C puts ~0.90 V of offset across the comparator
+input's 4.489 kΩ Thévenin, which is 4.5× the whole ±198 mV hysteresis
+window — the comparator latches and a running engine has no speed
+signal. `vr_conditioner.cir` cannot see this: its comparator is an ideal
+switch with no input network, so no clamp, no leakage and no offset
+exist in it. Tagged `VR-CLAMP` in `docs/bom_requirements.md`.
 
 **The battery rail's rating is now enforced, not narrated.** VBAT_PROT
 reaches 40.0 V for 400 ms on a load dump and 73.3 V for ~50 µs on pulse
@@ -358,7 +375,7 @@ switches — a 40–45 V class — are excluded from everything
 battery-connected here, which is what blocked the EGR half of
 `metering_egr`.
 
-**What ends phase 2:** the nine remaining sheets, and the two gates currently left
+**What ends phase 2:** the two remaining sheets, the EGR half of `metering_egr`, and the two gates currently left
 undriven on `power_input` (§6).
 
 ---

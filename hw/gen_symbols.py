@@ -391,6 +391,51 @@ OPAMP = dict(
     hw=10.16)
 
 
+# --- Generic zero-cross comparator ------------------------------------
+# NOT A PART, for the same reason OPAMP_GENERIC is not: every specific
+# comparator symbol in the installed libraries carries a real pinout, and
+# placing one would assert a choice nobody has made.
+#
+# The requirement this symbol stands for comes out of vr_conditioner.cir,
+# and it is unusually relaxed in the places comparators are normally hard:
+#
+#   SUPPLY          single 3.3 V, taken from 3V3_MCU. The output then
+#                   drives PTB2 directly with no level shift.
+#   OUTPUT          push-pull, rail-to-rail. The hysteresis network's
+#                   window is set by the output swing, so an open-drain
+#                   part with an external pull-up would make the window
+#                   depend on the pull-up's value and on VOL.
+#   INPUT RANGE     mid-rail only. The VR pair is biased to VR_BIAS
+#                   (1.65 V) by the front end, so the inputs never
+#                   approach either rail -- a common-mode range that
+#                   includes ground is NOT required here, which is the
+#                   opposite of what a zero-cross comparator usually
+#                   needs and is a direct consequence of biasing the
+#                   floating sensor coil rather than level-shifting it.
+#   PROP DELAY      <= 1 us. At 1500 rpm on a 60-tooth wheel one crank
+#                   degree is 111 us, so 1 us is 0.009 crank degrees of
+#                   timing error -- far below anything injection timing
+#                   resolves.
+#   OFFSET          the hysteresis window is +/-198 mV (see the sheet's
+#                   own derivation), so input offset voltage and its
+#                   tempco are non-issues at this scale: even 10 mV of
+#                   offset is 5% of the window.
+COMPARATOR = dict(
+    name="COMPARATOR_GENERIC", fp="",
+    ds="", mpn="",
+    desc="GENERIC comparator placeholder -- function only, no part "
+         "chosen. Requirement: single 3.3 V supply, PUSH-PULL "
+         "rail-to-rail output, mid-rail input common-mode, propagation "
+         "delay <=1 us. Pin numbers are placeholders and no footprint is "
+         "assigned.",
+    keywords="comparator generic placeholder zero-cross hysteresis",
+    left=[("IN+", "3", "input"), ("IN-", "2", "input")],
+    right=[("OUT", "1", "output")],
+    top=[("V+", "5", "power_in")],
+    bottom=[("V-", "4", "power_in")],
+    hw=10.16)
+
+
 def main():
     rows = list(csv.DictReader(open(PINS)))
     for r in rows:
@@ -460,7 +505,7 @@ def main():
     g = {}
     out.append(build_tps3850(g))
     icgeom["TPS3850G33"] = g
-    for part in (LM5164, TLV76733, TCAN1042, OPAMP):
+    for part in (LM5164, TLV76733, TCAN1042, OPAMP, COMPARATOR):
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g
@@ -474,7 +519,8 @@ def main():
     with open(ICPINS, "w") as f:
         json.dump(icgeom, f, indent=1, sort_keys=True)
     print(f"{OUT}: {total} pins in {len(units)} units, plus "
-          f"TPS3850G33, LM5164, TLV76733, TCAN1042HGV, OPAMP_GENERIC")
+          f"TPS3850G33, LM5164, TLV76733, TCAN1042HGV, OPAMP_GENERIC, "
+          f"COMPARATOR_GENERIC")
     print(f"{LAYOUT}: {len(layout)} pin positions")
     print(f"{ICPINS}: " + ", ".join(f"{k} {len(v)}p"
                                     for k, v in sorted(icgeom.items())))
