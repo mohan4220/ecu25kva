@@ -18,7 +18,7 @@ the specification's own register.
 | Unknowns closed | **4** |
 | Unknowns partly answered | **4** |
 | Unknowns still open | **9** |
-| Phase | **2** — schematic capture, 6 of 10 sheets drawn |
+| Phase | **2** — schematic capture, 7 of 10 sheets drawn |
 
 **All 24 blocks pass.** On 19 September it was 16, after a temperature-corner pass found
 six blocks that fail cold or hot and turned prose caveats into enforced checks. All six
@@ -267,7 +267,7 @@ contact-type confirmation, which gates nothing
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
 | 1.5 | Block-level simulation | **Done — 24 blocks, 24 passing** |
-| **2** | **KiCad hierarchical schematic capture** | **In progress — 6 of 10 sheets drawn** |
+| **2** | **KiCad hierarchical schematic capture** | **In progress — 7 of 10 sheets drawn** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
 | 4 | Firmware skeleton | Not started |
 
@@ -283,7 +283,7 @@ refuse to overwrite a sheet that has content, so Eeschema edits are safe against
 | `mcu` | **Drawn, netlist-checked** | `supervisor`, `mcu_pdn` |
 | `injector` | Created, empty | `boost_converter`, `injector_boost`, `injector_turnoff` |
 | `metering_egr` | **Half drawn** — metering unit done; EGR blocked on a rail rating | `metering_unit_pwm`, `egr_hbridge` |
-| `sensors_analog` | Created, empty | `sensor_ratiometric`, `sensor_differential`, `ntc_frontend`, `battery_sense` |
+| `sensors_analog` | **Drawn, netlist-checked** | `sensor_ratiometric`, `sensor_differential`, `ntc_frontend`, `battery_sense` |
 | `speed_inputs` | Created, empty | `vr_conditioner`, `cam_frontend` |
 | `discrete_io` | **Drawn, netlist-checked** | `discrete_input`, `trip_module_sense`, `relay_driver` |
 | `can` | **Drawn, netlist-checked** | `can_termination` |

@@ -357,6 +357,40 @@ TCAN1042 = dict(
     hw=12.7)
 
 
+# --- Generic single op-amp -------------------------------------------
+# NOT A PART. KiCad ships no generic op-amp symbol, and every specific
+# one in Amplifier_Operational carries a real pinout -- placing LM324
+# here would assert a part choice nobody has made.
+#
+# So this symbol carries FUNCTION ONLY. Its pin numbers are 1-5 and they
+# are placeholders: no footprint is assigned, and the sheet says so.
+# What IS specified, from sensor_differential.cir, is the requirement it
+# stands for:
+#
+#   Single 5 V supply, rail-to-rail input and output, and a difference
+#   network whose resistor RATIO matching gives at least 60 dB CMRR --
+#   the floor the block's own tolerance note tried and found the
+#   differential argument still holds at. The netlist models 80 dB and
+#   marks it INFERRED.
+#
+# 0.1% discrete resistors give roughly 48 dB, which does NOT clear that
+# floor. A matched network (ratio matching 0.05% or better), or a
+# dedicated difference amplifier with the network on-die, does.
+OPAMP = dict(
+    name="OPAMP_GENERIC", fp="",
+    ds="", mpn="",
+    desc="GENERIC op-amp placeholder -- function only, no part chosen. "
+         "Requirement: single 5 V supply, rail-to-rail in and out, "
+         "difference network matched for >=60 dB CMRR. Pin numbers are "
+         "placeholders and no footprint is assigned.",
+    keywords="opamp generic placeholder amplifier",
+    left=[("IN+", "3", "input"), ("IN-", "2", "input")],
+    right=[("OUT", "1", "output")],
+    top=[("V+", "5", "power_in")],
+    bottom=[("V-", "4", "power_in")],
+    hw=10.16)
+
+
 def main():
     rows = list(csv.DictReader(open(PINS)))
     for r in rows:
@@ -426,7 +460,7 @@ def main():
     g = {}
     out.append(build_tps3850(g))
     icgeom["TPS3850G33"] = g
-    for part in (LM5164, TLV76733, TCAN1042):
+    for part in (LM5164, TLV76733, TCAN1042, OPAMP):
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g
@@ -440,7 +474,7 @@ def main():
     with open(ICPINS, "w") as f:
         json.dump(icgeom, f, indent=1, sort_keys=True)
     print(f"{OUT}: {total} pins in {len(units)} units, plus "
-          f"TPS3850G33, LM5164, TLV76733, TCAN1042HGV")
+          f"TPS3850G33, LM5164, TLV76733, TCAN1042HGV, OPAMP_GENERIC")
     print(f"{LAYOUT}: {len(layout)} pin positions")
     print(f"{ICPINS}: " + ", ".join(f"{k} {len(v)}p"
                                     for k, v in sorted(icgeom.items())))
