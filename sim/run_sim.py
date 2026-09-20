@@ -316,6 +316,41 @@ def check_transient_clamp():
     c.that("  ... so the reverse-battery FET needs 100 V class, not 60",
            f"{vmax:.1f} V clamp -- reverse_battery.cir's 60 V figure is superseded",
            None, ok=True)
+
+    # ---- what this clamp level costs EVERY part on the battery rail ----
+    # Added 20 Sep 2026, while drawing the EGR driver. The rows above name
+    # one consequence -- the reverse-battery FET -- and that made the
+    # clamp read as a component-selection detail for one part. It is not.
+    # VBAT_PROT is the rail the EGR bridge, the injector high sides, the
+    # metering unit and the relay drivers all hang off, and this is the
+    # voltage every one of them sees.
+    #
+    # Two different worst cases, and they bite different parts:
+    #     40.0 V for 400 ms   ISO 7637-2 pulse 5b, the suppressed load
+    #                         dump. NOT clamped by this TVS, deliberately:
+    #                         the 43 V standoff exists so the part does
+    #                         not conduct during a normal dump.
+    #     73.3 V for ~50 us   pulse 2a, clamped here.
+    #
+    # An absolute maximum is absolute. A part rated 40 V is out of spec on
+    # both counts -- at the dump with zero margin, and at 2a by 1.8x.
+    DRIVER_RAIL_WORST = vmax
+    c.that("  ... EVERY part on VBAT_PROT must clear this, not just the FET",
+           DRIVER_RAIL_WORST, 73.3, tol=1.0, unit="V")
+    # The common integrated-automotive-driver class is 40 V absolute
+    # maximum (checked against TI DRV8873-Q1, SLVSDY7B sec.6.1: VM
+    # -0.3 to 40 V). This check exists so that fact is enforced rather
+    # than rediscovered by whoever draws the next driver sheet.
+    c.that("  ... so a 40 V-abs-max integrated driver is EXCLUDED from "
+           "this rail", DRIVER_RAIL_WORST / 40.0, 1.83, tol=0.1, unit="x")
+    c.that("  ... and the load dump alone already leaves it no margin",
+           40.0 / 40.0, 1.0, tol=0.01, unit="x")
+    c.that("  ... minimum class for anything battery-connected",
+           "80 V or better: above the 73.3 V pulse 2a clamp with margin. "
+           "60 V clears the 40 V dump but not 2a. This is why the injector "
+           "and EGR bridges go discrete -- integrated automotive H-bridges "
+           "and smart switches cap out at 40-45 V",
+           None, ok=DRIVER_RAIL_WORST < 80.0)
     settled = bat[t > 1.5e-3]
     c.that("recovers to nominal after pulse", float(settled.mean()), 12.98, tol=0.1,
            unit="V")
