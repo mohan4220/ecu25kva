@@ -1,0 +1,14 @@
+64d0c40ed27959c29a53cf599f8880bb3bfb0f2259b24cfeeb9717dd3ed782a4  refs/S32K148_IO_Signal_Description_Input_Multiplexing.xlsx
+4339261ebd1e69bc142eab0f905fc4f03bdee94df5066bf199056d3e6c518c85  S32K-RM.pdf
+
+Reference Manual PDF, Rev. 13 (04/2020), 14,294,076 bytes:
+  https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/S32K/32215/1/S32K-RM.pdf
+
+The PDF itself is not committed (14 MB). The workbook beside this file is
+attachment 8 of its 11 embedded files, extracted with:
+  pdfdetach -save 8 -o S32K148_IO.xlsx S32K-RM.pdf
+
+The workbook IS committed, because losing it is exactly what went wrong
+the first time: docs/pinmap.md cited it for every package pin number and
+reset-pull value in the design, and the file was not kept, so the claim
+chain could not be re-walked and the KiCad symbol could not be built.
