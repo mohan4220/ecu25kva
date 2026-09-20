@@ -69,6 +69,14 @@ BOOK = [
     ("04-spec", "superpowers/specs/2026-09-13-ecu-reconciled-spec-design.md",
      "Reconciled Specification",
      "Binding source of truth -- pin map, power, deviations, unknowns"),
+    # The two documents the schematic is actually drawn from. Neither was
+    # in the bible until 20 Sep 2026, which is how pinmap.md came to cite a
+    # source file nobody had kept: a reference that is not bound is a
+    # reference nobody re-reads.
+    ("04a-pinmap", "pinmap.md", "MCU Pin Assignment",
+     "S32K148 to the 94-way connector -- 37 signals, with package pins and reset state"),
+    ("04b-bom", "bom_requirements.md", "BOM Requirements",
+     "What the schematic has to buy, and the simulation block that says so"),
     ("05-engine", "research/01-engine-identity.md", "Memo 01 -- Engine Identity",
      "Which engine this actually is, established from five hardware constraints"),
     ("06-gcu", "research/02-kg640c-gcu.md", "Memo 02 -- KG640C Controller",
