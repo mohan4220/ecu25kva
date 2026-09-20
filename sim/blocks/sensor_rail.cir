@@ -68,9 +68,57 @@ Rlxb xb 0 100
 Rxc  railc xc {Rptc}
 Rlxc xc 0 100
 
+* ---- RESOLUTION: the specified PTC, networks D and E ----
+* Network C is a fail against a real requirement -- the polyfuse has
+* to be the thing that clears the fault, not the 5 V regulator's own
+* current limit -- so it is answered by specifying a larger device,
+* the same way can_termination answers its tempco corner by
+* specifying a tighter resistor.
+*
+* Requirement written into the BOM (docs/bom_requirements.md,
+* SENSOR-PTC): one resettable PTC per sensor group, hold current
+* >= 200 mA, R25 (initial cold resistance) 3.0 ohm nominal.
+*
+* Sizing, solved against network C's own ceiling rather than
+* guessed. The fault loop is Rsrc + Rptc + Rshort in series off the
+* 5 V rail, with the two healthy 100-ohm groups in parallel adding
+* about 50 mA:
+*     I < 3.0 A  requires  Rsrc + Rptc > 5/3 = 1.667 ohm
+*     Rsrc = 0.1, so the CORNER value of Rptc must exceed 1.557 ohm
+* The corner is R25 * 0.8 (cold, INFERRED, network C's own factor)
+* * 0.7 (-30% part spread, the TOLERANCE section's own factor) =
+* 0.56 * R25, so R25 > 2.78 ohm. 3.0 ohm is the next sensible round
+* value above that, and it is the number specified.
+*
+*     D  the specified part at its NOMINAL 3.0 ohm -- confirms the
+*        healthy-group floor and the >=0.3 A trip floor still hold
+*        once the PTC is bigger, which is the thing a larger series
+*        resistance could plausibly have broken.
+*     E  the specified part at the SAME stacked corner network C
+*        uses: 3.0 * 0.8 * 0.7 = 1.68 ohm.
+.param Rspec=3.0
+.param RspecCold=1.68
+V5D  rd 0 DC 5
+Rsd  rd raild 0.1
+Rda  raild da {Rspec}
+Rfd  da 0 10m
+Rdb  raild db {Rspec}
+Rldb db 0 100
+Rdc  raild dc {Rspec}
+Rldc dc 0 100
+
+V5E  re 0 DC 5
+Rse  re raile 0.1
+Rea  raile ea {RspecCold}
+Rfe  ea 0 10m
+Reb  raile eb {RspecCold}
+Rleb eb 0 100
+Rec  raile ec {RspecCold}
+Rlec ec 0 100
+
 .control
 op
-wrdata sensor_rail.dat v(raila) v(ab) v(railb) v(bb) i(V5A) v(xb) i(V5C)
+wrdata sensor_rail.dat v(raila) v(ab) v(railb) v(bb) i(V5A) v(xb) i(V5C) v(raild) v(db) i(V5D) v(eb) i(V5E)
 .endc
 
 .end

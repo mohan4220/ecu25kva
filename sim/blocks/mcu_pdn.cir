@@ -102,9 +102,68 @@ Cc3  n3 c3 1u
 Rc3  c3 c4 3m
 Lc3  c4 0  0.08n
 
+* ---- RESOLUTION: the specified bulk part, networks n4 and n5 ----
+* Network n3 is a fail against a derived target (100 mOhm = 50 mV
+* allowed ripple / 0.5 A transient step), not against a round
+* convention, so it is answered by specifying the part rather than by
+* widening the check.
+*
+* Requirement written into the BOM (docs/bom_requirements.md,
+* PDN-BULK): the 3V3_MCU bulk capacitor is a POLYMER aluminium
+* electrolytic (or polymer tantalum), 150 uF, specified by an ESR
+* BAND across the full -40/+125 C range -- 20 mOhm <= ESR <= 50 mOhm
+* -- not by a 25 C typical figure.
+*
+* A band, not a ceiling, and the n5 network below is why: at 20 mOhm
+* the peak climbs back to 92 mOhm, only 8 mOhm under the target,
+* because bulk ESR is the thing damping the regulator-against-bulk
+* resonance. A requirement written as "ESR <= 50 mOhm" would be
+* satisfied by a 5 mOhm part that fails this block. That is the trap
+* the two-sided check exists to catch.
+*
+* Why the part class changes rather than the value: n3's 4x cold-ESR
+* derate is a property of a WET aluminium/tantalum electrolytic, whose
+* electrolyte conductivity falls steeply as it freezes. A solid
+* polymer electrolyte has no such mechanism; its ESR is nearly flat
+* with temperature (class-typical 1.2-2x at -40 C, INFERRED -- no part
+* chosen, no datasheet retrieved, so this is a requirement to
+* purchase against, not a measured number). Specifying the COLD
+* number directly is what makes the requirement checkable at the point
+* where it failed: a supplier's 25 C ESR does not answer this block's
+* question, and asking for it is how the original 4x corner got in.
+*
+* Bounded from BOTH sides, because this block's own RESULT NOTE says
+* bulk ESR is what DAMPS the regulator-against-bulk resonance -- so
+* the fix for one end could plausibly break the other, and a
+* requirement that only states a maximum would not catch it:
+*     n4  Rb = 50 mOhm, the specified part at its cold-ESR LIMIT
+*     n5  Rb = 20 mOhm, the same part warm, at the low-ESR end a
+*         polymer part actually reaches -- the under-damped case
+.param RbSpecCold=50m
+.param RbSpecWarm=20m
+Iac4 n4 0 AC 1
+Rldo4 n4 l4 0.01
+Lldo4 l4 0 0.15u
+Cb4  n4 b5 150u
+Rb4  b5 b6 {RbSpecCold}
+Lb4  b6 0  2n
+Cc4  n4 c5 1u
+Rc4  c5 c6 3m
+Lc4  c6 0  0.08n
+
+Iac5 n5 0 AC 1
+Rldo5 n5 l5 0.01
+Lldo5 l5 0 0.15u
+Cb5  n5 b7 150u
+Rb5  b7 b8 {RbSpecWarm}
+Lb5  b8 0  2n
+Cc5  n5 c7 1u
+Rc5  c7 c8 3m
+Lc5  c8 0  0.08n
+
 .control
 ac dec 100 1k 100meg
-wrdata mcu_pdn.dat vm(n) vm(m) vm(n3)
+wrdata mcu_pdn.dat vm(n) vm(m) vm(n3) vm(n4) vm(n5)
 .endc
 
 .end

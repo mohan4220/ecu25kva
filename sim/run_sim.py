@@ -974,7 +974,8 @@ def check_buck_preregulator():
 def check_sensor_rail():
     c = Checks("sensor_rail -- 5V_SENSOR, one PTC per sensor group")
     d = sim("sensor_rail", {
-        "sensor_rail.dat": ["sweep", "raila", "ab", "railb", "bb", "isrc", "xb", "ic"],
+        "sensor_rail.dat": ["sweep", "raila", "ab", "railb", "bb", "isrc",
+                            "xb", "ic", "raild", "db", "id", "eb", "ie"],
     })["sensor_rail.dat"]
     raila, ab = float(d["raila"][0]), float(d["ab"][0])
     railb, bb = float(d["railb"][0]), float(d["bb"][0])
@@ -1025,15 +1026,50 @@ def check_sensor_rail():
     # own regulator), so a fail here is not manufactured -- it is the same
     # 3.0 A ceiling as the line above, just no longer met once the PTC sits
     # at a plausible worst case instead of its 27 C nominal value.
+    # EVIDENCE: this is the corner that produced the requirement. Pinned
+    # to its own produced value with a real tolerance rather than ok=True,
+    # so drift in the network or the sweep fails this row and says so.
     ifault_corner = abs(float(d["ic"][0]))
-    c.that("  ... stacked -40C-cold-ambient + -30%-tolerance PTC corner",
-           ifault_corner, 3.0, tol=None, ok=ifault_corner < 3.0, unit="A")
+    c.that("  ... evidence: stacked -40C-cold + -30%-tolerance corner on "
+           "the ORIGINAL 2.0 ohm PTC -- the corner that forced the spec",
+           ifault_corner, 4.148, tol=0.05, unit="A")
+    c.that("  ... so a 2.0 ohm PTC overshoots the 3.0 A ceiling by",
+           ifault_corner - 3.0, 1.148, tol=0.05, unit="A")
+
+    # RESOLUTION: PTC specified at R25 = 3.0 ohm (networks D and E).
+    # Two things have to hold, and a larger series resistance could
+    # plausibly have broken either one, so both are checked rather than
+    # only the corner that was failing.
+    ifault_spec = abs(float(d["ie"][0]))
+    c.that("RESOLVED: specified 3.0 ohm PTC at the SAME stacked corner",
+           ifault_spec, 3.0, tol=None, ok=ifault_spec < 3.0, unit="A")
+    c.that("  ... margin under the 3.0 A ceiling", 3.0 - ifault_spec, 0.1,
+           tol=None, ok=ifault_spec < 3.0, unit="A")
+
+    # The larger PTC costs healthy-group headroom during a fault (more
+    # series drop in the faulted branch means a lower rail), so the 4.5 V
+    # floor is re-checked against the specified part, not assumed to carry
+    # over from the 2.0 ohm case.
+    railD, dbv = float(d["raild"][0]), float(d["db"][0])
+    c.that("  ... healthy group still above 4.5 V with the bigger PTC fitted",
+           dbv, 4.5, tol=None, ok=dbv > 4.5, unit="V")
+    c.that("  ... and the rail itself", railD, 4.5, tol=None, ok=railD > 4.5,
+           unit="V")
+
+    # And it must not go so far the other way that the polyfuse no longer
+    # sees a current it can trip on -- the same 0.3 A floor the nominal
+    # check above uses.
+    ifault_nom = abs(float(d["id"][0]))
+    c.that("  ... fault current at the specified part's nominal, still "
+           "inside the 0.3-3.0 A trip window", ifault_nom, 1.6, tol=None,
+           ok=0.3 < ifault_nom < 3.0, unit="A")
     return c
 
 
 def check_mcu_pdn():
     c = Checks("mcu_pdn -- 3V3_MCU decoupling impedance, 100 mOhm target")
-    d = sim("mcu_pdn", {"mcu_pdn.dat": ["frequency", "z10", "z1", "z10c"]})["mcu_pdn.dat"]
+    d = sim("mcu_pdn", {"mcu_pdn.dat": ["frequency", "z10", "z1", "z10c",
+                                        "z10s_cold", "z10s_warm"]})["mcu_pdn.dat"]
     f, z10, z1 = d["frequency"], d["z10"], d["z1"]
 
     # Driven by 1 A, so node voltage reads directly as ohms. The sweep stops
@@ -1090,10 +1126,33 @@ def check_mcu_pdn():
     # 100 mOhm target itself is derived (50 mV allowed ripple / 0.5 A
     # transient step), not a round convention, so this is a real fail, not
     # a manufactured one against an arbitrary gate.
+    # EVIDENCE: the corner that produced the requirement. Pinned to its
+    # own produced value with a real tolerance, not ok=True.
     z10c = d["z10c"]
     peakc = float(z10c.max())
-    c.that("  ... peak at a plausible cold bulk-ESR corner (Rb=200 mOhm, 4x)",
-           peakc * 1e3, 100.0, tol=None, ok=peakc < 0.1, unit="mOhm")
+    c.that("  ... evidence: peak with a WET electrolytic at its cold-ESR "
+           "corner (Rb=200 mOhm, 4x) -- the corner that forced the spec",
+           peakc * 1e3, 196.7, tol=2.0, unit="mOhm")
+    c.that("  ... so a wet bulk part misses the 100 mOhm target by",
+           peakc * 1e3 - 100.0, 96.7, tol=2.0, unit="mOhm")
+
+    # RESOLUTION: polymer bulk, specified by COLD ESR (<= 50 mOhm at
+    # -40 C). Bounded from both sides -- this block's own finding is that
+    # bulk ESR DAMPS the regulator-against-bulk resonance, so a
+    # requirement stated only as a maximum could be met by a part whose
+    # low ESR re-opens that peak. Both ends are therefore checked against
+    # the SAME 100 mOhm target the nominal check uses.
+    pk_cold = float(d["z10s_cold"].max())
+    pk_warm = float(d["z10s_warm"].max())
+    c.that("RESOLVED: peak with the specified polymer bulk at its cold-ESR "
+           "limit (Rb=50 mOhm)", pk_cold * 1e3, 100.0, tol=None,
+           ok=pk_cold < 0.1, unit="mOhm")
+    c.that("  ... and at the low-ESR end the same part reaches warm "
+           "(Rb=20 mOhm) -- the under-damped side", pk_warm * 1e3, 100.0,
+           tol=None, ok=pk_warm < 0.1, unit="mOhm")
+    c.that("  ... worst of the two ends, margin under target",
+           100.0 - max(pk_cold, pk_warm) * 1e3, 10.0, tol=None,
+           ok=max(pk_cold, pk_warm) < 0.1, unit="mOhm")
     return c
 
 
