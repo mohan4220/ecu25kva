@@ -1,0 +1,285 @@
+#!/usr/bin/env python3
+"""Minimal KiCad 7 schematic writer.
+
+Enough to place symbols, wire them, label nets and expose hierarchical
+pins -- which is all the ECU sheets need. Not a general KiCad library.
+
+WHY GENERATE SCHEMATICS AT ALL. The component values on these sheets are
+not free choices; almost every one traces to a check in sim/blocks/ or a
+tag in docs/bom_requirements.md. A hand-drawn sheet holds those values as
+text nobody re-derives, and they drift the moment a simulation moves --
+which has already happened three times in this project with the
+reverse-battery FET's voltage class alone. Generated sheets carry the
+provenance in the part's own fields, so a value and the reason for it
+travel together.
+
+Eeschema can still edit these freely. Generation is the starting point,
+not a lock: hw/gen_project.py refuses to overwrite a sheet that has
+content, and the same rule applies here.
+
+Symbol definitions are copied out of the installed KiCad libraries into
+each sheet's own (lib_symbols) block, which is what KiCad expects -- a
+schematic caches every symbol it uses rather than referencing the library
+at open time.
+"""
+import os
+import re
+import uuid
+
+KICAD_SYMS = "/usr/share/kicad/symbols"
+LOCAL_SYMS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib")
+
+_CACHE = {}
+
+
+def _lib_path(lib):
+    p = os.path.join(LOCAL_SYMS, f"{lib}.kicad_sym")
+    return p if os.path.exists(p) else os.path.join(KICAD_SYMS,
+                                                    f"{lib}.kicad_sym")
+
+
+def _extract(text, start):
+    """Return the balanced s-expression beginning at index `start`.
+
+    Quote-aware: a parenthesis inside a string is not a delimiter, and a
+    backslash escapes the next character. Without that, any symbol whose
+    description contains a bracket truncates silently.
+    """
+    depth, i, in_str = 0, start, False
+    while i < len(text):
+        ch = text[i]
+        if in_str:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+        i += 1
+    raise ValueError("unbalanced s-expression")
+
+
+def symbol_def(libid):
+    """Pull one symbol out of its library, renamed to its full LIB:NAME id."""
+    if libid in _CACHE:
+        return _CACHE[libid]
+    lib, name = libid.split(":", 1)
+    path = _lib_path(lib)
+    with open(path) as f:
+        text = f.read()
+    m = re.search(r'^  \(symbol "' + re.escape(name) + r'"[ \n]', text,
+                  re.M)
+    if not m:
+        raise KeyError(f"{libid} not found in {path}")
+    body = _extract(text, m.start() + 2)
+    # Inside a schematic the symbol is keyed by "Lib:Name", and its child
+    # units keep their own bare-name prefix.
+    body = body.replace(f'(symbol "{name}"', f'(symbol "{libid}"', 1)
+    _CACHE[libid] = body
+    return body
+
+
+def pin_xy(lx, ly, x, y, rot):
+    """Where a symbol pin actually lands on the page.
+
+    Symbol-local coordinates are y-up; the schematic page is y-down.
+    Rotation is counter-clockwise IN THE SYMBOL'S OWN y-up frame, so:
+
+        rx = lx*cos(t) - ly*sin(t)        (rotate in y-up)
+        ry = lx*sin(t) + ly*cos(t)
+        px = X + rx,  py = Y - ry         (then flip to page y-down)
+
+    Derived rather than recalled, because the first version of this
+    function had 90 and 270 the other way round and nothing complained:
+    the parts still looked placed, the wires still met their endpoints,
+    and the only symptom was in the exported netlist, where the negative
+    clamp Schottky came out with its CATHODE on ground -- a diode
+    connected backwards on a page that plots correctly.
+    """
+    rot %= 360
+    if rot == 0:
+        return (x + lx, y - ly)
+    if rot == 90:
+        return (x - ly, y - lx)
+    if rot == 180:
+        return (x - lx, y + ly)
+    if rot == 270:
+        return (x + ly, y + lx)
+    raise ValueError(f"unsupported rotation {rot}")
+
+
+# Symbol-local pin coordinates, read out of the installed libraries
+# rather than remembered. Checked by hw/gen_sheet_power_input.py's own
+# self-test against schlib.symbol_def().
+PINS = {
+    "Device:R": {"1": (0, 3.81), "2": (0, -3.81)},
+    "Device:C": {"1": (0, 3.81), "2": (0, -3.81)},
+    "Device:L": {"1": (0, 3.81), "2": (0, -3.81)},
+    "Device:Fuse": {"1": (0, 3.81), "2": (0, -3.81)},
+    "Device:Polyfuse": {"1": (0, 3.81), "2": (0, -3.81)},
+    "Device:C_Polarized": {"1": (0, 3.81), "2": (0, -3.81)},
+    # Keyed by pin NUMBER, not name -- a diode's pins are numbered 1/2
+    # and named K/A, and keying on the name silently finds nothing.
+    "Device:D_TVS": {"1": (-3.81, 0), "2": (3.81, 0)},        # 1=A1 2=A2
+    "Device:D_Schottky": {"1": (-3.81, 0), "2": (3.81, 0)},   # 1=K  2=A
+    "Device:Q_NMOS_GSD": {"1": (-5.08, 0),                    # G
+                          "2": (2.54, -5.08),                 # S
+                          "3": (2.54, 5.08)},                 # D
+}
+
+
+def verify_pins():
+    """Check PINS against the installed libraries. Called by every sheet
+    generator before it draws anything -- a wrong offset here produces
+    wires that look connected and are not."""
+    bad = []
+    for libid, want in PINS.items():
+        body = symbol_def(libid)
+        got = {}
+        for m in re.finditer(
+                r'\(pin \w+ \w+ \(at ([-\d.]+) ([-\d.]+) (\d+)\) '
+                r'\(length ([\d.]+)\)\s*\n\s*\(name "[^"]*"[^\n]*\n'
+                r'\s*\(number "([^"]+)"', body):
+            got[m.group(5)] = (float(m.group(1)), float(m.group(2)))
+        for num, xy in want.items():
+            if got.get(num) != xy:
+                bad.append((libid, num, xy, got.get(num)))
+    if bad:
+        raise SystemExit(f"PINS disagrees with the installed library: {bad}")
+    return len(PINS)
+
+
+def _u():
+    return str(uuid.uuid4())
+
+
+def _eff(size=1.27, justify=None, hide=False):
+    j = f" (justify {justify})" if justify else ""
+    h = " hide" if hide else ""
+    return f"(effects (font (size {size} {size})){j}{h})"
+
+
+class Sheet:
+    """One .kicad_sch page."""
+
+    def __init__(self, title, paper="A3", comments=()):
+        self.title = title
+        self.paper = paper
+        self.comments = list(comments)
+        self.items = []
+        self.libs = {}
+        self.refs = {}
+        self.instances = []
+
+    # -- placement ---------------------------------------------------
+    def place(self, libid, ref_prefix, x, y, value, rot=0, unit=1,
+              fields=None, mirror=None, footprint="", datasheet="~"):
+        """Drop a symbol. `fields` become extra properties on the part --
+        this is where a value's provenance goes (which .cir file, which
+        BOM tag), so it travels with the schematic.
+
+        Property ids 0-3 are RESERVED by KiCad for Reference, Value,
+        Footprint and Datasheet, in that order. Custom fields therefore
+        start at 4. Starting them at 2 does not error -- it silently
+        renames the first custom field to "Footprint" and the second to
+        "Datasheet", which is how a netlist export came out with
+        `(footprint "emi_filter.cir C1 -- ESR 5 mOhm...")`.
+        """
+        self.libs[libid] = symbol_def(libid)
+        n = self.refs.get(ref_prefix, 0) + 1
+        self.refs[ref_prefix] = n
+        ref = f"{ref_prefix}{n}"
+        uid = _u()
+        mir = f"\n    (mirror {mirror})" if mirror else ""
+        # A power symbol's reference (#PWR01, ...) is noise on the page --
+        # KiCad hides it by convention and so does this.
+        hide_ref = ref_prefix.startswith("#")
+        props = [
+            f'    (property "Reference" "{ref}" (id 0) (at {x} {y - 5.08} 0)\n'
+            f'      {_eff(hide=hide_ref)}\n    )',
+            f'    (property "Value" "{value}" (id 1) (at {x} {y + 5.08} 0)\n'
+            f'      {_eff()}\n    )',
+            f'    (property "Footprint" "{footprint}" (id 2) (at {x} {y} 0)\n'
+            f'      {_eff(hide=True)}\n    )',
+            f'    (property "Datasheet" "{datasheet}" (id 3) (at {x} {y} 0)\n'
+            f'      {_eff(hide=True)}\n    )',
+        ]
+        idx = 4
+        for k, v in (fields or {}).items():
+            props.append(
+                f'    (property "{k}" "{v}" (id {idx}) (at {x} {y} 0)\n'
+                f'      {_eff(hide=True)}\n    )')
+            idx += 1
+        self.items.append(
+            f'  (symbol (lib_id "{libid}") (at {x} {y} {rot}) '
+            f'(unit {unit}){mir}\n'
+            f'    (in_bom yes) (on_board yes) (fields_autoplaced)\n'
+            f'    (uuid {uid})\n' + "\n".join(props) + "\n  )")
+        self.instances.append((uid, ref, value, unit))
+        return ref
+
+    # -- connectivity ------------------------------------------------
+    def wire(self, x1, y1, x2, y2):
+        self.items.append(
+            f'  (wire (pts (xy {x1} {y1}) (xy {x2} {y2}))\n'
+            f'    (stroke (width 0) (type default))\n    (uuid {_u()})\n  )')
+
+    def junction(self, x, y):
+        self.items.append(
+            f'  (junction (at {x} {y}) (diameter 0) (color 0 0 0 0)\n'
+            f'    (uuid {_u()})\n  )')
+
+    def label(self, text, x, y, rot=0):
+        self.items.append(
+            f'  (label "{text}" (at {x} {y} {rot})\n'
+            f'    {_eff(justify="left bottom")}\n    (uuid {_u()})\n  )')
+
+    def hlabel(self, text, x, y, shape="passive", rot=0):
+        self.items.append(
+            f'  (hierarchical_label "{text}" (shape {shape}) '
+            f'(at {x} {y} {rot})\n'
+            f'    {_eff(justify="left")}\n    (uuid {_u()})\n  )')
+
+    def gnd(self, x, y):
+        self.place("power:GND", "#PWR", x, y, "GND")
+
+    def text(self, body, x, y, size=1.27):
+        self.items.append(
+            f'  (text "{body}" (at {x} {y} 0)\n'
+            f'    {_eff(size=size, justify="left")}\n    (uuid {_u()})\n  )')
+
+    # -- output ------------------------------------------------------
+    def render(self):
+        out = ['(kicad_sch (version 20230121) (generator ecu25kva_gen)',
+               f'  (uuid {_u()})',
+               f'  (paper "{self.paper}")',
+               '  (title_block',
+               f'    (title "{self.title}")',
+               '    (company "ecu25kva")']
+        for i, c in enumerate(self.comments[:4], start=1):
+            out.append(f'    (comment {i} "{c}")')
+        out.append('  )')
+        out.append('  (lib_symbols')
+        for _, body in sorted(self.libs.items()):
+            out.append("\n".join("  " + ln for ln in body.splitlines()))
+        out.append('  )')
+        out.extend(self.items)
+        out.append('  (sheet_instances')
+        out.append('    (path "/" (page "1"))')
+        out.append('  )')
+        out.append(')')
+        return "\n".join(out) + "\n"
+
+    def write(self, path, force=False):
+        if os.path.exists(path) and os.path.getsize(path) > 400 and not force:
+            return f"kept (has content): {path}"
+        with open(path, "w") as f:
+            f.write(self.render())
+        return f"wrote: {path}"
