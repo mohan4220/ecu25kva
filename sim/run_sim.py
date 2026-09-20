@@ -741,7 +741,7 @@ def check_egr_hbridge():
     c = Checks("egr_hbridge -- pins 59/81, H-bridge + position feedback on pin 37")
     d = sim("egr_hbridge", {
         "egr_kill.dat": ["t", "g_egr", "g_egr_adv"],
-        "egr_dc.dat": ["sweep", "i_stall", "i_run", "i_coast", "i_shoot"],
+        "egr_dc.dat": ["sweep", "i_stall", "i_run", "i_coast", "i_shoot", "i_dec"],
         "egr_recirc.dat": ["time", "ma5", "mb5", "ma6", "mb6", "ibat5"],
     })
     Vgsth = 1.0  # same INFERRED figure supervisor.cir uses -- see this netlist's header.
@@ -834,14 +834,30 @@ def check_egr_hbridge():
     # This is a real fault state with nothing on the board preventing it, so it
     # is a failing claim, not an evidence row. It clears when the driver's own
     # decode logic is specified -- see the netlist header.
+    # EVIDENCE, not a live gate, as of 20 Sep 2026. This is the REJECTED
+    # arrangement -- two logic lines wired straight to two diagonal switch
+    # pairs -- kept because it is the reason spec sec.4 requires a decoded
+    # driver. Pinned with a tolerance so drift fails; it is not ok=True.
+    # The live claim is the decoded row below.
     i_shoot = abs(float(dd["i_shoot"][0]))
-    c.that("shoot-through: rail current with IN1=IN2 asserted", i_shoot, 1.0,
-           tol=None, ok=i_shoot < 1.0, unit="A")
+    c.that("rejected naive wiring: rail current with IN1=IN2 asserted",
+           i_shoot, 270.0, tol=15.0, unit="A")
     # Hand check, to catch the sim disagreeing with the topology: each leg is
     # two SWH in series from rail to ground, Ron 0.05 each, so 13.5/0.1 = 135 A
     # per leg and 270 A for the two legs together.
-    c.that("  ... and it matches the two-legs-of-2x50mOhm hand figure",
+    c.that("  ... matching the two-legs-of-2x50mOhm hand figure",
            i_shoot, 270.0, tol=15.0, unit="A")
+    # The fix, demonstrated rather than asserted: the same bridge driven
+    # through a decoded DIR/PWM interface, with BOTH inputs high -- the
+    # combination that shorts the naive arrangement. Under decode the
+    # fault state cannot be expressed, so the current is the motor's, not
+    # a short's.
+    i_dec = abs(float(dd["i_dec"][0]))
+    c.that("ADOPTED: decoded DIR/PWM driver, both inputs asserted",
+           i_dec, 5.0, tol=None, ok=i_dec < 5.0, unit="A")
+    c.that("  ... so decode removes the fault state entirely",
+           f"{i_shoot:.0f} A naive vs {i_dec:.2f} A decoded -- "
+           f"{i_shoot/max(i_dec,1e-9):.0f}x", None, ok=i_dec < 5.0)
 
     return c
 

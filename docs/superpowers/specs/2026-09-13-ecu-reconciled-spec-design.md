@@ -652,7 +652,22 @@ covered the *injectors* and explicitly did not address EGR. If the driver is dis
 the interlock has to be built, and **a per-leg dead time is not sufficient on its own**:
 this fault is a logic state, not a timing overlap.
 
-The block fails this check until a driver with that decode is specified.
+**RESOLVED 20 Sep 2026.** The same bridge driven through a decoded DIR/PWM interface,
+with **both** inputs asserted — the combination that shorts the naive arrangement — draws
+**4.35 A**, which is the motor's own stall current, not a short. 270 A against 4.35 A.
+The fault state does not exist under decode; it is not merely made less likely.
+
+`egr_hbridge.cir` now simulates both, and the naive wiring is kept as **evidence of why
+the requirement exists** rather than as a live failure — the same treatment
+`battery_sense.cir` gives the divider it rejected.
+
+**What to draw:** an integrated H-bridge with a decoded DIR/PWM (or equivalent
+non-shoot-through) input interface, current limiting, and headroom over the actuator's
+stall. `egr_hbridge.cir` puts stall at **2.6–6.4 A** across a plausible armature
+resistance range, with no actuator chosen — so specify a part with comfortable margin
+over 6.4 A and confirm against the actuator once U8-class information arrives. Candidate
+parts are not named here: none has been checked against a retrieved datasheet, and this
+project's rule is that an unread figure does not become a design number.
 
 #### Driver architecture — DECIDED 19 Sep 2026, research memo 12
 

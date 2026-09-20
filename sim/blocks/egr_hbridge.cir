@@ -251,9 +251,45 @@ Rmt mat mmt 3
 Lmt mmt mvt 5m
 Vembt mvt mbt DC 0
 
+* ---- DECODED DRIVER: the fix, so it is demonstrated and not asserted ----
+* Added 20 Sep 2026. The shoot-through above is a property of wiring two
+* logic lines straight to two diagonal switch pairs. An integrated driver
+* does not expose that: it takes DIR and PWM, and decodes internally so
+* that no input combination can turn on both switches of one leg.
+*
+* Modelled here the way such a part behaves -- PWM gates the bridge on or
+* off, DIR selects which diagonal -- rather than as a specific part, since
+* the part is a requirement in spec sec.4 and not yet chosen. The point of
+* this network is that the fault state STOPS EXISTING under decode, which
+* is a claim about the topology, not about a vendor.
+*
+* Worst case tried: PWM and DIR BOTH high, the combination that shorts the
+* naive arrangement.
+Vbatt_dec dsrc 0 DC 13.5
+Vamm_dec  dsrc bdec DC 0
+Vpwm  pwm 0 DC 5
+Vdir  dir 0 DC 5
+* decode: leg A high = PWM AND DIR ; leg A low = PWM AND NOT DIR
+Bah ah 0 V = (v(pwm) > 2.5 && v(dir) > 2.5) ? 5 : 0
+Bal al 0 V = (v(pwm) > 2.5 && v(dir) < 2.5) ? 5 : 0
+Bbh bh 0 V = (v(pwm) > 2.5 && v(dir) < 2.5) ? 5 : 0
+Bbl bl 0 V = (v(pwm) > 2.5 && v(dir) > 2.5) ? 5 : 0
+S1d bdec mad ah 0 SWH
+S2d mad  0   al 0 SWH
+S3d bdec mbd bh 0 SWH
+S4d mbd  0   bl 0 SWH
+D1d mad bdec DBODY
+D2d 0   mad  DBODY
+D3d mbd bdec DBODY
+D4d 0   mbd  DBODY
+Rmd mad mmd 3
+Lmd mmd mvd 5m
+Vembd mvd mbd DC 0
+
+
 .control
 op
-wrdata egr_dc.dat i(Vbats) i(Vbatr) i(Vbatc) i(Vamm_st)
+wrdata egr_dc.dat i(Vbats) i(Vbatr) i(Vbatc) i(Vamm_st) i(Vamm_dec)
 .endc
 
 * ============================================================
