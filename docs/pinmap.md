@@ -131,7 +131,34 @@ connector pins is accounted for, not silently dropped.
 | 20 | Audio abort (active-high) | 47k/68k bias + 3.0V zener clamp | `PTD11` | GPIO input | Hi-Z, no pull | |
 | 24 | Override SS (active-high) | Same clamp front-end | `PTD12` | GPIO input | Hi-Z, no pull | |
 | 71 | Ignition (active-high) | Same clamp front-end | `PTD16` | GPIO input | Hi-Z, no pull | |
-| — | Trip-module sense (new) | Not yet designed — spec §3, status.md §2 | `PTD6` | GPIO input | Hi-Z, no pull | New connector position, not in the OEM harness. Placeholder pin only — front-end is undesigned |
+| — | Trip-module sense (new) | `trip_module_sense.cir` — 47k/68k/220nF/3.0 V, same chain as the rows above | `PTB0` | **ADC0_SE4** | Hi-Z, no pull | **CORRECTED 20 Sep 2026, during schematic capture — was `PTD6` GPIO.** See below |
+
+**CORRECTION, 20 September 2026 — the trip sense needs an ADC, not a GPIO.**
+
+This row originally read `PTD6`, GPIO input, "placeholder pin only — front-end is
+undesigned". The front-end has since been designed, and designing it invalidated the pin
+class. `sim/blocks/trip_module_sense.cir` builds a **three-state supervised loop** and
+checks all three bands with real margin:
+
+| State | Node voltage, swept 6–40 V |
+|---|---|
+| healthy — contact closed, bleed resistor shorted | 2.863 – 2.954 V |
+| tripped — contact open, 1.2 MΩ bleed in circuit | 0.310 – 2.068 V |
+| wire fault — nothing reaches the divider | 0.000 V |
+
+**A GPIO reads two states.** It separates healthy from not-healthy and nothing else,
+which throws away exactly the distinction the bleed resistor exists to create. A
+supervised loop that cannot tell a trip from a cut wire is an unsupervised loop with
+extra parts in it.
+
+`PTD6` is not ADC-capable — checked against `refs/s32k148-144lqfp-altfn.csv`, and neither
+is any other pin in §1.4, which is correct for the channels there and wrong for this one.
+The channel moves to **`PTB0` (ADC0_SE4 / ADC1_SE14)**: free, bonded out on the 144-LQFP
+at pin 78, `PE=0 / PS=0` at reset. `PTD6` returns to the spare pool.
+
+Committed count is unchanged at 39; the spare GPIO count is unchanged at 89.
+
+---
 
 ### 1.5 Outputs — the six gate pins are in §2
 

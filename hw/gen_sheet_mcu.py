@@ -63,7 +63,10 @@ NETS = {
     # --- discrete in ---
     "PTD5":  ("SW_COOLANT", "input"),     "PTD7":  ("SW_DROOP", "input"),
     "PTD11": ("IN_AUDIO_ABORT", "input"), "PTD12": ("IN_OVERRIDE_SS", "input"),
-    "PTD16": ("IN_IGNITION", "input"),    "PTD6":  ("TRIP_SENSE", "input"),
+    "PTD16": ("IN_IGNITION", "input"),
+    # Trip sense moved PTD6 -> PTB0 on 20 Sep 2026: the loop is
+    # three-state and a GPIO reads two. See pinmap.md sec.1.4.
+    "PTB0":  ("TRIP_SENSE", "input"),
     # --- discrete out ---
     "PTD13": ("RLY_MAIN", "output"),      "PTD14": ("RLY_BUZZER", "output"),
     # --- CAN ---

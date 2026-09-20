@@ -18,7 +18,7 @@ the specification's own register.
 | Unknowns closed | **4** |
 | Unknowns partly answered | **4** |
 | Unknowns still open | **9** |
-| Phase | **2** — schematic capture, 3 of 10 sheets drawn |
+| Phase | **2** — schematic capture, 6 of 10 sheets drawn |
 
 **All 24 blocks pass.** On 19 September it was 16, after a temperature-corner pass found
 six blocks that fail cold or hot and turned prose caveats into enforced checks. All six
@@ -267,7 +267,7 @@ contact-type confirmation, which gates nothing
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
 | 1.5 | Block-level simulation | **Done — 24 blocks, 24 passing** |
-| **2** | **KiCad hierarchical schematic capture** | **In progress — 3 of 10 sheets drawn** |
+| **2** | **KiCad hierarchical schematic capture** | **In progress — 6 of 10 sheets drawn** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
 | 4 | Firmware skeleton | Not started |
 
@@ -282,11 +282,11 @@ refuse to overwrite a sheet that has content, so Eeschema edits are safe against
 | `rails` | **Drawn, netlist-checked** | `buck_preregulator`, `mcu_pdn`, `sensor_rail` |
 | `mcu` | **Drawn, netlist-checked** | `supervisor`, `mcu_pdn` |
 | `injector` | Created, empty | `boost_converter`, `injector_boost`, `injector_turnoff` |
-| `metering_egr` | Created, empty | `metering_unit_pwm`, `egr_hbridge` |
+| `metering_egr` | **Half drawn** — metering unit done; EGR blocked on a rail rating | `metering_unit_pwm`, `egr_hbridge` |
 | `sensors_analog` | Created, empty | `sensor_ratiometric`, `sensor_differential`, `ntc_frontend`, `battery_sense` |
 | `speed_inputs` | Created, empty | `vr_conditioner`, `cam_frontend` |
-| `discrete_io` | Created, empty | `discrete_input`, `trip_module_sense`, `relay_driver` |
-| `can` | Created, empty | `can_termination` |
+| `discrete_io` | **Drawn, netlist-checked** | `discrete_input`, `trip_module_sense`, `relay_driver` |
+| `can` | **Drawn, netlist-checked** | `can_termination` |
 | `connector` | Created, empty | — |
 
 **The S32K148 symbol is generated from NXP's own pin table, and no pin number is retyped
@@ -333,6 +333,30 @@ sheet, where the input capacitor, the UVLO divider and the RON resistor
 all tapped the middle of one wire and all three came back unconnected.
 `schlib.Rail` now emits one segment per interval and is the only thing
 allowed to draw a multi-tap rail.
+
+**Drawing the sheets is finding things nothing else was going to find.**
+Three so far, all of the same shape — a document and an executable file
+disagreeing, with nothing that compares them:
+
+- **No watchdog pin.** The pin map assigned 37 signals and none serviced
+  the external watchdog memo 11's supervisor topology requires. A window
+  watchdog nobody feeds resets the board on a timer. `PTE0`/`PTE1` added.
+- **The buck was a 60 V part on a 73.3 V rail.** `transient_clamp.cir`
+  had carried a *passing* check saying 60 V-class parts were no longer
+  viable for days, while memo 07's BOM still named one.
+- **The trip sense was a GPIO on a three-state loop.**
+  `trip_module_sense.cir` designs and checks three bands with real
+  margin; a GPIO reads two, which discards exactly the distinction the
+  bleed resistor exists to create. Moved `PTD6` → `PTB0` (ADC0_SE4).
+
+**The battery rail's rating is now enforced, not narrated.** VBAT_PROT
+reaches 40.0 V for 400 ms on a load dump and 73.3 V for ~50 µs on pulse
+2a, and `transient_clamp.cir` checks what that excludes: a 40 V-abs-max
+integrated driver by 1.8×, with the dump alone leaving it no margin. The
+practical consequence is that integrated automotive H-bridges and smart
+switches — a 40–45 V class — are excluded from everything
+battery-connected here, which is what blocked the EGR half of
+`metering_egr`.
 
 **What ends phase 2:** the nine remaining sheets, and the two gates currently left
 undriven on `power_input` (§6).

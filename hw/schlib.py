@@ -128,6 +128,7 @@ PINS = {
     # Keyed by pin NUMBER, not name -- a diode's pins are numbered 1/2
     # and named K/A, and keying on the name silently finds nothing.
     "Device:D": {"1": (-3.81, 0), "2": (3.81, 0)},            # 1=K  2=A
+    "Device:D_Zener": {"1": (-3.81, 0), "2": (3.81, 0)},      # 1=K  2=A
     "Device:D_TVS": {"1": (-3.81, 0), "2": (3.81, 0)},        # 1=A1 2=A2
     "Device:D_Schottky": {"1": (-3.81, 0), "2": (3.81, 0)},   # 1=K  2=A
     "Device:Q_NMOS_GSD": {"1": (-5.08, 0),                    # G
