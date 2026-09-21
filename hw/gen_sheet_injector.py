@@ -16,22 +16,27 @@ are wiring questions and a netlist is where wiring gets decided.
   WHERE THE HOLD CURRENT COMES FROM. boost_converter.cir measured that
   supplying hold from the boost rail costs 28x the peak phase's charge
   and collapses the rail, so hold has to come from the battery -- but it
-  did not say through what. It is a DIODE-OR, not a second switched
-  rail: D2/D4 from VBAT_PROT to each bank node, anode on the battery.
-  During the peak phase the bank sits near 100 V and they are reverse
-  biased; when the high-side FET stops conducting, the coil pulls the
-  bank node down and they supply it at 13.5 V. That works with the ONE
-  control pin per bank the pin map allocates (PTC0/PTC1), with no extra
-  MCU pin and no sequencing logic.
+  did not say through what. TWO HIGH-SIDE SWITCHES PER BANK onto a
+  common node: one from the boost rail for the peak phase, one from the
+  battery for hold, plus D_fw from GROUND to that node. Hold chopping
+  happens on the HIGH side and the coil freewheels through D_fw, which
+  is exactly the circuit injector_turnoff.cir models and spends a
+  paragraph of its header justifying.
 
-  This also settles a diode injector_turnoff.cir had to invent. Its
-  header explains at length why node "hi" needs a path from ground when
-  both switches open -- D_fw, which it calls "standard supporting
-  infrastructure". With the battery diode-OR drawn, that path already
-  exists and returns to 13.5 V instead of 0 V, so the same part does
-  both jobs. The cost is honest: the turn-off clamp is then about
-  86.5 V rather than the bare 100 V the block modelled, so turn-off
-  takes roughly 41.6 us instead of 34 us.
+  THAT IS A CORRECTION, MADE 21 SEPTEMBER 2026. The first version of
+  this sheet used a plain diode-OR from VBAT_PROT to the bank node and
+  chopped the LOW side for hold, on the argument that it needed no extra
+  MCU pin. It is wrong three ways, and the third is what found it --
+  trying to choose a gate driver for it. See high_side()'s own docstring
+  for all three. The short version: a bank node held at 12.8 V by a
+  diode cannot be chopped for hold, leaves connector pins 03 and 05
+  permanently live through that diode, and never swings low enough for a
+  bootstrap capacitor to charge.
+
+  IT COSTS TWO MCU PINS, PTB5 and PTA17, both FTM0 channels like the
+  five injector pins already allocated -- so the whole stage stays on
+  one timer and its edges stay phase-locked. docs/pinmap.md sec.1.5
+  carries the correction.
 
   WHERE THE CURRENT-SENSE SHUNTS GO. docs/pinmap.md sec.1.6 calls the
   per-bank split INFERRED and says outright: "Settle by choosing the
@@ -242,68 +247,155 @@ def boost_rail(sh):
             "Cost": "455 mW burned continuously whenever the rail is up"},
            rail)
     rail.to(160.0)
-    sh.text("the converter is NOT drawn -- it sits between VBAT_PROT and "
-            "BOOST_100V; see the note at the foot of the sheet",
-            180.0, 48.0, size=1.6)
+    sh.text("the converter that feeds this rail is drawn at the foot of "
+            "the sheet -- TPS40210-Q1, VBAT_PROT to BOOST_100V",
+            180.0, 40.0, size=1.6)
 
 
-def high_side(sh, qx, bank, ctrl_net, out_net, gate_name, drv_in,
-              ctrl_x, note):
-    """One bank's high side: boost FET, battery diode-OR, gate network."""
-    qy = 85.0
+def high_side(sh, bx, bank, boost_net, bat_net, out_net, tag, note):
+    """One bank's high side: TWO switches, a freewheel diode, a bleed.
+
+    CORRECTED 21 September 2026. The first version of this sheet fed the
+    bank node from VBAT_PROT through a plain diode-OR and let the LOW
+    side chop for hold. That is wrong in three separate ways, and the
+    third one is what found it -- trying to choose a gate driver.
+
+      1  IT CANNOT REGULATE HOLD. With the battery on a diode, the only
+         switch in the loop is the low side, and when the low side opens
+         the coil's current has nowhere to go but the recirculation
+         diode into the 100 V boost rail. That is a FAST decay against
+         -87 V, which is turn-off, not chopping. Hold needs a slow
+         freewheel around the coil.
+      2  IT LEAVES PINS 03 AND 05 PERMANENTLY LIVE. A diode from the
+         battery to a connector pin means a harness short to ground
+         draws current whenever the battery is connected, with no switch
+         anywhere to stop it.
+      3  THE GATE DRIVER CANNOT BE BOOTSTRAPPED. A bootstrap capacitor
+         charges when the switch node goes LOW. With the battery diode
+         holding the bank node at 12.8 V it never does, so the boost
+         high side's floating supply can never refresh. This was
+         invisible until a part had to be chosen for it.
+
+    What replaces it is what injector_turnoff.cir already models and
+    what peak-and-hold drivers actually do: TWO high-side switches onto
+    a common bank node -- one from the boost rail for the peak phase,
+    one from the battery for hold -- plus D_fw from GROUND to that node,
+    which is the freewheel path the block's header spends a paragraph
+    explaining it had to add. Hold chopping then happens on the HIGH
+    side, the node swings to -0.7 V on every off-time, and the bootstrap
+    charges.
+
+    Both switches have their SOURCE on the bank node, so one floating
+    supply referenced to that node serves both gates.
+
+    THE BATTERY SWITCH NEEDS A SERIES BLOCKING DIODE and would with
+    either polarity of FET: an N-channel's body diode points source to
+    drain, so with the bank node at 100 V during the peak phase it would
+    dump the boost rail into the battery. The diode goes on the DRAIN
+    side, which leaves the FET's own Vds near zero in that state rather
+    than leaving a node floating.
+    """
     ry = 105.0
-    gp, dp, sp = fet_pins(qx, qy)
-    sh.place("Device:Q_NMOS_GSD", "Q", qx, qy,
-             "150V N-ch, bootstrapped high side",
-             fields={"Source": "injector_boost.cir -- the 100 V branch; "
-                               "injector_turnoff.cir Shs",
-                     "Note": note,
-                     "Vds": "150 V class against a 100 V rail that the "
-                            "recirculation bump can push above setpoint"})
+    sh.text(f"bank {bank}", bx, 56.0, size=1.6)
+
+    rail = Rail(sh, ry)
+    rail.to(bx + 20.0)
+
+    def switch(qx, gate_name, value, fields):
+        gp, dp, sp = fet_pins(qx, 85.0)
+        sh.place("Device:Q_NMOS_GSD", "Q", qx, 85.0, value, fields=fields)
+        # The gate-source resistor lands on the bank rail to the LEFT of
+        # the FET's source, so the rail has to be extended to that point
+        # FIRST -- Rail only ever moves right, and taking the source tap
+        # first left both 470 ohm resistors with a dangling lower pin on
+        # a page that plotted correctly.
+        gx = qx - 25.0
+        rail.to(gx, tap=True)
+        rail.to(sp[0], tap=True)
+        sh.wire(sp[0], sp[1], sp[0], ry)
+        sh.wire(gp[0], gp[1], gx, gp[1])
+        sh.label(gate_name, gx, gp[1], rot=180)
+        # Gate to SOURCE, not gate to ground: the source of a high-side
+        # N-FET swings with the bank node. supervisor.cir sized 470 ohm
+        # against Miller coupling; the divider is the same, only its
+        # reference moves.
+        sh.place("Device:R", "R", gx, 95.0, "470R",
+                 fields={"Source": "supervisor.cir claim 6, referenced to "
+                                   "SOURCE rather than to ground",
+                         "Note": "A pulldown to GROUND here would hold Vgs "
+                                 "at minus the bank voltage and fight the "
+                                 "driver on every edge."})
+        ra = pin_xy(*PINS["Device:R"]["1"], gx, 95.0, 0)
+        rb = pin_xy(*PINS["Device:R"]["2"], gx, 95.0, 0)
+        r_top, r_bot = (ra, rb) if ra[1] < rb[1] else (rb, ra)
+        sh.wire(gx, gp[1], r_top[0], r_top[1])
+        sh.wire(r_bot[0], r_bot[1], gx, ry)
+        return dp
+
+    # -- the boost switch: peak phase only --------------------------
+    dp = switch(bx + 60.0, tag + "_BOOST_GATE", "150V N-ch, 18A peak",
+                {"Source": "injector_boost.cir -- the 100 V branch; "
+                           "injector_turnoff.cir Shs",
+                 "Note": note,
+                 "Vds": "150 V class against a 100 V rail the "
+                        "recirculation bump can push above setpoint"})
     sh.wire(dp[0], dp[1], dp[0], dp[1] - 14.0)
     sh.label("BOOST_100V", dp[0], dp[1] - 14.0)
 
-    rail = Rail(sh, ry)
-    rail.to(qx - 20.0)
-    # Gate-SOURCE resistor, not gate-ground. See the sheet note.
-    sh.place("Device:R", "R", qx - 20.0, (qy + ry) / 2.0, "470R",
-             fields={"Source": "supervisor.cir claim 6, referenced to "
-                               "SOURCE rather than to ground",
-                     "Note": "Across gate and source, because the source "
-                             "of a high-side N-FET swings to 100 V. Same "
-                             "Miller-coupling divider supervisor.cir "
-                             "sized; a pulldown to GROUND here would hold "
-                             "Vgs at minus the source voltage and fight "
-                             "the driver on every edge."})
-    ra = pin_xy(*PINS["Device:R"]["1"], qx - 20.0, (qy + ry) / 2.0, 0)
-    rb = pin_xy(*PINS["Device:R"]["2"], qx - 20.0, (qy + ry) / 2.0, 0)
-    r_top, r_bot = (ra, rb) if ra[1] < rb[1] else (rb, ra)
-    sh.wire(gp[0], gp[1], qx - 20.0, gp[1])
-    sh.label(gate_name, qx - 20.0, gp[1])
-    sh.wire(qx - 20.0, gp[1], r_top[0], r_top[1])
-    sh.wire(r_bot[0], r_bot[1], qx - 20.0, ry)
+    # -- the battery switch: hold chopping --------------------------
+    dp = switch(bx + 150.0, tag + "_BAT_GATE", "60V N-ch, 18A",
+                {"Source": "boost_converter.cir arrangement A -- hold "
+                           "current comes from the BATTERY",
+                 "Note": "Chops for hold. 60 V class, not 150 V: the "
+                         "series blocking diode above it holds off the "
+                         "boost rail, so this FET's own Vds stays near "
+                         "zero during the peak phase.",
+                 "Vds": "60 V"})
+    diode_down(sh, dp[0], dp[1], "150V 20A ultrafast",
+               {"Tag": "INJ-RECIRC",
+                "Note": "BLOCKING, not freewheeling. Without it the "
+                        "battery FET's own body diode -- source to drain "
+                        "on an N-channel -- dumps the 100 V boost rail "
+                        "into the battery every peak phase. Reverse "
+                        "stress is 100 - 13.5 = 86.5 V, so 150 V class "
+                        "like the rest of that rail."},
+               "VBAT_PROT", drop=16.0)
 
-    rx, ry2 = rail.to(sp[0], tap=True)
-    sh.wire(sp[0], sp[1], sp[0], ry2)
-    rail.to(sp[0] + 28.0, tap=True)
-    diode_down(sh, sp[0] + 28.0, ry,
-               "150V 20A ultrafast",
-               {"Source": "settled on this sheet -- see the module "
-                          "docstring",
-                "Note": "Anode on the battery. Reverse biased while the "
-                        "bank sits near 100 V; supplies the hold current "
-                        "at 13.5 V once the high-side FET stops "
-                        "conducting. Also the return path the coil needs "
-                        "at full turn-off, which is the job "
-                        "injector_turnoff.cir's D_fw does to ground."},
-               "VBAT_PROT")
-    rail.to(sp[0] + 60.0)
-    sh.hlabel(out_net, sp[0] + 60.0, ry, shape="output")
+    # -- the freewheel path hold chopping needs ----------------------
+    fx = bx + 200.0
+    sh.place("Device:D", "D", fx, ry + 14.0, "150V 20A ultrafast",
+             rot=270,
+             fields={"Tag": "INJ-RECIRC",
+                     "Source": "injector_turnoff.cir D_fw",
+                     "Note": "Anode to GROUND, cathode to the bank node. "
+                             "This is the slow freewheel that makes hold "
+                             "CHOPPING possible: with the boost switch "
+                             "off the coil's current circulates through "
+                             "the low side and back through here, "
+                             "decaying only against I*R and two diode "
+                             "drops. It is also why the node reaches "
+                             "-0.7 V, which is what lets a bootstrap "
+                             "capacitor charge."})
+    k = pin_xy(*PINS["Device:D"]["1"], fx, ry + 14.0, 270)
+    a = pin_xy(*PINS["Device:D"]["2"], fx, ry + 14.0, 270)
+    rx, _ = rail.to(fx, tap=True)
+    sh.wire(fx, ry, k[0], k[1])
+    gnd_below(sh, a[0], a[1])
 
-    sh.hlabel(ctrl_net, ctrl_x, 62.0, shape="input")
-    sh.wire(ctrl_x, 62.0, ctrl_x + 30.0, 62.0)
-    sh.label(drv_in, ctrl_x + 30.0, 62.0)
-    sh.text(f"bank {bank}", qx - 34.0, 70.0, size=1.6)
+    vshunt(sh, "Device:R", "R", bx + 230.0, ry + 18.0, "100k",
+           {"Note": "Bleed. With both high sides off and the low sides "
+                    "off, nothing else defines this node -- leakage "
+                    "through the boost switch would float a connector "
+                    "pin toward 100 V. 128 uA at 12.8 V is the price."},
+           rail)
+    rail.to(bx + 262.0)
+    sh.hlabel(out_net, bx + 262.0, ry, shape="output")
+
+    for net, name, dy in ((boost_net, tag + "_BOOST_DRV_IN", 0.0),
+                          (bat_net, tag + "_BAT_DRV_IN", 10.0)):
+        sh.hlabel(net, bx, 62.0 + dy, shape="input")
+        sh.wire(bx, 62.0 + dy, bx + 30.0, 62.0 + dy)
+        sh.label(name, bx + 30.0, 62.0 + dy)
 
 
 def low_side(sh, qx, ctrl_net, out_net, gate_name, drv_in, cyl):
@@ -612,7 +704,7 @@ def notes(sh):
         "involvement -- which is what makes it work against a hung MCU "
         "and not only a reset one.\n"
         "\n"
-        "The two high sides cannot use it. The source of a high-side "
+        "The FOUR high sides cannot use it -- two per bank since the 21 Sep correction. The source of a high-side "
         "N-FET swings to the boost rail, so a pulldown to GROUND would "
         "hold Vgs at minus the source voltage and fight the\n"
         "driver on every edge, and a kill FET referenced to ground cannot "
@@ -629,7 +721,7 @@ def notes(sh):
         "modelled.",
         40.0, 295.0, size=1.6)
     sh.text(
-        "PARTS NOT CHOSEN ON THIS SHEET. Five gate drivers and two "
+        "PARTS NOT CHOSEN ON THIS SHEET. Seven gate drivers and two "
         "current-sense amplifiers, on the same named-net treatment "
         "power_input gives its two controller gates.\n"
         "\n"
@@ -639,7 +731,7 @@ def notes(sh):
         "  bottom half of a divider with it, and at 100 ohm the gate "
         "reaches 8.25 V instead of 10 V. 3.3 V logic in (PTC2/PTC3/PTB4, "
         "FTM0_CH2/3/4), ~10 V out.\n"
-        "  HIGH-SIDE DRIVERS (HSA/HSB_DRV_IN -> HSA/HSB_GATE).  Same "
+        "  HIGH-SIDE DRIVERS, FOUR OF THEM (HSA/HSB_BOOST_DRV_IN and _BAT_DRV_IN).  Both switches in a bank have their SOURCE on the same node, so ONE floating supply serves two gates.  Same "
         "output impedance, but referenced to a source that swings to "
         "100 V, so bootstrapped or isolated, rated above the\n"
         "  rail, AND carrying a shutdown input for GATE_KILL per the note "
@@ -693,7 +785,7 @@ def build():
                comments=[
                    "Generated by hw/gen_sheet_injector.py -- do not hand-edit until it is retired",
                    "boost_converter.cir / injector_boost.cir / injector_turnoff.cir",
-                   "Hold current arrives through a battery DIODE-OR, not a second switched rail",
+                   "Hold current arrives through a SECOND high-side switch per bank -- corrected 21 Sep 2026",
                    "Boost controller TPS40210-Q1, chosen on its 200 ns off-time: 150 kHz reaches 94% duty at cranking",
                    "Shunts settled LOW-SIDE and per-bank -- docs/pinmap.md 1.6 asked for the placement",
                ],
@@ -701,18 +793,18 @@ def build():
     boost_rail(sh)
     boost_stage(sh)
 
-    high_side(sh, 210.0, "A (cyl 1+3)", "INJ_HS_A", "INJ_A_03", "HSA_GATE",
-              "HSA_DRV_IN", 150.0,
+    high_side(sh, 190.0, "A (cyl 1+3)", "INJ_HS_A", "INJ_HS_A_BAT",
+              "INJ_A_03", "HSA",
               "Bank-shared: cylinders 1 and 3 fire 240 crank degrees "
               "apart and never overlap, which is what lets one switch "
               "serve both.")
-    high_side(sh, 420.0, "B (cyl 2)", "INJ_HS_B", "INJ_B_05", "HSB_GATE",
-              "HSB_DRV_IN", 360.0,
+    high_side(sh, 520.0, "B (cyl 2)", "INJ_HS_B", "INJ_HS_B_BAT",
+              "INJ_B_05", "HSB",
               "One cylinder in this bank. Kept as a separate switch "
               "rather than merged, because merging would put all three "
               "injectors behind one failure.")
 
-    sh.text("GATE_KILL reaches the two high sides through the driver's "
+    sh.text("GATE_KILL reaches the four high sides through the driver's "
             "own SHUTDOWN input, not through a clamp -- a ground-"
             "referenced kill FET cannot short a gate\n"
             "that floats 100 V up. Nothing is drawn for it here because "

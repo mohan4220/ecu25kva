@@ -83,7 +83,7 @@ Iinjb rb 0 PWL(0 0  1m 0  1.038m 18  1.0381m 10  2m 10  2.0001m 0  30m 0)
 * sits at setpoint. What injector_turnoff.cir's claim 3 isolates is the
 * case with no preceding boost-side draw to net against -- hold-current
 * cutoff, where the coil's current came from the BATTERY through the
-* high side's diode-OR path and arrives here as an uncompensated
+* high side's BATTERY switch and arrives here as an uncompensated
 * addition. One-sided regulation then keeps it.
 *
 * So the bleed is not sized for a duty cycle. It is sized so that ONE
@@ -188,8 +188,9 @@ wrdata boost_converter_bleed.dat v(rcc) v(rdd)
 *
 * CLOSED 21 Sep 2026 -- arrangement C above models it, and
 * hw/injector.kicad_sch draws the resistor. The wiring question was
-* settled by drawing the sheet: the high side's battery path is a
-* diode-OR, not a second switched rail, so hold current IS
+* settled by drawing the sheet, and then corrected on 21 Sep when
+* choosing a gate driver for it: the high side's battery path is a
+* SECOND SWITCH, not a diode-OR, so hold current IS
 * battery-sourced and end-of-injection recirculation into this
 * reservoir has no boost-side draw to net against. Over a complete
 * event the balance is still net negative (342 uC out against about

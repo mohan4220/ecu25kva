@@ -1533,7 +1533,7 @@ def check_boost_converter():
     # Bchg regulates from BELOW only: 50 mA while the rail is under
     # setpoint, nothing above it. Nothing here removes charge, so a
     # hold-current cutoff -- whose energy came from the BATTERY through
-    # the high side's diode-OR and so has no boost-side draw to net
+    # the high side's BATTERY switch and so has no boost-side draw to net
     # against -- is an addition the rail keeps. Two identical reservoirs,
     # three such events at the real 26.67 ms cylinder spacing, one
     # resistor of difference.

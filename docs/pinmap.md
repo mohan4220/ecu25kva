@@ -158,14 +158,19 @@ at pin 78, `PE=0 / PS=0` at reset. `PTD6` returns to the spare pool.
 
 Committed count is unchanged at 39; the spare GPIO count is unchanged at 89.
 
+**Updated 21 September 2026:** committed count is now **41** and the spare GPIO count
+**87**, after `PTB5` and `PTA17` were added for the battery-side high switches (§1.5).
+
 ---
 
 ### 1.5 Outputs — the six gate pins are in §2
 
 | ECU pin | Signal | Front-end | `PTxx` | Peripheral | Reset pull | Note |
 |---|---|---|---|---|---|---|
-| 03 | Injector HS bank A (cyl 1+3) | Boosted high-side switch | `PTC0` | FTM0_CH0 | Hi-Z, no pull | See §2 |
-| 05 | Injector HS bank B (cyl 2) | Boosted high-side switch | `PTC1` | FTM0_CH1 | Hi-Z, no pull | See §2 |
+| 03 | Injector HS bank A (cyl 1+3) | **Boost-rail** high-side switch, peak phase | `PTC0` | FTM0_CH0 | Hi-Z, no pull | See §2 |
+| 05 | Injector HS bank B (cyl 2) | **Boost-rail** high-side switch, peak phase | `PTC1` | FTM0_CH1 | Hi-Z, no pull | See §2 |
+| 03 | Injector HS bank A — **battery side** | **Battery** high-side switch, hold chopping | `PTB5` | FTM0_CH5 | Hi-Z, no pull | **ADDED 21 Sep 2026** — see below |
+| 05 | Injector HS bank B — **battery side** | **Battery** high-side switch, hold chopping | `PTA17` | FTM0_CH6 | Hi-Z, no pull | **ADDED 21 Sep 2026** — see below |
 | 73 | Injector LS cyl 1 | Current-controlled low-side | `PTC2` | FTM0_CH2 | Hi-Z, no pull | See §2 |
 | 07 | Injector LS cyl 3 | Current-controlled low-side | `PTC3` | FTM0_CH3 | Hi-Z, no pull | See §2 |
 | 29 | Injector LS cyl 2 | Current-controlled low-side | `PTB4` | FTM0_CH4 | Hi-Z, no pull | See §2 |
@@ -174,6 +179,33 @@ Committed count is unchanged at 39; the spare GPIO count is unchanged at 89.
 | 81 | EGR Low (bridge IN2) | H-bridge | `PTB9` | FTM3_CH1 | Hi-Z, no pull | Not one of the six |
 | 50 | Main relay | Low-side FET + flyback | `PTD13` | GPIO output | Hi-Z, no pull | |
 | 69 | Buzzer relay | Low-side FET + flyback | `PTD14` | GPIO output | Hi-Z, no pull | |
+
+**ADDED 21 September 2026 — a peak-and-hold stage needs two high-side switches per bank,
+and this map had allocated one.**
+
+The row above originally read "Boosted high-side switch," one pin per bank, with hold
+current arriving from the battery through a diode-OR. Drawing the sheet accepted that;
+**choosing a gate driver for it did not.** Three things are wrong with a diode:
+
+1. **It cannot regulate hold.** With the battery on a diode the only switch in the loop
+   is the low side, and when the low side opens the coil's current goes to the
+   recirculation diode and into the 100 V boost rail — a *fast* decay against −87 V,
+   which is turn-off, not chopping. Hold needs a slow freewheel around the coil.
+2. **It leaves connector pins 03 and 05 permanently live.** A diode from the battery to
+   a connector pin means a harness short to ground draws current whenever the battery is
+   connected, with no switch anywhere to stop it.
+3. **The gate driver cannot be bootstrapped.** A bootstrap capacitor charges when the
+   switch node goes low. A battery diode holds that node at 12.8 V, so it never does.
+
+What replaces it is what `injector_turnoff.cir` already models: two high-side switches
+onto a common bank node, plus `D_fw` from **ground** to that node — the freewheel path
+whose necessity that block's header spends a paragraph on. Hold chopping then happens on
+the high side, the node swings to −0.7 V every off-time, and the bootstrap charges.
+
+**Both new pins are FTM0 channels**, like the five injector pins already allocated, so
+the whole stage stays on one timer and its edges stay phase-locked to each other.
+`PTB5` is a GPIO-HD (high-drive) pad; both are `PE = 0, PS = 0` at reset, confirmed
+against the same IO Signal Table §2 uses — so they inherit §2's finding exactly.
 
 ### 1.6 Current-sense channels (internal, no connector pin)
 
@@ -259,7 +291,7 @@ doing its job. The cost is a tighter window the 3V3 rail has to live inside
 
 ---
 
-## 2. The six gate pins and their reset behaviour
+## 2. The gate pins and their reset behaviour — six, now eight
 
 Spec §4's binding requirement (added 18 Sep 2026) says every driver gate on pins **88,
 73/07/29, 03/05** must be held off by hardware during reset, because S32K148 GPIOs are
@@ -279,11 +311,22 @@ inferred):**
 | 29 | `PTB4` | 0 | 0 | Disabled, high-impedance |
 | 03 | `PTC0` | 0 | 0 | Disabled, high-impedance |
 | 05 | `PTC1` | 0 | 0 | Disabled, high-impedance |
+| 03 (battery side) | `PTB5` | 0 | 0 | Disabled, high-impedance — **added 21 Sep 2026** |
+| 05 (battery side) | `PTA17` | 0 | 0 | Disabled, high-impedance — **added 21 Sep 2026** |
 
 **CONFIRMED** against both the Reference Manual's own prose (§4.4, Table 4-3: "Others:
 Disabled — High impedance — `ibe=0, obe=0, pue=0, pus=0`") and the per-pin `PE`/`PS`/
 `Reset` fields in the embedded `S32K148_IO_Signal_Description_Input_Multiplexing.xlsx`,
 read directly for each of these six pins.
+
+**The two added on 21 September 2026 read the same way**, from the same table — and
+they matter differently, because they are *high-side* gates. `hw/injector.kicad_sch`
+found that a ground-referenced kill clamp cannot service a high-side gate at all: the
+source swings to the boost rail, so a pulldown to ground would hold `Vgs` at minus the
+bank voltage and a kill FET referenced to ground cannot short a gate floating 100 V up.
+Those four gates get 470 Ω across **gate and source**, and the kill path moves into the
+driver's own shutdown input. Their reset state is still worth recording, and it is still
+high-impedance.
 
 **None of the six defaults to a pull that works against the fail-safe requirement —
 and none defaults to a pull that helps it either. There is no pull at all.** The only

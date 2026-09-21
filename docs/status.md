@@ -486,6 +486,30 @@ neither number returns a catalogue hit, so the footprint has to come
 through a Bosch distributor. Same shape as the six findings above, and
 this one was mine: reading the older reference and not the newer one.
 
+**Choosing the second part found an error in the first sheet it touched.**
+The injector high side was drawn on 21 September with the battery
+feeding the bank node through a plain **diode-OR**, on the argument that
+it needed no extra MCU pin. Looking for a gate driver for it showed that
+it is wrong three ways, and only the third is visible from a datasheet:
+
+1. **It cannot regulate hold.** With the battery on a diode the only
+   switch in the loop is the low side, and opening it sends the coil's
+   current into the 100 V rail — a fast decay against −87 V, which is
+   turn-off, not chopping.
+2. **It leaves connector pins 03 and 05 permanently live**, so a harness
+   short to ground draws current whenever the battery is connected.
+3. **The gate driver cannot be bootstrapped.** A bootstrap capacitor
+   charges when the switch node goes low; a battery diode holds it at
+   12.8 V, so it never does.
+
+The replacement is what `injector_turnoff.cir` already modelled and
+spends a paragraph of its header justifying: **two high-side switches
+per bank** onto a common node, plus `D_fw` from **ground**. Hold chopping
+moves to the high side, the node swings to −0.7 V each off-time, and the
+bootstrap charges. It costs two MCU pins — `PTB5` and `PTA17`, both FTM0
+channels, so the whole injector stage stays on one timer and its edges
+stay phase-locked. The pin map's "six gate pins" section is now eight.
+
 **Phase 3 started 21 September 2026 — the first part is chosen.**
 `TPS40210QDGQRQ1`, the injector boost controller, and it was chosen on
 **one spec that runs backwards from the usual**: tOFF(min) = 200 ns max.

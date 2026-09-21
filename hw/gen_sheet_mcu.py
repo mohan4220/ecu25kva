@@ -60,6 +60,13 @@ NETS = {
     "PTC2":  ("INJ_LS_1", "output"),      "PTC3":  ("INJ_LS_3", "output"),
     "PTB4":  ("INJ_LS_2", "output"),      "PTD10": ("MU_PWM", "output"),
     "PTB8":  ("EGR_IN1", "output"),       "PTB9":  ("EGR_IN2", "output"),
+    # ADDED 21 Sep 2026. A discrete peak-and-hold stage needs TWO
+    # high-side switches per bank -- boost for the peak phase, battery
+    # for hold -- and the pin map had allocated one. See pinmap.md
+    # sec.1.5's correction and hw/injector.kicad_sch. Both are FTM0
+    # channels like the five already here, so the whole injector stage
+    # stays on one timer and its edges stay phase-locked to each other.
+    "PTB5":  ("INJ_HS_A_BAT", "output"),  "PTA17": ("INJ_HS_B_BAT", "output"),
     # --- discrete in ---
     "PTD5":  ("SW_COOLANT", "input"),     "PTD7":  ("SW_DROOP", "input"),
     "PTD11": ("IN_AUDIO_ABORT", "input"), "PTD12": ("IN_OVERRIDE_SS", "input"),

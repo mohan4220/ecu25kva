@@ -30,8 +30,10 @@ ROOT = os.path.join(HW, "ecu25kva.kicad_sch")
 # Each is a real open item recorded elsewhere; none is a wiring mistake.
 EXPECTED_OPEN = {
     # -- gate drivers and current-sense amplifiers, not chosen --
-    "/INJ_HS_A": "injector high-side driver not chosen",
-    "/INJ_HS_B": "injector high-side driver not chosen",
+    "/INJ_HS_A": "injector boost-side high driver not chosen",
+    "/INJ_HS_B": "injector boost-side high driver not chosen",
+    "/INJ_HS_A_BAT": "injector battery-side high driver not chosen",
+    "/INJ_HS_B_BAT": "injector battery-side high driver not chosen",
     "/INJ_LS_1": "injector low-side driver not chosen",
     "/INJ_LS_2": "injector low-side driver not chosen",
     "/INJ_LS_3": "injector low-side driver not chosen",
