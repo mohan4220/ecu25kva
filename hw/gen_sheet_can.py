@@ -112,10 +112,10 @@ def channel(sh, n, ux, uy):
     # ---- supplies ----
     vx, vy = P["VCC"]
     sh.wire(vx, vy, vx, vy - 8.0)
-    sh.label("5V_MAIN", vx, vy - 8.0, rot=90)
+    sh.hlabel("5V_MAIN", vx, vy - 8.0, shape="input", rot=90)
     ix, iy = P["VIO"]
     sh.wire(ix, iy, ix, iy - 8.0)
-    sh.label("3V3_MCU", ix, iy - 8.0, rot=90)
+    sh.hlabel("3V3_MCU", ix, iy - 8.0, shape="input", rot=90)
     gx, gy = P["GND"]
     gnd_below(sh, gx, gy)
     decouple(sh, ux - 34.0, uy - 26.0, "5V_MAIN",

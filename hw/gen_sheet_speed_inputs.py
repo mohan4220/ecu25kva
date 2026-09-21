@@ -288,7 +288,11 @@ def crank(sh):
     dec = Rail(sh, 100.0)
     dec.to(300.0)
     sh.wire(300.0, 100.0, 300.0, 94.0)
-    sh.label("3V3_MCU", 300.0, 94.0)
+    # The sheet's one HIERARCHICAL 3V3_MCU. The comparator's supply, both
+    # upper clamp diodes and the bias divider all carry the name as local
+    # labels, which makes them one net WITHIN this sheet and nothing
+    # beyond it -- /speed_inputs/3V3_MCU, five pins and no regulator.
+    sh.hlabel("3V3_MCU", 300.0, 94.0, shape="input", rot=90)
     vshunt(sh, "Device:C", "C", 300.0, 110.0, "100nF",
            {"Note": "At the comparator's own supply pin. A comparator "
                     "snapping a 3.3 V output through 200 mV of hysteresis "

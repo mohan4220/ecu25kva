@@ -227,7 +227,13 @@ def buck(sh):
     #   Vout = 1.2 * (1 + R1/R2); 38.3k / 12.1k gives 5.00 V on E96 values.
     fx = 380.0
     out.to(356.0, tap=True)
-    sh.label("5V_MAIN", 356.0, oy)
+    # HIERARCHICAL, not local. 5V_MAIN is a board rail -- the CAN
+    # transceivers' VCC, the five difference amplifiers and the discrete
+    # inputs' pull-ups all run off it -- and a local label stops at this
+    # sheet's edge. It was a local label until 21 Sep 2026, so the
+    # project netlist had FOUR separate nets called 5V_MAIN and three of
+    # them had no regulator on them. Each sheet's own netlist was correct.
+    sh.hlabel("5V_MAIN", 356.0, oy, shape="output")
     t1, b1 = vpart(sh, "Device:R", "R", fx, oy + 16, "38.3k",
                    {"Source": "FB top -- LM5164 VREF is 1.2 V (1.181-1.218, "
                               "+/-1.5%), so 5 V needs 1 + R1/R2 = 4.167"},

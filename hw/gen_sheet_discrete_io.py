@@ -76,7 +76,8 @@ def clamped_input(sh, x0, y, in_net, out_net, label, pullup=None):
         rx, ry = chain.to(x0 + 16.0, tap=True)
         sh.wire(rx, ry, bo[0], bo[1])
         sh.wire(t[0], t[1], t[0], t[1] - 6.35)
-        sh.label("5V_MAIN", t[0], t[1] - 6.35, rot=90)
+        sh.hlabel("5V_MAIN", t[0], t[1] - 6.35, shape="input",
+                  rot=90)
 
     sx = x0 + 34.0
     sh.place("Device:R", "R", sx, y, "47k", rot=90,

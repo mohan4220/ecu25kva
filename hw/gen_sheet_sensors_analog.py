@@ -152,7 +152,29 @@ def differential_channel(sh, x0, y, sig_net, gnd_net, out_net, label, note):
     vp = ic_pin("OPAMP_GENERIC", 5, ux, uy)
     vn = ic_pin("OPAMP_GENERIC", 4, ux, uy)
     sh.wire(vp[0], vp[1], vp[0], vp[1] - 7.0)
-    sh.label("5V_MAIN", vp[0], vp[1] - 7.0, rot=90)
+    sh.hlabel("5V_MAIN", vp[0], vp[1] - 7.0, shape="input", rot=90)
+    # 100 nF at the supply pin. Found 21 Sep 2026 by hw/check_netlist.py's
+    # decoupling audit, which walks every power_in pin in the project
+    # netlist and asks whether a capacitor sits on the same net. These
+    # five were the only supply pins on the board with nothing across
+    # them, and no block was ever going to say so: sensor_differential.cir
+    # models an ideal difference amplifier with no supply pin at all.
+    cx = ux - 18.0
+    sh.wire(vp[0], vp[1] - 7.0, cx, vp[1] - 7.0)
+    sh.place("Device:C", "C", cx, uy - 9.0, "100nF",
+             fields={"Source": "hw/check_netlist.py decoupling audit",
+                     "Note": "One per amplifier is the conservative count. "
+                             "Five channels is two quad packages, and "
+                             "decoupling is per package SUPPLY PIN -- so "
+                             "this collapses once the part is chosen. "
+                             "Placement is a layout constraint the "
+                             "schematic cannot express: at the pin, on the "
+                             "shortest loop to the amplifier's own ground."})
+    ca = pin_xy(*PINS["Device:C"]["1"], cx, uy - 9.0, 0)
+    cb = pin_xy(*PINS["Device:C"]["2"], cx, uy - 9.0, 0)
+    c_top, c_bot = (ca, cb) if ca[1] < cb[1] else (cb, ca)
+    sh.wire(cx, vp[1] - 7.0, c_top[0], c_top[1])
+    gnd_below(sh, c_bot[0], c_bot[1])
     gnd_below(sh, vn[0], vn[1])
 
     # Signal leg into IN+, with 26k series and 16k to ground.

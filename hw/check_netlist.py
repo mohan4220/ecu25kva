@@ -56,7 +56,14 @@ EXPECTED_OPEN = {
 
 # Nets that must span more than one sheet, because a rail that does not
 # is a rail that got disconnected by a rename.
-MUST_SPAN = ("GND", "/VBAT_PROT", "/3V3_MCU")
+MUST_SPAN = ("GND", "/VBAT_PROT", "/3V3_MCU", "/5V_MAIN")
+
+# Supply pins that legitimately have no capacitor across them: the pin is
+# a return, or the "supply" is a bootstrap node whose capacitor IS the
+# thing being bootstrapped and is already counted elsewhere.
+NO_DECOUPLING_NEEDED = {
+    ("U201", "7"): "LM5164 BST -- the bootstrap capacitor is the net",
+}
 
 
 class Fail(Exception):
@@ -155,6 +162,56 @@ def main():
         want, have = child_labels(name), declared[name]
         check(f"root sheet exposes every net {name} exports "
               f"({len(want)})", want <= have, f"missing: {sorted(want - have)}")
+
+    # -- sheet-local nets wearing a project-wide name --------------
+    # A local label stops at its sheet's edge. Name one after a board
+    # rail and the sheet gets a private copy with no regulator on it,
+    # while its own netlist stays perfectly correct. That is how
+    # 5V_MAIN came to be FOUR nets and 3V3_MCU three.
+    root_names = {n.lstrip("/") for n, _ in named if n.count("/") <= 1}
+    shadow = sorted(n for n, _ in named
+                    if n.count("/") >= 2 and n.rsplit("/", 1)[1] in root_names)
+    check("no sheet-local net shadows a project-wide net name",
+          not shadow, f"local copies of a global name: {shadow}")
+
+    # -- decoupling -------------------------------------------------
+    # Walks every power_in pin and asks whether a capacitor sits on the
+    # same net. It found the five difference amplifiers on
+    # sensors_analog with nothing across their supply -- the only
+    # undecoupled supply pins on the board, and invisible to every
+    # simulation block because sensor_differential.cir models an ideal
+    # amplifier with no supply pin at all.
+    starts = [m.start() for m in re.finditer(r'    \(libpart \(lib ', text)]
+    starts.append(text.index("(nets"))
+    lib = {}
+    for a, b in zip(starts, starts[1:]):
+        chunk = text[a:b]
+        part = re.search(r'\(part "([^"]+)"\)', chunk).group(1)
+        lib[part] = dict((n, (nm, ty)) for n, nm, ty in re.findall(
+            r'\(pin \(num "([^"]+)"\) \(name "([^"]*)"\) \(type "([^"]+)"\)',
+            chunk))
+    part_of = dict(re.findall(
+        r'\(comp \(ref "([^"]+)"\).*?\(libsource \(lib "[^"]*"\) '
+        r'\(part "([^"]+)"\)', text, re.S))
+    net_of = {(r, p): n for n, pins in named for r, p in pins}
+    cap_nets = {net_of[(r, p)] for n, pins in named for r, p in pins
+                if r.startswith("C")}
+    undecoupled, supplies = [], 0
+    for ref, part in sorted(part_of.items()):
+        for num, (pname, ptype) in lib.get(part, {}).items():
+            if ptype != "power_in":
+                continue
+            net = net_of.get((ref, num))
+            if net is None or net == "GND" or pname in ("VSS", "VREFL",
+                                                        "GND", "V-"):
+                continue
+            if (ref, num) in NO_DECOUPLING_NEEDED:
+                continue
+            supplies += 1
+            if net not in cap_nets:
+                undecoupled.append(f"{ref} pin {num} ({pname}) on {net}")
+    check(f"every supply pin has a capacitor on its net ({supplies} pins)",
+          not undecoupled, f"undecoupled: {undecoupled}")
 
     for rail in MUST_SPAN:
         hit = [p for n, p in named if n == rail]

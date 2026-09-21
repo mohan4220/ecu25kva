@@ -420,11 +420,34 @@ rather than by a hand pass in Eeschema.
 
 | | |
 |---|---|
-| components | **196**, every reference unique |
-| named nets with ≥2 pins | **113** |
+| components | **201**, every reference unique |
+| named nets with ≥2 pins | **108** (the four `5V_MAIN` islands merged into one) |
 | named nets with 1 pin | **18**, each a recorded open item |
 | sheet paths | 10 |
-| `GND` / `3V3_MCU` / `VBAT_PROT` | 134 / 27 / 12 pins, all spanning the project |
+| `GND` / `3V3_MCU` / `5V_MAIN` / `VBAT_PROT` | 139 / 36 / 28 / 12 pins, all spanning the project |
+
+**Exporting it for the first time found three real defects that ten
+clean per-sheet netlists could not.**
+
+1. **`5V_MAIN` was four nets.** The buck's 5 V output is a board rail —
+   the CAN transceivers' VCC, the five difference amplifiers and the
+   discrete inputs' pull-ups all run off it — and it was a *local* label
+   on every one of those sheets. A local label stops at its sheet's
+   edge, so three of the four copies had no regulator on them, and each
+   sheet's own netlist was perfectly correct. `rails` now exports it.
+2. **`3V3_MCU` was three.** Same mechanism, on `can` (both transceivers'
+   VIO) and `speed_inputs` (the comparator's supply, both upper clamp
+   diodes and the bias divider — five pins and no rail).
+3. **Five supply pins had no decoupling capacitor.** The difference
+   amplifiers on `sensors_analog` were the only undecoupled supply pins
+   on the board. No simulation block was ever going to say so:
+   `sensor_differential.cir` models an ideal amplifier with no supply
+   pin at all.
+
+All three are now permanent checks rather than one-off observations: one
+walks every `power_in` pin and asks whether a capacitor sits on its net,
+and one fails any sheet-local net whose name shadows a project-wide one
+— the exact shape of defects 1 and 2.
 
 `hw/check_netlist.py` is the gate, and it is the counterpart to
 `sim/run_sim.py`: that one guards the component *values*, this one
@@ -447,7 +470,7 @@ datasheet, a part number, or the machine:
 - **two** with no part and no pin: `BARO`, and `TRIP_LOOP` — which
   needs one of the 50 unconfirmed connector pins, as does `GND`
 
-**Footprints are the phase-3 input, not a phase-2 gate:** 7 of 196
+**Footprints are the phase-3 input, not a phase-2 gate:** 7 of 201
 components carry one, and they are exactly the parts with a retrieved
 datasheet behind them.
 
