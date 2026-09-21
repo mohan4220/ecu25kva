@@ -1499,9 +1499,11 @@ def check_sensor_differential():
 
 def check_boost_converter():
     c = Checks("boost_converter -- injector rail reservoir, pins 03/05")
-    d = sim("boost_converter", {
+    res = sim("boost_converter", {
         "boost_converter.dat": ["time", "ra", "rb"],
-    })["boost_converter.dat"]
+        "boost_converter_bleed.dat": ["time", "rcc", "rdd"],
+    })
+    d = res["boost_converter.dat"]
     t, ra, rb = d["time"], d["ra"], d["rb"]
 
     # Arrangement A: reservoir supplies the peak phase only.
@@ -1526,6 +1528,39 @@ def check_boost_converter():
            tol=1.0, unit="V")
     c.that("  ... 50 mA average charging is enough", at_next, 99.0, tol=None,
            ok=at_next > 99, unit="V")
+
+    # -- the bleed path injector_turnoff.cir's RESULT NOTE asked for --
+    # Bchg regulates from BELOW only: 50 mA while the rail is under
+    # setpoint, nothing above it. Nothing here removes charge, so a
+    # hold-current cutoff -- whose energy came from the BATTERY through
+    # the high side's diode-OR and so has no boost-side draw to net
+    # against -- is an addition the rail keeps. Two identical reservoirs,
+    # three such events at the real 26.67 ms cylinder spacing, one
+    # resistor of difference.
+    b = res["boost_converter_bleed.dat"]
+    tb, no_bleed, bleed = b["time"], b["rcc"], b["rdd"]
+    c.that("one hold-cutoff event puts this on the rail",
+           (float(no_bleed.max()) - 100.0) / 3.0, 2.14, tol=0.1,
+           unit="V/event")
+    c.that("without a bleed, three events stack to", float(no_bleed.max()),
+           106.4, tol=0.3, unit="V")
+    c.that("  ... and it STAYS there -- nothing can discharge it",
+           float(np.interp(89e-3, tb, no_bleed)), 106.4, tol=0.3, unit="V")
+    c.that("with a 22k bleed, same three events reach",
+           float(bleed.max()), 102.14, tol=0.3, unit="V")
+    c.that("  ... but the rail is back at setpoint before the next "
+           "cylinder", float(np.interp(27.6e-3, tb, bleed)), 100.0,
+           tol=0.1, unit="V")
+    # Sizing, not luck: above setpoint the charger is off, so the whole
+    # bleed current discharges the 100 uC the event delivered.
+    m = (tb > 1.03e-3) & (tb < 27.6e-3)
+    clear = float(tb[m][int(np.argmax(bleed[m] <= 100.05))] - 1.0201e-3)
+    c.that("time to clear one event", clear * 1e3, 21.4, tol=1.0, unit="ms")
+    c.that("  ... against the 240-degree budget at 1500 rpm",
+           26.67 / (clear * 1e3), 1.25, tol=None,
+           ok=clear * 1e3 < 26.67, unit="x")
+    c.that("  ... cost, burned continuously whenever the rail is up",
+           100.0 ** 2 / 22e3 * 1e3, 455.0, tol=5.0, unit="mW")
     return c
 
 

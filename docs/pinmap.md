@@ -183,7 +183,7 @@ ECU pin — but they need an MCU `PTxx` and are placed here for completeness.
 
 | Associated signal | `PTxx` | Peripheral | Reset pull | Note |
 |---|---|---|---|---|
-| Injector bank A current sense (pins 03/73) | `PTC15` | ADC0_SE13 | Hi-Z, no pull | **INFERRED split**: assumes one shunt per high-side bank, not per low-side cylinder. Memo 12 says "per channel or per bank" without deciding; this map picks per-bank because that is what makes the 4-channel figure in memo 05/§5 add up (2 banks + metering + EGR = 4). Three-channel per-cylinder sensing would need a 5th ADC pin — trivially available, but not what the existing budget assumes. **Settle by choosing the shunt placement when the injector driver sheet is drawn.** |
+| Injector bank A current sense (pins 03/73) | `PTC15` | ADC0_SE13 | Hi-Z, no pull | **INFERRED split**: assumes one shunt per high-side bank, not per low-side cylinder. Memo 12 says "per channel or per bank" without deciding; this map picks per-bank because that is what makes the 4-channel figure in memo 05/§5 add up (2 banks + metering + EGR = 4). Three-channel per-cylinder sensing would need a 5th ADC pin — trivially available, but not what the existing budget assumes. **SETTLED 21 Sep 2026, when the injector sheet was drawn** — `hw/injector.kicad_sch` puts the shunts **low-side and ground-referenced**, one per bank, in the shared source return. Cylinders 1 and 3 fire 240 crank degrees apart and never overlap, so one shunt reads whichever is conducting — the same fact that lets the high side be bank-shared. A high-side shunt would read the same current and need an amplifier whose common-mode range reaches 100 V. Per-bank confirmed, 5 mΩ. |
 | Injector bank B current sense (pin 05, low side 29) | `PTD19` | ADC1_SE17 | Hi-Z, no pull | Paired with bank A on the other ADC instance for simultaneous sampling |
 | Metering unit current sense (pin 88) | `PTC16` | ADC0_SE14 | Hi-Z, no pull | |
 | EGR bridge current sense (pins 59/81) | `PTD22` | ADC1_SE18 | Hi-Z, no pull | |
@@ -381,8 +381,8 @@ decided. `LPSPI1` is free and is the natural landing spot.
    `cam_frontend.cir` was written, the divider it validates is drawn on
    `hw/speed_inputs.kicad_sch`, and the §1.3 row now states the real front-end rather
    than spec §4's literal one.
-2. **Injector current-sense placement (§1.6)** — per-bank vs per-cylinder, decided when
-   the injector driver sheet's shunt is placed.
+2. ~~**Injector current-sense placement (§1.6)**~~ — **CLOSED 21 September 2026.**
+   Per-bank, low-side, ground-referenced, 5 mΩ. Drawn on `hw/injector.kicad_sch`.
 3. **Crystal vs FIRC (§4)** — decides whether `PTB6`/`PTB7` are reserved.
 4. **U6 (pin 09) and pins 01/02** — still open per spec §8/§4; no MCU pin assigned,
    consistent with "nothing guessed into copper."

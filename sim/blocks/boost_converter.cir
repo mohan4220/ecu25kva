@@ -62,11 +62,69 @@ Bchgb 0 rb I = v(rb) < 100 ? 50m : 0
 * injection before releasing.
 Iinjb rb 0 PWL(0 0  1m 0  1.038m 18  1.0381m 10  2m 10  2.0001m 0  30m 0)
 
+* ---- arrangement C: the bleed path, and the same rail without one ----
+* injector_turnoff.cir's RESULT NOTE ends by asking for this: "It needs
+* a bleed path (a resistor across the reservoir, or a comparator-gated
+* shunt) once turn-off recirculation is added to the real design.
+* boost_converter.cir's own RESULT NOTE should be revisited with this
+* finding." This is that revisit.
+*
+* The mechanism is Bchg above, copied into both branches below without
+* change: it adds 50 mA while the rail is BELOW setpoint and adds
+* nothing above it. It regulates from one side only. Nothing anywhere in
+* this block, or in the real circuit as drawn before today, can remove
+* charge from the reservoir -- so any excursion above 100 V is permanent.
+*
+* WHAT ACTUALLY PUMPS THE RAIL, stated carefully because the obvious
+* reading is wrong. Over a COMPLETE injection event the charge balance
+* is net negative and there is no pumping at all: the peak phase draws
+* 342 uC from this reservoir and end-of-injection recirculation returns
+* roughly 100 uC of it. The charger makes up the difference and the rail
+* sits at setpoint. What injector_turnoff.cir's claim 3 isolates is the
+* case with no preceding boost-side draw to net against -- hold-current
+* cutoff, where the coil's current came from the BATTERY through the
+* high side's diode-OR path and arrives here as an uncompensated
+* addition. One-sided regulation then keeps it.
+*
+* So the bleed is not sized for a duty cycle. It is sized so that ONE
+* such event is gone before the next cylinder fires:
+*
+*     event charge    10 A decaying to 0 over 20 us  =  100 uC
+*     on 47 uF        2.13 V of rail rise
+*     above setpoint  the charger is OFF, so the whole bleed current
+*                     discharges: 100 V / 22k = 4.55 mA
+*     time to clear   ~21.6 ms, against the 26.67 ms between cylinders
+*
+* The cost is continuous: 100^2 / 22k = 455 mW burned whenever the rail
+* is up. A comparator-gated shunt costs nothing at idle and is the
+* alternative -- it is more parts, and it is a part nobody has chosen.
+Cc    rcc 0 47u ic=100
+Bchgc 0 rcc I = v(rcc) < 100 ? 50m : 0
+Icc   0 rcc PWL(0 0
++ 1m 0        1.0001m 10    1.0201m 0
++ 27.67m 0    27.6701m 10   27.6901m 0
++ 54.34m 0    54.3401m 10   54.3601m 0
++ 90m 0)
+
+Cd    rdd 0 47u ic=100
+Bchgd 0 rdd I = v(rdd) < 100 ? 50m : 0
+Rbld  rdd 0 22k
+Idd   0 rdd PWL(0 0
++ 1m 0        1.0001m 10    1.0201m 0
++ 27.67m 0    27.6701m 10   27.6901m 0
++ 54.34m 0    54.3401m 10   54.3601m 0
++ 90m 0)
+
 .control
 * 30 ms covers the event and most of the 26.67 ms available before
 * the next cylinder fires, so the recharge is visible too.
 tran 200n 30m uic
 wrdata boost_converter.dat v(ra) v(rb)
+
+* Three hold-cutoff recirculation events at the real 240-degree spacing,
+* which needs a longer window than the reservoir-sizing run above.
+tran 2u 90m uic
+wrdata boost_converter_bleed.dat v(rcc) v(rdd)
 .endc
 
 .end
@@ -127,6 +185,19 @@ wrdata boost_converter.dat v(ra) v(rb)
 * reservoir needs a bleed path and Bchga's one-sided regulation
 * is not sufficient. Recorded here rather than in injector_turnoff
 * because it is this block's component and this block's gap.
+*
+* CLOSED 21 Sep 2026 -- arrangement C above models it, and
+* hw/injector.kicad_sch draws the resistor. The wiring question was
+* settled by drawing the sheet: the high side's battery path is a
+* diode-OR, not a second switched rail, so hold current IS
+* battery-sourced and end-of-injection recirculation into this
+* reservoir has no boost-side draw to net against. Over a complete
+* event the balance is still net negative (342 uC out against about
+* 100 uC back), so the rail does not pump in normal running -- what
+* the bleed is for is that Bchga regulates from one side only, so
+* ANY excursion above setpoint, from any cause, is otherwise
+* permanent. 22 kohm clears one such event in 21.4 ms against the
+* 26.67 ms between cylinders, for 455 mW burned continuously.
 * ------------------------------------------------------------
 *
 * ------------------------------------------------------------

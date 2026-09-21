@@ -207,6 +207,14 @@ wrdata injector_turnoff.dat v(rail) i(Vamm_i) i(Vamm_rc) i(Vamm_fw) v(lo) i(Vamm
 * boost_converter.cir's own RESULT NOTE should be revisited with
 * this finding.
 *
+* DONE 21 Sep 2026: boost_converter.cir gained arrangement C, which
+* runs two identical reservoirs -- one bare, one with a 22 kohm
+* bleed -- through three hold-cutoff recirculation events at the
+* real 26.67 ms cylinder spacing. Bare, the rail stacks to 106.4 V
+* and stays there; bled, each event clears in 21.4 ms and the rail
+* is back at setpoint before the next cylinder. hw/injector.kicad_sch
+* draws the resistor.
+*
 * Claim 4 (diode peak instantaneous power): checked directly against
 * the average figure memo 10 section 4 computed (about 3.6 W across
 * all 9 events/second) -- the check confirms the peak is two to

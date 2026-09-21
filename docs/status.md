@@ -18,7 +18,7 @@ the specification's own register.
 | Unknowns closed | **4** |
 | Unknowns partly answered | **4** |
 | Unknowns still open | **9** |
-| Phase | **2** — schematic capture, 8 of 10 sheets drawn |
+| Phase | **2** — schematic capture, 9 of 10 sheets drawn |
 
 **All 24 blocks pass.** On 19 September it was 16, after a temperature-corner pass found
 six blocks that fail cold or hot and turned prose caveats into enforced checks. All six
@@ -267,7 +267,7 @@ contact-type confirmation, which gates nothing
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
 | 1.5 | Block-level simulation | **Done — 24 blocks, 24 passing** |
-| **2** | **KiCad hierarchical schematic capture** | **In progress — 8 of 10 sheets drawn** |
+| **2** | **KiCad hierarchical schematic capture** | **In progress — 9 of 10 sheets drawn** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
 | 4 | Firmware skeleton | Not started |
 
@@ -281,7 +281,7 @@ refuse to overwrite a sheet that has content, so Eeschema edits are safe against
 | `power_input` | **Drawn, netlist-checked** | `emi_filter`, `transient_clamp`, `load_dump`, `negative_pulses`, `reverse_battery` |
 | `rails` | **Drawn, netlist-checked** | `buck_preregulator`, `mcu_pdn`, `sensor_rail` |
 | `mcu` | **Drawn, netlist-checked** | `supervisor`, `mcu_pdn` |
-| `injector` | Created, empty | `boost_converter`, `injector_boost`, `injector_turnoff` |
+| `injector` | **Drawn, netlist-checked** | `boost_converter`, `injector_boost`, `injector_turnoff` |
 | `metering_egr` | **Half drawn** — metering unit done; EGR blocked on a rail rating | `metering_unit_pwm`, `egr_hbridge` |
 | `sensors_analog` | **Drawn, netlist-checked** | `sensor_ratiometric`, `sensor_differential`, `ntc_frontend`, `battery_sense` |
 | `speed_inputs` | **Drawn, netlist-checked** | `vr_conditioner`, `cam_frontend` |
@@ -335,7 +335,7 @@ all tapped the middle of one wire and all three came back unconnected.
 allowed to draw a multi-tap rail.
 
 **Drawing the sheets is finding things nothing else was going to find.**
-Four so far, all of the same shape — a document and an executable file
+Five so far, all of the same shape — a document and an executable file
 disagreeing, with nothing that compares them:
 
 - **No watchdog pin.** The pin map assigned 37 signals and none serviced
@@ -356,7 +356,16 @@ disagreeing, with nothing that compares them:
   written, and one 16 kΩ resistor turns the pull-up into the same
   10 k/16 k divider the ratiometric channels already use.
 
-**A fifth finding came out of the parts, not the pins.** Every clamp
+- **A ground-referenced kill clamp cannot service a high-side gate.**
+  Spec §4's fail-safe list names pins 03/05 alongside the four low-side
+  gates, and `supervisor.cir` sized a ground-referenced clamp; pinmap §2
+  confirmed the reset state of all six pins against NXP's own table. All
+  three agree, and all three are silent on the fact that the source of a
+  high-side N-FET swings to the boost rail. The injector sheet puts the
+  470 Ω across gate and *source*, and moves the kill path into the
+  driver's shutdown input.
+
+**A sixth finding came out of the parts, not the pins.** Every clamp
 earlier in this project was chosen by forward drop. The crank input's
 four clamp diodes have to be chosen by *reverse leakage* instead:
 Schottky leakage at 125 °C puts ~0.90 V of offset across the comparator
@@ -375,7 +384,17 @@ switches — a 40–45 V class — are excluded from everything
 battery-connected here, which is what blocked the EGR half of
 `metering_egr`.
 
-**What ends phase 2:** the two remaining sheets, the EGR half of `metering_egr`, and the two gates currently left
+**Two open items were closed by drawing, not by deciding.** The injector
+current-sense placement (`pinmap` §1.6, INFERRED per-bank, "settle when
+the sheet is drawn") is settled: low-side, ground-referenced, one per
+bank, because cylinders 1 and 3 fire 240 crank degrees apart and never
+overlap. And the boost reservoir's missing bleed path — which
+`injector_turnoff.cir` asked for by name — is now modelled in
+`boost_converter.cir` as arrangement C and drawn as a 22 kΩ resistor:
+one hold-cutoff event clears in 21.4 ms against the 26.67 ms between
+cylinders, for 455 mW burned continuously.
+
+**What ends phase 2:** the one remaining sheet, the EGR half of `metering_egr`, and the two gates currently left
 undriven on `power_input` (§6).
 
 ---

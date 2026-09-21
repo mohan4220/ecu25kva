@@ -276,6 +276,60 @@ Checked by `vr_conditioner.cir`, which establishes the topology (a fixed
 5 V threshold produces edges at 1500 rpm and **none** at cranking speed)
 and the ±0.2 V window the E24 network above lands on.
 
+### `BOOST-BLEED` — injector boost reservoir bleed
+
+**22 kΩ, 1 W**, across the 47 µF / 100 V reservoir.
+
+The charger regulates from **one side only**: `boost_converter.cir`'s
+`Bchg` adds 50 mA while the rail is below setpoint and adds nothing
+above it. Nothing else in the circuit can remove charge, so any
+excursion above 100 V is permanent. `injector_turnoff.cir` measured the
+mechanism that produces one — a hold-current cutoff, whose energy came
+from the **battery** through the high side's diode-OR and so has no
+boost-side draw to net against — and its RESULT NOTE asked for this
+resistor by name.
+
+Sizing is not a duty-cycle argument; it is "one event is gone before the
+next cylinder fires":
+
+| | |
+|---|---|
+| event charge | 10 A decaying to 0 over 20 µs = 100 µC |
+| on 47 µF | 2.14 V of rail rise |
+| above setpoint | charger is **off**, so the whole 100 V / 22 kΩ = 4.55 mA discharges it |
+| time to clear | **21.4 ms**, against **26.67 ms** between cylinders at 1500 rpm |
+| cost | **455 mW**, burned continuously whenever the rail is up |
+
+Checked by `boost_converter.cir` arrangement C, which runs two identical
+reservoirs — one bare, one bled — through three such events at the real
+cylinder spacing. Bare, the rail stacks to 106.4 V and stays there.
+
+A comparator-gated shunt costs nothing at idle and is the alternative.
+It is more parts, and it is a part nobody has chosen.
+
+**Over a complete injection event there is no pumping at all** — the
+peak phase draws 342 µC from the reservoir and end-of-injection
+recirculation returns roughly 100 µC of it. This resistor is not there
+for normal running. It is there because one-sided regulation has no
+answer for an excursion from *any* cause.
+
+### `INJ-RECIRC` — injector recirculation diodes, five off
+
+**150 V, 20 A, ultrafast.** Three on the low sides (one per cylinder,
+into the boost reservoir) and two on the high sides (the battery
+diode-OR).
+
+Research memo 10 names the class. Not a Zener active clamp across the
+FET — Nexperia AN50003 rates repetitive active clamp
+reliability-"Questionable" for gate-oxide wear-out. Not a bare freewheel
+to battery, which is too slow: the same problem the boost rail exists to
+fix on the opening side.
+
+**Sized by the pulse, not the average.** `injector_turnoff.cir` measures
+28.7 W instantaneous during turn-off against roughly 3.6 W averaged over
+all nine events per second — a factor of eight. The average would never
+have sized this part.
+
 ---
 
 ## Chosen parts
