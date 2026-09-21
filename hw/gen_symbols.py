@@ -436,6 +436,52 @@ COMPARATOR = dict(
     hw=10.16)
 
 
+# --- The 94-way ECU connector ----------------------------------------
+# The part number is NOT known. refs/ecu-pinout-extracted.md records the
+# connector as 94-pin from GP3.8703.C4.pdf page 4 and nothing more --
+# no Bosch part number, no keying, no mating half. So this symbol
+# carries pin COUNT and pin NUMBERS, which are facts, and no footprint,
+# which would be a guess.
+#
+# Pin NAMES come from the wiring diagram where it shows the pin and are
+# "~" (KiCad's blank) where it does not. 44 of the 94 are shown; the
+# diagram is a field-troubleshooting document and explicitly omits
+# "power grounds, unused pins and internal-only pins". Naming a pin this
+# project has not seen would put a guess in the one place a connector
+# symbol must not have one.
+CONN94_PINS = {
+    "1": "G_G_B_AT1", "2": "G_G_B_AT2", "3": "INJ_HS_A", "4": "V_BAT_1R",
+    "5": "INJ_HS_B", "6": "V_BAT_2R", "7": "INJ_LS_CYL3",
+    "8": "SGND_RAIL", "9": "SYNC_GND", "11": "EXC_BOOST",
+    "15": "EXC_EGR", "20": "AUDIO_ABORT", "21": "BATT_PLUS",
+    "23": "SW_DROOP", "24": "OVERRIDE_SS", "29": "INJ_LS_CYL2",
+    "30": "SGND_CRANK", "32": "EXC_RAIL", "33": "COOLANT_T",
+    "34": "SGND_BOOST_COOLANT", "35": "RAIL_P", "36": "SGND_EGR_OIL",
+    "37": "EGR_POS", "39": "EXC_OIL", "41": "BOOST_P", "43": "SW_COOLANT",
+    "44": "SGND_CAM", "45": "EXC_CAM", "46": "CAM_FREQ",
+    "50": "MAIN_RELAY", "52": "CRANK_HI", "55": "CAN1_H",
+    "59": "EGR_HIGH", "69": "BUZZER_RELAY", "71": "IGNITION",
+    "73": "INJ_LS_CYL1", "74": "CRANK_LO", "77": "CAN1_L",
+    "79": "BOOST_T", "80": "OIL_P", "81": "EGR_LOW", "86": "CAN2_L",
+    "87": "CAN2_H", "88": "MU_PWM",
+}
+
+
+def build_conn94(geom):
+    left = [(CONN94_PINS.get(str(n), "~"), str(n), "passive")
+            for n in range(1, 48)]
+    right = [(CONN94_PINS.get(str(n), "~"), str(n), "passive")
+             for n in range(48, 95)]
+    return simple_symbol(
+        name="CONN_ECU_94", fp="", ds="", mpn="",
+        desc="94-way ECU harness connector. Pin COUNT and NUMBERS from "
+             "GP3.8703.C4.pdf page 4; 44 pin functions from the same "
+             "document's wiring diagram. No part number, no footprint -- "
+             "neither is known.",
+        keywords="connector ECU harness 94-way Bosch",
+        left=left, right=right, hw=33.02, geom=geom)
+
+
 def main():
     rows = list(csv.DictReader(open(PINS)))
     for r in rows:
@@ -509,6 +555,9 @@ def main():
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g
+    g = {}
+    out.append(build_conn94(g))
+    icgeom["CONN_ECU_94"] = g
     out.append(')')
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
@@ -520,7 +569,7 @@ def main():
         json.dump(icgeom, f, indent=1, sort_keys=True)
     print(f"{OUT}: {total} pins in {len(units)} units, plus "
           f"TPS3850G33, LM5164, TLV76733, TCAN1042HGV, OPAMP_GENERIC, "
-          f"COMPARATOR_GENERIC")
+          f"COMPARATOR_GENERIC, CONN_ECU_94")
     print(f"{LAYOUT}: {len(layout)} pin positions")
     print(f"{ICPINS}: " + ", ".join(f"{k} {len(v)}p"
                                     for k, v in sorted(icgeom.items())))

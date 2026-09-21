@@ -329,11 +329,17 @@ class Sheet:
             f'  (label "{esc(text)}" (at {r2(x)} {r2(y)} {rot})\n'
             f'    {_eff(justify="left bottom")}\n    (uuid {_u()})\n  )')
 
-    def hlabel(self, text, x, y, shape="passive", rot=0):
+    def hlabel(self, text, x, y, shape="passive", rot=0, justify=None):
+        # A label's justification is read in the label's OWN rotated
+        # frame, so a 180-degree label justified "left" puts its text back
+        # across the wire it sits on. The connector sheet has 41 of them
+        # in a column and it showed up there first.
+        if justify is None:
+            justify = "right" if rot % 360 == 180 else "left"
         self.items.append(
             f'  (hierarchical_label "{esc(text)}" (shape {shape}) '
             f'(at {r2(x)} {r2(y)} {rot})\n'
-            f'    {_eff(justify="left")}\n    (uuid {_u()})\n  )')
+            f'    {_eff(justify=justify)}\n    (uuid {_u()})\n  )')
 
     def gnd(self, x, y):
         self.place("power:GND", "#PWR", x, y, "GND")

@@ -18,7 +18,7 @@ the specification's own register.
 | Unknowns closed | **4** |
 | Unknowns partly answered | **4** |
 | Unknowns still open | **9** |
-| Phase | **2** — schematic capture, 9 of 10 sheets drawn |
+| Phase | **2** — schematic capture, all 10 sheets drawn; root sheet not yet wired |
 
 **All 24 blocks pass.** On 19 September it was 16, after a temperature-corner pass found
 six blocks that fail cold or hot and turned prose caveats into enforced checks. All six
@@ -267,7 +267,7 @@ contact-type confirmation, which gates nothing
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
 | 1.5 | Block-level simulation | **Done — 24 blocks, 24 passing** |
-| **2** | **KiCad hierarchical schematic capture** | **In progress — 9 of 10 sheets drawn** |
+| **2** | **KiCad hierarchical schematic capture** | **In progress — all 10 sheets drawn, root sheet not yet wired** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
 | 4 | Firmware skeleton | Not started |
 
@@ -287,7 +287,7 @@ refuse to overwrite a sheet that has content, so Eeschema edits are safe against
 | `speed_inputs` | **Drawn, netlist-checked** | `vr_conditioner`, `cam_frontend` |
 | `discrete_io` | **Drawn, netlist-checked** | `discrete_input`, `trip_module_sense`, `relay_driver` |
 | `can` | **Drawn, netlist-checked** | `can_termination` |
-| `connector` | Created, empty | — |
+| `connector` | **Drawn, netlist-checked** | — (not a circuit: the harness boundary) |
 
 **The S32K148 symbol is generated from NXP's own pin table, and no pin number is retyped
 anywhere in the chain.** KiCad 7 ships no S32K symbol. The package pin numbers live only
@@ -335,7 +335,7 @@ all tapped the middle of one wire and all three came back unconnected.
 allowed to draw a multi-tap rail.
 
 **Drawing the sheets is finding things nothing else was going to find.**
-Five so far, all of the same shape — a document and an executable file
+Six so far, all of the same shape — a document and an executable file
 disagreeing, with nothing that compares them:
 
 - **No watchdog pin.** The pin map assigned 37 signals and none serviced
@@ -365,7 +365,16 @@ disagreeing, with nothing that compares them:
   470 Ω across gate and *source*, and moves the kill path into the
   driver's shutdown input.
 
-**A sixth finding came out of the parts, not the pins.** Every clamp
+- **The power ground has no connector pin.** `GP3.8703.C4.pdf` shows
+  pin 21 as the battery positive feed and no battery negative anywhere,
+  because it is a field troubleshooting diagram and says so: it omits
+  "power grounds, unused pins and internal-only pins". Every other sheet
+  returns to `GND` — the injector low sides put 18 A into it — and at
+  the harness boundary that net has nowhere to go. It cannot be solved
+  by choosing one of the 50 unknown pins: a wrong ground pin is a
+  harness that has to be remade, not a rework.
+
+**A seventh finding came out of the parts, not the pins.** Every clamp
 earlier in this project was chosen by forward drop. The crank input's
 four clamp diodes have to be chosen by *reverse leakage* instead:
 Schottky leakage at 125 °C puts ~0.90 V of offset across the comparator
@@ -394,7 +403,21 @@ overlap. And the boost reservoir's missing bleed path — which
 one hold-cutoff event clears in 21.4 ms against the 26.67 ms between
 cylinders, for 455 mW burned continuously.
 
-**What ends phase 2:** the one remaining sheet, the EGR half of `metering_egr`, and the two gates currently left
+**All ten sheets pass their own netlist. The cross-sheet audit is the
+next check, and the root sheet is what it needs.** 83 hierarchical net
+names exist across the ten sheets and 73 of them appear on two or more,
+which is the shape a hierarchy should have. All ten that appear on only
+one sheet are explained by an open item and none by a typo: `BARO` (no
+part), `EGR_IN1`/`EGR_IN2`/`ISNS_EGR` and their connector counterparts
+`EGR_HIGH_59`/`EGR_LOW_81` (the blocked bridge — these two groups meet
+when it is drawn), `ISNS_INJ_A`/`ISNS_INJ_B`/`ISNS_MU` (current-sense
+amplifiers not chosen), and `TRIP_LOOP` (needs a connector pin).
+`hw/ecu25kva.kicad_sch`'s sheet symbols still carry **no hierarchical
+pins**, so the sheets are not yet joined to each other — that wiring,
+and the project-wide netlist it makes possible, is what turns this audit
+from a name comparison into a connectivity check.
+
+**What ends phase 2:** wiring the root sheet, the EGR half of `metering_egr`, and the two gates currently left
 undriven on `power_input` (§6).
 
 ---

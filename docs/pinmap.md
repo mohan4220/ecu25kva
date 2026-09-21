@@ -389,5 +389,15 @@ decided. `LPSPI1` is free and is the natural landing spot.
 5. **The 50 unconfirmed OEM connector pins (spec §8)** — cannot be placed on `PTxx`
    without a function to place. 91 of the 128 GPIO-capable pins on the 144-pin package
    remain uncommitted, which is comfortable headroom once they are known.
+   **Sharpened 21 September 2026, by drawing the connector sheet: two of those 50 are
+   not headroom, they are blockers.** The wiring diagram shows pin 21 as the battery
+   positive feed and shows *no battery negative anywhere* — its own scope note says it
+   omits "power grounds, unused pins and internal-only pins" — so `GND`, the net every
+   other sheet returns to and the one the injector low sides put 18 A into, has no pin.
+   And `TRIP_LOOP`, the supervised trip-module loop `trip_module_sense.cir` designs, is
+   a **new** signal that is not on the OEM diagram at all, so it needs one of the 50 as
+   well. Neither can be chosen: a wrong ground pin is not a rework, it is a harness that
+   has to be remade. Both wait on the connector part number and the OEM pin list, or on
+   continuity measurement at the machine.
 6. **RM revision currency (§0)** — worth a diff against a newer Reference Manual if one
    surfaces before layout.
