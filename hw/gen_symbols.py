@@ -473,11 +473,14 @@ def build_conn94(geom):
     right = [(CONN94_PINS.get(str(n), "~"), str(n), "passive")
              for n in range(48, 95)]
     return simple_symbol(
-        name="CONN_ECU_94", fp="", ds="", mpn="",
-        desc="94-way ECU harness connector. Pin COUNT and NUMBERS from "
-             "GP3.8703.C4.pdf page 4; 44 pin functions from the same "
-             "document's wiring diagram. No part number, no footprint -- "
-             "neither is known.",
+        name="CONN_ECU_94", fp="", ds="",
+        mpn="Bosch 1 928 405 192 / 194 code C",
+        desc="Bosch 94-way ECU connector, EDC17 family, PA66-GF50, CODE C "
+             "(mechanical coding -- a differently-coded housing will not "
+             "mate). Part numbers read off the housing, "
+             "refs/field-evidence-2026-09-18.md sec.2b. Pin count and 44 "
+             "pin functions from GP3.8703.C4.pdf page 4. No footprint: the "
+             "board-side land pattern needs the mating half's drawing.",
         keywords="connector ECU harness 94-way Bosch",
         left=left, right=right, hw=33.02, geom=geom)
 

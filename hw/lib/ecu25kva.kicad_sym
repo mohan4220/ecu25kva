@@ -891,8 +891,8 @@
     (property "Value" "CONN_ECU_94" (at 0 -64.77000000000001 0) (effects (font (size 1.27 1.27))))
     (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
     (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-    (property "MPN" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-    (property "ki_description" "94-way ECU harness connector. Pin COUNT and NUMBERS from GP3.8703.C4.pdf page 4; 44 pin functions from the same document's wiring diagram. No part number, no footprint -- neither is known." (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
+    (property "MPN" "Bosch 1 928 405 192 / 194 code C" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
+    (property "ki_description" "Bosch 94-way ECU connector, EDC17 family, PA66-GF50, CODE C (mechanical coding -- a differently-coded housing will not mate). Part numbers read off the housing, refs/field-evidence-2026-09-18.md sec.2b. Pin count and 44 pin functions from GP3.8703.C4.pdf page 4. No footprint: the board-side land pattern needs the mating half's drawing." (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
     (property "ki_keywords" "connector ECU harness 94-way Bosch" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
     (symbol "CONN_ECU_94_1_1"
       (rectangle (start -33.02 62.230000000000004) (end 33.02 -62.230000000000004)

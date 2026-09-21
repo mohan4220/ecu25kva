@@ -470,6 +470,22 @@ datasheet, a part number, or the machine:
 - **two** with no part and no pin: `BARO`, and `TRIP_LOOP` — which
   needs one of the 50 unconfirmed connector pins, as does `GND`
 
+**Correction, 21 September 2026 — the connector's part number was in
+the repo and the sheet said it was not.** `hw/connector.kicad_sch` was
+drawn from `refs/ecu-pinout-extracted.md`, which predates the field
+visit and still says "a complete pinout requires the connector part
+number and the OEM pin list". `refs/field-evidence-2026-09-18.md` §2b
+closed U1 three days earlier, off a photograph of the housing angled to
+the light: **Bosch `1 928 405 192` / `1 928 405 194`, code C**,
+`>PA66-GF50<`, EDC17 family — read off the physical part, which beats a
+catalogue match because it cannot be a mis-identification. **Code C is
+load-bearing**: Bosch codes these housings mechanically so
+differently-coded plugs cannot mate. What is still missing is the OEM
+*pin list*, a different document, and the board-side land pattern —
+neither number returns a catalogue hit, so the footprint has to come
+through a Bosch distributor. Same shape as the six findings above, and
+this one was mine: reading the older reference and not the newer one.
+
 **Footprints are the phase-3 input, not a phase-2 gate:** 7 of 201
 components carry one, and they are exactly the parts with a retrieved
 datasheet behind them.
