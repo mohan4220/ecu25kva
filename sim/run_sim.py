@@ -1561,6 +1561,85 @@ def check_boost_converter():
            ok=clear * 1e3 < 26.67, unit="x")
     c.that("  ... cost, burned continuously whenever the rail is up",
            100.0 ** 2 / 22e3 * 1e3, 455.0, tol=5.0, unit="mW")
+
+    # -- the controller, chosen 21 Sep 2026: TPS40210-Q1 --------------
+    # Not simulated, and deliberately not: this block models the
+    # converter as an average charging current and says so in its own
+    # header -- "no inductor, no switch, no control loop." What IS
+    # checkable without a switching model is whether the part's
+    # DATASHEET RATINGS allow the job, and that is the thing that has
+    # actually gone wrong twice on this board. Same treatment
+    # transient_clamp.cir gives the 73.3 V rail: the numbers are
+    # arithmetic, the check is executable, and a future part swap that
+    # breaks one of them fails here instead of in copper.
+    #
+    # TI SLVS861F (Aug 2008, rev. Jun 2020), figures read from the
+    # retrieved datasheet, not recalled.
+    VDD_ABSMAX = 52.0      # Table 6.1, Absolute Maximum Ratings
+    TOFF_MIN = 200e-9      # Table 6.6, tOFF(min) MAX
+    UVLO_ON_MAX = 4.5      # Table 6.5, VUVLO(on) MAX
+    IDD_MAX = 2.5e-3       # Table 6.5, IDD, no switching
+    FSW = 150e3            # chosen -- see the duty checks below
+    VOUT, VF = 100.0, 0.9
+    VIN_CRANK, VIN_DUMP, VIN_2A = 6.0, 40.0, 73.3
+    RVDD, VZ = 47.0, 43.0  # the series resistor and clamp this needs
+    QG_MAX = 25e-9         # the gate-charge ceiling the FET spec carries
+
+    c.that("TPS40210-Q1 VDD absolute maximum", VDD_ABSMAX, 52.0, tol=0.1,
+           unit="V")
+    c.that("  ... against the pulse 2a rail it would otherwise sit on",
+           VIN_2A / VDD_ABSMAX, 1.41, tol=0.02, unit="x")
+    c.that("  ... so it CANNOT go straight on VBAT_PROT",
+           "same shape as DRV8873-Q1's 40 V VM. Solvable here and not "
+           "there: VDD draws milliamps, not motor current", None,
+           ok=VIN_2A > VDD_ABSMAX)
+    c.that("clamped VDD during pulse 2a", VZ, 43.0, tol=0.1, unit="V")
+    c.that("  ... inside the absolute maximum by", VDD_ABSMAX / VZ, 1.21,
+           tol=0.02, unit="x")
+    c.that("  ... and the clamp does NOT conduct on a load dump",
+           VZ - VIN_DUMP, 3.0, tol=0.1, unit="V")
+    izap = (VIN_2A - VZ) / RVDD
+    c.that("  ... zener current during the 50 us pulse", izap * 1e3, 645.0,
+           tol=5.0, unit="mA")
+    c.that("  ... energy it has to absorb", izap * VZ * 50e-6 * 1e3, 1.39,
+           tol=0.05, unit="mJ")
+
+    # The same series resistor has to not starve the part at the other
+    # end of the range, which is the real constraint on its value.
+    idd = IDD_MAX + QG_MAX * FSW
+    vdd_crank = VIN_CRANK - idd * RVDD
+    c.that("VDD at the 6 V cranking dip", vdd_crank, 5.71, tol=0.05, unit="V")
+    c.that("  ... above the UVLO turn-on ceiling by",
+           vdd_crank - UVLO_ON_MAX, 1.21, tol=0.05, unit="V")
+
+    # -- duty cycle: the number that actually chose this controller --
+    d_crank = 1.0 - VIN_CRANK / (VOUT + VF)
+    d_nom = 1.0 - 13.5 / (VOUT + VF)
+    d_max = 1.0 - TOFF_MIN * FSW
+    c.that("duty needed at the 6 V cranking corner", d_crank * 100, 94.05,
+           tol=0.2, unit="%")
+    c.that("  ... at 13.5 V, for contrast", d_nom * 100, 86.62, tol=0.2,
+           unit="%")
+    c.that("duty the part allows at 150 kHz", d_max * 100, 97.0, tol=0.2,
+           unit="%")
+    c.that("  ... margin at the cranking corner",
+           (d_max - d_crank) * 100, 2.95, tol=0.2, unit="points")
+    c.that("  ... so the cranking corner is reachable", d_max, d_crank,
+           tol=None, ok=d_max > d_crank, unit="")
+    # Why the usual "higher switching frequency is better" is backwards
+    # here. A 2.2 MHz wide-input boost controller -- the class most of
+    # this part's competitors sit in -- has the same order of minimum
+    # off-time, and at that period it caps duty below what cranking
+    # needs. The frequency is the requirement, not a free choice.
+    d_max_fast = 1.0 - TOFF_MIN * 2.2e6
+    c.that("the same 200 ns off-time at 2.2 MHz allows only",
+           d_max_fast * 100, 56.0, tol=0.5, unit="%")
+    c.that("  ... which does not reach even the 13.5 V duty",
+           d_nom - d_max_fast, 0.306, tol=0.02, unit="")
+    c.that("  ... so switching SLOWER is the requirement here",
+           "200 ns of off-time is a floor in time, not in duty -- it "
+           "costs 4% of the period at 150 kHz and 44% at 2.2 MHz", None,
+           ok=d_max_fast < d_crank)
     return c
 
 

@@ -344,6 +344,88 @@ not constraints.
 | Buck pre-regulator | **LM5164DDAR** | 100 V input, 1 A, 6–100 V range. See below — it replaces a 60 V part that can no longer survive this input. |
 | 3V3 regulator | **TLV76733QWDRBRQ1** | 1% over load *and* temperature. The supervisor makes that load-bearing. |
 | Supervisor | **TPS3850G33DRCT** | ±4% window variant, so its undervoltage trip clears the MCU's own LVD by 143 mV rather than 44 mV. |
+| Injector boost controller | **TPS40210QDGQRQ1** | Chosen on its **200 ns maximum off-time** — the one spec that makes 94% duty reachable at the 6 V cranking corner. See below. |
+
+### `TPS40210QDGQRQ1` — chosen on an off-time, not on an input range
+
+**TI SLVS861F**, August 2008, revised June 2020. Retrieved and
+text-extracted this session.
+
+| | |
+|---|---|
+| Input | 4.5 V–52 V, **absolute maximum 52 V** (Table 6.1) |
+| Reference | 700 mV, 686–714 mV over −40/+125 °C (Table 6.5) |
+| Off-time floor | **tOFF(min) = 170 ns typ, 200 ns max** (Table 6.6) |
+| UVLO | 4.25 V typ, **4.5 V max** turn-on (Table 6.5) |
+| Supply current | 1.5 mA typ, **2.5 mA max**, not switching |
+| Internal regulator | BP = 8 V typ (7–9 V), 0–15 mA |
+| Gate driver | 400 mA source / sink |
+| Package | HVSSOP-10 PowerPAD (DGQ), 3 × 3 mm, AEC-Q100 grade 1 |
+
+**The number that chose it is the off-time, and the reasoning runs
+backwards from the usual.** A boost from a 6 V cranking dip to 100 V
+needs
+
+```
+D = 1 − 6 / (100 + 0.9) = 94.05 %
+```
+
+and a controller's minimum off-time is a floor **in time**, not in duty.
+At 150 kHz, 200 ns is 3 % of the period, so `Dmax` = 97.0 % and the
+cranking corner clears by **2.95 points**. At 2.2 MHz — where most
+wide-input boost controllers in this class sit, and where the magnetics
+would be far smaller — the same 200 ns is 44 % of the period and `Dmax`
+falls to **56 %**, below even the 86.6 % the rail needs at a *nominal*
+13.5 V battery.
+
+So "higher switching frequency, smaller inductor" is the wrong
+optimisation here, and the part that looks less modern is the one that
+works.
+
+**THE RATING THAT DOES NOT FIT — the third time on this board.** VDD's
+absolute maximum is **52 V**; `VBAT_PROT` reaches **73.3 V** for about
+50 µs on ISO 7637-2 pulse 2a. Over by **1.41×**.
+
+This is the same shape as DRV8873-Q1's 40 V `VM`, which took that part
+off the EGR bridge — and it is solvable here for a reason that did not
+apply there. A motor bridge's `VM` carries the motor current; this pin
+carries 2.5 mA plus gate charge. So it gets its own clamp:
+
+### `BOOST-VDD-CLAMP` — 47 Ω, 1 W, and a 43 V zener, 1 W
+
+| | |
+|---|---|
+| Pulse 2a, 73.3 V | zener passes (73.3 − 43)/47 = **645 mA**, for 50 µs = **1.39 mJ** |
+| Load dump, 40 V for 400 ms | **43 V clamp does not conduct at all** |
+| Cranking, 6 V in | 2.5 mA + 25 nC × 150 kHz = 6.25 mA, dropping **0.29 V** → VDD = **5.71 V** |
+| against UVLO turn-on max 4.5 V | **1.21 V of margin** |
+
+**43 V rather than 39 V is the whole point of the value.** A 39 V clamp
+would sit in conduction for the load dump's entire 400 ms at roughly
+0.8 W. A 43 V clamp only works during the 50 µs pulse, where 1.39 mJ is
+nothing.
+
+The 47 Ω is squeezed from both ends: small enough that 6.25 mA does not
+drop the part below UVLO at the cranking dip, large enough that the
+zener sees 645 mA and not more during the pulse.
+
+**The power stage is untouched by any of this** — the inductor and FET
+see the rail directly, and are 150 V class for it, the same class the
+injector switches already carry.
+
+Checked by `boost_converter.cir`'s rating checks in `run_sim.py` — not
+with a switching model, which that block deliberately does not have, but
+as executable arithmetic on the datasheet's own numbers. Same treatment
+`transient_clamp.cir` gives the 73.3 V rail.
+
+**What is NOT settled by a datasheet:** the loop compensation. `Rcomp`
+10 kΩ and `Ccomp` 6.8 nF put the error amplifier's zero at 2.3 kHz,
+below the right-half-plane zero a boost puts at
+`(1−D)² · Rload / (2π·L)` = 17.3 kHz at 13.5 V in — and that zero
+**moves with duty cycle**, so the cranking corner is the hard one. These
+are a starting point. A current-mode boost's loop depends on the
+inductor's real DCR, the capacitor's real ESR and the FET's real
+switching behaviour; it gets measured on the bench.
 
 ### `LM5164DDAR` — and the 60 V part it replaces
 

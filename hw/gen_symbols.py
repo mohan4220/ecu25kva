@@ -485,6 +485,52 @@ def build_conn94(geom):
         left=left, right=right, hw=33.02, geom=geom)
 
 
+# --- TPS40210-Q1, current-mode boost controller -----------------------
+# Source: TI SLVS861F (Aug 2008, rev. Jun 2020), Section 5 "Pin
+# Configuration and Functions", DGQ 10-pin PDSO PowerPAD.
+#
+# WHY A CONTROLLER AND NOT A CONVERTER. The injector boost rail is 100 V
+# from a battery that ranges 6-40 V. Nothing integrates a switch at that
+# output voltage in this input class, so the FET, the diode and the
+# inductor are external -- which this project wanted anyway, because
+# every one of them sits at 150 V class and gets chosen against the same
+# rail rating the rest of the board is held to.
+#
+# WHY THIS CONTROLLER, in one number: tOFF(min) = 200 ns max (Table 6.6).
+# The duty cycle a boost needs at the 6 V cranking corner is
+# 1 - 6/100.9 = 94.1%, and at 150 kHz this part's floor on off-time
+# allows 97.0%. Most wide-input boost controllers in this class switch at
+# 2.2 MHz, where the same 200 ns would cap duty at 56% and the cranking
+# corner would be unreachable. The frequency is the requirement here, and
+# it runs the other way from the usual "higher is smaller".
+#
+# THE RATING THAT DOES NOT FIT, stated rather than buried: VDD absolute
+# maximum is 52 V (Table 6.1) and VBAT_PROT reaches 73.3 V for ~50 us on
+# ISO 7637-2 pulse 2a. This part CANNOT sit directly on that rail -- the
+# same shape of finding that took DRV8873-Q1 off the EGR bridge. It is
+# solvable here and was not there, because VDD draws 2.5 mA plus gate
+# charge rather than a bridge's motor current: a 47 ohm series resistor
+# and a 43 V zener keep the pin inside its rating through the pulse and
+# out of conduction entirely during the 40 V load dump. The power stage
+# is untouched by this -- the inductor and FET see the rail directly and
+# are rated 150 V for it.
+TPS40210 = dict(
+    name="TPS40210", fp="Package_SO:HVSSOP-10-1EP_3x3mm_P0.5mm_EP1.57x1.88mm",
+    ds="https://www.ti.com/lit/ds/symlink/tps40210-q1.pdf",
+    mpn="TPS40210QDGQRQ1",
+    desc="TI TPS40210-Q1 current-mode boost controller, 4.5-52 V input, "
+         "700 mV reference, grounded-source N-FET, 200 ns max off-time. "
+         "AEC-Q100 grade 1. HVSSOP-10 PowerPAD (DGQ).",
+    keywords="boost controller current mode automotive TPS40210 AEC-Q100",
+    left=[("VDD", "10", "power_in"), ("RC", "1", "input"),
+          ("SS", "2", "input"), ("DIS/EN", "3", "input")],
+    right=[("GDRV", "8", "output"), ("ISNS", "7", "input"),
+           ("FB", "5", "input"), ("COMP", "4", "output"),
+           ("BP", "9", "power_out")],
+    bottom=[("GND", "6", "power_in")],
+    hw=13.97)
+
+
 def main():
     rows = list(csv.DictReader(open(PINS)))
     for r in rows:
@@ -554,7 +600,8 @@ def main():
     g = {}
     out.append(build_tps3850(g))
     icgeom["TPS3850G33"] = g
-    for part in (LM5164, TLV76733, TCAN1042, OPAMP, COMPARATOR):
+    for part in (LM5164, TLV76733, TCAN1042, OPAMP, COMPARATOR,
+                 TPS40210):
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g
@@ -572,7 +619,7 @@ def main():
         json.dump(icgeom, f, indent=1, sort_keys=True)
     print(f"{OUT}: {total} pins in {len(units)} units, plus "
           f"TPS3850G33, LM5164, TLV76733, TCAN1042HGV, OPAMP_GENERIC, "
-          f"COMPARATOR_GENERIC, CONN_ECU_94")
+          f"COMPARATOR_GENERIC, CONN_ECU_94, TPS40210")
     print(f"{LAYOUT}: {len(layout)} pin positions")
     print(f"{ICPINS}: " + ", ".join(f"{k} {len(v)}p"
                                     for k, v in sorted(icgeom.items())))

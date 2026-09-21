@@ -486,6 +486,31 @@ neither number returns a catalogue hit, so the footprint has to come
 through a Bosch distributor. Same shape as the six findings above, and
 this one was mine: reading the older reference and not the newer one.
 
+**Phase 3 started 21 September 2026 — the first part is chosen.**
+`TPS40210QDGQRQ1`, the injector boost controller, and it was chosen on
+**one spec that runs backwards from the usual**: tOFF(min) = 200 ns max.
+A boost needs 94.1% duty at the 6 V cranking corner; at 150 kHz that
+off-time floor allows 97.0%, and at the 2.2 MHz most wide-input boost
+controllers in this class use, the same 200 ns caps duty at 56% — below
+even the 86.6% the rail needs at a *nominal* battery. Switching slower
+is the requirement, and the part that looks less modern is the one that
+works.
+
+**And it hit the 73.3 V rail rating for the third time.** VDD absolute
+maximum is 52 V. Same shape as DRV8873-Q1's 40 V `VM`, which took that
+part off the EGR bridge — solvable here only because this pin draws
+2.5 mA plus gate charge rather than a motor's current, so 47 Ω and a
+43 V zener hold it inside the rating. 43 V rather than 39 V so the clamp
+stays *out* of conduction during the 400 ms load dump and only works
+during the 50 µs pulse. All of it is checked as executable arithmetic
+under `boost_converter`, not as prose.
+
+The converter stage is drawn — `injector` moved to A1 to hold it — and
+the loop compensation is the one thing on it marked as a starting point
+rather than a result, because a current-mode boost's loop depends on the
+inductor's real DCR and the capacitor's real ESR and is a bench
+measurement.
+
 **Footprints are the phase-3 input, not a phase-2 gate:** 7 of 201
 components carry one, and they are exactly the parts with a retrieved
 datasheet behind them.

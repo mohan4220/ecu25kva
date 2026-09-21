@@ -51,11 +51,14 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import json
 import schlib
 from schlib import Sheet, Rail, pin_xy, PINS
 
 HW = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HW, "injector.kicad_sch")
+ICPINS = json.load(open(os.path.join(HW, "lib", "ic_pins.json")))
+BOOST = "ecu25kva:TPS40210"
 GND_DROP = 7.62
 QP = PINS["Device:Q_NMOS_GSD"]
 
@@ -68,6 +71,55 @@ def fet_pins(x, y):
     return (pin_xy(*QP["1"], x, y, 0),      # G
             pin_xy(*QP["3"], x, y, 0),      # D
             pin_xy(*QP["2"], x, y, 0))      # S
+
+
+def ic_pin(part, num, x, y):
+    dx, dy = ICPINS[part][str(num)]
+    return pin_xy(dx, dy, x, y, 0)
+
+
+def stub(sh, pin, dx, name):
+    """A short horizontal wire off an IC pin, ending in a local label.
+
+    The controller's ten pins each want their own passive network, and
+    routing ten networks into a 2.54 mm pin pitch produces wires that
+    cross other pins' stubs. Labels do the joining instead: the networks
+    sit in their own block below, each on a stub carrying the same name.
+    """
+    ex = pin[0] + dx
+    sh.wire(pin[0], pin[1], ex, pin[1])
+    sh.label(name, ex, pin[1], rot=180 if dx < 0 else 0)
+    return ex
+
+
+def to_gnd(sh, x, y, libid, prefix, value, label, fields, rot=0):
+    """One two-terminal part from a labelled net down to ground."""
+    sh.wire(x, y, x, y - 6.0)
+    sh.label(label, x, y - 6.0, rot=90)
+    rail = Rail(sh, y)
+    rail.to(x)
+    vshunt(sh, libid, prefix, x, y + 14.0, value, fields, rail, rot=rot)
+
+
+def series_chain(sh, y, x0, left_label, parts, right_label, hlabel_in=False):
+    """A horizontal string of two-terminal parts between two named nets."""
+    if hlabel_in:
+        sh.hlabel(left_label, x0, y, shape="input")
+    else:
+        sh.label(left_label, x0, y, rot=180)
+    rail = Rail(sh, y)
+    rail.to(x0)
+    for i, (libid, prefix, value, fields) in enumerate(parts):
+        px = x0 + 40.0 + i * 40.0
+        sh.place(libid, prefix, px, y, value, rot=90, fields=fields)
+        a = pin_xy(*PINS[libid]["1"], px, y, 90)
+        b = pin_xy(*PINS[libid]["2"], px, y, 90)
+        l, r = (a, b) if a[0] < b[0] else (b, a)
+        rail.to(l[0])
+        rail = Rail(sh, y)
+        rail.to(r[0])
+    rail.to(x0 + 40.0 + len(parts) * 40.0 - 10.0)
+    sh.label(right_label, x0 + 40.0 + len(parts) * 40.0 - 10.0, y)
 
 
 def gnd_below(sh, x, y):
@@ -315,6 +367,239 @@ def bank_shunt(sh, sources, x_shunt, sense_net, note):
     sh.label(sense_net, x_shunt + 40.0, y)
 
 
+def boost_stage(sh):
+    """The converter that makes BOOST_100V, chosen 21 September 2026.
+
+    TPS40210-Q1, and the number that chose it is tOFF(min) = 200 ns max
+    (TI SLVS861F Table 6.6). A boost needs 94.1% duty at the 6 V cranking
+    corner, and at 150 kHz that off-time floor allows 97.0%. Most
+    wide-input boost controllers in this class switch at 2.2 MHz, where
+    the same 200 ns caps duty at 56% -- below even the 86.6% the rail
+    needs at a NOMINAL 13.5 V battery. Switching slower is the
+    requirement here, which is the opposite of the usual direction.
+
+    THE RATING THAT DOES NOT FIT. VDD absolute maximum is 52 V (Table
+    6.1) and VBAT_PROT reaches 73.3 V for about 50 us on ISO 7637-2
+    pulse 2a -- 1.41x over. The same shape of finding that took
+    DRV8873-Q1 off the EGR bridge, and solvable here for a reason that
+    did not apply there: VDD draws 2.5 mA plus gate charge, not motor
+    current, so 47 ohm and a 43 V zener hold it inside the rating
+    through the pulse. 43 V is chosen so the clamp stays OUT of
+    conduction during the 40 V load dump, which lasts 400 ms rather than
+    50 us and would otherwise cook it.
+
+    The POWER stage is untouched by that: the inductor and FET see the
+    rail directly and are 150 V class for it, the same class the
+    injector switches already carry.
+
+    All of it is checked in run_sim.py under boost_converter -- not with
+    a switching model, which this block deliberately does not have, but
+    as executable arithmetic on the datasheet's own ratings.
+    """
+    sh.text("BOOST CONVERTER -- TPS40210-Q1, 6-40 V in, 100 V out at "
+            "50 mA average. The reservoir above delivers the pulse; this "
+            "delivers the trickle.", 40.0, 414.0, size=2.0)
+
+    # ---- power path ------------------------------------------------
+    py = 455.0
+    sh.hlabel("VBAT_PROT", 40.0, py, shape="input")
+    pw = Rail(sh, py)
+    pw.to(40.0)
+    vshunt(sh, "Device:C", "C", 75.0, py + 18.0, "4.7uF 100V",
+           {"Note": "Input bulk. 100 V class because it sits on "
+                    "VBAT_PROT, which reaches 73.3 V on pulse 2a -- the "
+                    "same rule every other battery-connected part on this "
+                    "board is held to."}, pw)
+    sh.place("Device:L", "L", 115.0, py, "330uH 3A", rot=90,
+             fields={"Source": "sized here -- boost_converter.cir models "
+                               "the converter as an average current and "
+                               "has no inductor",
+                     "Note": "At 150 kHz and 13.5 V in, ripple is 0.24 A "
+                             "on a 0.44 A average -- continuous "
+                             "conduction with room. Saturation rating is "
+                             "set by the current limit above it, not by "
+                             "the operating current: 82 mOhm sense "
+                             "against a 120-180 mV threshold trips "
+                             "somewhere in 1.46-2.20 A.",
+                     "DCR": "<=0.2 ohm -- 0.2 W at the 1 A cranking corner"})
+    la = pin_xy(*PINS["Device:L"]["1"], 115.0, py, 90)
+    lb = pin_xy(*PINS["Device:L"]["2"], 115.0, py, 90)
+    l_l, l_r = (la, lb) if la[0] < lb[0] else (lb, la)
+    pw.to(l_l[0])
+
+    sw = Rail(sh, py)
+    sw.to(l_r[0])
+    sw.to(155.0, tap=True)
+    diode_up(sh, 155.0, py, "150V 2A ultrafast",
+             {"Note": "The boost diode. Reverse voltage is the output, "
+                      "100 V, so this is 150 V class like everything else "
+                      "on that rail. Average current is the output's "
+                      "50 mA; PEAK is the inductor's 1.06 A at the "
+                      "cranking corner, and the peak is what sizes it.",
+              "Vr": "150 V"}, "BOOST_100V", drop=18.0)
+
+    qx, qy = 195.0, 472.0
+    gp, dp, sp = fet_pins(qx, qy)
+    sh.place("Device:Q_NMOS_GSD", "Q", qx, qy, "150V N-ch, logic-level",
+             fields={"Source": "sized here -- see the sheet note",
+                     "Note": "Grounded source, which is what TPS40210-Q1 "
+                             "requires. LOGIC-LEVEL is not optional: at "
+                             "the 6 V cranking dip VDD is 5.7 V and the "
+                             "part's internal 8 V regulator is in "
+                             "dropout, so the gate gets about 5.7 V, not "
+                             "8 V. Rds(on) must be specified at "
+                             "Vgs = 4.5 V.",
+                     "Vds": "150 V",
+                     "Qg": "<=25 nC -- it sets the 3.75 mA of gate-drive "
+                           "current the VDD series resistor has to pass"})
+    sw.to(dp[0], tap=True)
+    sh.wire(dp[0], dp[1], dp[0], py)
+    sw.to(230.0)
+    sh.label("SW_BOOST", 230.0, py)
+
+    sns = Rail(sh, 492.0)
+    sns.to(sp[0])
+    sh.wire(sp[0], sp[1], sp[0], 492.0)
+    vshunt(sh, "Device:R", "R", sp[0], 492.0 + 16.0, "82mOhm 1%",
+           {"Source": "TPS40210-Q1 Table 6.5, VISNS(oc) 120-180 mV",
+            "Note": "Current limit lands in 1.46-2.20 A across the "
+                    "threshold's own tolerance, against a 1.06 A peak at "
+                    "the cranking corner -- 38% margin at the ADVERSE "
+                    "end of the threshold, which is the end that matters.",
+            "Power": "1.06^2 * 82 mOhm = 92 mW"}, sns)
+    sns.to(230.0)
+    sh.label("ISNS_BOOST", 230.0, 492.0)
+    sh.wire(gp[0], gp[1], 170.0, gp[1])
+    sh.label("GDRV_BOOST", 170.0, gp[1], rot=180)
+
+    # ---- the controller --------------------------------------------
+    ux, uy = 310.0, 472.0
+    sh.place(BOOST, "U", ux, uy, "TPS40210",
+             footprint="Package_SO:HVSSOP-10-1EP_3x3mm_P0.5mm_EP1.57x1.88mm",
+             fields={"Source": "TI SLVS861F (Aug 2008, rev. Jun 2020)",
+                     "Note": "Chosen on tOFF(min) = 200 ns max, which is "
+                             "what makes 94.1% duty reachable at the 6 V "
+                             "cranking corner. VDD abs max is 52 V and "
+                             "the rail reaches 73.3 V -- see the clamp.",
+                     "Fsw": "150 kHz, set by RC: 365k and 330 pF against "
+                            "the datasheet's own 182k/330pF = 300 kHz"})
+    for num, name, dx in (("10", "VDD_BOOST", -22.0), ("1", "RC_BOOST", -30.0),
+                          ("2", "SS_BOOST", -38.0), ("3", "EN_BOOST", -46.0)):
+        stub(sh, ic_pin("TPS40210", num, ux, uy), dx, name)
+    for num, name, dx in (("8", "GDRV_BOOST", 22.0), ("7", "ISNS_BOOST", 30.0),
+                          ("5", "FB_BOOST", 38.0), ("4", "COMP_BOOST", 46.0),
+                          ("9", "BP_BOOST", 54.0)):
+        stub(sh, ic_pin("TPS40210", num, ux, uy), dx, name)
+    g = ic_pin("TPS40210", "6", ux, uy)
+    gnd_below(sh, g[0], g[1])
+
+    # ---- everything that returns to ground -------------------------
+    cy = 528.0
+    cluster = [
+        (440.0, "Device:C", "C", "1uF 100V", "VDD_BOOST", 0,
+         {"Note": "VDD bypass, INSIDE the 47 ohm. 100 V class anyway -- "
+                  "it is one resistor away from a 73.3 V rail."}),
+        # rot=270 puts the CATHODE at the top. At rot=0 a zener is
+        # HORIZONTAL, both pins share a y, and to_gnd's top/bottom pick
+        # is then arbitrary -- which is how the first netlist came back
+        # with the clamp's anode on VDD and its cathode on ground, on a
+        # page that plotted correctly.
+        (480.0, "Device:D_Zener", "D", "43V 1W", "VDD_BOOST", 270,
+         {"Tag": "BOOST-VDD-CLAMP",
+          "Note": "Cathode to VDD. 43 V, not 39 V, so it stays OUT of "
+                  "conduction during the 400 ms 40 V load dump and only "
+                  "works during the 50 us pulse -- 645 mA, 1.39 mJ. A "
+                  "lower clamp would sit in conduction for 400 ms at "
+                  "0.8 W instead."}),
+        (520.0, "Device:C", "C", "330pF", "RC_BOOST", 0,
+         {"Source": "TPS40210-Q1 -- with 365k to VDD this sets 150 kHz",
+          "Note": "The datasheet's own reference point is 182k/330pF = "
+                  "300 kHz, so keeping C and doubling R halves it."}),
+        (560.0, "Device:C", "C", "100nF", "SS_BOOST", 0,
+         {"Note": "Soft start. Also the overcurrent retry timer -- the "
+                  "part discharges this pin on a fault and restarts."}),
+        (600.0, "Device:R", "R", "10k", "EN_BOOST", 0,
+         {"Source": "TPS40210-Q1 Table 6.5 -- DIS/EN has a 1 MOhm "
+                    "internal pulldown and the pin is ACTIVE HIGH",
+          "Note": "Pulled down rather than left floating, so the enable "
+                  "state is asserted by copper. Same treatment the CAN "
+                  "transceivers' STB gets, and for the same reason: a "
+                  "GPIO can take it later."}),
+        (640.0, "Device:C", "C", "1uF", "BP_BOOST", 0,
+         {"Source": "TPS40210-Q1 pin table -- 1 uF from BP to GND",
+          "Note": "The internal 8 V regulator's reservoir, and the "
+                  "gate driver's charge source."}),
+        (680.0, "Device:R", "R", "7.06k 1%", "FB_BOOST", 0,
+         {"Source": "TPS40210-Q1 VFB = 700 mV (686-714 mV over temp)",
+          "Note": "With 998k above: 0.700 * (998000+7060)/7060 = 99.7 V. "
+                  "The reference's own +/-2% over temperature moves that "
+                  "+/-2 V, which the 65-115 V envelope absorbs."}),
+    ]
+    for x, libid, prefix, value, label, rot, fields in cluster:
+        to_gnd(sh, x, cy, libid, prefix, value, label, fields, rot=rot)
+
+    # ---- the series strings ----------------------------------------
+    series_chain(
+        sh, 556.0, 40.0, "VBAT_PROT",
+        [("Device:R", "R", "47R 1W",
+          {"Tag": "BOOST-VDD-CLAMP",
+           "Note": "The other half of the clamp. Small enough that 6.25 mA "
+                   "drops only 0.29 V, so VDD is 5.71 V at the cranking "
+                   "dip against a 4.5 V UVLO ceiling; large enough that "
+                   "the zener sees 645 mA and not more during pulse 2a."})],
+        "VDD_BOOST", hlabel_in=True)
+    series_chain(
+        sh, 574.0, 40.0, "VDD_BOOST",
+        [("Device:R", "R", "365k 1%",
+          {"Source": "TPS40210-Q1 -- RC resistor returns to VDD, not to "
+                     "a rail of its own",
+           "Note": "365k with 330 pF gives 150 kHz. Frequency line "
+                   "regulation is specified -20%/+7% over 4.5-52 V, "
+                   "which is why the duty margin is quoted at the "
+                   "datasheet's MAXIMUM off-time and not its typical."})],
+        "RC_BOOST")
+    series_chain(
+        sh, 556.0, 240.0, "BOOST_100V",
+        [("Device:R", "R", "499k 1%",
+          {"Note": "Two in series, not one. 100 V across a single 1206 "
+                   "is inside its rating but not by much; splitting it "
+                   "halves the voltage per part and the power with it."}),
+         ("Device:R", "R", "499k 1%", {"Note": "Second half of the pair."})],
+        "FB_BOOST")
+    series_chain(
+        sh, 574.0, 240.0, "COMP_BOOST",
+        [("Device:R", "R", "10k",
+          {"Note": "STARTING POINT, NOT A RESULT. See the sheet note."}),
+         ("Device:C", "C", "6.8nF",
+          {"Note": "Zero at 2.3 kHz, below the 17.3 kHz right-half-plane "
+                   "zero a boost puts at (1-D)^2 * Rload / (2*pi*L). "
+                   "STARTING POINT -- see the sheet note."})],
+        "FB_BOOST")
+
+    sh.text(
+        "THE COMPENSATION VALUES ARE A STARTING POINT AND THE SHEET SAYS "
+        "SO. Rcomp 10k and Ccomp 6.8 nF put the error amplifier's zero at "
+        "2.3 kHz, below the right-half-plane zero a boost\n"
+        "converter puts at (1-D)^2 * Rload / (2*pi*L) = 17.3 kHz at "
+        "13.5 V in -- which is the constraint that actually bounds "
+        "crossover, and it MOVES with duty cycle, so the cranking corner "
+        "is the hard one.\n"
+        "Everything else on this sheet traces to a datasheet number or a "
+        "simulation result. These two do not, and cannot: a current-mode "
+        "boost's loop depends on the inductor's real DCR, the\n"
+        "capacitor's real ESR and the FET's real switching behaviour. "
+        "They are bench measurements. What is defensible now is the "
+        "TOPOLOGY and the starting values; the loop gets measured.\n"
+        "\n"
+        "NOT DRAWN, and deliberately: no output capacitor appears here, "
+        "because the 47 uF reservoir at the top of this sheet IS the "
+        "output capacitor. Its 22k bleed is the only thing that can\n"
+        "take charge OFF this rail -- a boost converter cannot pull its "
+        "own output down, which is the same one-sided regulation "
+        "boost_converter.cir's arrangement C measures.",
+        420.0, 442.0, size=1.6)
+
+
 def notes(sh):
     sh.text(
         "A GROUND-REFERENCED KILL CLAMP CANNOT SERVICE A HIGH-SIDE GATE, "
@@ -370,32 +655,51 @@ def notes(sh):
         "pad and reference is the whole signal.",
         40.0, 352.0, size=1.6)
     sh.text(
-        "THE BOOST CONVERTER ITSELF IS NOT DRAWN. boost_converter.cir "
-        "models it as an average charging current and says so: 'no "
-        "inductor, no switch, no control loop.' That is enough to\n"
-        "size the reservoir and it is not enough to draw a converter, so "
-        "what is on this sheet is the part the block DID size -- the "
-        "47 uF reservoir, its 150 V class, and the bleed -- with\n"
-        "VBAT_PROT and BOOST_100V naming the two ends of the stage "
-        "nobody has chosen. What it has to do: 50 mA average from "
-        "VBAT_PROT into a 100 V setpoint, which recovers the\n"
-        "7.3 V peak-phase droop in 6.8 ms against the 26.67 ms between "
-        "cylinders at 1500 rpm.",
+        "THE BOOST CONVERTER IS NOW DRAWN, AND THE PART WAS CHOSEN ON "
+        "ONE NUMBER: tOFF(min) = 200 ns max, TI SLVS861F Table 6.6. A "
+        "boost needs 94.1% duty at the 6 V cranking\n"
+        "corner, and at 150 kHz that off-time floor allows 97.0%. Most "
+        "wide-input boost controllers in this class switch at 2.2 MHz, "
+        "where the same 200 ns caps duty at 56% -- below even the\n"
+        "86.6% the rail needs at a nominal 13.5 V battery. Switching "
+        "SLOWER is the requirement here, which runs the opposite way to "
+        "the usual 'higher frequency, smaller magnetics'.\n"
+        "\n"
+        "THE RATING THAT DOES NOT FIT, and it is the third time this "
+        "board has hit it. VDD absolute maximum is 52 V (Table 6.1) and "
+        "VBAT_PROT reaches 73.3 V for about 50 us on ISO\n"
+        "7637-2 pulse 2a -- over by 1.41x. Same shape as DRV8873-Q1's "
+        "40 V VM, which took that part off the EGR bridge. It is "
+        "solvable here for a reason that did not apply there: VDD\n"
+        "draws 2.5 mA plus gate charge, not a motor's current, so 47 ohm "
+        "and a 43 V zener hold the pin inside its rating through the "
+        "pulse. 43 V rather than 39 V so the clamp stays OUT\n"
+        "of conduction during the 40 V load dump, which lasts 400 ms "
+        "instead of 50 us and would otherwise sit it at 0.8 W. The "
+        "POWER stage is untouched: the inductor and FET see the\n"
+        "rail directly and are 150 V class for it. All of this is "
+        "checked in run_sim.py under boost_converter -- not with a "
+        "switching model, which that block deliberately does not\n"
+        "have, but as executable arithmetic on the datasheet's own "
+        "ratings, the same treatment transient_clamp.cir gives the "
+        "73.3 V rail.",
         40.0, 400.0, size=1.6)
 
 
 def build():
     schlib.verify_pins()
-    sh = Sheet("Injector drive: boost rail, high sides, low sides",
-               paper="A2",
+    sh = Sheet("Injector drive: boost converter, boost rail, high sides, low sides",
+               paper="A1",
                comments=[
                    "Generated by hw/gen_sheet_injector.py -- do not hand-edit until it is retired",
                    "boost_converter.cir / injector_boost.cir / injector_turnoff.cir",
                    "Hold current arrives through a battery DIODE-OR, not a second switched rail",
+                   "Boost controller TPS40210-Q1, chosen on its 200 ns off-time: 150 kHz reaches 94% duty at cranking",
                    "Shunts settled LOW-SIDE and per-bank -- docs/pinmap.md 1.6 asked for the placement",
                ],
                ref_base=schlib.REF_BASE["injector"])
     boost_rail(sh)
+    boost_stage(sh)
 
     high_side(sh, 210.0, "A (cyl 1+3)", "INJ_HS_A", "INJ_A_03", "HSA_GATE",
               "HSA_DRV_IN", 150.0,
