@@ -496,14 +496,28 @@ datasheet behind them.
 
 Ordered by what it unblocks.
 
+**Re-ordered 21 September 2026, after the schematics were drawn.** Two
+items moved to the top that were not on this list before, because they
+came out of capture rather than out of a document. The full tasks are
+`docs/research/08-engine-inspection-brief.md` **Group 5**, written for
+whoever is at the machine.
+
 | Task | Closes | Unblocks |
 |---|---|---|
+| **Continuity from every populated cavity to chassis — where is the power ground?** | — | **The board, outright.** 94 pins and no identified battery negative; the injector low sides put 18 A into a net with nowhere to land |
+| Cavity census: populated, contact-only, empty | — | A pin **and a wire** for `TRIP_LOOP`, which is not on the OEM diagram at all |
+| Trace who switches the heater feed | **U14** | Whether a heater output is in scope — **can make the board bigger** |
+| Follow the throttle's 6-pin cable to where it ends | **U8** | Whether a throttle driver exists at all — **can make the board bigger** |
+| Injector part number from the body | **U5** | The boost rail's 100 V target and the 18 A threshold, both currently a family envelope |
 | Alternator rectifier part number, or a scope during a live disconnect under load | **U16** | The whole input-protection topology, and `load_dump`'s failure |
 | Resistance across the charge-air element, cold | **U2** | The `ntc_frontend` populate choice |
-| Follow the throttle's 6-pin cable to where it ends | **U8** | Whether a throttle driver exists at all |
-| Trace who switches the heater feed | **U14** | Whether a heater output is in scope |
-| Injector part number from the body | **U5** | The boost rail's target voltage |
+| Crank VR output while cranking, cold *(supervised)* | — | Confirms the ±198 mV hysteresis window against the real sensor, not a 2 V estimate |
+| Contact pitch and row spacing, with calipers | — | Confirms which Bosch family drawing is the right one for the board-side footprint |
 | Relay contact-type check | U12 confirmation | Nothing — recorded for completeness |
+
+**The two that can grow the board — U14 and U8 — should be answered
+before layout starts, not after.** Everything else on this list changes a
+value or closes a register entry; those two change the output count.
 
 ---
 

@@ -28,6 +28,13 @@
 > **Also still open and cheap:** task 1.3 (U2, one resistance reading) and task 3.11
 > (U8, follow one cable by hand).
 >
+> **SECOND VISIT, 21 Sep 2026 — see Group 5 at the foot of this brief.** Seven new
+> tasks, written after the schematics were drawn rather than from documents. **5.1
+> blocks the board outright: the 94-way connector has no identified
+> battery-negative pin, and every circuit on the new board returns to a net that
+> currently has nowhere to land.** 5.7 and the still-open 3.11 are the only two
+> items that can make the board bigger, so both want answering before layout.
+>
 > **New since this brief was written**, worth adding to the next visit: trace the
 > **pre-heat / post-heat** supply — the DSE4522's configuration enables both at 50 °C
 > and this design has no heater output at all (U14).
@@ -280,6 +287,142 @@ already bringing the hardware.
 
 ---
 
+## Group 5 — Second visit, added 21 September 2026
+
+**Why there is a Group 5.** Groups 1–4 were written from documents. These tasks come
+out of **drawing the schematics**, which is a different kind of question: not "what is
+this signal" but "where does this wire actually go, because the board cannot be built
+without it." Two of them block the board outright.
+
+Priority order is the order below. **5.1 is the blocker** — nothing about the board's
+ground plane, its connector footprint or its power path can be finished without it.
+
+- [ ] **5.1 — WHERE IS THE POWER GROUND? (blocks the board, no workaround)**
+  Battery disconnected, connector **unmated**. Working on the **harness side** plug,
+  probe every populated cavity for continuity to **chassis ground**. Write down every
+  cavity number that beeps, and its resistance.
+
+  *Why:* the ECU's 94-way connector has **no identified battery-negative pin.**
+  `GP3.8703.C4.pdf` shows pin 21 as the battery **positive** feed and shows no negative
+  anywhere — which is not a contradiction, because that document says outright it omits
+  "power grounds, unused pins and internal-only pins." But it means the net that every
+  circuit on the new board returns to, and that the injector low sides put **18 A**
+  into, currently has nowhere to land. It cannot be guessed: a wrong ground pin is not
+  a rework, it is a harness that has to be remade.
+
+  **Do task 1.1 first if it has not been done** — pins 01/02 (`G_G_B AT1`/`AT2`) are
+  the leading hypothesis and 1.1 tests them directly. 5.1 is the wider sweep that
+  catches the answer if 1.1 comes back open.
+
+  | What you find | What it means |
+  |---|---|
+  | **Two or more cavities at well under 1 Ω to chassis** | Those are the power grounds. Record every one — an 18 A injector stage does not return through a single contact, so expect more than one and record them all, not just the first. **This closes the blocker.** |
+  | **Exactly one** | Record it, and say so explicitly in the notes. One 18 A return through one contact is a design constraint worth knowing about early, not a measurement error. |
+  | **A few ohms, not near zero** | That is a return **through a device** (a sensor ground, a lamp, a coil), not a power ground. Note it separately — do not count it. |
+  | **Nothing beeps anywhere** | The ECU is grounded through its **case/mounting**, not through the connector. Photograph the mounting points and any ground strap, and measure continuity from a mounting bolt to chassis. That answer changes the mechanical design, so it matters as much as the other outcomes. |
+
+- [ ] **5.2 — Cavity census: which are populated, which are empty.**
+  Same session as 5.1, connector unmated. Photograph the mating face square-on with
+  good light, then list: which cavity numbers have a **wire crimped in**, which have a
+  **contact but no wire**, and which are **empty**.
+
+  *Why:* the wiring diagram accounts for 44 of 94 pins. The new design needs one more
+  signal than the OEM harness carries — `TRIP_LOOP`, the supervised trip-module loop,
+  which is not on the OEM diagram at all because it is new. **The question is not just
+  "is there a spare pin" but "is there a spare WIRE":** an empty cavity means a
+  contact and a conductor have to be added to a loom that is already on the machine.
+
+  | What you find | What it means |
+  |---|---|
+  | **Spare cavities with wires already run** | Best case. Trace where one goes (same method as 3.11) — if it reaches the trip module or the panel, `TRIP_LOOP` has a home with no harness work. |
+  | **Contacts fitted, no wires** | Adding a conductor is possible without re-terminating. Note the contact type so the crimp can be matched. |
+  | **All 50 empty** | `TRIP_LOOP` needs a new contact **and** a new wire. Record the cavity you would use, so the board and the harness rework agree. |
+
+- [ ] **5.3 — Connector contact geometry (for the board-side footprint).**
+  Connector unmated. Measure with calipers, and photograph with a scale in frame:
+  **contact pitch** within a row, **row-to-row spacing**, and the **overall footprint**
+  of the housing. If a contact can be seen down a cavity, photograph it.
+
+  *Why:* the connector is identified — **Bosch `1 928 405 192` / `1 928 405 194`,
+  code C** — but neither number returns a catalogue hit, so no land pattern can be
+  downloaded. The board-side footprint has to come either from a Bosch distributor
+  quoting those numbers, or from measurement. Measurement will not be precise enough
+  to build from on its own; what it will do is **confirm which family drawing is the
+  right one** when a distributor sends one.
+
+  **Also re-photograph the `code C` marking and the `2.7` beside the logo.** Code C is
+  mechanical keying — a differently-coded housing will not mate, and that is the kind
+  of detail that is invisible until a part arrives and will not fit.
+
+- [ ] **5.4 — Crank sensor output while cranking, COLD.**
+  **SUPERVISED ACTIVITY, NOT A SOLO CHECKLIST ITEM** — the engine cranks, and a diesel
+  with fuel available will start. Treat this like Group 4's running tests: someone
+  qualified to operate the set, with the normal start procedure, not a meter held in
+  one hand.
+
+  Measure across ECU connector pins **52** and **74** (crank VR high/low) on the
+  harness side, during the first seconds of cranking, engine cold.
+  **Oscilloscope strongly preferred** — a multimeter on AC volts reads an RMS
+  approximation of a non-sinusoidal waveform and will under-read the peak, which is
+  the number that matters. If a meter is all there is, record that it was a meter.
+
+  *Why:* the crank conditioner is a zero-cross comparator with a **±198 mV** hysteresis
+  window, and a signal that never leaves that window cannot flip it at all, whatever
+  its amplitude margin. The design was sized against a **2 V estimate** at cranking and
+  the simulation says it still works down to about **0.25 V** — roughly a decade of
+  headroom. That headroom has never been checked against this sensor.
+
+  | Peak amplitude, cranking, cold | What it means |
+  |---|---|
+  | **Above 1 V** | Comfortable. Record the number and move on. |
+  | **0.25 V to 1 V** | The design still works, with less margin than assumed. Record the number — it becomes the real design figure and replaces the estimate. |
+  | **Below 0.25 V** | The hysteresis window has to shrink, which costs noise immunity, or the front end needs gain ahead of the comparator. **This is the outcome that changes a drawn sheet**, so flag it immediately rather than filing it. |
+
+- [ ] **5.5 — Injector part number (was 3.10 — now load-bearing, not corroboration).**
+  Same task, higher priority. Photograph the injector body markings.
+
+  *Why it was upgraded:* the boost rail's **100 V target** and the **18 A peak
+  threshold** come from a family-wide envelope in memo 04, not from this injector. The
+  whole injector stage — the 47 µF reservoir, the 150 V part classes, the recirculation
+  diodes — is sized off those two numbers. A part number turns an envelope into a
+  datasheet. **Closes U5.**
+
+- [ ] **5.6 — Alternator rectifier / regulator identification (closes U16).**
+  Photograph the charging alternator's nameplate, and any separate rectifier or
+  regulator module, with part numbers legible under raking light.
+
+  *Why:* whether the alternator is **suppressed** decides which ISO 7637-2 load-dump
+  pulse the input has to survive — the suppressed 5b case the design is currently
+  built around, or the unsuppressed 5a case at 65–87 V. The input-protection topology
+  and `load_dump`'s failure mode both hang off this. If no part number is readable, the
+  alternative is a scope during a live disconnect under load, which is a supervised
+  activity and a separate trip.
+
+- [ ] **5.7 — Who commands the pre-heat / post-heat? (closes U14).**
+  Trace the heater feed by hand, the same method as 3.11.
+
+  *Why:* the DSE4522's fitted configuration enables pre-heat and post-heat at 50 °C,
+  and this design has **no heater output at all**. It was already reported that the
+  heaters are **battery-fed** — that answers who supplies them, not who **commands**
+  them.
+
+  | Where the command comes from | What it means |
+  |---|---|
+  | **The DSE4522 / panel** | Out of scope. Nothing is added to the board. |
+  | **The ECU's 94-way connector** | **A driver channel has to be added** — which changes the board's area and its output count. Flag this one immediately: it is one of only two open items that can make the board bigger. |
+
+### Still open from the earlier groups, and cheap
+
+These were written for the first visit and have not been done. Two of them are a single
+measurement each.
+
+- [ ] **1.3** — one resistance reading across the boost P&T sensor, cold. **Closes U2**
+  either way; there is no third case.
+- [ ] **3.11** — follow the intake throttle's 6-pin cable by hand. **Closes U8**, and
+  like 5.7 it is one of the two items that can make the board bigger.
+
+---
+
 ## What this closes
 
 | # | Unknown | Closed by |
@@ -295,7 +438,20 @@ already bringing the hardware.
 | U11 | Engine identity | 3.1 — closes outright if plate matches |
 | U12 | Ignition relay: power-cut or signal-only | 2.1 — **the safety-gate item; closes §3's open question either way** |
 | — | Pin 01/02 ground hypothesis | 1.1, 3.8 |
+| U5 | Injector part number | 5.5 — turns memo 04's family envelope into a datasheet |
+| U14 | Who commands the heaters | 5.7 — **can add a driver channel to the board** |
+| U16 | Alternator suppressed or not | 5.6 — decides which load-dump pulse the input must survive |
+| — | **The power ground's pin** | **5.1 — blocks the board outright** |
+| — | A pin *and a wire* for `TRIP_LOOP` | 5.2 |
+| — | Board-side connector footprint | 5.3 — confirms which family drawing is right |
+| — | Crank VR amplitude at cranking | 5.4 — supervised; the only Group 5 item that can change a drawn sheet |
 
 Ten register entries touched, two (U2, U11) closeable outright on the spot, one
 (U12) resolves the live safety-argument branch either way, the rest narrowed with a
 clear next step recorded regardless of outcome.
+
+**Group 5 adds four more register entries and three questions that are not register
+entries at all** — they are things the schematics need and no document in this project
+contains. Of those, **5.1 is the one that stops the board**, and **5.7 and 3.11 are the
+only two that can make the board bigger**, so they should be answered before layout
+starts rather than after.
