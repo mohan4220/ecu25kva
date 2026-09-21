@@ -65,6 +65,14 @@ NO_DECOUPLING_NEEDED = {
     ("U201", "7"): "LM5164 BST -- the bootstrap capacitor is the net",
 }
 
+# The global rails reach every sheet, so "is this sheet connected?" is
+# trivially yes if you count them. A sheet attached to the rest of the
+# board by GND ALONE is a sheet whose signals never left -- one level up
+# from the local-label bug that made 5V_MAIN four nets. So the
+# connectivity check excludes these and asks again.
+GLOBAL_RAILS = {"GND", "/3V3_MCU", "/5V_MAIN", "/VBAT_PROT",
+                "/5V_SENSOR_A", "/5V_SENSOR_B", "/5V_SENSOR_C"}
+
 
 class Fail(Exception):
     pass
@@ -173,6 +181,26 @@ def main():
                     if n.count("/") >= 2 and n.rsplit("/", 1)[1] in root_names)
     check("no sheet-local net shadows a project-wide net name",
           not shadow, f"local copies of a global name: {shadow}")
+
+    # -- sheet-to-sheet signal paths --------------------------------
+    sheet_of = dict(re.findall(
+        r'\(comp \(ref "([^"]+)"\).*?\(sheetpath \(names "([^"]*)"',
+        text, re.S))
+    sheet_of = {r: p.strip("/") for r, p in sheet_of.items()}
+    all_sheets = set(sheet_of.values())
+    crossing, linked = 0, set()
+    for n, pins in named:
+        if n in GLOBAL_RAILS:
+            continue
+        ss = {sheet_of[r] for r, _ in pins}
+        if len(ss) > 1:
+            crossing += 1
+            linked |= ss
+    stranded = sorted(all_sheets - linked)
+    check(f"every sheet carries a signal to another sheet "
+          f"({crossing} nets cross a boundary, rails excluded)",
+          not stranded,
+          f"attached by global rails only: {stranded}")
 
     # -- decoupling -------------------------------------------------
     # Walks every power_in pin and asks whether a capacitor sits on the
