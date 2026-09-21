@@ -399,7 +399,8 @@ def build():
                    "Buck values: buck_preregulator.cir. PTC: sensor_rail.cir + bom_requirements SENSOR-PTC",
                    "LM5164 replaces memo 07's 60 V TPS54360B-Q1 -- see the note on the page",
                    "3V3 must stay inside 3.143-3.459 V or the supervisor resets the board",
-               ])
+               ],
+               ref_base=schlib.REF_BASE["rails"])
     buck(sh)
     ldo(sh)
     sensor_rail(sh)

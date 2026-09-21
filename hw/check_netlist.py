@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""Project-level schematic checks. The counterpart to sim/run_sim.py.
+
+sim/run_sim.py guards the component VALUES -- every one traces to a
+block. Nothing guarded the CONNECTIVITY, and for most of phase 2 there
+was none to guard: hw/ecu25kva.kicad_sch's sheet symbols carried no
+hierarchical pins, so the ten sheets were ten separate schematics that
+happened to use the same net names. Each sheet's own netlist was
+correct and the project had no netlist at all.
+
+This script exports the whole hierarchy through kicad-cli and checks it.
+The rule it enforces that matters most is the same one run_sim.py has:
+an exemption is not a pass. Every single-pin net has to be listed below
+WITH ITS REASON, and a net that stops being single-pin has to be removed
+from the list or this fails. An open item that quietly closes is as much
+a drift as one that quietly opens.
+"""
+import collections
+import os
+import re
+import subprocess
+import sys
+import tempfile
+
+HW = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.join(HW, "ecu25kva.kicad_sch")
+
+# A net with one pin is a net whose other end is a part nobody has
+# chosen, a pin nobody has identified, or a circuit nobody has drawn.
+# Each is a real open item recorded elsewhere; none is a wiring mistake.
+EXPECTED_OPEN = {
+    # -- gate drivers and current-sense amplifiers, not chosen --
+    "/INJ_HS_A": "injector high-side driver not chosen",
+    "/INJ_HS_B": "injector high-side driver not chosen",
+    "/INJ_LS_1": "injector low-side driver not chosen",
+    "/INJ_LS_2": "injector low-side driver not chosen",
+    "/INJ_LS_3": "injector low-side driver not chosen",
+    "/ISNS_INJ_A": "injector bank A current-sense amplifier not chosen",
+    "/ISNS_INJ_B": "injector bank B current-sense amplifier not chosen",
+    "/MU_PWM": "metering unit gate driver not chosen",
+    "/ISNS_MU": "metering unit current-sense amplifier not chosen",
+    # -- power_input's two controller gates --
+    "/power_input/VBAT_REV_GATE": "ideal-diode controller not chosen",
+    "/power_input/NCLAMP_GATE": "negative-clamp comparator not chosen",
+    # -- the EGR bridge, blocked on a >73.3 V DIR/PWM gate driver --
+    "/EGR_IN1": "EGR bridge not drawn -- blocked on a rail rating",
+    "/EGR_IN2": "EGR bridge not drawn -- blocked on a rail rating",
+    "/ISNS_EGR": "EGR bridge not drawn -- blocked on a rail rating",
+    "/EGR_HIGH_59": "EGR bridge not drawn; the connector pin is real",
+    "/EGR_LOW_81": "EGR bridge not drawn; the connector pin is real",
+    # -- no part, and no pin --
+    "/BARO": "onboard barometric sensor: no part chosen",
+    "/TRIP_LOOP": "no connector pin -- not on the OEM diagram, needs one "
+                  "of the 50 unconfirmed",
+}
+
+# Nets that must span more than one sheet, because a rail that does not
+# is a rail that got disconnected by a rename.
+MUST_SPAN = ("GND", "/VBAT_PROT", "/3V3_MCU")
+
+
+class Fail(Exception):
+    pass
+
+
+def export_netlist(path):
+    r = subprocess.run(
+        ["kicad-cli", "sch", "export", "netlist", "--format", "kicadsexpr",
+         "-o", path, ROOT], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise Fail(f"kicad-cli failed:\n{r.stdout}\n{r.stderr}")
+    noise = (r.stdout + r.stderr).strip()
+    if "annotation errors" in noise:
+        raise Fail("kicad-cli reports annotation errors -- two parts share "
+                   "a reference. schlib.REF_BASE gives each sheet its own "
+                   "hundred; a sheet missing its ref_base= is the usual "
+                   "cause.")
+    return open(path).read()
+
+
+def parse(text):
+    comps = {}
+    for m in re.finditer(r'\(comp \(ref "([^"]+)"\)\s*\n\s*\(value "([^"]*)"\)',
+                         text):
+        comps[m.group(1)] = m.group(2)
+    nets = []
+    i = text.index("(nets")
+    for b in re.split(r'\n    \(net ', text[i:])[1:]:
+        name = re.search(r'\(name "([^"]*)"\)', b).group(1)
+        pins = re.findall(r'\(node \(ref "([^"]+)"\) \(pin "([^"]+)"\)', b)
+        nets.append((name, pins))
+    return comps, nets
+
+
+def child_labels(name):
+    p = os.path.join(HW, f"{name}.kicad_sch")
+    return set(re.findall(r'\(hierarchical_label "([^"]+)"', open(p).read()))
+
+
+def root_pins():
+    """{sheet name: {pin names}} as the ROOT sheet declares them."""
+    text = open(ROOT).read()
+    out = {}
+    for m in re.finditer(r'\(sheet \(at [^\n]*\n(?:(?!\n  \(sheet ).)*?'
+                         r'\(property "Sheetname" "([^"]+)"'
+                         r'(?:(?!\n  \(sheet ).)*', text, re.S):
+        out[m.group(1)] = set(re.findall(r'\(pin "([^"]+)" \w+ \(at',
+                                         m.group(0)))
+    return out
+
+
+def main():
+    checks, failed = [], 0
+
+    def check(label, ok, detail=""):
+        nonlocal failed
+        checks.append((ok, label, detail))
+        if not ok:
+            failed += 1
+
+    with tempfile.TemporaryDirectory() as td:
+        text = export_netlist(os.path.join(td, "p.net"))
+    comps, nets = parse(text)
+
+    check(f"project netlist exports and annotates cleanly "
+          f"({len(comps)} components)", True)
+
+    dup = [r for r, c in collections.Counter(
+        re.findall(r'\(comp \(ref "([^"]+)"\)', text)).items() if c > 1]
+    check("every reference is unique across all ten sheets",
+          not dup, f"duplicates: {dup}" if dup else "")
+
+    named = [(n, p) for n, p in nets if not n.startswith("unconnected-")]
+    multi = [n for n, p in named if len(p) > 1]
+    single = {n for n, p in named if len(p) < 2}
+    check(f"{len(multi)} named nets carry two or more pins", len(multi) > 100)
+
+    unexplained = sorted(single - set(EXPECTED_OPEN))
+    check("every single-pin net is a recorded open item",
+          not unexplained, f"not in EXPECTED_OPEN: {unexplained}")
+
+    stale = sorted(set(EXPECTED_OPEN) - single)
+    check("no stale exemptions -- an open item that closed must leave "
+          "EXPECTED_OPEN", not stale, f"no longer single-pin: {stale}")
+
+    by_sheet = collections.defaultdict(set)
+    for m in re.finditer(r'\(comp \(ref "([^"]+)"\).*?'
+                         r'\(sheetpath \(names "([^"]*)"', text, re.S):
+        by_sheet[m.group(2)].add(m.group(1))
+    check(f"components land on {len(by_sheet)} sheet paths",
+          len(by_sheet) >= 10, f"paths: {sorted(by_sheet)}")
+
+    declared = root_pins()
+    for name in sorted(declared):
+        want, have = child_labels(name), declared[name]
+        check(f"root sheet exposes every net {name} exports "
+              f"({len(want)})", want <= have, f"missing: {sorted(want - have)}")
+
+    for rail in MUST_SPAN:
+        hit = [p for n, p in named if n == rail]
+        n_pins = len(hit[0]) if hit else 0
+        check(f"{rail} spans the project ({n_pins} pins)", n_pins > 5)
+
+    with_fp = len(re.findall(r'\(footprint "[^"]+"\)', text))
+    checks.append((None, f"footprints assigned: {with_fp} of {len(comps)} "
+                         f"-- phase 3 input, not a schematic gate", ""))
+
+    for ok, label, detail in checks:
+        mark = "    " if ok is None else ("PASS" if ok else "FAIL")
+        # Detail is the failure's evidence, so it prints only on failure --
+        # a PASS line ending in "missing: []" is noise that trains the
+        # reader to skip the column the FAIL lines need them to read.
+        print(f"  {mark}  {label}" + (f"\n          {detail}"
+                                      if detail and ok is False else ""))
+    print()
+    if failed:
+        print(f"  {failed} check(s) FAILED")
+        return 1
+    print(f"  {len(EXPECTED_OPEN)} open items, each named and none silent")
+    print("  schematic connectivity OK")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Fail as e:
+        print(f"  FAIL  {e}")
+        sys.exit(1)

@@ -94,9 +94,10 @@ def build():
                    "Pin count and 44 pin functions from GP3.8703.C4.pdf via refs/ecu-pinout-extracted.md",
                    "50 pins have no established function -- including, so far, the power ground",
                    "No part number and no footprint: neither is known",
-               ])
+               ],
+               ref_base=schlib.REF_BASE["connector"])
     cx, cy = 297.0, 200.0
-    sh.place(CONN, "J", cx, cy, "CONN_ECU_94", ref="J1",
+    sh.place(CONN, "J", cx, cy, "CONN_ECU_94", ref="J1001",
              fields={"Source": "refs/ecu-pinout-extracted.md, from "
                                "GP3.8703.C4.pdf page 4",
                      "Note": "94-way. Part number unknown, so no footprint "

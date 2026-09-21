@@ -281,7 +281,8 @@ def build():
                    "Metering unit: metering_unit_pwm.cir + bom_requirements MU-ISENSE, GATE-PULLDOWN",
                    "EGR half NOT drawn -- blocked on a battery-rail rating, see the note",
                    "Nothing battery-connected on this board may be rated below 80 V",
-               ])
+               ],
+               ref_base=schlib.REF_BASE["metering_egr"])
     metering(sh)
     egr_blocked(sh)
     return sh

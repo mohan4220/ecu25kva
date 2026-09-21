@@ -98,7 +98,7 @@ def place_units(sh):
     for u in sorted(UNIT_AT):
         x, y = UNIT_AT[u]
         # Every unit is the SAME component -- one part, six units.
-        ref = sh.place(MCU, "U", x, y, "S32K148_144LQFP", unit=u, ref="U1",
+        ref = sh.place(MCU, "U", x, y, "S32K148_144LQFP", unit=u, ref="U301",
                        footprint=FP144,
                        fields={"MPN": "FS32K148HAT0MLQT",
                                "Source": "docs/research/05-mcu-selection.md; "
@@ -134,7 +134,8 @@ def build():
                    "Pin assignments: docs/pinmap.md. Pin positions: hw/lib/s32k148_layout.json",
                    "Supervisor TPS3850G33: memo 11 sec.2.1 + TI SBVS301B Table 5-1",
                    "PTE0/PTE1 are added here -- pinmap.md assigns no watchdog pins",
-               ])
+               ],
+               ref_base=schlib.REF_BASE["mcu"])
     at = place_units(sh)
     for port in NETS:
         stub_and_label(sh, port, at)

@@ -393,7 +393,8 @@ def build():
                    "boost_converter.cir / injector_boost.cir / injector_turnoff.cir",
                    "Hold current arrives through a battery DIODE-OR, not a second switched rail",
                    "Shunts settled LOW-SIDE and per-bank -- docs/pinmap.md 1.6 asked for the placement",
-               ])
+               ],
+               ref_base=schlib.REF_BASE["injector"])
     boost_rail(sh)
 
     high_side(sh, 210.0, "A (cyl 1+3)", "INJ_HS_A", "INJ_A_03", "HSA_GATE",

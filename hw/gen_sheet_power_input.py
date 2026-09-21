@@ -67,7 +67,8 @@ def build():
                    "EMI filter values are emi_filter.cir element for element",
                    "TVS and clamp: docs/bom_requirements.md tags TVS, NEG-CLAMP",
                    "Q1/Q2 gates are intentionally undriven -- see the note on the page",
-               ])
+               ],
+               ref_base=schlib.REF_BASE["power_input"])
 
     # ---- input from the connector sheet ----
     sh.hlabel("VBAT_IN", 30, RAIL, shape="input")

@@ -18,7 +18,7 @@ the specification's own register.
 | Unknowns closed | **4** |
 | Unknowns partly answered | **4** |
 | Unknowns still open | **9** |
-| Phase | **2** — schematic capture, all 10 sheets drawn; root sheet not yet wired |
+| Phase | **2** — schematic capture **complete**: 10 sheets, root wired, project netlist checked |
 
 **All 24 blocks pass.** On 19 September it was 16, after a temperature-corner pass found
 six blocks that fail cold or hot and turned prose caveats into enforced checks. All six
@@ -267,7 +267,7 @@ contact-type confirmation, which gates nothing
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
 | 1.5 | Block-level simulation | **Done — 24 blocks, 24 passing** |
-| **2** | **KiCad hierarchical schematic capture** | **In progress — all 10 sheets drawn, root sheet not yet wired** |
+| **2** | **KiCad hierarchical schematic capture** | **Complete — 196 components, 113 multi-pin nets, 18 named open ends** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
 | 4 | Firmware skeleton | Not started |
 
@@ -403,22 +403,53 @@ overlap. And the boost reservoir's missing bleed path — which
 one hold-cutoff event clears in 21.4 ms against the 26.67 ms between
 cylinders, for 455 mW burned continuously.
 
-**All ten sheets pass their own netlist. The cross-sheet audit is the
-next check, and the root sheet is what it needs.** 83 hierarchical net
-names exist across the ten sheets and 73 of them appear on two or more,
-which is the shape a hierarchy should have. All ten that appear on only
-one sheet are explained by an open item and none by a typo: `BARO` (no
-part), `EGR_IN1`/`EGR_IN2`/`ISNS_EGR` and their connector counterparts
-`EGR_HIGH_59`/`EGR_LOW_81` (the blocked bridge — these two groups meet
-when it is drawn), `ISNS_INJ_A`/`ISNS_INJ_B`/`ISNS_MU` (current-sense
-amplifiers not chosen), and `TRIP_LOOP` (needs a connector pin).
-`hw/ecu25kva.kicad_sch`'s sheet symbols still carry **no hierarchical
-pins**, so the sheets are not yet joined to each other — that wiring,
-and the project-wide netlist it makes possible, is what turns this audit
-from a name comparison into a connectivity check.
+**The root sheet is wired and the project has a netlist for the first
+time.** Until 21 September 2026 `hw/ecu25kva.kicad_sch`'s ten sheet
+symbols carried **no hierarchical pins**, which meant every sheet's own
+netlist was correct and the project had none: a name on two sheets was
+two nets and nothing compared them. Each symbol now carries one pin per
+net its child exports — 162 pins — with a stub and a label, and two
+labels with the same name are one net.
 
-**What ends phase 2:** wiring the root sheet, the EGR half of `metering_egr`, and the two gates currently left
-undriven on `power_input` (§6).
+Exporting it immediately found the second half of the same problem:
+**`kicad-cli` reported annotation errors**, because each sheet generator
+allocated `R1`, `C1`, `U1` from its own counter. Ten sheets, ten parts
+called `R1`. `schlib.REF_BASE` now gives each sheet its own hundred —
+KiCad's own sheet-number × 100 convention, applied at generation time
+rather than by a hand pass in Eeschema.
+
+| | |
+|---|---|
+| components | **196**, every reference unique |
+| named nets with ≥2 pins | **113** |
+| named nets with 1 pin | **18**, each a recorded open item |
+| sheet paths | 10 |
+| `GND` / `3V3_MCU` / `VBAT_PROT` | 134 / 27 / 12 pins, all spanning the project |
+
+`hw/check_netlist.py` is the gate, and it is the counterpart to
+`sim/run_sim.py`: that one guards the component *values*, this one
+guards the *connectivity*. It enforces the same rule — **an exemption is
+not a pass**. Every single-pin net must be listed with its reason, and a
+net that stops being single-pin must be removed from the list or the
+check fails. An open item that quietly closes is as much a drift as one
+that quietly opens.
+
+The full schematic set plots to `docs/pdf/ECU-Schematics.pdf`, 11 pages.
+
+**Phase 2 is done.** What remains under these sheets is not schematic
+work — it is eighteen named open ends, and every one waits on a
+datasheet, a part number, or the machine:
+
+- **nine** driver / current-sense-amplifier interfaces (requirements
+  drawn, parts not chosen)
+- **two** controller gates on `power_input`
+- **five** for the EGR bridge, blocked on a gate driver above 73.3 V
+- **two** with no part and no pin: `BARO`, and `TRIP_LOOP` — which
+  needs one of the 50 unconfirmed connector pins, as does `GND`
+
+**Footprints are the phase-3 input, not a phase-2 gate:** 7 of 196
+components carry one, and they are exactly the parts with a retrieved
+datasheet behind them.
 
 ---
 

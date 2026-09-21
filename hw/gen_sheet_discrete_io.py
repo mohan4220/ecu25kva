@@ -223,7 +223,8 @@ def build():
                    "Front-ends: discrete_input.cir / trip_module_sense.cir. Outputs: relay_driver.cir",
                    "Trip sense moved PTD6 -> PTB0: a GPIO cannot read a three-state loop",
                    "Relay FETs are 100 V class -- VBAT_PROT reaches 73.3 V on pulse 2a",
-               ])
+               ],
+               ref_base=schlib.REF_BASE["discrete_io"])
     rows = [
         (40.0, 60.0, "IN_AUDIO_ABORT_H", "IN_AUDIO_ABORT", None,
          "ECU pin 20 -- audio abort, active high -> PTD11"),

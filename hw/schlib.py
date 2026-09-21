@@ -238,13 +238,28 @@ class Rail:
         return (x, self.y)
 
 
+# Every sheet's reference designators start at its own hundred, which
+# is how a ten-sheet project stays annotated without a human pass in
+# Eeschema. Each generator allocated R1, C1, U1 independently until
+# 21 Sep 2026, so the project-wide netlist came out of kicad-cli with
+# "schematic has annotation errors" and ten different parts called R1 --
+# each sheet's own netlist was correct and the project's was not. This
+# is KiCad's own sheet-number x 100 convention, done at generation time.
+REF_BASE = {
+    "power_input": 100, "rails": 200, "mcu": 300, "injector": 400,
+    "metering_egr": 500, "sensors_analog": 600, "speed_inputs": 700,
+    "discrete_io": 800, "can": 900, "connector": 1000,
+}
+
+
 class Sheet:
     """One .kicad_sch page."""
 
-    def __init__(self, title, paper="A3", comments=()):
+    def __init__(self, title, paper="A3", comments=(), ref_base=0):
         self.title = title
         self.paper = paper
         self.comments = list(comments)
+        self.ref_base = ref_base
         self.items = []
         self.libs = {}
         self.refs = {}
@@ -272,7 +287,7 @@ class Sheet:
         # components that happen to share a footprint, and the netlist
         # says so: U1A, U2B, U3C rather than U1 units A-F.
         if ref is None:
-            n = self.refs.get(ref_prefix, 0) + 1
+            n = self.refs.get(ref_prefix, self.ref_base) + 1
             self.refs[ref_prefix] = n
             ref = f"{ref_prefix}{n}"
         else:
@@ -282,8 +297,8 @@ class Sheet:
             # zero and the supervisor was also numbered U1.
             m = re.fullmatch(re.escape(ref_prefix) + r"(\d+)", ref)
             if m:
-                self.refs[ref_prefix] = max(self.refs.get(ref_prefix, 0),
-                                            int(m.group(1)))
+                self.refs[ref_prefix] = max(
+                    self.refs.get(ref_prefix, self.ref_base), int(m.group(1)))
         uid = _u()
         mir = f"\n    (mirror {mirror})" if mirror else ""
         # A power symbol's reference (#PWR01, ...) is noise on the page --

@@ -240,7 +240,8 @@ def build():
                    "Termination: can_termination.cir + bom_requirements CAN-TERM",
                    "Thin-film 0.1% / 50 ppm -- thick-film misses J1939's 120 ohm at temperature",
                    "Termination is a FIT OPTION on both channels -- see the note",
-               ])
+               ],
+               ref_base=schlib.REF_BASE["can"])
     channel(sh, 1, 150.0, 68.0)
     channel(sh, 2, 150.0, 170.0)
     notes(sh)

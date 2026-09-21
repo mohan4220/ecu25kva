@@ -294,7 +294,8 @@ def build():
                    "battery_sense.cir / sensor_ratiometric.cir / sensor_differential.cir / ntc_frontend.cir",
                    "Differential where the sensor return is SHARED; single-ended where it is dedicated",
                    "Op-amps are a placeholder symbol -- requirement is >=60 dB CMRR, part not chosen",
-               ])
+               ],
+               ref_base=schlib.REF_BASE["sensors_analog"])
     divider_channel(sh, 40.0, 40.0, "V_BAT_1R", "V_BAT_1R_SNS", "120k", "10k",
                     "ECU pin 04 -- battery rail 1 -> PTA0 (ADC0_SE0)",
                     "battery_sense.cir R3/R4")

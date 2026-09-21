@@ -500,7 +500,8 @@ def build():
                    "vr_conditioner.cir / cam_frontend.cir",
                    "Zero-cross with +/-198 mV hysteresis: a fixed threshold cannot see a 2 V cranking signal",
                    "Clamp diodes specified by REVERSE LEAKAGE, not forward drop -- see the sheet note",
-               ])
+               ],
+               ref_base=schlib.REF_BASE["speed_inputs"])
     crank(sh)
     bias_generator(sh)
     shield(sh)
