@@ -677,6 +677,37 @@ AUIRS2184 = dict(
     hw=10.16)
 
 
+# --- MPXHZ6115A, analog barometric absolute pressure sensor ----------
+# Source: NXP (Freescale) MPXA6115A series data sheet, Rev. 7.3, 04/2015,
+# Table 1 pin functions: 1 DNC, 2 VS, 3 GND, 4 VOUT, 5-8 DNC. Super small
+# outline, case 98ARH99066A -- a footprint KiCad ships. The "Z" parts are
+# the media-resistant-gel variants.
+#
+# Spec sec.7 deviation #2 ADDS this on purpose: "on-PCB behind a vented
+# port; costs nothing in harness terms and improves fuelling correction."
+# VOUT = VS x (0.009 x P - 0.095), P in kPa, 15-115 kPa.
+#
+# NOT STATED AEC-Q100 in the retrieved datasheet. Infineon's KP236 is
+# listed automotive-qualified with a 40-115 kPa range, but its datasheet
+# would not resolve by any route this session -- recorded against the
+# part, and the KP236 is a FOOTPRINT change, not a drop-in.
+MPXH6115 = dict(
+    name="MPXHZ6115A", fp="Sensor_Pressure:Freescale_98ARH99066A",
+    ds="https://www.nxp.com/docs/en/data-sheet/MPXA6115A.pdf",
+    mpn="MPXHZ6115A6T1",
+    desc="NXP MPXHZ6115A absolute pressure sensor, 15-115 kPa, "
+         "VOUT = VS(0.009P - 0.095), 5 V, media-resistant gel, "
+         "super small outline 98ARH99066A.",
+    keywords="pressure sensor barometric absolute MPX6115 BAP",
+    left=[("DNC", "1", "no_connect"), ("DNC", "5", "no_connect"),
+          ("DNC", "6", "no_connect"), ("DNC", "7", "no_connect"),
+          ("DNC", "8", "no_connect")],
+    right=[("VOUT", "4", "output")],
+    top=[("VS", "2", "power_in")],
+    bottom=[("GND", "3", "power_in")],
+    hw=10.16)
+
+
 def main():
     rows = list(csv.DictReader(open(PINS)))
     for r in rows:
@@ -748,7 +779,7 @@ def main():
     icgeom["TPS3850G33"] = g
     for part in (LM5164, TLV76733, TCAN1042, OPAMP, COMPARATOR,
                  TPS40210, AUIRS2181, INA181, TLV3201, UCC27517A,
-                 AUIRS2184):
+                 AUIRS2184, MPXH6115):
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g

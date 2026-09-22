@@ -486,6 +486,30 @@ neither number returns a catalogue hit, so the footprint has to come
 through a Bosch distributor. Same shape as the six findings above, and
 this one was mine: reading the older reference and not the newer one.
 
+**Baro drawn, 22 September 2026 — 2 → 1 open end.** Spec §7 deviation 2
+adds it deliberately; NXP MPXHZ6115A from a retrieved datasheet, on
+5V_MAIN so the existing `SENSOR_5V_MON` channel makes it ratiometric. Its
+datasheet does not state AEC-Q100; Infineon's KP236 is listed qualified
+but its datasheet would not resolve, and it is a footprint change — so
+that is recorded, not guessed.
+
+**The one open end left is `TRIP_LOOP`, and no part closes it.** It needs
+a connector pin *and* a harness wire — it is a new signal, not on the OEM
+diagram — which is field-brief task 5.2.
+
+**AND ONE DISAGREEMENT FOUND ON THE WAY, FOR A DECISION RATHER THAN A
+FIX.** Spec §7 deviation 1 — binding, and recorded as a choice — says
+the ECU uses **functionally-split sealed connectors** with an **adapter
+harness** to the unmodified OEM loom, and that the adapter "is a
+deliverable, not an afterthought". `hw/connector.kicad_sch` draws the
+**OEM 94-way Bosch connector on the board itself**, and field-brief task
+5.3 asks for its land pattern. The electrical content is identical either
+way — split connectors partition the same 41 nets — so nothing on the
+other nine sheets moves. What changes is the physical part on the PCB,
+whether an adapter harness exists, and where the 94-way's mating half
+lives. That is a scope decision and it is the user's, so the sheet was
+not redrawn.
+
 **The EGR bridge is drawn, 22 September 2026 — 7 → 2 open ends.** It had
 been blocked since 20 September on one datasheet: DRV8873-Q1's 40 V VM
 against a 73.3 V rail. It went discrete — four 100 V FETs, two

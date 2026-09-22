@@ -37,7 +37,6 @@ EXPECTED_OPEN = {
     # (The EGR bridge's five ends closed 22 Sep 2026: discrete, two
     #  AUIRS2184S, coast asserted by copper on a shared shutdown.)
     # -- no part, and no pin --
-    "/BARO": "onboard barometric sensor: no part chosen",
     "/TRIP_LOOP": "no connector pin -- not on the OEM diagram, needs one "
                   "of the 50 unconfirmed",
 }

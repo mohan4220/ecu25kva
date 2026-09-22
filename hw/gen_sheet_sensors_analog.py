@@ -253,6 +253,81 @@ def excitation(sh):
         x += 130.0
 
 
+def baro(sh):
+    """Onboard barometric sensor, spec sec.7 deviation #2 -- on purpose.
+
+    "Added on-PCB behind a vented port; costs nothing in harness terms
+    and improves fuelling correction." NXP MPXHZ6115A, 15-115 kPa,
+    VOUT = VS x (0.009 x P - 0.095). Supplied from 5V_MAIN, which
+    SENSOR_5V_MON already measures, so the reading is ratiometric-
+    correctable with no new channel: sea level (101.3 kPa) reads 4.08 V at
+    the sensor and 2.51 V at the pin, 2000 m (80 kPa) 1.92 V.
+
+    No zener at the MCU pin, unlike every other channel on this sheet:
+    those arrive from the harness, this never leaves the board, and 10k/16k
+    holds even a 5.25 V supply's full-scale output to 3.10 V.
+    """
+    sx, sy = 190.0, 100.0
+    sh.text("BARO -- onboard, spec sec.7 deviation #2. NXP MPXHZ6115A "
+            "behind a vented port -> PTD18 (ADC1_SE16)", 160.0, 64.0,
+            size=1.6)
+    geom = ICPINS["MPXHZ6115A"]
+
+    def p(n):
+        return pin_xy(geom[n][0], geom[n][1], sx, sy, 0)
+
+    sh.place("ecu25kva:MPXHZ6115A", "U", sx, sy, "MPXHZ6115A",
+             footprint="Sensor_Pressure:Freescale_98ARH99066A",
+             fields={"Source": "NXP MPXA6115A series data sheet Rev. 7.3 "
+                               "-- Table 1 pins, Figure 6 transfer function",
+                     "Note": "Needs a VENTED PORT in the enclosure -- a "
+                             "mechanical requirement, not a schematic one. "
+                             "Media-resistant gel (Z) variant.",
+                     "Qualification": "AEC-Q100 NOT stated in the retrieved "
+                                      "datasheet. Infineon KP236 is listed "
+                                      "automotive-qualified (40-115 kPa) but "
+                                      "its datasheet did not resolve; it is "
+                                      "a footprint change, not a drop-in."})
+    vs = p("2")
+    sh.wire(vs[0], vs[1], vs[0], vs[1] - 6.0)
+    sh.label("5V_MAIN", vs[0], vs[1] - 6.0, rot=90)
+    g = p("3")
+    gnd_below(sh, g[0], g[1])
+    # Bypass, per the datasheet's own Figure 1.
+    sh.wire(sx - 20.0, sy - 20.0, sx - 20.0, sy - 26.0)
+    sh.label("5V_MAIN", sx - 20.0, sy - 26.0, rot=90)
+    sh.place("Device:C", "C", sx - 20.0, sy - 14.0, "100nF",
+             fields={"Source": "MPXA6115A data sheet Figure 1"})
+    ca = pin_xy(*PINS["Device:C"]["1"], sx - 20.0, sy - 14.0, 0)
+    cb = pin_xy(*PINS["Device:C"]["2"], sx - 20.0, sy - 14.0, 0)
+    ct, cbo = (ca, cb) if ca[1] < cb[1] else (cb, ca)
+    sh.wire(sx - 20.0, sy - 20.0, ct[0], ct[1])
+    gnd_below(sh, cbo[0], cbo[1])
+
+    vo = p("4")
+    chain = Rail(sh, vo[1])
+    chain.to(vo[0])
+    rx = vo[0] + 18.0
+    sh.place("Device:R", "R", rx, vo[1], "10k", rot=90,
+             fields={"Note": "10k/16k, the same ratio every 5 V channel on "
+                             "this sheet uses. Loads the sensor 0.18 mA "
+                             "against its 0.5 mA source rating."})
+    a = pin_xy(*PINS["Device:R"]["1"], rx, vo[1], 90)
+    b = pin_xy(*PINS["Device:R"]["2"], rx, vo[1], 90)
+    l, r = (a, b) if a[0] < b[0] else (b, a)
+    chain.to(l[0])
+    node = Rail(sh, vo[1])
+    node.to(r[0])
+    vshunt(sh, "Device:R", "R", rx + 20.0, vo[1] + 18.0, "16k",
+           {"Note": "Bottom of the divider."}, node)
+    vshunt(sh, "Device:C", "C", rx + 38.0, vo[1] + 18.0, "22nF",
+           {"Note": "With 6.15k Thevenin, 1.2 kHz -- the sensor's own "
+                    "response time is 1 ms and ambient pressure moves in "
+                    "minutes."}, node)
+    node.to(rx + 58.0)
+    sh.hlabel("BARO", rx + 58.0, vo[1], shape="output")
+
+
 def notes(sh):
     sh.text(
         "WHY FIVE CHANNELS ARE DIFFERENTIAL AND ONE IS NOT. The split "
@@ -300,11 +375,11 @@ def notes(sh):
         "rail is 5 V. That is a populate-time change to this channel, not "
         "a redesign.\n"
         "\n"
-        "BARO (PTD18) is an onboard sensor, new per spec sec.7 deviation "
-        "#2. No part is chosen, so nothing is drawn for it -- it needs a "
-        "device with its own footprint,\n"
-        "supply and output type, none of which follow from the pin "
-        "assignment alone.",
+        "BARO (PTD18) is drawn: NXP MPXHZ6115A, spec sec.7 deviation #2, "
+        "on-PCB behind a vented port. AEC-Q100 is not stated in its "
+        "retrieved datasheet; Infineon KP236 is the\n"
+        "qualified alternative whose datasheet did not resolve -- a "
+        "footprint change if chosen.",
         40.0, 390.0, size=1.6)
 
 
@@ -355,6 +430,7 @@ def build():
         differential_channel(sh, x0, y, sig, gnd, out, label, note)
 
     excitation(sh)
+    baro(sh)
     notes(sh)
     return sh
 

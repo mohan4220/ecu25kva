@@ -453,9 +453,43 @@ not constraints.
 | Supervisor | **TPS3850G33DRCT** | ±4% window variant, so its undervoltage trip clears the MCU's own LVD by 143 mV rather than 44 mV. |
 | Injector boost controller | **TPS40210QDGQRQ1** | Chosen on its **200 ns maximum off-time** — the one spec that makes 94% duty reachable at the 6 V cranking corner. See below. |
 | Gate drivers, all eight gates | **AUIRS2181STR** ×5 | **No cross-conduction interlock** — the injector's high and low switches are in series with the coil and must both be on. See below. |
+| Barometric sensor | **MPXHZ6115A6T1** | Spec §7 deviation 2, on-PCB behind a vented port. AEC-Q100 **not stated** in its datasheet — see below. |
 | EGR bridge drivers | **AUIRS2184STR** ×2 | One input per leg: each leg's high and low exclusive by construction. See `EGR-DRIVER`. |
 | Negative-clamp control | **TLV3201AQDCKRQ1** + **UCC27517AQDBVRQ1** | A low-side ideal diode: engage below −100 mV, release above −6.8 mV. See `NEG-CLAMP`. |
 | Current-sense amplifiers | **INA181A1QDBVRQ1** ×3 | VCM reaches −0.2 V, so it sits across a ground-referenced shunt; supplied from 3V3_MCU so its output is ADC-safe by construction. |
+
+### `MPXHZ6115A6T1` — the onboard barometric sensor
+
+**NXP (Freescale) MPXA6115A series data sheet**, Rev. 7.3, April 2015,
+retrieved and text-extracted. Spec §7 deviation 2 adds it on purpose:
+"on-PCB behind a vented port; costs nothing in harness terms and improves
+fuelling correction."
+
+| | |
+|---|---|
+| Range | 15–115 kPa absolute |
+| Transfer | `VOUT = VS × (0.009·P − 0.095)`, P in kPa |
+| Supply | 4.75–5.25 V, 10 mA max |
+| Accuracy | ±1.5 % of span, 0–85 °C; compensated −40…125 °C |
+| Package | super small outline, case 98ARH99066A — a footprint KiCad ships |
+
+Supplied from **5V_MAIN**, which `SENSOR_5V_MON` already measures — so
+the reading is ratiometric-correctable with no new channel. Through the
+same 10k/16k divider every 5 V channel on the sheet uses: **2.51 V at sea
+level** (101.3 kPa), 1.92 V at 2000 m. No zener at the MCU pin: every
+other channel on that sheet arrives from the harness; this never leaves
+the board.
+
+**AEC-Q100 is not stated in the retrieved datasheet.** Infineon's KP236
+is listed automotive-qualified with a 40–115 kPa range and would be the
+choice, but its datasheet did not resolve by any route this session —
+Mouser timed out twice, Infineon's own host redirected. It is a
+**footprint change**, not a drop-in, so the choice is recorded rather
+than guessed: confirm qualification at sourcing, or retrieve the KP236
+sheet and swap.
+
+The **vented port** is a mechanical requirement the schematic cannot
+carry.
 
 ### `INA181A1QDBVRQ1` — one part, one gain, three channels
 
