@@ -1774,6 +1774,25 @@ def check_boost_converter():
            (d_max - d_crank) * 100, 2.95, tol=0.2, unit="points")
     c.that("  ... so the cranking corner is reachable", d_max, d_crank,
            tol=None, ok=d_max > d_crank, unit="")
+
+    # -- the switch, chosen 22 Sep 2026: DMN15H310SK3 (Diodes, DPAK) ---
+    # 150 V, +/-20 V Vgs, Vth 3 V max, Rds(on) 350 mOhm max at Vgs 4 V --
+    # specified BELOW the 5.7 V the gate gets at the cranking dip, which
+    # is the requirement. Qg 8.7 nC typ at 10 V; the datasheet gives no
+    # maximum. The duty above is lossless; this is the same corner with
+    # the switch and the 82 mOhm sense resistor in the on-path, at 2x the
+    # 25 C Rds(on) for a hot junction (assumed, not read off a curve).
+    QG_TYP, RDS_4V, RSNS = 8.7e-9, 0.350, 0.082
+    c.that("Q401 gate charge (typ) under the 25 nC ceiling by",
+           QG_MAX / QG_TYP, 2.87, tol=0.02, unit="x")
+    iin = VOUT * 50e-3 / (VIN_CRANK * 0.85)
+    c.that("  input current at the cranking corner (50 mA out, 85%)",
+           iin, 0.980, tol=0.01, unit="A")
+    d_lossy = 1.0 - (VIN_CRANK - iin * (2 * RDS_4V + RSNS)) / (VOUT + VF)
+    c.that("  duty needed with switch + sense drop, hot", d_lossy * 100,
+           94.81, tol=0.1, unit="%")
+    c.that("  ... still inside the 97.0% the part allows by",
+           (d_max - d_lossy) * 100, 2.19, tol=0.1, unit="points")
     # Why the usual "higher switching frequency is better" is backwards
     # here. A 2.2 MHz wide-input boost controller -- the class most of
     # this part's competitors sit in -- has the same order of minimum
@@ -1824,9 +1843,13 @@ def check_boost_converter():
 
     # Bootstrap: charges whenever the bank node swings low -- every hold
     # off-time through D_fw, and between injections through the bleed.
-    droop = (60e-9 + 150e-6 * 38e-6) / 1e-6
-    c.that("bootstrap droop over the 38 us peak phase (60 nC, 150 uA IQBS, "
-           "1 uF)", droop * 1e3, 65.7, tol=1.0, unit="mV")
+    # Qg is the chosen boost-side FET's MAXIMUM: SQM85N15-19, 120 nC at
+    # 10 V (Vishay S15-2970 Rev. E). 60 nC was a placeholder until then.
+    droop = (120e-9 + 150e-6 * 38e-6) / 1e-6
+    c.that("bootstrap droop over the 38 us peak phase (SQM85N15-19 120 nC "
+           "max, 150 uA IQBS, 1 uF)", droop * 1e3, 125.7, tol=1.0, unit="mV")
+    c.that("  ... as a fraction of the ~11.5 V bootstrap supply",
+           droop / 11.5 * 100, 1.09, tol=0.05, unit="%")
 
     # -- 12V_GATE, from the boost rail so it survives cranking ---------
     LM5164_VIN_ABSMAX = 100.0       # TI datasheet 5.1
@@ -2347,6 +2370,13 @@ def check_supervisor():
         c.that("  ... and across all six driver gates",
                6 * per_gate * 10.0, 3.0, tol=None, ok=6 * per_gate * 10.0 < 3.0,
                unit="W")
+    # The pulldowns above were sized at Crss = 500 pF, before any FET was
+    # chosen. The chosen gate-driven FETs' datasheet MAXIMA, 22 Sep 2026:
+    crss = {"SQM85N15-19": 270e-12, "IPD90N10S4-06": 150e-12,
+            "SQD50P08-25L": 300e-12}
+    worst = max(crss.values())
+    c.that("  chosen FETs' worst Crss (max) against the 500 pF sizing",
+           worst * 1e12, 300.0, tol=None, ok=worst <= 500e-12, unit="pF")
     return c
 
 

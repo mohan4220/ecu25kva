@@ -137,6 +137,17 @@ PINS = {
     "Device:Q_PMOS_GSD": {"1": (-5.08, 0),                    # G
                           "2": (2.54, -5.08),                 # S
                           "3": (2.54, 5.08)},                 # D
+    # GDS: DPAK / D2PAK numbering, tab = pin 2 = drain. Same pin
+    # POSITIONS as GSD -- only the numbers differ -- so a sheet swaps
+    # the lib id and its wires still land; the footprint then gets the
+    # drain on the tab. A GSD symbol with a TO-252 footprint would put
+    # the SOURCE on the tab.
+    "Device:Q_NMOS_GDS": {"1": (-5.08, 0),                    # G
+                          "2": (2.54, 5.08),                  # D
+                          "3": (2.54, -5.08)},                # S
+    "Device:Q_PMOS_GDS": {"1": (-5.08, 0),                    # G
+                          "2": (2.54, 5.08),                  # D
+                          "3": (2.54, -5.08)},                # S
     "Device:Q_NPN_BCE": {"1": (-5.08, 0),                     # B
                          "2": (2.54, 5.08),                   # C
                          "3": (2.54, -5.08)},                 # E

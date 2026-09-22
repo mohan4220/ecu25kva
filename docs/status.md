@@ -662,7 +662,28 @@ PMV280ENEA for the relay FETs. The same pass fixed a diagonal wire from
 VBAT_PROT to each relay flyback diode, a drawing bug present since the
 sheet was first drawn.
 
-**Footprints are the phase-3 input, not a phase-2 gate:** 43 of 297
+**Power FETs chosen, 22 September 2026: four part numbers for all
+sixteen.** SQD50P08-25L is the reverse-battery P-FET. IPD90N10S4-06 ×8
+covers the negative clamp, metering, the EGR bridge and the injector
+battery switches. SQM85N15-19 ×5 covers the injector boost-side and
+low-side switches. DMN15H310SK3 is the boost switch, the one part
+that needs its Rds(on) specified at a 4 V gate. Two things the choice
+changed:
+
+- **The symbols.** Every FET had been drawn as `Q_NMOS_GSD`, which is
+  the SOT-23 pin order. DPAK and D²PAK are G-D-S with the drain on the
+  tab. With the TO-252 footprint on the old symbol, the source would
+  have gone to the tab. The power FETs now use `Q_NMOS_GDS` and
+  `Q_PMOS_GDS`, which have the same pin positions and different
+  numbers. The netlist shows every drain on pin 2.
+- **Checks that had used placeholders.** The bootstrap droop assumed
+  60 nC; the chosen part's maximum is 120 nC, which doubles the droop
+  to 126 mV (1.1% of the bootstrap supply). The boost's cranking duty
+  had ignored the switch; with its drop at a hot junction it needs
+  94.8% of the 97.0% available. The gate pulldowns were sized for
+  Crss = 500 pF; the worst chosen part is 300 pF max.
+
+**Footprints are the phase-3 input, not a phase-2 gate:** 58 of 297
 components carry one, and they are exactly the parts with a retrieved
 datasheet behind them.
 

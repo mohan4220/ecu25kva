@@ -97,13 +97,15 @@ def metering(sh):
     # same bug; the netlist was always right, the drawing was not.
     qx = 127.46
     drain.to(qx + 2.54)
-    sh.place("Device:Q_NMOS_GSD", "Q", qx, dy + 20.0, "100V logic-level N-ch",
-             rot=0,
-             fields={"Source": "metering_unit_pwm.cir NSW (Ron 25 mOhm); "
+    sh.place("Device:Q_NMOS_GDS", "Q", qx, dy + 20.0, "IPD90N10S4-06",
+             rot=0, footprint="Package_TO_SOT_SMD:TO-252-2",
+             fields={"MPN": "IPD90N10S4-06",
+                     "Source": "metering_unit_pwm.cir NSW (Ron 25 mOhm); "
                                "rail class from transient_clamp.cir",
                      "Note": "100 V class because it sits on VBAT_PROT, "
                              "which reaches 73.3 V on ISO 7637-2 pulse 2a",
-                     "Rds_on": "25 mOhm modelled"})
+                     "Rds_on": "25 mOhm modelled; 6.7 mOhm max at "
+                               "Vgs = 10 V, driven from 12V_GATE"})
     # rot 0: drain up, source down, gate to the left.
     qd = pin_xy(*QP["3"], qx, dy + 20.0, 0)
     qs = pin_xy(*QP["2"], qx, dy + 20.0, 0)
@@ -361,8 +363,11 @@ def egr_leg(sh, qx, leg, out_net, note):
     node_y = 102.0
 
     def fet(y, name, fields):
-        sh.place("Device:Q_NMOS_GSD", "Q", qx, y, "100V N-ch, <=20mOhm",
-                 fields=fields)
+        sh.place("Device:Q_NMOS_GDS", "Q", qx, y, "IPD90N10S4-06",
+                 footprint="Package_TO_SOT_SMD:TO-252-2",
+                 fields=dict(fields, MPN="IPD90N10S4-06",
+                             Rds_on="6.7 mOhm max at Vgs = 10 V "
+                                    "(requirement <=20)"))
         return (pin_xy(*qp["1"], qx, y, 0), pin_xy(*qp["3"], qx, y, 0),
                 pin_xy(*qp["2"], qx, y, 0))
 

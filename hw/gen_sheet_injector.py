@@ -304,9 +304,10 @@ def high_side(sh, bx, bank, boost_net, bat_net, out_net, tag, note):
     rail = Rail(sh, ry)
     rail.to(bx + 20.0)
 
-    def switch(qx, gate_name, value, fields):
+    def switch(qx, gate_name, value, fields, footprint):
         gp, dp, sp = fet_pins(qx, 85.0)
-        sh.place("Device:Q_NMOS_GSD", "Q", qx, 85.0, value, fields=fields)
+        sh.place("Device:Q_NMOS_GDS", "Q", qx, 85.0, value,
+                 footprint=footprint, fields=dict(fields, MPN=value))
         # The gate-source resistor lands on the bank rail to the LEFT of
         # the FET's source, so the rail has to be extended to that point
         # FIRST -- Rail only ever moves right, and taking the source tap
@@ -336,24 +337,30 @@ def high_side(sh, bx, bank, boost_net, bat_net, out_net, tag, note):
         return dp
 
     # -- the boost switch: peak phase only --------------------------
-    dp = switch(bx + 60.0, tag + "_BOOST_GATE", "150V N-ch, 18A peak",
+    dp = switch(bx + 60.0, tag + "_BOOST_GATE", "SQM85N15-19",
                 {"Source": "injector_boost.cir -- the 100 V branch; "
                            "injector_turnoff.cir Shs",
                  "Note": note,
                  "Vds": "150 V class against a 100 V rail the "
-                        "recirculation bump can push above setpoint"})
+                        "recirculation bump can push above setpoint",
+                 "Qg": "120 nC max -- sets the bootstrap droop checked "
+                       "in run_sim boost_converter"},
+                "Package_TO_SOT_SMD:TO-263-2")
     sh.wire(dp[0], dp[1], dp[0], dp[1] - 14.0)
     sh.label("BOOST_100V", dp[0], dp[1] - 14.0)
 
     # -- the battery switch: hold chopping --------------------------
-    dp = switch(bx + 150.0, tag + "_BAT_GATE", "60V N-ch, 18A",
+    dp = switch(bx + 150.0, tag + "_BAT_GATE", "IPD90N10S4-06",
                 {"Source": "boost_converter.cir arrangement A -- hold "
                            "current comes from the BATTERY",
                  "Note": "Chops for hold. 60 V class, not 150 V: the "
                          "series blocking diode above it holds off the "
                          "boost rail, so this FET's own Vds stays near "
                          "zero during the peak phase.",
-                 "Vds": "60 V"})
+                 "Vds": "60 V class required; the 100 V part is used "
+                        "because the metering, EGR and clamp FETs already "
+                        "are, and one part number beats two"},
+                "Package_TO_SOT_SMD:TO-252-2")
     diode_down(sh, dp[0], dp[1], "150V 20A ultrafast",
                {"Tag": "INJ-RECIRC",
                 "Note": "BLOCKING, not freewheeling. Without it the "
@@ -405,8 +412,12 @@ def low_side(sh, qx, ctrl_net, out_net, gate_name, drv_in, cyl):
     """One cylinder's low side. Returns the source pin for the bank shunt."""
     qy = 195.0
     gp, dp, sp = fet_pins(qx, qy)
-    sh.place("Device:Q_NMOS_GSD", "Q", qx, qy, "150V N-ch, 18A peak",
-             fields={"Source": "injector_turnoff.cir Sls (Ron 20 mOhm)",
+    sh.place("Device:Q_NMOS_GDS", "Q", qx, qy, "SQM85N15-19",
+             footprint="Package_TO_SOT_SMD:TO-263-2",
+             fields={"MPN": "SQM85N15-19",
+                     "Rds_on": "19 mOhm max at 10 V, 39 at 125 C -- the "
+                               "model's 20 mOhm is the 25 C figure",
+                     "Source": "injector_turnoff.cir Sls (Ron 20 mOhm)",
                      "Note": f"Cylinder {cyl}. Independent per channel -- "
                              "the high side is bank-shared, the low side "
                              "selects which injector in the bank fires.",
@@ -535,8 +546,13 @@ def boost_stage(sh):
 
     qx, qy = 195.0, 472.0
     gp, dp, sp = fet_pins(qx, qy)
-    sh.place("Device:Q_NMOS_GSD", "Q", qx, qy, "150V N-ch, logic-level",
-             fields={"Source": "sized here -- see the sheet note",
+    sh.place("Device:Q_NMOS_GDS", "Q", qx, qy, "DMN15H310SK3",
+             footprint="Package_TO_SOT_SMD:TO-252-2",
+             fields={"MPN": "DMN15H310SK3",
+                     "Rds_on": "350 mOhm max at Vgs = 4 V -- specified "
+                               "below the 5.7 V cranking gate drive; duty "
+                               "with its drop checked in run_sim",
+                     "Source": "sized here -- see the sheet note",
                      "Note": "Grounded source, which is what TPS40210-Q1 "
                              "requires. LOGIC-LEVEL is not optional: at "
                              "the 6 V cranking dip VDD is 5.7 V and the "

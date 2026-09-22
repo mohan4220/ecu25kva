@@ -333,15 +333,18 @@ def build():
     # (load), gate below. The P-channel body diode runs drain to source,
     # so this is the orientation that conducts forward and blocks a
     # reversed battery.
-    sh.place("Device:Q_PMOS_GSD", "Q", 268, q1y, "P-ch, |Vds|>=80V", rot=90,
+    sh.place("Device:Q_PMOS_GDS", "Q", 268, q1y, "SQD50P08-25L", rot=90,
+             footprint="Package_TO_SOT_SMD:TO-252-2",
              fields={
+                 "MPN": "SQD50P08-25L",
                  "Source": "reverse_battery.cir path B -- modelled as a "
                            "P-FET all along",
                  "Note": "Drain to battery, source to load. |Vds| worst "
                          "case is 47.8 V, blocking pulse 1 with the load "
                          "side clamped near zero; 80 V class anyway, by "
                          "the board's own rail rule.",
-                 "Rds_on": "<=40 mOhm at Vgs = -4.5 V: 0.2 V at 5 A "
+                 "Rds_on": "31 mOhm max at -4.5 V (Vishay SQD50P08-25L; "
+                           "req. <=40): 0.16 V at 5 A "
                            "against reverse_battery.cir's 0.3 V "
                            "requirement, and specified at -4.5 V because "
                            "at a 6 V cranking dip that is all the gate "
@@ -405,8 +408,10 @@ def build():
     sh.junction(305, RAIL)
 
     q2y = SHUNT
-    q2 = sh.place("Device:Q_NMOS_GSD", "Q", 340, q2y, "100V 10mOhm N-ch",
+    q2 = sh.place("Device:Q_NMOS_GDS", "Q", 340, q2y, "IPD90N10S4-06",
+                  footprint="Package_TO_SOT_SMD:TO-252-2",
                   fields={
+                      "MPN": "IPD90N10S4-06",
                       "Source": "bom_requirements NEG-CLAMP; "
                                 "negative_pulses.cir Scl1",
                       "Note": "Active clamp. 15 A through 5 mOhm is 75 mV, "
@@ -417,7 +422,10 @@ def build():
                              "its drain on a node pulse 2a drives to "
                              "+73.3 V. 40 V had zero margin on the load "
                              "dump alone.",
-                      "Rds_on": "10 mOhm max at Vgs=4.5 V"})
+                      "Rds_on": "6.7 mOhm max at Vgs = 10 V (Infineon "
+                                "IPD90N10S4-06). Gate from UCC27517A on "
+                                "12V_GATE, so the 10 V point is the one "
+                                "that applies; +/-20 V Vgs"})
     q2s = pin_xy(*qp["2"], 340, q2y, 0)
     q2d = pin_xy(*qp["3"], 340, q2y, 0)
     q2g = pin_xy(*qp["1"], 340, q2y, 0)

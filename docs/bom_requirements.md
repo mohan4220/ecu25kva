@@ -466,6 +466,10 @@ not constraints.
 | GATE_KILL clamp | **BZX84-C12-Q** | 11.4–12.7 V at 5 mA, +10 mV/K max. AEC-Q101. The plain BZX84 series is no longer automotive-qualified; the `-Q` suffix is. |
 | Relay FETs | **PMV280ENEA** ×2 | 100 V, ±20 V Vgs, 432 mΩ max at Vgs 4.5 V. AEC-Q101. Driven through a buffer — see `RELAY-GATE`. |
 | Relay gate buffers | **CAHCT1G125QDBVRQ1** ×2 | SN74AHCT1G125-Q1 on 5V_MAIN: VIH 2 V reads a 3.3 V GPIO, VOH 4.4 V min drives the FET. AEC-Q100. |
+| Reverse-battery FET | **SQD50P08-25L** | −80 V P-channel, ±20 V Vgs, 31 mΩ max at −4.5 V against a 40 mΩ ceiling. AEC-Q101, TO-252. |
+| 100 V N-channel | **IPD90N10S4-06** ×8 | Negative clamp, metering, four EGR, two injector battery switches (60 V class needed; one part number instead of two). 6.7 mΩ max at 10 V, ±20 V Vgs, AEC-Q101, TO-252. The logic-level sibling `-S4L-06` was rejected for its ±16 V Vgs: every one of these gates is driven from 12V_GATE. |
+| Injector 150 V FETs | **SQM85N15-19** ×5 | Two boost-side high sides, three low sides. 19 mΩ max at 10 V — the model's 20 mΩ. ±20 V Vgs, AEC-Q101, TO-263. Qg 120 nC max sets the bootstrap droop: 126 mV. |
+| Boost switch | **DMN15H310SK3** | 150 V, Vth 3 V max, 350 mΩ max at Vgs **4 V** — specified below the 5.7 V it gets while cranking. Qg 8.7 nC typ. AEC-Q101, TO-252. Cranking duty with its drop, hot: 94.8% against 97.0% available. |
 
 ### `GATE-KILL-CLAMP` — 12 V zener on GATE_KILL
 
