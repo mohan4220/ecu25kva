@@ -730,7 +730,27 @@ and two of them are design decisions, not part choices.**
   instead of passing it silently: GND reaches the connector only
   through sensor-ground pins.
 
-**Footprints are the phase-3 input, not a phase-2 gate:** 76 of 299
+**Every chip resistor and capacitor is packaged, 22 September 2026.**
+188 of them, sized by `hw/assign_passives.py` from the voltage across
+each part and its continuous power at a 105 °C board. Ratings come
+from Vishay's CRCW e3 and KEMET's automotive X7R tables, and the
+netlist gate now fails on any R or C left without a footprint. See
+`PASSIVE-PACKAGES`. The pass found that 4.7 µF at 100 V does not exist
+in automotive X7R, so three input capacitors became 2 × 2.2 µF. The
+EMI model was updated to match.
+
+**The 38 parts still without a footprint** are all either blocked or
+chosen separately:
+
+- Blocked on POWER-PATH: L101, L102, F101.
+- Blocked on BOOST-SLOPE: L401.
+- Blocked on SENSOR-PTC: F201–F203.
+- Blocked on LOWV-CLAMP: the 15 zeners at 3.0 and 3.3 V.
+- Land pattern needed in phase 3: the seven SMPD diodes, L201 and J1001.
+- BAV199 pairs, drawn as separate halves: 5.
+- Not yet chosen: C313 (polymer) and C401 (electrolytic).
+
+**Footprints are the phase-3 input, not a phase-2 gate:** 264 of 302
 components carry one, and they are exactly the parts with a retrieved
 datasheet behind them.
 

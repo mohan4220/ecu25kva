@@ -233,6 +233,7 @@ def crank(sh):
         lb = pin_xy(*PINS["Device:D"]["2"], 175.0, y + 14.0, 270)  # A, bottom
         nx, ny = node.to(155.0, tap=True)
         sh.wire(nx, ny, ub[0], ub[1])
+        sh.label(f"VR_{name}_CLAMPED", ub[0], ub[1])
         sh.wire(ua[0], ua[1], ua[0], ua[1] - 6.0)
         sh.label("3V3_MCU", ua[0], ua[1] - 6.0)
         nx, ny = node.to(175.0, tap=True)

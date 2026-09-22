@@ -1,0 +1,942 @@
+{
+ "C101": {
+  "footprint": "Capacitor_SMD:C_1210_3225Metric",
+  "value": "2.2uF 100V",
+  "why": "73.3 V peak, needs >= 100 V; KEMET X7R AUTO 1210 100 V"
+ },
+ "C102": {
+  "footprint": "Capacitor_SMD:C_1210_3225Metric",
+  "value": "2.2uF 100V",
+  "why": "73.3 V peak, needs >= 100 V; KEMET X7R AUTO 1210 100 V"
+ },
+ "C103": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "73.3 V peak, needs >= 73 V; KEMET X7R AUTO 0603 100 V"
+ },
+ "C104": {
+  "footprint": "Capacitor_SMD:C_1206_3216Metric",
+  "value": "1uF",
+  "why": "73.3 V peak, needs >= 73 V; KEMET X7R AUTO 1206 100 V"
+ },
+ "C105": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C106": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C201": {
+  "footprint": "Capacitor_SMD:C_1210_3225Metric",
+  "value": "2.2uF 100V",
+  "why": "73.3 V peak, needs >= 100 V; KEMET X7R AUTO 1210 100 V"
+ },
+ "C202": {
+  "footprint": "Capacitor_SMD:C_1210_3225Metric",
+  "value": "2.2uF 100V",
+  "why": "73.3 V peak, needs >= 100 V; KEMET X7R AUTO 1210 100 V"
+ },
+ "C203": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "2.2nF/50V X7R",
+  "why": "13.6 V peak, needs >= 50 V; KEMET X7R AUTO 0603 50 V"
+ },
+ "C204": {
+  "footprint": "Capacitor_SMD:C_1210_3225Metric",
+  "value": "47uF/10mOhm",
+  "why": "5.5 V peak, needs >= 8 V; KEMET X7R AUTO 1210 10 V"
+ },
+ "C205": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C206": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C207": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "10uF",
+  "why": "3.6 V peak, needs >= 5 V; KEMET X7R AUTO 0805 6.3 V"
+ },
+ "C301": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "10nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C302": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "10nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C303": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C304": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C305": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C306": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C307": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C308": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C309": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C310": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C311": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C312": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C402": {
+  "footprint": "Capacitor_SMD:C_1210_3225Metric",
+  "value": "2.2uF 100V",
+  "why": "73.3 V peak, needs >= 100 V; KEMET X7R AUTO 1210 100 V"
+ },
+ "C403": {
+  "footprint": "Capacitor_SMD:C_1210_3225Metric",
+  "value": "2.2uF 100V",
+  "why": "73.3 V peak, needs >= 100 V; KEMET X7R AUTO 1210 100 V"
+ },
+ "C404": {
+  "footprint": "Capacitor_SMD:C_1206_3216Metric",
+  "value": "1uF 100V",
+  "why": "46.6 V peak, needs >= 100 V; KEMET X7R AUTO 1206 100 V"
+ },
+ "C405": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "330pF",
+  "why": "46.6 V peak, needs >= 47 V; KEMET X7R AUTO 0603 50 V"
+ },
+ "C406": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C407": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF",
+  "why": "8.5 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C408": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "6.8nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C409": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C410": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C411": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C412": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C413": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C414": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C415": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C416": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C417": {
+  "footprint": "Capacitor_SMD:C_1206_3216Metric",
+  "value": "10uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 1206 25 V"
+ },
+ "C418": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C419": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C501": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C502": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C503": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C504": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C505": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C506": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C507": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF 25V",
+  "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C601": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "22nF",
+  "why": "5.7 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C602": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "22nF",
+  "why": "5.7 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C603": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "22nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C604": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "22nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C605": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C606": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "22nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C607": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C608": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "22nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C609": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C610": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "22nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C611": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C612": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "22nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C613": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C614": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C615": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "22nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C701": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "1nF",
+  "why": "3.9 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C702": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "1nF",
+  "why": "3.9 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C703": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C704": {
+  "footprint": "Capacitor_SMD:C_0805_2012Metric",
+  "value": "1uF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
+ },
+ "C705": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "22nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C801": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "220nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C802": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "220nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C803": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "220nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C804": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "220nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C805": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "220nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C806": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "220nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C807": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C808": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C901": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C902": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C903": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "4.7nF",
+  "why": "40.0 V peak, needs >= 40 V; KEMET X7R AUTO 0603 50 V"
+ },
+ "C904": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C905": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "100nF",
+  "why": "3.6 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C906": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "4.7nF",
+  "why": "40.0 V peak, needs >= 40 V; KEMET X7R AUTO 0603 50 V"
+ },
+ "R101": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "120R",
+  "why": "1.0 V peak, 0.3 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R102": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "2R2",
+  "why": "1.0 V peak, 4.5 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R103": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "47k",
+  "why": "73.3 V peak, 12.3 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R104": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "10k 1%",
+  "why": "73.3 V peak, 57.6 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R105": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "499k 1%",
+  "why": "5.7 V peak, 0.1 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R106": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "536k 1%",
+  "why": "5.5 V peak, 0.1 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R107": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k 1%",
+  "why": "5.5 V peak, 3.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R201": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "75k",
+  "why": "73.3 V peak, 7.7 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R202": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "24.9k",
+  "why": "18.3 V peak, 1.4 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R203": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "31.6k",
+  "why": "5.5 V peak, 1.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R204": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "100k",
+  "why": "5.5 V peak, 0.3 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R205": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "38.3k",
+  "why": "5.5 V peak, 0.8 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R206": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "12.1k",
+  "why": "5.5 V peak, 2.5 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R207": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "5.5 V peak, 3.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R208": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "15k",
+  "why": "5.5 V peak, 2.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R301": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "3.6 V peak, 1.3 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R302": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "3.6 V peak, 1.3 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R303": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "0R",
+  "why": "0R jumper"
+ },
+ "R304": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "0R",
+  "why": "0R jumper"
+ },
+ "R305": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "47k",
+  "why": "73.3 V peak, 12.3 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R401": {
+  "footprint": "Resistor_SMD:R_2512_6332Metric",
+  "value": "22k 1W",
+  "why": "1 W stated in value"
+ },
+ "R402": {
+  "footprint": "Resistor_SMD:R_1206_3216Metric",
+  "value": "82mOhm 1%",
+  "why": "shunt: 82mOhm 1%"
+ },
+ "R403": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "5.5 V peak, 3.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R404": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "7.06k 1%",
+  "why": "5.5 V peak, 4.3 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R405": {
+  "footprint": "Resistor_SMD:R_2512_6332Metric",
+  "value": "220R 1W",
+  "why": "1 W stated in value"
+ },
+ "R406": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "365k 1%",
+  "why": "46.6 V peak, 1.6 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R407": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "499k 1%",
+  "why": "104.0 V peak, 21.7 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R408": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "499k 1%",
+  "why": "51.0 V peak, 5.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R409": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "5.5 V peak, 3.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R410": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "1k",
+  "why": "3.6 V peak, 13.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R411": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "1k",
+  "why": "3.6 V peak, 13.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R412": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "1k",
+  "why": "3.6 V peak, 13.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R413": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "1k",
+  "why": "3.6 V peak, 13.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R414": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "47k",
+  "why": "45.5 V peak, 44.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R415": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "47k",
+  "why": "45.5 V peak, 44.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R416": {
+  "footprint": "Resistor_SMD:R_2512_6332Metric",
+  "value": "3.3k 2512",
+  "why": "size stated in value"
+ },
+ "R417": {
+  "footprint": "Resistor_SMD:R_2512_6332Metric",
+  "value": "3.3k 2512",
+  "why": "size stated in value"
+ },
+ "R418": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "56R",
+  "why": "0.7 V peak, 1.4 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R419": {
+  "footprint": "Resistor_SMD:R_2010_5025Metric",
+  "value": "470R",
+  "why": "13.6 V peak, 393.5 mW cont; 2010 = 400 V, 441 mW at 105 C"
+ },
+ "R420": {
+  "footprint": "Resistor_SMD:R_2010_5025Metric",
+  "value": "470R",
+  "why": "13.6 V peak, 393.5 mW cont; 2010 = 400 V, 441 mW at 105 C"
+ },
+ "R421": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "100k",
+  "why": "104.0 V peak, 5.8 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R422": {
+  "footprint": "Resistor_SMD:R_2010_5025Metric",
+  "value": "470R",
+  "why": "13.6 V peak, 393.5 mW cont; 2010 = 400 V, 441 mW at 105 C"
+ },
+ "R423": {
+  "footprint": "Resistor_SMD:R_2010_5025Metric",
+  "value": "470R",
+  "why": "13.6 V peak, 393.5 mW cont; 2010 = 400 V, 441 mW at 105 C"
+ },
+ "R424": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "100k",
+  "why": "104.0 V peak, 5.8 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R425": {
+  "footprint": "Resistor_SMD:R_2010_5025Metric",
+  "value": "470R",
+  "why": "13.6 V peak, 393.5 mW cont; 2010 = 400 V, 441 mW at 105 C"
+ },
+ "R426": {
+  "footprint": "Resistor_SMD:R_2010_5025Metric",
+  "value": "470R",
+  "why": "13.6 V peak, 393.5 mW cont; 2010 = 400 V, 441 mW at 105 C"
+ },
+ "R427": {
+  "footprint": "Resistor_SMD:R_2010_5025Metric",
+  "value": "470R",
+  "why": "13.6 V peak, 393.5 mW cont; 2010 = 400 V, 441 mW at 105 C"
+ },
+ "R428": {
+  "footprint": "Resistor_SMD:R_2512_6332Metric",
+  "value": "5mOhm 2W 1%",
+  "why": "shunt: 5mOhm 2W 1%"
+ },
+ "R429": {
+  "footprint": "Resistor_SMD:R_2512_6332Metric",
+  "value": "5mOhm 2W 1%",
+  "why": "shunt: 5mOhm 2W 1%"
+ },
+ "R501": {
+  "footprint": "Resistor_SMD:R_1206_3216Metric",
+  "value": "50mOhm 1%",
+  "why": "shunt: 50mOhm 1%"
+ },
+ "R502": {
+  "footprint": "Resistor_SMD:R_2010_5025Metric",
+  "value": "470R",
+  "why": "13.6 V peak, 393.5 mW cont; 2010 = 400 V, 441 mW at 105 C"
+ },
+ "R503": {
+  "footprint": "Resistor_SMD:R_2010_5025Metric",
+  "value": "470R",
+  "why": "13.6 V peak, 393.5 mW cont; 2010 = 400 V, 441 mW at 105 C"
+ },
+ "R504": {
+  "footprint": "Resistor_SMD:R_2010_5025Metric",
+  "value": "470R",
+  "why": "13.6 V peak, 393.5 mW cont; 2010 = 400 V, 441 mW at 105 C"
+ },
+ "R505": {
+  "footprint": "Resistor_SMD:R_2010_5025Metric",
+  "value": "470R",
+  "why": "13.6 V peak, 393.5 mW cont; 2010 = 400 V, 441 mW at 105 C"
+ },
+ "R506": {
+  "footprint": "Resistor_SMD:R_2010_5025Metric",
+  "value": "470R",
+  "why": "13.6 V peak, 393.5 mW cont; 2010 = 400 V, 441 mW at 105 C"
+ },
+ "R507": {
+  "footprint": "Resistor_SMD:R_2512_6332Metric",
+  "value": "20mOhm 1W 1%",
+  "why": "shunt: 20mOhm 1W 1%"
+ },
+ "R508": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "1k",
+  "why": "3.6 V peak, 13.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R509": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "3.6 V peak, 1.3 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R601": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "120k",
+  "why": "73.3 V peak, 4.8 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R602": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "5.7 V peak, 3.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R603": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "120k",
+  "why": "73.3 V peak, 4.8 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R604": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "5.7 V peak, 3.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R605": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "10k",
+  "why": "73.3 V peak, 57.6 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R606": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "16k",
+  "why": "5.5 V peak, 1.9 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R607": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "1k",
+  "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R608": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "1k",
+  "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R609": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "1k",
+  "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R610": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "1k",
+  "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R611": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "1k",
+  "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R612": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "5.5 V peak, 3.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R613": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "16k",
+  "why": "5.5 V peak, 1.9 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R701": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "4.7k",
+  "why": "48.0 V peak, 41.7 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R702": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "4.7k",
+  "why": "48.0 V peak, 41.7 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R703": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "100k",
+  "why": "3.9 V peak, 0.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R704": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "100k",
+  "why": "3.9 V peak, 0.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R705": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "33k",
+  "why": "3.9 V peak, 0.5 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R706": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "2.2k",
+  "why": "3.6 V peak, 5.9 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R707": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "2.2k",
+  "why": "3.6 V peak, 5.9 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R708": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "5.5 V peak, 3.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R709": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "16k",
+  "why": "3.6 V peak, 0.8 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R801": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "47k",
+  "why": "73.3 V peak, 12.3 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R802": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "68k",
+  "why": "3.6 V peak, 0.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R803": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "47k",
+  "why": "73.3 V peak, 12.3 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R804": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "68k",
+  "why": "3.6 V peak, 0.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R805": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "47k",
+  "why": "73.3 V peak, 12.3 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R806": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "68k",
+  "why": "3.6 V peak, 0.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R807": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "10k",
+  "why": "73.3 V peak, 57.6 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R808": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "47k",
+  "why": "73.3 V peak, 12.3 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R809": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "68k",
+  "why": "3.6 V peak, 0.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R810": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "10k",
+  "why": "73.3 V peak, 57.6 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R811": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "47k",
+  "why": "73.3 V peak, 12.3 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R812": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "68k",
+  "why": "3.6 V peak, 0.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R813": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "47k",
+  "why": "73.3 V peak, 12.3 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R814": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "68k",
+  "why": "3.6 V peak, 0.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R815": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "100k",
+  "why": "3.6 V peak, 0.1 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R816": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "5.5 V peak, 3.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R817": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "100k",
+  "why": "3.6 V peak, 0.1 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R818": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "5.5 V peak, 3.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R901": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "3.6 V peak, 1.3 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R902": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "60R0",
+  "why": "40.0 V peak, 16.7 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R903": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "60R0",
+  "why": "40.0 V peak, 16.7 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R904": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "10k",
+  "why": "3.6 V peak, 1.3 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R905": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "60R0",
+  "why": "40.0 V peak, 16.7 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R906": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "60R0",
+  "why": "40.0 V peak, 16.7 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ }
+}

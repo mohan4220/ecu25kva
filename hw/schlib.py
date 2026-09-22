@@ -22,6 +22,7 @@ each sheet's own (lib_symbols) block, which is what KiCad expects -- a
 schematic caches every symbol it uses rather than referencing the library
 at open time.
 """
+import json
 import os
 import re
 import uuid
@@ -158,6 +159,10 @@ PINS = {
                          "3": (2.54, -5.08)},                 # E
 }
 
+
+_PFP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib",
+                    "passive_fp.json")
+PASSIVE_FP = json.load(open(_PFP)) if os.path.exists(_PFP) else {}
 
 # Class values resolved to part numbers, each against a retrieved
 # datasheet (docs/bom_requirements.md, "Chosen parts"). Keyed by lib id
@@ -393,6 +398,13 @@ class Sheet:
             if m:
                 self.refs[ref_prefix] = max(
                     self.refs.get(ref_prefix, self.ref_base), int(m.group(1)))
+        # Passive packages come from assign_passives.py, keyed by ref and
+        # checked against the value -- a ref that now holds a different
+        # value gets no footprint, and check_netlist says so.
+        if (libid in ("Device:R", "Device:C") and not footprint
+                and ref in PASSIVE_FP
+                and PASSIVE_FP[ref]["value"] == value):
+            footprint = PASSIVE_FP[ref]["footprint"]
         uid = _u()
         mir = f"\n    (mirror {mirror})" if mirror else ""
         # A power symbol's reference (#PWR01, ...) is noise on the page --
@@ -434,9 +446,15 @@ class Sheet:
             f'    (uuid {_u()})\n  )')
 
     def label(self, text, x, y, rot=0):
+        # Same frame rule as hlabel below: justification is read in the
+        # label's own rotated frame, so at 180 degrees "left" puts the
+        # text back across the wire the label sits on. Hierarchical
+        # labels were fixed for this first; local labels kept the bug
+        # until 22 Sep 2026, on every sheet.
+        just = "right bottom" if rot % 360 == 180 else "left bottom"
         self.items.append(
             f'  (label "{esc(text)}" (at {r2(x)} {r2(y)} {rot})\n'
-            f'    {_eff(justify="left bottom")}\n    (uuid {_u()})\n  )')
+            f'    {_eff(justify=just)}\n    (uuid {_u()})\n  )')
 
     def hlabel(self, text, x, y, shape="passive", rot=0, justify=None):
         # A label's justification is read in the label's OWN rotated

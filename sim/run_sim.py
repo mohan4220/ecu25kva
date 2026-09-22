@@ -1495,10 +1495,13 @@ def check_emi_filter():
     # fails the placeholder -40/-50 dB gates.
     il150_t = il(150e3, outt)
     il400_t = il(400e3, outt)
-    c.that("  ... IL@150kHz, C1 at X7R's own -15% temp derate (C1=3.995uF)",
-           il150_t, -39.74, tol=0.3, unit="dB")
+    # Re-pinned 22 Sep 2026 when C1 became 2 x 2.2 uF (4.7 uF at 100 V is
+    # not in KEMET's automotive X7R range): was -39.74 / -50.07 dB at
+    # 3.995 uF, now 0.6 dB worse at 3.74 uF.
+    c.that("  ... IL@150kHz, C1 at X7R's own -15% temp derate (C1=3.74uF)",
+           il150_t, -39.17, tol=0.3, unit="dB")
     c.that("  ... IL@400kHz, same corner",
-           il400_t, -50.07, tol=0.3, unit="dB")
+           il400_t, -49.31, tol=0.3, unit="dB")
     # Read against the nominal-27C -40 dB check above by eye, not by a new
     # assertion here (a pass/fail line against that gate would be exactly
     # the manufactured verdict this note opened by declining to make): the

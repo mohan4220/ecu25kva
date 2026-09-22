@@ -246,11 +246,18 @@ def build():
                            {"Source": "emi_filter.cir L1"})
     sh.wire(f_r, RAIL, l1_l, RAIL)
 
-    shunt(sh, "Device:C", "C", 108, "4.7uF",
-          {"Source": "emi_filter.cir C1 -- ESR 5 mOhm, ESL 1.5 nH modelled",
-           "ESR": "5 mOhm max"})
-    sh.wire(l1_r, RAIL, 108, RAIL)
+    # C1 is two 2.2 uF 100 V parts: 4.7 uF at 100 V is not in KEMET's
+    # automotive X7R range, and this node sees 73.3 V. emi_filter.cir
+    # models the pair (4.4 uF, ESR and ESL halved).
+    for cx in (92, 108):
+        shunt(sh, "Device:C", "C", cx, "2.2uF 100V",
+              {"Source": "emi_filter.cir C1 -- one of two in parallel",
+               "ESR": "5 mOhm max each"})
+    sh.wire(l1_r, RAIL, 92, RAIL)
+    sh.wire(92, RAIL, 108, RAIL)
+    sh.junction(92, RAIL)
     sh.junction(108, RAIL)
+    sh.label("VBAT_EMI1", 92, RAIL)
 
     # ---- EMI filter, second stage: Lf damped by Rf in parallel ----
     _, lf_l, lf_r = series(sh, "Device:L", "L", 138, "0.5uH",
@@ -285,6 +292,7 @@ def build():
     rdb = pin_xy(*PINS["Device:R"]["2"], 198, rd_y, 0)
     rtop, rbot = (rda, rdb) if rda[1] < rdb[1] else (rdb, rda)
     sh.wire(cd_bot[0], cd_bot[1], rtop[0], rtop[1])
+    sh.label("EMI_DAMP", cd_bot[0], cd_bot[1], rot=180)
     sh.wire(rbot[0], rbot[1], rbot[0], GND_Y)
     sh.gnd(rbot[0], GND_Y)
     sh.wire(170, RAIL, 198, RAIL)

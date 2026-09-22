@@ -482,6 +482,54 @@ not constraints.
 | Buck inductor | **Würth 7447714330** | WE-PD 1050, 33 µH, Isat 2.9 A typ against a 1.18 A worst peak (1.72× after a −30% hot derate), 79 mΩ, AEC-Q200 Grade 1. This closes the Isat gap `buck_preregulator.cir` left open. Land pattern not in KiCad 7. |
 | 12V_GATE pass / limit | **PZTA42-Q**, **PMBT3904-Q** | See `GATE-RAIL`. PMBT3904-Q is SOT-23 B-E-C, so it uses the `Q_NPN_BEC` symbol. |
 
+### `PASSIVE-PACKAGES` — 188 resistors and capacitors, sized by what is across them
+
+`hw/assign_passives.py` gives every chip resistor and capacitor its
+package, and `hw/check_netlist.py` fails if a part is added or
+re-valued without re-running it.
+
+The voltage comes first. Each net carries a continuous and a peak
+voltage: battery nets are 24 V jump-start and 73.3 V pulse 2a, the
+boost rail is 104 V. The voltage across a part is the worse of its two
+nets, with two exceptions. Inside a bootstrap domain, a part sees only
+the 13.6 V gate swing. And `PAIR_V` overrides the few series strings
+and AC-only parts where "the worse net" over-states what is across
+them. Both are keyed by net names, which is why several internal nodes
+were given labels: the auto-names `Net-(R407-Pad2)` move whenever a
+part is added ahead of them.
+
+- **Resistors: Vishay D/CRCW e3 ratings** (AEC-Q200, standard mode).
+  The peak voltage must clear Umax by the rail table's 1.09×. The
+  continuous V²/R must fit the power rating derated to 0.588× at a
+  105 °C board. Nothing is smaller than 0603.
+- **Capacitors: KEMET C1023 X7R AUTO** (AEC-Q200). The rating must
+  clear the peak voltage and 1.5× the continuous one, and nothing up to
+  1 µF is rated below 25 V. The part picks the smallest case that
+  KEMET's waterfall table actually lists at that rating. The table is
+  parsed by x-coordinate into `hw/lib/kemet_x7r_auto.json`
+  (`hw/tools/parse_kemet_waterfall.py`), because the PDF's text layout
+  compresses the data columns and misreads them.
+
+Result: 121 × 0603, 36 × 0805, 5 × 1206, 7 × 1210 and 12 × 2010, plus
+the stated 2512 parts and the shunts.
+
+Things this pass found:
+
+- **4.7 µF at 100 V is not in the automotive X7R range**; 1210 stops at
+  50 V. Three places needed it: the EMI filter's C1, the buck input and
+  the boost input. Each is now two 2.2 µF, 100 V, 1210 parts.
+  `emi_filter.cir` models the pair as 4.4 µF with ESR and ESL halved.
+  Its cold corner is 0.6 dB worse, and the check was re-pinned.
+- **The twelve 470 Ω gate pulldowns land in 2010.** At 100% duty
+  (metering, EGR) 12 V across 470 Ω is 0.31 W per gate, as well as
+  25 mA of driver current. They were sized for Crss = 500 pF, and the
+  worst chosen FET is 300 pF, so 1 kΩ may now serve. That would need a
+  re-run of `supervisor.cir` claim 6 before it could be claimed.
+- **DC bias on bulk MLCCs is not modelled.** Two parts are affected:
+  the 47 µF 10 V buck output and the 10 µF 6.3 V on 3V3_MCU. Both
+  lose a large part of their capacitance at their working voltage. The
+  1.5× rule does not capture that.
+
 ### `POWER-PATH` — what the input filter and reverse FET actually carry (OPEN)
 
 Every high-current load on the board draws from VBAT_PROT: the injector

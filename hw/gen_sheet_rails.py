@@ -126,10 +126,13 @@ def buck(sh):
     sh.hlabel("VBAT_PROT", 40.0, vy, shape="input")
     vin = Rail(sh, vy)
     vin.to(40.0)
-    vpart(sh, "Device:C", "C", 60.0, vy + 20, "4.7uF/100V",
-          {"Source": "buck input bypass -- LM5164 datasheet sec.4, "
-                     "'short, low impedance paths' to VIN"},
-          to_gnd=True, rail=vin)
+    # Two 2.2 uF 100 V: 4.7 uF at 100 V is not in KEMET's automotive
+    # X7R range, and VIN sees 73.3 V.
+    for cx in (60.0, 74.0):
+        vpart(sh, "Device:C", "C", cx, vy + 20, "2.2uF 100V",
+              {"Source": "buck input bypass -- LM5164 datasheet sec.4, "
+                         "'short, low impedance paths' to VIN; one of two"},
+              to_gnd=True, rail=vin)
 
     # ---- EN/UVLO divider: turn-on at 6.0 V, the spec's own input floor ----
     # EN/UVLO rises at 1.5 V typ, and the pin is rated to 100 V so the

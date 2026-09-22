@@ -54,10 +54,13 @@ Vs  s 0 AC 1
 Rs  s a 50
 
 * ---- stage 1 ----
+* C1 is TWO 2.2 uF 100 V X7R 1210 in parallel since 22 Sep 2026: 4.7 uF
+* at 100 V is not in KEMET's automotive X7R range (1210 stops at 50 V),
+* and the node sees 73.3 V. Paralleling halves the ESR and the ESL.
 L1  a b 22u
-C1  b c1 4.7u
-Rc1 c1 c2 5m
-Lc1 c2 0  1.5n
+C1  b c1 4.4u
+Rc1 c1 c2 2.5m
+Lc1 c2 0  0.75n
 
 * ---- stage 2: lossy ferrite bead ----
 Lf  b d 0.5u
@@ -86,13 +89,13 @@ Rl2 r  0 50
 * OWN DEFINITION, not an INFERRED figure -- see the RESULT NOTE below.
 * L1 held at nominal so this isolates temperature from the existing
 * DC-bias corner already in the TOLERANCE section.
-.param C1temp=3.995u
+.param C1temp=3.74u
 Vst  st 0 AC 1
 Rst  st at 50
 L1t  at bt 22u
 C1t  bt ct1 {C1temp}
-Rc1t ct1 ct2 5m
-Lc1t ct2 0  1.5n
+Rc1t ct1 ct2 2.5m
+Lc1t ct2 0  0.75n
 
 Lft  bt dt 0.5u
 Rft  bt dt 120

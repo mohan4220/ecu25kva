@@ -254,6 +254,17 @@ def main():
         n_pins = len(hit[0]) if hit else 0
         check(f"{rail} spans the project ({n_pins} pins)", n_pins > 5)
 
+    # Every chip R and C is packaged by assign_passives.py. One without a
+    # footprint is a part added or re-valued since the map was built.
+    fp_of = dict(re.findall(r'\(comp \(ref "([^"]+)"\)\s*\n\s*\(value '
+                            r'"[^"]*"\)\s*\n\s*\(footprint "([^"]*)"\)', text))
+    bare = sorted(r for r, v in comps.items()
+                  if re.match(r"^[RC]\d", r) and not fp_of.get(r)
+                  and v not in ("150uF", "47uF 150V"))
+    check("every chip resistor and capacitor is packaged -- re-run "
+          "assign_passives.py after adding or re-valuing one", not bare,
+          f"no footprint: {bare}")
+
     with_fp = len(re.findall(r'\(footprint "[^"]+"\)', text))
     checks.append((None, f"footprints assigned: {with_fp} of {len(comps)} "
                          f"-- phase 3 input, not a schematic gate", ""))

@@ -174,6 +174,7 @@ def relay(sh, x0, y, gate_net, out_net, label):
     sh.wire(qg[0], qg[1], px, qg[1])
     sh.wire(px, qg[1], qg[0] - 20.32, qg[1])
     sh.junction(px, qg[1])
+    sh.label(gate_net + "_G", qg[0], qg[1], rot=180)
     # The buffer sits a row below, clear of the drain rail.
     sh.wire(qg[0] - 20.32, qg[1], qg[0] - 20.32, qg[1] + 30.48)
     buffer_5v(sh, qg[0] - 20.32, qg[1] + 30.48, gate_net)

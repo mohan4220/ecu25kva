@@ -107,8 +107,13 @@ def to_gnd(sh, x, y, libid, prefix, value, label, fields, rot=0):
     vshunt(sh, libid, prefix, x, y + 14.0, value, fields, rail, rot=rot)
 
 
-def series_chain(sh, y, x0, left_label, parts, right_label, hlabel_in=False):
-    """A horizontal string of two-terminal parts between two named nets."""
+def series_chain(sh, y, x0, left_label, parts, right_label, hlabel_in=False,
+                 mids=None):
+    """A horizontal string of two-terminal parts between two named nets.
+
+    `mids` names the nodes between consecutive parts. Unnamed, KiCad
+    calls them Net-(R407-Pad2), and that name moves whenever a part is
+    added ahead of it -- assign_passives.py keys voltages on net names."""
     if hlabel_in:
         sh.hlabel(left_label, x0, y, shape="input")
     else:
@@ -122,6 +127,8 @@ def series_chain(sh, y, x0, left_label, parts, right_label, hlabel_in=False):
         b = pin_xy(*PINS[libid]["2"], px, y, 90)
         l, r = (a, b) if a[0] < b[0] else (b, a)
         rail.to(l[0])
+        if i > 0 and mids:
+            sh.label(mids[i - 1], l[0], y)
         rail = Rail(sh, y)
         rail.to(r[0])
     rail.to(x0 + 40.0 + len(parts) * 40.0 - 10.0)
@@ -514,7 +521,11 @@ def boost_stage(sh):
     sh.hlabel("VBAT_PROT", 40.0, py, shape="input")
     pw = Rail(sh, py)
     pw.to(40.0)
-    vshunt(sh, "Device:C", "C", 75.0, py + 18.0, "4.7uF 100V",
+    # Two 2.2 uF 100 V: 4.7 uF at 100 V is not in KEMET's automotive
+    # X7R range.
+    vshunt(sh, "Device:C", "C", 62.0, py + 18.0, "2.2uF 100V",
+           {"Note": "Input bulk, one of two -- see the next part."}, pw)
+    vshunt(sh, "Device:C", "C", 75.0, py + 18.0, "2.2uF 100V",
            {"Note": "Input bulk. 100 V class because it sits on "
                     "VBAT_PROT, which reaches 73.3 V on pulse 2a -- the "
                     "same rule every other battery-connected part on this "
@@ -679,7 +690,7 @@ def boost_stage(sh):
                    "is inside its rating but not by much; splitting it "
                    "halves the voltage per part and the power with it."}),
          ("Device:R", "R", "499k 1%", {"Note": "Second half of the pair."})],
-        "FB_BOOST")
+        "FB_BOOST", mids=["FB_BOOST_MID"])
     series_chain(
         sh, 574.0, 240.0, "COMP_BOOST",
         [("Device:R", "R", "10k",
@@ -688,7 +699,7 @@ def boost_stage(sh):
           {"Note": "Zero at 2.3 kHz, below the 17.3 kHz right-half-plane "
                    "zero a boost puts at (1-D)^2 * Rload / (2*pi*L). "
                    "STARTING POINT -- see the sheet note."})],
-        "FB_BOOST")
+        "FB_BOOST", mids=["COMP_RC_BOOST"])
 
     sh.text(
         "THE COMPENSATION VALUES ARE A STARTING POINT AND THE SHEET SAYS "
@@ -855,7 +866,7 @@ def gate_rail(sh):
           {"Note": "Zener bias, split in two so neither resistor carries "
                    "the full 87 V. 0.87 mA total."}),
          ("Device:R", "R", "47k", {"Note": "Second half."})],
-        "BASE_12V")
+        "BASE_12V", mids=["BIAS_12V_MID"])
     to_gnd(sh, 610.0, 392.0, "Device:D_Zener", "D", "13V", "BASE_12V",
            {"Note": "Sets 12V_GATE: 13 V - one Vbe - the drop in the "
                     "limit resistor = 12.1 V at 5 mA."}, rot=270)
@@ -913,7 +924,7 @@ def gate_rail(sh):
           {"Note": "Collector resistor, first of two. 16.5 V and 83 mW "
                    "at 5 mA; 38 V and 0.44 W into a shorted output."}),
          ("Device:R", "R", "3.3k 2512", {"Note": "Second of two."})],
-        "Q1C_12V")
+        "Q1C_12V", mids=["Q1C_MID"])
     series_chain(
         sh, 412.0, 640.0, "Q1E_12V",
         [("Device:R", "R", "56R",

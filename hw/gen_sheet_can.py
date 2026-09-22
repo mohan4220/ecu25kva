@@ -178,6 +178,7 @@ def channel(sh, n, ux, uy):
     # The midpoint capacitor IS the split termination.
     cx = tx + 18.0
     sh.wire(tx, midy, cx, midy)
+    sh.label(f"CAN{n}_SPLIT", cx, midy)
     sh.place("Device:C", "C", cx, midy + 12.0, "4.7nF",
              fields={"Source": "can_termination.cir Csh -- the midpoint "
                                "capacitor IS the split termination",
