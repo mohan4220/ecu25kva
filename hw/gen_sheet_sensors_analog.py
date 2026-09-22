@@ -77,14 +77,29 @@ def adc_tail(sh, node, x, y, out_net):
             "Note": "With the 16k below it, 0.35 ms -- fast against the "
                     "engine and slow against anything the harness picks up"},
            node)
-    vshunt(sh, "Device:D_Zener", "D", x + 16.0, y + 18.0, "3.3V",
-           {"Source": "sensor_ratiometric.cir D1",
-            "Note": "Cathode to the signal. The ADC pin is what is being "
-                    "protected; everything on this sheet arrives from the "
-                    "harness."},
-           node, rot=270)
-    node.to(x + 38.0)
-    sh.hlabel(out_net, x + 38.0, y, shape="output")
+    _, tap = schlib.rail_clamp(sh, node, x + 20.0, y, "3V3_MCU",
+                      {"Source": "sensor_ratiometric.cir D1 -- was a 3.3 V "
+                                 "zener; LOWV-CLAMP",
+                       "Note": "Fault-only: the channel's normal maximum "
+                               "is 3.08 V, under the rail. 80 nA max "
+                               "leakage at 150 C against a 3.3 V zener "
+                               "allowed 5 uA at 1 V."})
+    sh.label(out_net + "_CL", *tap)
+    # 1k between the clamp and the pad -- see sensor_ratiometric.cir:
+    # without it the pad's own ESD diode, not the high-Vf BAV199-Q,
+    # carries a harness fault. 0.4 mA injected with it.
+    sh.place("Device:R", "R", x + 34.0, y, "1k", rot=90,
+             fields={"Source": "sensor_ratiometric.cir Rpc -- LOWV-CLAMP",
+                     "Note": "Pad injection on a 40 V short: 0.4 mA, "
+                             "against the S32K148's +/-3 mA"})
+    ra = pin_xy(*PINS["Device:R"]["1"], x + 34.0, y, 90)
+    rb = pin_xy(*PINS["Device:R"]["2"], x + 34.0, y, 90)
+    l, r = (ra, rb) if ra[0] < rb[0] else (rb, ra)
+    node.to(l[0])
+    out = Rail(sh, y)
+    out.to(r[0])
+    out.to(x + 44.0)
+    sh.hlabel(out_net, x + 44.0, y, shape="output")
 
 
 def divider_channel(sh, x0, y, in_net, out_net, rtop, rbot, label, src):
@@ -402,6 +417,12 @@ def build():
     excitation(sh)
     baro(sh)
     notes(sh)
+    # The sheet's one HIERARCHICAL 3V3_MCU, for the BAV199-Q clamps --
+    # every clamp names the rail with a local label, which alone would
+    # make /sensors_analog/3V3_MCU a net with no supply.
+    sh.wire(500.0, 30.0, 506.0, 30.0)
+    sh.hlabel("3V3_MCU", 500.0, 30.0, shape="input", rot=180)
+    sh.label("3V3_MCU", 506.0, 30.0)
     return sh
 
 

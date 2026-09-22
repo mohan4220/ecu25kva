@@ -596,30 +596,49 @@ The fault-current ceiling has to come from a fixed series resistor, or
 from the regulator's own limit, with the PTC only doing the tripping.
 Its hold current then has to be chosen at the hot corner.
 
-### `LOWV-CLAMP` — the 3.0 V and 3.3 V input clamps (OPEN)
+### `LOWV-CLAMP` — the 3.0 V and 3.3 V input clamps
 
-These are 15 zeners: six 3.0 V parts on the discrete inputs, and nine
-3.3 V parts on the analog and speed inputs. None has a part number yet,
-and that is deliberate. The obvious family, BZX84-C3V0-Q and C3V3-Q,
-is specified at 5 mA, but these clamps sit at tens of microamps for
-most of their life. Below 5 V, a zener's knee is soft rather than
-sharp. The datasheet itself allows **10 µA** (3V0) and **5 µA** (3V3)
-of reverse leakage at only **1 V**.
+**Analog and cam inputs: closed 22 September 2026.** The ten 3.3 V
+zeners became **BAV199-Q**. That part is a low-leakage double diode,
+80 nA max at 150 °C, AEC-Q101. Its common pin sits on the signal, K2
+goes to 3V3_MCU and A1 to ground. It is drawn as one 3-pin part, so a
+pair is one package; the speed input's split halves were redrawn the
+same way.
 
-- **On a discrete input,** 10 µA through the ~28 kΩ source is 0.28 V.
-  The logic-high margin at the cranking dip is 0.36–0.41 V, so the
-  leakage consumes most of it.
-- **On an analog input,** the leakage is a signal-dependent load on the
-  ADC node, and it matters most near full scale.
+These inputs clamp only on a fault: a channel's normal maximum is
+3.08 V, below the rail. A rail clamp in that position brings a problem
+the zener had hidden. The BAV199-Q's upper diode has a high Vf, which
+is the price of low leakage: 0.9 V at 1 mA. On a 40 V harness short,
+the MCU pad's own ESD diode sits in parallel with it and would carry
+most of the 3.6 mA fault current. That is over the S32K148's ±3 mA
+injection limit. So every clamped channel now has **1 kΩ between the
+clamp node and the pad**. The fault node rides at 4.33 V, the pad at
+3.93 V, and **0.40 mA** is injected. That is checked in
+`sensor_ratiometric` and `cam_frontend`, which now model the diode
+pair, the 1 kΩ resistor and the pad's ESD diode.
 
-`discrete_input.cir` models the zener with a sharp knee (IBV = 5 mA),
-and that is why this has not surfaced as a failed check.
+The same models exposed what the zener had been doing in normal
+operation. At a 5.25 V rail the cam input sits at 3.23 V, and the
+3.3 V zener model was loading it by **84 mV**. The old check had
+pinned that loading as the expected value.
 
-Choosing a part means either finding one whose current at the working
-voltage is specified, or replacing the zener. The alternative is a
-series resistor with a low-leakage clamp to the 3V3 rail (BAV199, which
-the speed inputs already use). The model needs the chosen part's real
-knee either way.
+**Discrete inputs: OPEN, and not solvable with a clamp of either
+kind.** The six 3.0 V zeners clamp all the time. A 6–40 V input cannot
+be divided into logic range otherwise, because the ratio constraints
+do not overlap.
+
+- A rail clamp would hold the pad at 3.9 V continuously. That is
+  operation beyond the pin's maximum, not a fault margin.
+- A shunt reference (LM4040-Q1, 3.0 V) was checked and rejected. Below
+  breakdown it still draws a ~35 µA bias (TI SNOS633N, Figure 5-4).
+  At the 6 V cranking input the 47 kΩ/68 kΩ network offers 20 µA, so
+  the node sags to about 2.6 V typical with no guaranteed bound. On
+  the pull-up channels it fails outright.
+
+The proposed front end is a transistor buffer. The input drives an NPN
+base through a divider, the B-E junction limits itself, and the MCU
+pad sees only its own pull-up to 3.3 V. The logic is inverted, and
+`discrete_input.cir` needs rewriting.
 
 ### `GATE-KILL-CLAMP` — 12 V zener on GATE_KILL
 

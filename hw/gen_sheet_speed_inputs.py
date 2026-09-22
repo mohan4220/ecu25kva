@@ -216,29 +216,15 @@ def crank(sh):
                         "harness noise into differential noise at exactly "
                         "the frequencies the filter exists to remove."},
                node)
-        # Low-leakage clamp to the rails. See CLAMP LEAKAGE in notes().
-        sh.place("Device:D", "D", 155.0, y - 14.0, "BAV199 (upper half)",
-                 rot=270,
-                 fields={"Tag": "VR-CLAMP",
-                         "Note": "Anode to the signal, cathode to 3V3_MCU. "
-                                 "LOW LEAKAGE is the binding spec, not "
-                                 "forward drop -- see the sheet note."})
-        ua = pin_xy(*PINS["Device:D"]["1"], 155.0, y - 14.0, 270)  # K, top
-        ub = pin_xy(*PINS["Device:D"]["2"], 155.0, y - 14.0, 270)  # A, bottom
-        sh.place("Device:D", "D", 175.0, y + 14.0, "BAV199 (lower half)",
-                 rot=270,
-                 fields={"Tag": "VR-CLAMP",
-                         "Note": "Anode to ground, cathode to the signal."})
-        la = pin_xy(*PINS["Device:D"]["1"], 175.0, y + 14.0, 270)  # K, top
-        lb = pin_xy(*PINS["Device:D"]["2"], 175.0, y + 14.0, 270)  # A, bottom
-        nx, ny = node.to(155.0, tap=True)
-        sh.wire(nx, ny, ub[0], ub[1])
-        sh.label(f"VR_{name}_CLAMPED", ub[0], ub[1])
-        sh.wire(ua[0], ua[1], ua[0], ua[1] - 6.0)
-        sh.label("3V3_MCU", ua[0], ua[1] - 6.0)
-        nx, ny = node.to(175.0, tap=True)
-        sh.wire(nx, ny, la[0], la[1])
-        gnd_below(sh, lb[0], lb[1])
+        # Low-leakage clamp to the rails, both halves in one BAV199-Q
+        # package. See CLAMP LEAKAGE in notes().
+        _, tap = schlib.rail_clamp(sh, node, 165.0, y, "3V3_MCU",
+                          {"Tag": "VR-CLAMP",
+                           "Note": "Common pin on the signal, K2 to "
+                                   "3V3_MCU, A1 to ground. LOW LEAKAGE is "
+                                   "the binding spec, not forward drop -- "
+                                   "see the sheet note."})
+        sh.label(f"VR_{name}_CLAMPED", *tap)
         legs.append(node)
 
     hi_node, lo_node = legs
@@ -411,14 +397,24 @@ def cam(sh):
                     "to carry 3 lobes rather than 1. The lobe count is "
                     "not recorded anywhere in this repo; the margin "
                     "survives either."}, node)
-    vshunt(sh, "Device:D_Zener", "D", 170.0, y + 18.0, "3.3V",
-           {"Source": "cam_frontend.cir D1",
-            "Note": "Cathode to the signal. 3.077 V nominal sits 0.22 V "
-                    "clear of the knee, so it does not touch the signal "
-                    "-- it is there for a harness short, where it clamps "
-                    "at 3.308 V and 3.669 mA."}, node, rot=270)
-    node.to(200.0)
-    sh.hlabel("CAM_EDGE", 200.0, y, shape="output")
+    _, tap = schlib.rail_clamp(sh, node, 175.0, y, "3V3_MCU",
+                      {"Source": "cam_frontend.cir D1 -- was a 3.3 V "
+                                 "zener; LOWV-CLAMP",
+                       "Note": "3.077 V nominal never reaches the rail, so "
+                               "it does not touch the signal. It is there "
+                               "for a harness short: (40 - 3.9) / 10k = "
+                               "3.6 mA into the rail, the pin one diode "
+                               "above it."})
+    sh.label("CAM_EDGE_CL", *tap)
+    # 1k between the clamp and the pad: the BAV199-Q's upper diode is
+    # high-Vf by construction, and without this the pad's own ESD diode
+    # would carry the fault current. cam_frontend.cir: 0.4 mA injected.
+    pad = series_r(sh, 192.0, y, "1k",
+                   {"Source": "cam_frontend.cir Rpc -- LOWV-CLAMP",
+                    "Note": "Pad injection on a 40 V harness short: "
+                            "0.4 mA, against the S32K148's +/-3 mA"}, node)
+    pad.to(206.0)
+    sh.hlabel("CAM_EDGE", 206.0, y, shape="output")
 
     sh.hlabel("CAM_GND_44", 40.0, 282.0, shape="input")
     sh.wire(40.0, 282.0, 55.0, 282.0)

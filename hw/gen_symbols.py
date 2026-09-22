@@ -665,6 +665,27 @@ AHCT125 = dict(
     hw=10.16)
 
 
+# --- BAV199-Q, low-leakage series double diode ----------------------
+# Source: Nexperia BAV199-Q datasheet. SOT-23: 1 = A1, 2 = K2, 3 = K1/A2
+# (the common node). IR 5 nA max at 75 V / 25 C, 80 nA max at 150 C.
+# AEC-Q101. The plain BAV199 is no longer automotive-qualified. Drawn as
+# ONE part so the pair is one package on the PCB -- the two halves were
+# separate symbols until 22 Sep 2026, which is two footprints.
+BAV199 = dict(
+    name="BAV199", fp="Package_TO_SOT_SMD:SOT-23",
+    ds="https://assets.nexperia.com/documents/data-sheet/BAV199-Q.pdf",
+    mpn="BAV199-Q",
+    desc="Nexperia BAV199-Q low-leakage double diode in series: signal "
+         "on the common pin, K2 to the rail, A1 to ground. 80 nA max at "
+         "150 C. AEC-Q101. SOT-23.",
+    keywords="clamp diode low leakage series BAV199",
+    left=[("COM", "3", "passive")],
+    right=[],
+    top=[("K2", "2", "passive")],
+    bottom=[("A1", "1", "passive")],
+    hw=7.62)
+
+
 # --- AUIRS2184S, half-bridge gate driver ------------------------------
 # Same Infineon family and die as AUIRS2181S, and the reverse choice for
 # the reverse reason. The 2181's lack of interlock is what lets it fire an
@@ -832,7 +853,7 @@ def main():
     icgeom["TPS3850G33"] = g
     for part in (LM5164, TLV76733, TCAN1042, OPAMP, COMPARATOR,
                  TPS40210, AUIRS2181, INA181, TLV3201, UCC27517A,
-                 AUIRS2184, MPXH6115, INA592, AHCT125):
+                 AUIRS2184, MPXH6115, INA592, AHCT125, BAV199):
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g

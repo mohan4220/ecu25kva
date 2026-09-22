@@ -227,6 +227,33 @@ CHOSEN = {
 }
 
 
+def rail_clamp(sh, rail, x, y, rail_net, fields, to_gnd=True):
+    """A BAV199-Q across a signal node: common pin tapped off `rail` (a
+    Rail at height y), K2 to `rail_net`, A1 to ground. For inputs that
+    clamp only on a FAULT -- the pin then rides one diode above its rail
+    inside the MCU's +/-3 mA injection limit, which is a stress margin,
+    not an operating point. An input that clamps continuously needs a
+    different front end. to_gnd=False leaves A1 open (upper clamp only).
+    Returns (reference, (x, y) of the tap on `rail`)."""
+    geom = json.load(open(os.path.join(os.path.dirname(
+        os.path.abspath(__file__)), "lib", "ic_pins.json")))["BAV199"]
+    cy = y + 18.0
+    ref = sh.place("ecu25kva:BAV199", "D", x, cy, "BAV199-Q",
+                   footprint="Package_TO_SOT_SMD:SOT-23",
+                   fields=dict({"MPN": "BAV199-Q"}, **fields))
+    sig = pin_xy(*geom["3"], x, cy, 0)
+    top = pin_xy(*geom["2"], x, cy, 0)
+    bot = pin_xy(*geom["1"], x, cy, 0)
+    rx, ry = rail.to(sig[0], tap=True)
+    sh.wire(rx, ry, sig[0], sig[1])
+    sh.wire(top[0], top[1], top[0], top[1] - 2.54)
+    sh.label(rail_net, top[0], top[1] - 2.54)
+    if to_gnd:
+        sh.wire(bot[0], bot[1], bot[0], bot[1] + 5.08)
+        sh.gnd(bot[0], bot[1] + 5.08)
+    return ref, (rx, ry)
+
+
 def verify_pins():
     """Check PINS against the installed libraries. Called by every sheet
     generator before it draws anything -- a wrong offset here produces

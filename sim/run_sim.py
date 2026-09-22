@@ -218,7 +218,7 @@ def check_sensor_ratiometric():
     d = sim("sensor_ratiometric", {
         "sensor_ratio_dc.dat": ["vsens", "node"],
         "sensor_ratio_ac.dat": ["frequency", "vdb"],
-        "sensor_ratio_fault.dat": ["sweep", "node", "ifault"],
+        "sensor_ratio_fault.dat": ["sweep", "node", "ifault", "pad", "iinj"],
         "sensor_ratio_rail.dat": ["vsup", "raw", "corrected"],
     })
     vs, node = d["sensor_ratio_dc.dat"]["vsens"], d["sensor_ratio_dc.dat"]["node"]
@@ -251,9 +251,20 @@ def check_sensor_ratiometric():
 
     # Harness short to battery: the clamp must hold the pin inside the MCU's
     # absolute maximum, and R1 must keep the fault current sane.
-    vf = float(d["sensor_ratio_fault.dat"]["node"][0])
-    i_f = abs(float(d["sensor_ratio_fault.dat"]["ifault"][0]))
-    c.that("40 V harness short clamps pin to", vf, 3.6, tol=None, ok=vf <= 3.6)
+    # Since 22 Sep 2026 the clamp is a BAV199-Q to the 3.3 V rail, and the
+    # pad sits behind 1k (LOWV-CLAMP). The clamp node rides one high-Vf
+    # diode above the rail; what the MCU's rule limits is the current
+    # injected into the PAD, +/-3 mA (S32K1xx data sheet Rev.15, Table 1).
+    fl = d["sensor_ratio_fault.dat"]
+    vf = float(fl["node"][0])
+    i_f = abs(float(fl["ifault"][0]))
+    inj = abs(float(fl["iinj"][0]))
+    c.that("40 V harness short: clamp node (one BAV199 above 3.3 V)", vf,
+           4.25, tol=0.15, unit="V")
+    c.that("  ... pad behind 1k", float(fl["pad"][0]), 3.6, tol=None,
+           ok=float(fl["pad"][0]) < 4.0, unit="V")
+    c.that("  ... current injected into the pad, against +/-3 mA",
+           inj * 1e3, 3.0, tol=None, ok=inj < 3e-3, unit="mA")
     c.that("  ... fault current limited to", i_f * 1e3, 5.0, tol=None, ok=i_f < 5e-3,
            unit="mA")
 
@@ -1559,7 +1570,7 @@ def check_cam_frontend():
     d = sim("cam_frontend", {
         "cam_frontend_dc.dat": ["vraila", "na"],
         "cam_frontend_tran.dat": ["time", "nb", "ctrl"],
-        "cam_frontend_fault.dat": ["sweep", "nc", "iflt"],
+        "cam_frontend_fault.dat": ["sweep", "nc", "iflt", "pad", "iinj"],
     })
     va, na = d["cam_frontend_dc.dat"]["vraila"], d["cam_frontend_dc.dat"]["na"]
     t, nb = d["cam_frontend_tran.dat"]["time"], d["cam_frontend_tran.dat"]["nb"]
@@ -1579,9 +1590,15 @@ def check_cam_frontend():
            tol=0.01, unit="V")
     c.that("  ... still reads logic high (>=2.31 V, 0.7*VDD)", at45, 2.31,
            tol=None, ok=at45 >= 2.31, unit="V")
-    c.that("above-nominal rail (5.25 V) -> pad", at525, 3.147, tol=0.01, unit="V")
-    c.that("  ... still clears the 3.6 V abs max", 3.6 - at525, 0.453, tol=0.02,
+    # Was pinned at 3.147 V until 22 Sep 2026 -- which was the 3.3 V zener
+    # model LOADING the signal by 84 mV at 3.23 V, in normal operation.
+    # The BAV199-Q clamp does not conduct here; this is the divider alone.
+    c.that("above-nominal rail (5.25 V) -> pad", at525, 5.25 * 16 / 26,
+           tol=0.005, unit="V")
+    c.that("  ... still clears the 3.6 V abs max", 3.6 - at525, 0.369, tol=0.01,
            unit="V")
+    c.that("  ... WAS: the zener's loading of the signal at this point",
+           5.25 * 16 / 26 - 3.147, 0.084, tol=0.002, unit="V")
 
     # Never exceeds the pad's absolute maximum anywhere in the transient,
     # sensor toggling at its own rate.
@@ -1598,10 +1615,14 @@ def check_cam_frontend():
     # 40 V harness short on the signal line: the clamp must hold the pad
     # inside the abs max, same bound sensor_ratiometric.cir checks for its
     # own 5V_SENSOR-fed channels.
-    vf = float(d["cam_frontend_fault.dat"]["nc"][0])
-    i_f = abs(float(d["cam_frontend_fault.dat"]["iflt"][0]))
-    c.that("40 V harness short on signal line clamps pad to", vf, 3.6,
-           tol=None, ok=vf <= 3.6, unit="V")
+    fl = d["cam_frontend_fault.dat"]
+    vf = float(fl["nc"][0])
+    i_f = abs(float(fl["iflt"][0]))
+    inj = abs(float(fl["iinj"][0]))
+    c.that("40 V harness short: clamp node (BAV199-Q to 3.3 V)", vf, 4.25,
+           tol=0.15, unit="V")
+    c.that("  ... current injected into the pad behind 1k, vs +/-3 mA",
+           inj * 1e3, 3.0, tol=None, ok=inj < 3e-3, unit="mA")
     c.that("  ... fault current limited to", i_f * 1e3, 5.0, tol=None,
            ok=i_f < 5e-3, unit="mA")
     return c

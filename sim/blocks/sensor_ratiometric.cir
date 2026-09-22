@@ -35,21 +35,31 @@
 * 3.3 V zener to ground -- clamps below the MCU's 3.6 V absolute maximum.
 * Sits well above the 2.77 V full-scale signal, so it never loads the
 * sensor's own range; it only conducts on a harness fault.
-.model DZ3V3 D(Is=1e-14 N=1 Rs=5 BV=3.3 IBV=5e-3)
+* BAV199-Q to the 3.3 V rail and ground, since 22 Sep 2026 (was a 3.3 V
+* zener to ground -- LOWV-CLAMP). Fitted to the datasheet's VF maxima,
+* 0.9 V at 1 mA and 1.0 V at 10 mA: N = 1.9 through both points. The
+* pin's own ESD diode is an ordinary junction (Is 1e-14) behind the 1k
+* series resistor the sheet now carries -- without that resistor it
+* would steal the fault current from the high-Vf BAV199.
+.model DBAV D(Is=2.5e-12 N=1.9)
+.model DESD D(Is=1e-14 N=1)
+Vdd33 vdd33 0 DC 3.3
 
 * ---- network A: DC transfer over the sensor's output span ----
 Vsens sa 0 DC 2.5
 R1a sa  na 10k
 R2a na  0  16k
 C1a na  0  22n
-D1a 0   na DZ3V3
+D1a na vdd33 DBAV
+D2a 0  na DBAV
 
 * ---- network B: AC response, same network ----
 Vac sb 0 DC 2.5 AC 1
 R1b sb  nb 10k
 R2b nb  0  16k
 C1b nb  0  22n
-D1b 0   nb DZ3V3
+D1b nb vdd33 DBAV
+D2b 0  nb DBAV
 
 * ---- network D: rail drift, and the correction that removes it ----
 * A ratiometric sensor's output IS a fraction of its own supply, so a
@@ -88,7 +98,11 @@ Vflt sc 0 DC 40
 R1c sc  nc 10k
 R2c nc  0  16k
 C1c nc  0  22n
-D1c 0   nc DZ3V3
+D1c nc vdd33 DBAV
+D2c 0  nc DBAV
+Rpc nc npc 1k
+Vinj npc npx DC 0
+Desd npx vdd33 DESD
 
 .control
 dc Vsens 0.5 4.5 0.01
@@ -98,7 +112,7 @@ ac dec 200 1 1meg
 wrdata sensor_ratio_ac.dat vdb(nb)
 
 op
-wrdata sensor_ratio_fault.dat v(nc) i(Vflt)
+wrdata sensor_ratio_fault.dat v(nc) i(Vflt) v(npc) i(Vinj)
 
 dc Vsup 4.75 5.25 0.005
 wrdata sensor_ratio_rail.dat v(nd) v(ncorr)

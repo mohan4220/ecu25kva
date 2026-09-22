@@ -198,21 +198,21 @@ def neg_clamp_control(sh):
                      "sat at +0.5 mV worst case."})
     _to_gnd(sh, 160.0, 238.0, "Device:R", "R", "10k 1%", "NCL_REF",
             {"Note": "Reference to ground."})
-    sh.place("Device:D", "D", 190.0, 256.0, "BAV199 (one half)", rot=270,
-             fields={"Tag": "VR-CLAMP",
-                     "Note": "Anode to the sense node, cathode to 5V_MAIN: "
-                             "holds the comparator input inside its rail "
-                             "when VIN is at 73.3 V. LOW LEAKAGE for the "
-                             "same reason as on the crank input -- and "
-                             "here leakage lifts the sense node, which "
-                             "makes the clamp release EARLIER, the safe "
-                             "direction."})
-    k = pin_xy(*PINS["Device:D"]["1"], 190.0, 256.0, 270)
-    a = pin_xy(*PINS["Device:D"]["2"], 190.0, 256.0, 270)
-    sh.wire(k[0], k[1], k[0], k[1] - 5.0)
-    sh.label("5V_MAIN", k[0], k[1] - 5.0, rot=90)
-    sh.wire(a[0], a[1], a[0], a[1] + 5.0)
-    sh.label("NCL_SENSE", a[0], a[1] + 5.0, rot=270)
+    # Upper half only: the sense node must be free to go BELOW ground,
+    # which is the whole signal, so A1 is left open.
+    ncl = schlib.Rail(sh, 238.0)
+    ncl.to(170.0)
+    sh.label("NCL_SENSE", 170.0, 238.0, rot=180)
+    schlib.rail_clamp(sh, ncl, 190.0, 238.0, "5V_MAIN",
+                      {"Tag": "VR-CLAMP",
+                       "Note": "Common pin on the sense node, K2 to "
+                               "5V_MAIN: holds the comparator input inside "
+                               "its rail when VIN is at 73.3 V. A1 OPEN -- "
+                               "the lower diode would clamp the negative "
+                               "excursion the comparator exists to see. "
+                               "Leakage lifts the sense node, which makes "
+                               "the clamp release EARLIER, the safe "
+                               "direction."}, to_gnd=False)
     _to_gnd(sh, 300.0, 238.0, "Device:C", "C", "100nF", "5V_MAIN",
             {"Note": "Comparator bypass."})
     _to_gnd(sh, 340.0, 238.0, "Device:C", "C", "1uF 25V", "12V_GATE",
