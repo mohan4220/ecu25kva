@@ -50,11 +50,16 @@ R1  sa nse 10k
 R2  nse 0  16k
 
 * ---- differential front-end: measures sensor minus sensor-ground --
-* Gain matched to the divider's exact 16/26 so the two are compared on
-* equal terms. The second term is finite common-mode rejection at
-* 80 dB, which is a realistic instrumentation-amp figure -- an
-* ideal difference would flatter the topology unfairly.
-Bd  nd 0 V = (16/26)*(v(sa)-v(gs)) + 1e-4*(v(sa)+v(gs))/2
+* THE CHOSEN PART, since 22 Sep 2026: TI INA592 in its native G = 1/2
+* configuration, CMRR 88 dB MINIMUM from its retrieved datasheet
+* (SBOS914F) -- replacing a 16/26 gain and an 80 dB figure that were
+* INFERRED, no part chosen. The common-mode term is the datasheet's
+* minimum, not its typical: 0.5 x 10^(-88/20) = 1.99e-5.
+*
+* The two front-ends no longer share a gain, so run_sim.py compares
+* their errors REFERRED TO THE SENSOR -- each divided by its own gain --
+* which is the only comparison that means anything.
+Bd  nd 0 V = 0.5*(v(sa)-v(gs)) + 1.99e-5*(v(sa)+v(gs))/2
 
 .control
 * From a clean harness to a badly corroded one.

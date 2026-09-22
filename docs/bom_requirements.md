@@ -457,10 +457,49 @@ not constraints.
 | Supervisor | **TPS3850G33DRCT** | ±4% window variant, so its undervoltage trip clears the MCU's own LVD by 143 mV rather than 44 mV. |
 | Injector boost controller | **TPS40210QDGQRQ1** | Chosen on its **200 ns maximum off-time** — the one spec that makes 94% duty reachable at the 6 V cranking corner. See below. |
 | Gate drivers, all eight gates | **AUIRS2181STR** ×5 | **No cross-conduction interlock** — the injector's high and low switches are in series with the coil and must both be on. See below. |
+| Difference amplifiers | **INA592IDR** ×5 | Native G = ½, 88 dB CMRR min against a 60 dB floor the discrete network could not reach. **Not AEC-Q100** — see below. |
 | Barometric sensor | **MPXHZ6115A6T1** | Spec §7 deviation 2, on-PCB behind a vented port. AEC-Q100 **not stated** in its datasheet — see below. |
 | EGR bridge drivers | **AUIRS2184STR** ×2 | One input per leg: each leg's high and low exclusive by construction. See `EGR-DRIVER`. |
 | Negative-clamp control | **TLV3201AQDCKRQ1** + **UCC27517AQDBVRQ1** | A low-side ideal diode: engage below −100 mV, release above −6.8 mV. See `NEG-CLAMP`. |
 | Current-sense amplifiers | **INA181A1QDBVRQ1** ×3 | VCM reaches −0.2 V, so it sits across a ground-referenced shunt; supplied from 3V3_MCU so its output is ADC-safe by construction. |
+
+### `INA592IDR` — the difference amplifiers, and a stronger argument
+
+**TI SBOS914F**, October 2018, revised April 2021. Retrieved and
+text-extracted. Five, one per differential channel on `sensors_analog`.
+
+| | |
+|---|---|
+| Gain | native **G = ½** (±IN inputs, SENSE tied to OUT) |
+| CMRR | **88 dB minimum** |
+| Gain error | ±0.03 % max |
+| Supply | 4.5–36 V single; runs from 5V_MAIN |
+| Output | within 220 mV of each rail |
+| Input | common mode to 3·(V+) − 2·REF = 15 V at G = ½; only absolute maximum is 10 mA, and the ~12 kΩ internal network holds a 40 V harness short to about 3.3 mA |
+
+**Why a difference amplifier and not an op-amp.** The requirement was
+≥ 60 dB CMRR, the floor `sensor_differential.cir` tried. The drawn
+design — an op-amp with a discrete 26k/16k network — could not reach it:
+0.1 % discrete resistors give about 48 dB. The network has to be matched
+on-die. G = ½ also puts a 0.5–4.5 V sensor at 0.25–2.25 V, straight into
+the ADC.
+
+**And the argument got stronger with a real number.** The block had
+modelled 80 dB, marked INFERRED, at gain 16/26. With the chosen part's
+**minimum** 88 dB at G = ½ — and both paths' errors referred to the
+sensor, since they no longer share a gain — differential now beats
+single-ended by **394×** on a 1 Ω corroded return, up from 90×.
+
+A **1 kΩ** now sits between each amplifier and its ADC tail: the
+amplifier runs from 5 V and can rail at 4.78 V on a harness fault, where
+the 3.3 V zener at the pin would otherwise take the amplifier's full
+short-circuit current. With 1 kΩ it takes 1.5 mA.
+
+**Not AEC-Q100, and nothing better was found.** INA2132 was the dual
+alternative, but its "G = ½" (datasheet Figure 12) is a single-ended
+attenuator; its matched network only gives a *difference* G = 1, which
+pushes a 4.5 V sensor past its 4 V swing on 5 V. No qualified difference
+amplifier with a differential G = ½ turned up.
 
 ### `MPXHZ6115A6T1` — the onboard barometric sensor
 

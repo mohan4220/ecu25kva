@@ -1582,20 +1582,27 @@ def check_sensor_differential():
            tol=1.0, unit="mV")
     c.that("  ... single-ended reading error", abs(float(se[i1]) - ideal) * 1e3,
            12.3, tol=1.5, unit="mV")
-    # Both this line and the ratio below are pinned to the netlist's
-    # assumed 80 dB CMRR (INFERRED, no in-amp chosen) -- see its tolerance
-    # note. At a worse, still-plausible CMRR (harness-driven source-
-    # impedance imbalance, not just a cheaper chip) these numbers move a
-    # lot; the underlying claim -- differential meaningfully beats
-    # single-ended -- does not, down to 60 dB CMRR tried there.
-    c.that("  ... differential reading error", abs(float(dif[i1]) - ideal) * 1e3,
-           0.13, tol=0.2, unit="mV")
+    # RE-PINNED 22 Sep 2026: the differential stage is now the chosen
+    # INA592 at its native G = 1/2 with its datasheet's MINIMUM 88 dB CMRR,
+    # replacing an inferred 16/26 gain at 80 dB. With the gains different,
+    # both errors are referred to the SENSOR -- each divided by its own
+    # path gain -- or the comparison flatters whichever gain is smaller.
+    G_SE, G_DF = 16.0 / 26.0, 0.5
+    ideal_df = 2.5 * G_DF
+    e_se = abs(float(se[i1]) - ideal) / G_SE
+    e_df = abs(float(dif[i1]) - ideal_df) / G_DF
+    c.that("  ... differential reading error, referred to the sensor",
+           e_df * 1e3, 0.05, tol=0.02, unit="mV")
+    c.that("  ... single-ended, referred to the sensor: the whole offset",
+           e_se * 1e3, 20.0, tol=1.0, unit="mV")
 
     # The ratio is the argument for the part.
-    e_se = abs(float(se[i1]) - ideal)
-    e_df = abs(float(dif[i1]) - ideal)
-    c.that("differential is better by", e_se / max(e_df, 1e-9), 90, tol=None,
-           ok=e_se / max(e_df, 1e-9) > 20, unit="x")
+    c.that("differential is better by", e_se / max(e_df, 1e-9), 400, tol=None,
+           ok=e_se / max(e_df, 1e-9) > 100, unit="x")
+    c.that("  ... it was 90x at the inferred 80 dB and 16/26 gain; the "
+           "chosen part's MINIMUM 88 dB is what moved it",
+           "the argument for differential got stronger, not weaker, when a "
+           "real datasheet replaced an assumed figure", None, ok=True)
 
     # Stated as a harness requirement, which is the useful form: this is
     # what single-ended costs you in contact resistance you must maintain.

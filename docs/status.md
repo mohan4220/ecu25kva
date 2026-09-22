@@ -486,6 +486,16 @@ neither number returns a catalogue hit, so the footprint has to come
 through a Bosch distributor. Same shape as the six findings above, and
 this one was mine: reading the older reference and not the newer one.
 
+**The last two placeholder symbols are gone, 22 September 2026.** The
+crank comparator is TLV3201-Q1 — the clamp's comparator, which meets every
+line of `VR-COMP`. The five difference amplifiers are **INA592** at their
+native G = ½: the requirement was ≥ 60 dB CMRR and the drawn discrete
+network could only reach ~48 dB; the on-die network gives 88 dB minimum.
+Putting that real figure into `sensor_differential.cir` in place of an
+inferred 80 dB raised the differential front-end's advantage from 90× to
+**394×**, referred to the sensor. INA592 is not AEC-Q100; no qualified
+G = ½ difference amplifier was found.
+
 **Baro drawn, 22 September 2026 — 2 → 1 open end.** Spec §7 deviation 2
 adds it deliberately; NXP MPXHZ6115A from a retrieved datasheet, on
 5V_MAIN so the existing `SENSOR_5V_MON` channel makes it ratiometric. Its

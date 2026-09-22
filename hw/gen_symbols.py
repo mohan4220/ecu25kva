@@ -708,6 +708,38 @@ MPXH6115 = dict(
     hw=10.16)
 
 
+# --- INA592, difference amplifier, G = 1/2 ----------------------------
+# Source: TI SBOS914F (Oct 2018, rev. Apr 2021), SOIC-8/MSOP-8 pinout:
+# 1 REF, 2 -IN, 3 +IN, 4 V-, 5 SENSE, 6 OUT, 7 V+, 8 NC. In the native
+# G = 1/2 configuration +IN/-IN are the inputs and SENSE ties to OUT.
+#
+# Replaces OPAMP_GENERIC and its discrete 26k/16k network on
+# sensors_analog. The requirement was >=60 dB CMRR, and the sheet's own
+# note said 0.1% discretes reach about 48 dB -- a matched network on-die
+# was always the answer. 88 dB MINIMUM, +/-0.03% gain error, single
+# supply 4.5-36 V, output within 220 mV of each rail, input common mode
+# to 3(V+) - 2 REF = 15 V at G = 1/2.
+#
+# NOT AEC-Q100 -- neither INA592 nor INA2132 is, and no qualified
+# difference amplifier with a differential G = 1/2 turned up. INA2132
+# was the dual alternative, but its datasheet's "G = 1/2" (Figure 12) is
+# a single-ended attenuator; its matched network only gives G = 1, which
+# pushes a 4.5 V sensor past its 4 V swing on a 5 V supply.
+INA592 = dict(
+    name="INA592", fp="Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+    ds="https://www.ti.com/lit/ds/symlink/ina592.pdf",
+    mpn="INA592IDR",
+    desc="TI INA592 difference amplifier, G = 1/2 or 2, CMRR 88 dB min, "
+         "gain error 0.03% max, 4.5-36 V single supply. SOIC-8.",
+    keywords="difference amplifier matched network CMRR INA592",
+    left=[("+IN", "3", "input"), ("-IN", "2", "input")],
+    right=[("OUT", "6", "output"), ("SENSE", "5", "input"),
+           ("NC", "8", "no_connect")],
+    top=[("V+", "7", "power_in")],
+    bottom=[("V-", "4", "power_in"), ("REF", "1", "input")],
+    hw=10.16)
+
+
 def main():
     rows = list(csv.DictReader(open(PINS)))
     for r in rows:
@@ -779,7 +811,7 @@ def main():
     icgeom["TPS3850G33"] = g
     for part in (LM5164, TLV76733, TCAN1042, OPAMP, COMPARATOR,
                  TPS40210, AUIRS2181, INA181, TLV3201, UCC27517A,
-                 AUIRS2184, MPXH6115):
+                 AUIRS2184, MPXH6115, INA592):
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g

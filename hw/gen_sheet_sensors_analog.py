@@ -24,14 +24,17 @@ front end, and the difference is not cosmetic:
                  offset while a differential one rejects it. The ratio
                  measured there is 90x.
 
-THE OP-AMPS ARE NOT A CHOSEN PART. OPAMP_GENERIC carries function only,
-with placeholder pin numbers and no footprint -- see its comment in
-hw/gen_symbols.py. What is specified is the requirement:
+THE DIFFERENCE AMPLIFIERS ARE TI INA592, chosen 22 Sep 2026, in their
+native G = 1/2 configuration. They replace an OPAMP_GENERIC placeholder
+and a discrete 26k/16k network that could not meet the requirement:
 sensor_differential.cir's own tolerance note tried the argument down to
-60 dB CMRR and found it still holds, so 60 dB is the floor. 0.1%
-discrete resistors give about 48 dB and do not clear it; a matched
-network at 0.05% ratio, or a difference amplifier with the network
-on-die, does.
+60 dB CMRR, and 0.1% discrete resistors give about 48 dB. The INA592's
+matched network is on-die, 88 dB minimum. With that figure in the block
+instead of an inferred 80 dB, the differential front-end beats
+single-ended by 394x referred to the sensor, up from 90x.
+
+Not AEC-Q100 -- no qualified difference amplifier with a differential
+G = 1/2 turned up -- and that is recorded on each part.
 """
 import os
 import sys
@@ -44,7 +47,6 @@ from schlib import Sheet, Rail, pin_xy, PINS
 HW = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HW, "sensors_analog.kicad_sch")
 ICPINS = json.load(open(os.path.join(HW, "lib", "ic_pins.json")))
-OPAMP = "ecu25kva:OPAMP_GENERIC"
 GND_DROP = 7.62
 
 
@@ -133,104 +135,75 @@ def ratiometric_channel(sh, x0, y, in_net, out_net, label):
 
 
 def differential_channel(sh, x0, y, sig_net, gnd_net, out_net, label, note):
-    """Difference stage: 26k in, 16k feedback, so gain is 16/26.
+    """INA592 difference amplifier, G = 1/2, chosen 22 Sep 2026.
 
-    The gain is the same 16/26 the ratiometric divider uses, reached a
-    different way -- which is the point. Both put a 0-5 V sensor inside
-    VREFH; only this one rejects the sensor return's own offset.
+    Replaces an OPAMP_GENERIC placeholder and a discrete 26k/16k network
+    that the sheet's own note said could not reach the requirement: 60 dB
+    CMRR is the floor sensor_differential.cir tried, and 0.1% discrete
+    resistors give about 48 dB. The matched network is now on-die --
+    88 dB minimum -- and the gain is the part's native 1/2, which puts a
+    0.5-4.5 V sensor at 0.25-2.25 V, inside VREFH.
+
+    A 1k between the amplifier and the ADC tail, which the old design
+    did not have: the amplifier runs from 5 V and can swing to 4.78 V on
+    a harness fault, and the 3.3 V zener at the pin then conducts
+    (4.78 - 3.3) / 1k = 1.5 mA instead of the amplifier's full short-
+    circuit current.
     """
-    sh.text(label, x0, y - 22.0, size=1.6)
-    ux, uy = x0 + 78.0, y
-    sh.place(OPAMP, "U", ux, uy, "OPAMP_GENERIC",
-             fields={"Source": "sensor_differential.cir Bd",
+    sh.text(label, x0, y - 34.0, size=1.6)
+    ux, uy = x0 + 60.0, y
+
+    def p(n):
+        return ic_pin("INA592", n, ux, uy)
+
+    sh.place("ecu25kva:INA592", "U", ux, uy, "INA592",
+             footprint="Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+             fields={"Source": "TI SBOS914F; sensor_differential.cir Bd",
                      "Note": note,
-                     "Requirement": "single 5 V, rail-to-rail in/out, "
-                                    "network matched for >=60 dB CMRR"})
-    inp = ic_pin("OPAMP_GENERIC", 3, ux, uy)
-    inn = ic_pin("OPAMP_GENERIC", 2, ux, uy)
-    out = ic_pin("OPAMP_GENERIC", 1, ux, uy)
-    vp = ic_pin("OPAMP_GENERIC", 5, ux, uy)
-    vn = ic_pin("OPAMP_GENERIC", 4, ux, uy)
-    sh.wire(vp[0], vp[1], vp[0], vp[1] - 7.0)
-    sh.hlabel("5V_MAIN", vp[0], vp[1] - 7.0, shape="input", rot=90)
-    # 100 nF at the supply pin. Found 21 Sep 2026 by hw/check_netlist.py's
-    # decoupling audit, which walks every power_in pin in the project
-    # netlist and asks whether a capacitor sits on the same net. These
-    # five were the only supply pins on the board with nothing across
-    # them, and no block was ever going to say so: sensor_differential.cir
-    # models an ideal difference amplifier with no supply pin at all.
-    cx = ux - 18.0
-    sh.wire(vp[0], vp[1] - 7.0, cx, vp[1] - 7.0)
-    sh.place("Device:C", "C", cx, uy - 9.0, "100nF",
-             fields={"Source": "hw/check_netlist.py decoupling audit",
-                     "Note": "One per amplifier is the conservative count. "
-                             "Five channels is two quad packages, and "
-                             "decoupling is per package SUPPLY PIN -- so "
-                             "this collapses once the part is chosen. "
-                             "Placement is a layout constraint the "
-                             "schematic cannot express: at the pin, on the "
-                             "shortest loop to the amplifier's own ground."})
-    ca = pin_xy(*PINS["Device:C"]["1"], cx, uy - 9.0, 0)
-    cb = pin_xy(*PINS["Device:C"]["2"], cx, uy - 9.0, 0)
-    c_top, c_bot = (ca, cb) if ca[1] < cb[1] else (cb, ca)
-    sh.wire(cx, vp[1] - 7.0, c_top[0], c_top[1])
-    gnd_below(sh, c_bot[0], c_bot[1])
-    gnd_below(sh, vn[0], vn[1])
+                     "CMRR": "88 dB min at G = 1/2, against a 60 dB floor",
+                     "Qualification": "NOT AEC-Q100 -- no qualified "
+                                      "difference amplifier with a "
+                                      "differential G = 1/2 was found"})
+    ip, im = p(3), p(2)
+    sh.hlabel(sig_net, x0, ip[1], shape="input")
+    sh.wire(x0, ip[1], ip[0], ip[1])
+    sh.hlabel(gnd_net, x0, im[1], shape="input")
+    sh.wire(x0, im[1], im[0], im[1])
+    for n in (4, 1):
+        q = p(n)
+        gnd_below(sh, q[0], q[1])
+    vp = p(7)
+    sh.wire(vp[0], vp[1], vp[0], vp[1] - 6.0)
+    sh.hlabel("5V_MAIN", vp[0], vp[1] - 6.0, shape="input", rot=90)
 
-    # Signal leg into IN+, with 26k series and 16k to ground.
-    sh.hlabel(sig_net, x0, inp[1], shape="input")
-    sig = Rail(sh, inp[1])
-    sig.to(x0)
-    sh.place("Device:R", "R", x0 + 26.0, inp[1], "26k", rot=90,
-             fields={"Source": "sensor_differential.cir -- input leg",
-                     "Note": "26k in, 16k feedback: gain 16/26, the same "
-                             "ratio the ratiometric divider uses"})
-    a = pin_xy(*PINS["Device:R"]["1"], x0 + 26.0, inp[1], 90)
-    b = pin_xy(*PINS["Device:R"]["2"], x0 + 26.0, inp[1], 90)
-    r_in, r_out = (a, b) if a[0] < b[0] else (b, a)
-    sig.to(r_in[0])
-    mid = Rail(sh, inp[1])
-    mid.to(r_out[0])
-    vshunt(sh, "Device:R", "R", x0 + 50.0, inp[1] + 18.0, "16k",
-           {"Source": "sensor_differential.cir -- IN+ leg to ground"}, mid)
-    mid.to(inp[0])
+    # OUT and SENSE join -- the G = 1/2 configuration.
+    op, sp = p(6), p(5)
+    jx = op[0] + 6.0
+    node = Rail(sh, op[1])
+    node.to(op[0])
+    node.to(jx, tap=True)
+    sh.wire(sp[0], sp[1], jx, sp[1])
+    sh.wire(jx, sp[1], jx, op[1])
+    rx = op[0] + 22.0
+    sh.place("Device:R", "R", rx, op[1], "1k", rot=90,
+             fields={"Note": "Limits the pin zener to 1.5 mA if the "
+                             "amplifier rails at 4.78 V on a harness fault."})
+    a = pin_xy(*PINS["Device:R"]["1"], rx, op[1], 90)
+    b = pin_xy(*PINS["Device:R"]["2"], rx, op[1], 90)
+    l, r = (a, b) if a[0] < b[0] else (b, a)
+    node.to(l[0])
+    tail = Rail(sh, op[1])
+    tail.to(r[0])
+    adc_tail(sh, tail, rx + 18.0, op[1], out_net)
 
-    # Sensor-return leg into IN-, with the matching 26k and the 16k as
-    # feedback. Matching these two ratios is what CMRR actually is.
-    sh.hlabel(gnd_net, x0, inn[1] + 22.0, shape="input")
-    ret = Rail(sh, inn[1] + 22.0)
-    ret.to(x0)
-    sh.place("Device:R", "R", x0 + 26.0, inn[1] + 22.0, "26k", rot=90,
-             fields={"Source": "sensor_differential.cir -- return leg",
-                     "Note": "MATCHED to the input leg's 26k. The pair's "
-                             "ratio match IS the CMRR -- 0.1% discretes "
-                             "give about 48 dB against a 60 dB floor."})
-    a = pin_xy(*PINS["Device:R"]["1"], x0 + 26.0, inn[1] + 22.0, 90)
-    b = pin_xy(*PINS["Device:R"]["2"], x0 + 26.0, inn[1] + 22.0, 90)
-    g_in, g_out = (a, b) if a[0] < b[0] else (b, a)
-    ret.to(g_in[0])
-    sh.wire(g_out[0], g_out[1], inn[0] - 10.0, g_out[1])
-    sh.wire(inn[0] - 10.0, g_out[1], inn[0] - 10.0, inn[1])
-    sh.wire(inn[0] - 10.0, inn[1], inn[0], inn[1])
-
-    # Feedback 16k from OUT back to IN-.
-    fy = inn[1] - 20.0
-    sh.place("Device:R", "R", ux, fy, "16k", rot=90,
-             fields={"Source": "sensor_differential.cir -- feedback",
-                     "Note": "MATCHED to the IN+ leg's 16k"})
-    a = pin_xy(*PINS["Device:R"]["1"], ux, fy, 90)
-    b = pin_xy(*PINS["Device:R"]["2"], ux, fy, 90)
-    f_l, f_r = (a, b) if a[0] < b[0] else (b, a)
-    sh.wire(inn[0] - 10.0, inn[1], inn[0] - 10.0, fy)
-    sh.junction(inn[0] - 10.0, inn[1])
-    sh.wire(inn[0] - 10.0, fy, f_l[0], f_l[1])
-    sh.wire(f_r[0], f_r[1], out[0] + 8.0, fy)
-    sh.wire(out[0] + 8.0, fy, out[0] + 8.0, out[1])
-
-    node = Rail(sh, out[1])
-    node.to(out[0])
-    node.to(out[0] + 8.0, tap=True)
-    adc_tail(sh, node, out[0] + 24.0, out[1], out_net)
+    # Supply bypass, below and clear of every signal wire.
+    cx = op[0] + 14.0
+    sh.wire(cx, uy + 8.0, cx, uy + 12.19)
+    sh.label("5V_MAIN", cx, uy + 8.0, rot=90)
+    sh.place("Device:C", "C", cx, uy + 16.0, "100nF",
+             fields={"Note": "At V+. Found missing on the old op-amps by "
+                             "check_netlist.py's decoupling audit."})
+    gnd_below(sh, cx, uy + 19.81)
 
 
 def excitation(sh):
@@ -350,20 +323,17 @@ def notes(sh):
         "Indian monsoon.",
         40.0, 340.0, size=1.6)
     sh.text(
-        "OP-AMPS: FUNCTION DRAWN, PART NOT CHOSEN. OPAMP_GENERIC has "
-        "placeholder pin numbers and no footprint, deliberately -- placing "
-        "a real symbol here would assert a\n"
-        "choice nobody has made. The requirement IS specified: single 5 V "
-        "supply, rail-to-rail input and output, and a difference network "
-        "matched well enough for 60 dB\n"
-        "CMRR, which is the floor sensor_differential.cir's own tolerance "
-        "note tried and found the argument still holds at. The netlist "
-        "models 80 dB and marks it INFERRED.\n"
-        "0.1% discrete resistors give roughly 48 dB and do NOT clear that "
-        "floor. A matched network at 0.05% ratio, or a difference "
-        "amplifier with the network on-die, does --\n"
-        "so this is a resistor-network decision as much as an amplifier "
-        "one. Five channels is two quad packages.\n"
+        "DIFFERENCE AMPLIFIERS: TI INA592 at its native G = 1/2, chosen "
+        "22 Sep 2026. The requirement was >=60 dB CMRR -- the floor "
+        "sensor_differential.cir tried -- and 0.1% discrete\n"
+        "resistors give about 48 dB, so the network had to be matched "
+        "on-die: 88 dB minimum. G = 1/2 puts a 0.5-4.5 V sensor at "
+        "0.25-2.25 V; output reaches within 220 mV of\n"
+        "each rail. A 1k before each ADC tail limits the pin zener to "
+        "1.5 mA if an amplifier rails on a harness fault. NOT AEC-Q100: "
+        "no qualified G = 1/2 difference amplifier\n"
+        "was found, and INA2132's 'G = 1/2' is a single-ended "
+        "attenuator, not a difference stage.\n"
         "\n"
         "BOOST TEMPERATURE (PTA3, connector pin 79) is drawn differential "
         "like its neighbours, but U2 is still open: whether that element "
@@ -390,7 +360,7 @@ def build():
                    "Generated by hw/gen_sheet_sensors_analog.py -- do not hand-edit until it is retired",
                    "battery_sense.cir / sensor_ratiometric.cir / sensor_differential.cir / ntc_frontend.cir",
                    "Differential where the sensor return is SHARED; single-ended where it is dedicated",
-                   "Op-amps are a placeholder symbol -- requirement is >=60 dB CMRR, part not chosen",
+                   "Difference amplifiers are INA592 at G = 1/2: 88 dB CMRR min against a 60 dB floor",
                ],
                ref_base=schlib.REF_BASE["sensors_analog"])
     divider_channel(sh, 40.0, 40.0, "V_BAT_1R", "V_BAT_1R_SNS", "120k", "10k",
