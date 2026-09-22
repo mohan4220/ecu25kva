@@ -233,7 +233,8 @@ def rail_clamp(sh, rail, x, y, rail_net, fields, to_gnd=True):
     clamp only on a FAULT -- the pin then rides one diode above its rail
     inside the MCU's +/-3 mA injection limit, which is a stress margin,
     not an operating point. An input that clamps continuously needs a
-    different front end. to_gnd=False leaves A1 open (upper clamp only).
+    different front end. to_gnd=False leaves A1 open (upper clamp only);
+    rail_net=None leaves K2 open (lower clamp only).
     Returns (reference, (x, y) of the tap on `rail`)."""
     geom = json.load(open(os.path.join(os.path.dirname(
         os.path.abspath(__file__)), "lib", "ic_pins.json")))["BAV199"]
@@ -246,8 +247,9 @@ def rail_clamp(sh, rail, x, y, rail_net, fields, to_gnd=True):
     bot = pin_xy(*geom["1"], x, cy, 0)
     rx, ry = rail.to(sig[0], tap=True)
     sh.wire(rx, ry, sig[0], sig[1])
-    sh.wire(top[0], top[1], top[0], top[1] - 2.54)
-    sh.label(rail_net, top[0], top[1] - 2.54)
+    if rail_net:
+        sh.wire(top[0], top[1], top[0], top[1] - 2.54)
+        sh.label(rail_net, top[0], top[1] - 2.54)
     if to_gnd:
         sh.wire(bot[0], bot[1], bot[0], bot[1] + 5.08)
         sh.gnd(bot[0], bot[1] + 5.08)

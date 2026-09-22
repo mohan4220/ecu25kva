@@ -195,6 +195,7 @@ SPECIAL_C = {           # not MLCC -- chosen separately
 
 
 CLAMP_NODE = (3.1, 4.4)      # BAV199-Q node: signal max / one diode up
+BUFFER_BASE = (1.0, 1.1)     # discrete-input NPN base: one Vbe, or -1 V
 
 
 def netv(n):
@@ -202,6 +203,8 @@ def netv(n):
         return NET_V[n]
     if n.endswith("_CL"):
         return CLAMP_NODE
+    if n.startswith("/discrete_io/") and n.endswith("_B"):
+        return BUFFER_BASE
     if LOGIC3_RE.search(n):
         return LOGIC3
     if LOGIC5_RE.search(n):

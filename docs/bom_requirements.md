@@ -622,23 +622,37 @@ operation. At a 5.25 V rail the cam input sits at 3.23 V, and the
 3.3 V zener model was loading it by **84 mV**. The old check had
 pinned that loading as the expected value.
 
-**Discrete inputs: OPEN, and not solvable with a clamp of either
-kind.** The six 3.0 V zeners clamp all the time. A 6–40 V input cannot
-be divided into logic range otherwise, because the ratio constraints
-do not overlap.
+**Discrete inputs: closed 22 September 2026, by removing the clamp.**
+The five switch inputs are now NPN buffers.
 
-- A rail clamp would hold the pad at 3.9 V continuously. That is
-  operation beyond the pin's maximum, not a fault margin.
-- A shunt reference (LM4040-Q1, 3.0 V) was checked and rejected. Below
-  breakdown it still draws a ~35 µA bias (TI SNOS633N, Figure 5-4).
-  At the 6 V cranking input the 47 kΩ/68 kΩ network offers 20 µA, so
-  the node sags to about 2.6 V typical with no guaranteed bound. On
-  the pull-up channels it fails outright.
+- **Circuit:** 10 kΩ input, 4.7 kΩ and 4.7 µF from base to ground, a
+  BAV199-Q lower diode on the base, and a PMBT3904-Q whose collector is
+  the MCU pad. The pad has a 10 kΩ pull-up to 3V3_MCU.
+- **Why:** a 6–40 V input cannot be divided into logic range without
+  clamping continuously. That rules out a zener (soft knee), a rail
+  clamp (the pad parks at 3.9 V) and a shunt reference (its ~35 µA
+  bias, TI SNOS633N Fig. 5-4). The buffer needs no clamp: the pad sees
+  only 0–3.3 V.
+- **Checked at the worst corner**, per the owner's rule that safety and
+  reliability come first:
+  - hFE 30 (the datasheet minimum of 60, halved for −40 °C) still pulls
+    the pad to 0.03 V from a 6 V input.
+  - A typical part at 125 °C does not turn on below a 1.3 V input.
+  - On −24 V reverse battery the base is held at −1.05 V, against a
+    6 V VEBO.
+  - One pad edge for a 5-chatter bounce.
+- **Wetting current:** 1.1 mA through a closed contact at 12 V. The
+  100 kΩ first drawn gave 0.11 mA, at which non-gold contacts oxidise
+  open in the field.
+- **Logic is inverted**: pad LOW = input active, or contact open on the
+  two contact-to-ground channels. `docs/pinmap.md` §1 records it.
+- **Failure modes are for the firmware spec.** A transistor that fails
+  open leaves the pad stuck high, and a C-E short leaves it stuck low.
+  One polarity cannot make every channel fail safe.
 
-The proposed front end is a transistor buffer. The input drives an NPN
-base through a divider, the B-E junction limits itself, and the MCU
-pad sees only its own pull-up to 3.3 V. The logic is inverted, and
-`discrete_input.cir` needs rewriting.
+**Residual: the trip loop** keeps its clamped analog front end, because
+its healthy band *is* the 3.0 V clamp level. It is also still blocked on
+a connector pin.
 
 ### `GATE-KILL-CLAMP` — 12 V zener on GATE_KILL
 

@@ -124,13 +124,13 @@ connector pins is accounted for, not silently dropped.
 
 | ECU pin | Signal | Front-end | `PTxx` | Peripheral | Reset pull | Note |
 |---|---|---|---|---|---|---|
-| 43 | Coolant switch | Pull-up + RC debounce | `PTD5` | GPIO input | Hi-Z, no pull | |
-| 23 | Droop switch | Pull-up + RC debounce | `PTD7` | GPIO input | Hi-Z, no pull | |
+| 43 | Coolant switch | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD5` | GPIO input | Hi-Z, no pull | Pad LOW = contact OPEN. See discrete_input.cir |
+| 23 | Droop switch | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD7` | GPIO input | Hi-Z, no pull | Pad LOW = contact OPEN |
 | 01 | `G_G_B AT1` | — | — | — | — | **Unresolved per spec §4's own note** — memo 03 suspects this is a power ground, not a switch-return leg. No MCU pin assigned either way: if it's a ground it needs none, and if it is a signal, guessing which one would violate this project's own "nothing guessed into copper" rule |
 | 02 | `G_G_B AT2` | — | — | — | — | Same as 01 |
-| 20 | Audio abort (active-high) | 47k/68k bias + 3.0V zener clamp | `PTD11` | GPIO input | Hi-Z, no pull | |
-| 24 | Override SS (active-high) | Same clamp front-end | `PTD12` | GPIO input | Hi-Z, no pull | |
-| 71 | Ignition (active-high) | Same clamp front-end | `PTD16` | GPIO input | Hi-Z, no pull | |
+| 20 | Audio abort (active-high) | 10k/4.7k/4.7 µF + NPN buffer, **inverted** | `PTD11` | GPIO input | Hi-Z, no pull | Pad LOW = input active. Was a 3.0 V zener clamp until 22 Sep 2026 |
+| 24 | Override SS (active-high) | Same NPN buffer, **inverted** | `PTD12` | GPIO input | Hi-Z, no pull | Pad LOW = input active |
+| 71 | Ignition (active-high) | Same NPN buffer, **inverted** | `PTD16` | GPIO input | Hi-Z, no pull | Pad LOW = input active |
 | — | Trip-module sense (new) | `trip_module_sense.cir` — 47k/68k/220nF/3.0 V, same chain as the rows above | `PTB0` | **ADC0_SE4** | Hi-Z, no pull | **CORRECTED 20 Sep 2026, during schematic capture — was `PTD6` GPIO.** See below |
 
 **CORRECTION, 20 September 2026 — the trip sense needs an ADC, not a GPIO.**

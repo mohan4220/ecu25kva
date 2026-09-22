@@ -99,46 +99,67 @@ def check_battery_sense():
 
 
 def check_discrete_input():
-    c = Checks("discrete_input -- ECU pins 20/24/71, active-high switched battery")
+    c = Checks("discrete_input -- pins 20/24/71 and 43/23, NPN buffer (inverted)")
     d = sim("discrete_input", {
-        "discrete_input_dc.dat": ["vsw", "node"],
-        "discrete_input_tran.dat": ["time", "node", "sw"],
+        "discrete_input_weak_cold.dat": ["vin", "pad", "base"],
+        "discrete_input_typ_hot.dat": ["vin", "pad", "base"],
+        "discrete_input_pullup_open.dat": ["sweep", "pad", "harness"],
+        "discrete_input_pullup_closed.dat": ["sweep", "pad", "harness"],
+        "discrete_input_tran.dat": ["time", "pad", "sw"],
     })
-    vsw, node = d["discrete_input_dc.dat"]["vsw"], d["discrete_input_dc.dat"]["node"]
-    t = d["discrete_input_tran.dat"]["time"]
-    ntr = d["discrete_input_tran.dat"]["node"]
+    # S32K1xx data sheet Rev.15, Table 17 at VDD = 3.3 V: VIH 0.7 VDD,
+    # VIL 0.3 VDD; pad limits -0.3 .. VDD + 0.3.
+    VIH, VIL, VMAX = 0.7 * 3.3, 0.3 * 3.3, 3.6
+    w, h = d["discrete_input_weak_cold.dat"], d["discrete_input_typ_hot.dat"]
 
-    # Must never exceed the MCU pin's absolute maximum (VDD + 0.3 = 3.6 V).
-    c.that("never exceeds 3.6 V abs max over 6-40 V", node.max(), 3.6, tol=None,
-           ok=node.max() <= 3.6)
+    # -- the pad never leaves its ratings, anywhere from -24 to +40 V --
+    for tag, r in (("weak, -40 C", w), ("typical, 125 C", h)):
+        c.that(f"pad max over -24..40 V in ({tag})", float(r["pad"].max()),
+               VMAX, tol=None, ok=float(r["pad"].max()) <= 3.31, unit="V")
+        c.that(f"pad min over -24..40 V in ({tag})", float(r["pad"].min()),
+               -0.3, tol=None, ok=float(r["pad"].min()) >= 0.0, unit="V")
+    c.that("base at -24 V reverse battery, against VEBO 6 V",
+           float(np.interp(-24.0, w["vin"], w["base"])), -1.0, tol=None,
+           ok=float(np.interp(-24.0, w["vin"], w["base"])) > -1.2, unit="V")
 
-    # Must read logic HIGH (0.7*VDD = 2.31 V) even at the 6 V cranking dip,
-    # which is the worst case for an active-high input.
-    at6 = float(np.interp(6.0, vsw, node))
-    at40 = float(np.interp(40.0, vsw, node))
-    c.that("logic high at 6 V cranking dip", at6, 2.31, tol=None, ok=at6 >= 2.31)
-    c.that("logic high at 40 V load dump", at40, 2.31, tol=None, ok=at40 >= 2.31)
+    # -- ON: weakest part, coldest corner, lowest battery --
+    at6 = float(np.interp(6.0, w["vin"], w["pad"]))
+    c.that("6 V cranking dip, hFE 30, -40 C: pad reads LOW (active)", at6,
+           VIL, tol=None, ok=at6 <= 0.4, unit="V")
+    on = w["vin"][np.argmax(w["pad"] < VIL)]
+    c.that("  ... input at which the weak cold part reaches VIL", float(on),
+           3.9, tol=None, ok=on < 6.0, unit="V")
 
-    # The point of the zener topology: the logic level should be essentially
-    # flat across the whole battery range rather than tracking it.
-    c.that("level is flat across 6-40 V (spread)", at40 - at6, 0.0, tol=0.35, unit="V")
+    # -- OFF: strongest part, hottest corner (lowest Vbe) --
+    off = h["vin"][np.argmax(h["pad"] < VIH)]
+    c.that("typical part, 125 C: input that first pulls the pad below VIH",
+           float(off), 1.5, tol=None, ok=off > 1.0, unit="V")
+    c.that("  ... so a harness floating at 1 V still reads inactive",
+           float(np.interp(1.0, h["vin"], h["pad"])), VIH, tol=None,
+           ok=float(np.interp(1.0, h["vin"], h["pad"])) >= VIH, unit="V")
 
-    # Debounce: once the contact settles at 4.5 ms, the node must be high
-    # and stay high.
-    settled = ntr[t >= 20e-3]
-    c.that("settled high after bounce ends", float(settled.min()), 2.31, tol=None,
-           ok=float(settled.min()) >= 2.31)
+    # -- contact-to-ground channels --
+    po = float(d["discrete_input_pullup_open.dat"]["pad"][0])
+    pc = float(d["discrete_input_pullup_closed.dat"]["pad"][0])
+    c.that("pull-up channel, contact OPEN, hFE 30, -40 C: pad LOW", po, VIL,
+           tol=None, ok=po <= 0.4, unit="V")
+    c.that("pull-up channel, contact CLOSED, 125 C: pad HIGH", pc, VIH,
+           tol=None, ok=pc >= VIH, unit="V")
 
-    # ... and it must not have chattered across the threshold during the
-    # bounce itself. Count threshold crossings before the contact settles.
-    early = ntr[t < 4.4e-3]
-    crossings = int(np.sum(np.diff((early > 2.31).astype(int)) != 0))
-    c.that("threshold crossings during bounce", crossings, 0, tol=None,
-           ok=crossings == 0)
-
-    # Time constant is R_thevenin * C with R_th = 47k || 68k = 27.8k.
-    tau = (47e3 * 68e3 / 115e3) * 220e-9
-    c.that("debounce time constant", tau * 1e3, 6.11, tol=0.05, unit="ms")
+    # -- debounce: one closure, one edge --
+    tr = d["discrete_input_tran.dat"]
+    t, pad = tr["time"], tr["pad"]
+    lo = pad < 1.65
+    edges = int(np.sum(np.diff(lo.astype(int)) != 0))
+    c.that("pad edges through a 5-chatter bounce", edges, 1, tol=None,
+           ok=edges == 1)
+    c.that("settled LOW after the bounce", float(pad[t > 40e-3].max()), VIL,
+           tol=None, ok=float(pad[t > 40e-3].max()) <= 0.4, unit="V")
+    tau = (10e3 * 4.7e3 / 14.7e3) * 4.7e-6
+    c.that("debounce time constant (10k || 4.7k) x 4.7 uF", tau * 1e3, 15.0,
+           tol=0.2, unit="ms")
+    c.that("contact wetting current at 12 V (>= 1 mA for non-gold contacts)",
+           (12.0 - 0.8) / 10e3 * 1e3, 1.12, tol=0.01, unit="mA")
     return c
 
 

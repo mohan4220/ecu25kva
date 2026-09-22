@@ -1,140 +1,142 @@
 * ============================================================
-* Discrete switch input -- ECU pins 20, 24, 71
-* (audio abort, override SS, ignition)
+* Discrete switch input -- ECU pins 20, 24, 71 (switched battery,
+* active high) and 43, 23 (contact to ground, 10k pull-up to 5 V)
 * ============================================================
-* These are ACTIVE-HIGH inputs. The OEM wires them as switched
-* battery -- the red wire class in the Kirloskar diagram's legend --
-* so the switch connects the pin to battery, not to ground.
+* REDESIGNED 22 Sep 2026 (LOWV-CLAMP). The previous front end was
+* 47k series, 68k to ground and a 3.0 V zener holding the MCU pad
+* at ~3.0 V across the whole 6-40 V range. That needs a clamp that
+* conducts CONTINUOUSLY, and no available clamp does it inside the
+* pad's ratings:
+*   - a 3.0 V zener at tens of uA has a soft knee; BZX84-C3V0-Q is
+*     specified at 5 mA and allowed 10 uA of leakage at only 1 V;
+*   - a rail clamp (BAV199-Q to 3V3) parks the pad at 3.9 V all the
+*     time -- operation beyond VDD+0.3, not a fault margin;
+*   - a shunt reference (LM4040-Q1 3.0 V) draws ~35 uA of bias below
+*     breakdown (TI SNOS633N Fig. 5-4), more than the network offers
+*     at the 6 V cranking dip.
 *
-* The prior design documents specified pull-up to 5 V with the
-* switch closing to ground. That is the opposite sense, and its
-* front-end cannot survive battery voltage on the pin.
+* The buffer below removes the problem instead of clamping it:
 *
-* This circuit must:
-*   1. read as logic HIGH even at a 6 V cranking dip
-*   2. never exceed the MCU pin's absolute maximum at 40 V
-*   3. debounce, so one contact closure is one firmware event
-*   4. read as logic LOW, not floating, when the switch is open
+*   IN --R1 10k---+-- base  PMBT3904-Q   collector -- PAD
+*                 |                          |
+*               R2 4.7k C1 4.7u  Dneg     Rpu 10k to 3V3_MCU
+*                 |       |      (BAV199-Q lower half, anode GND)
+*                GND     GND
 *
-* WHY THIS IS NOT A PLAIN DIVIDER. A fixed ratio cannot satisfy
-* (1) and (2) together. Logic high at 6 V needs the ratio above
-* 2.31/6 = 0.385; staying under 3.3 V at 40 V needs it below
-* 3.3/40 = 0.0825. Those constraints do not overlap, so any single
-* divider ratio fails one end of the range. The first attempt at
-* this circuit used 100k/10k and failed both, which is what drove
-* the topology below.
+* The pad only ever sees its own pull-up (3.3 V) or a saturated
+* transistor (~0.1 V). The B-E junction limits the base to ~0.8 V
+* whatever the input does; Dneg holds it above -1 V on reverse
+* battery, inside VEBO = 6 V. LOGIC IS INVERTED: pad LOW = input
+* high. For the contact-to-ground channels, contact OPEN pulls the
+* input high through the 10k pull-up -> pad LOW.
 *
-* So the zener sets the clamp level and the divider only biases
-* into it. R5/R6 are sized so the node would sit at 3.55 V at the
-* 6 V cranking dip -- already above the zener knee -- meaning the
-* input is clamped to ~3.0 V across the entire 6-40 V range and
-* the logic level never depends on battery voltage at all.
-* R5 also limits zener current to under 1 mA at 40 V.
+* WETTING CURRENT. R1 is 10k, not the 100k this was first drawn with:
+* 100k draws 0.11 mA from a closed contact at 12 V, and a non-gold
+* switch or relay contact carrying that little current oxidises into
+* an intermittent open -- a field failure, not a bench one. 10k draws
+* 1.2 mA at 12 V (2.3 mA at a 24 V jump start, 55 mW in R1). R2 and C1
+* scale with it to keep the threshold and the 15 ms debounce.
 *
-* Two copies of the network are instantiated because one source
-* cannot be both DC-swept and driven by a transient waveform.
+* WORST CASE, NOT TYPICAL (owner's rule: safety and reliability
+* first). The transistor is run at hFE = 30: the datasheet minimum
+* is 60 at 0.1 mA / 25 C, halved for -40 C. The saturation checks
+* use that weak part COLD; the off-threshold checks use the typical
+* part HOT, where Vbe is lowest and the input is most likely to
+* turn it on by accident.
 * ============================================================
 
-* 3.0 V zener -- clamps below the MCU's VDD+0.3 absolute maximum
-.model DZ3V0 D(Is=1e-14 N=1 Rs=5 BV=3.0 IBV=5e-3)
+.model QTYP NPN(Is=6.734f Xti=3 Eg=1.11 Vaf=74.03 Bf=416.4 Ne=1.259
++ Ise=6.734f Ikf=66.78m Xtb=1.5 Br=.7371 Nc=2 Isc=0 Ikr=0 Rc=1
++ Cjc=3.638p Mjc=.3085 Vjc=.75 Fc=.5 Cje=4.493p Mje=.2593 Vje=.75
++ Tr=239.5n Tf=301.2p Itf=.4 Vtf=4 Xtf=2 Rb=10)
+* Weak corner: same junction, gain cut to the design minimum.
+.model QWEAK NPN(Is=6.734f Xti=3 Eg=1.11 Vaf=74.03 Bf=30 Ne=1.259
++ Ise=6.734f Ikf=66.78m Xtb=0 Br=.7371 Nc=2 Isc=0 Ikr=0 Rc=1
++ Cjc=3.638p Mjc=.3085 Vjc=.75 Fc=.5 Cje=4.493p Mje=.2593 Vje=.75
++ Tr=239.5n Tf=301.2p Itf=.4 Vtf=4 Xtf=2 Rb=10)
+* BAV199-Q, as in sensor_ratiometric.cir: VF 0.9 V at 1 mA.
+.model DBAV D(Is=2.5e-12 N=1.9)
 
-* ---- network A: DC transfer ----
-Vdc swdc 0 DC 12
-R5a swdc ndc 47k
-R6a ndc  0   68k
-C1a ndc  0   220n
-D1a 0   ndc  DZ3V0
+Vdd  vdd 0 DC 3.3
 
-* ---- network B: transient, bouncing contact ----
+* ---- network W: active-high input, WEAK transistor ----
+Vin  in 0 DC 12
+R1w  in bw 10k
+R2w  bw 0 4.7k
+C1w  bw 0 4.7u
+Dnw  0 bw DBAV
+Qw   pw bw 0 QWEAK
+Rpw  vdd pw 10k
+
+* ---- network T: same, TYPICAL transistor (off-threshold corner) ----
+R1t  in bt 10k
+R2t  bt 0 4.7k
+C1t  bt 0 4.7u
+Dnt  0 bt DBAV
+Qt   pt bt 0 QTYP
+Rpt  vdd pt 10k
+
+* ---- network B: bouncing contact, weak transistor ----
 * Contact chatters 5 times over 5 ms before settling at 12 V.
-* This is a deliberately nasty bounce; real automotive contacts
-* are usually quieter, so if the filter handles this it handles them.
-Vtr swtr 0 PWL(0 0  0.999m 0  1m 12  1.4m 12  1.5m 0  2.1m 0
+Vtr  sw 0 PWL(0 0  0.999m 0  1m 12  1.4m 12  1.5m 0  2.1m 0
 + 2.2m 12  2.6m 12  2.7m 0  3.3m 0  3.4m 12  3.8m 12
-+ 3.9m 0  4.4m 0  4.5m 12  20m 12)
-R5b swtr ntr 47k
-R6b ntr  0   68k
-C1b ntr  0   220n
-D1b 0    ntr DZ3V0
++ 3.9m 0  4.4m 0  4.5m 12  60m 12)
+R1b  sw bb 10k
+R2b  bb 0 4.7k
+C1b  bb 0 4.7u
+Dnb  0 bb DBAV
+Qb   pb bb 0 QWEAK
+Rpb  vdd pb 10k
+
+* ---- network P: contact-to-ground channel, pull-up to 5 V ----
+* Vsw is the harness pin: the pull-up holds it high when the contact
+* is open; Rc models the contact (1 ohm closed, 1 Gohm open).
+V5   v5 0 DC 5
+Rpu5 v5 hp 10k
+Rcon hp 0 {Rc}
+.param Rc=1e9
+R1p  hp bp 10k
+R2p  bp 0 4.7k
+Dnp  0 bp DBAV
+Qp   pp bp 0 QWEAK
+Rpp  vdd pp 10k
 
 .control
-dc Vdc 6 40 0.1
-wrdata discrete_input_dc.dat v(ndc)
-
-tran 5u 30m
-wrdata discrete_input_tran.dat v(ntr) v(swtr)
+* Weak part, cold: does 6 V still saturate it?
+set temp=-40
+dc Vin -24 40 0.1
+wrdata discrete_input_weak_cold.dat v(pw) v(bw)
+* Typical part, hot: where does it turn on by accident?
+set temp=125
+dc Vin -24 40 0.1
+wrdata discrete_input_typ_hot.dat v(pt) v(bt)
+* Pull-up channel, contact open, weak and cold
+set temp=-40
+op
+wrdata discrete_input_pullup_open.dat v(pp) v(hp)
+* Contact closed, typical and hot
+set temp=125
+alterparam Rc=1
+reset
+op
+wrdata discrete_input_pullup_closed.dat v(pp) v(hp)
+* Bounce, weak part at 25 C
+set temp=25
+tran 5u 60m
+wrdata discrete_input_tran.dat v(pb) v(sw)
 .endc
 
 .end
 
 * ------------------------------------------------------------
-* RESULT NOTE -- the fault this circuit cannot detect
-* ------------------------------------------------------------
-* Proved here: the level is flat across 6-40 V, stays inside the
-* MCU's absolute maximum, reads a valid logic high at the 6 V
-* cranking dip, and does not chatter on a bouncing contact.
-*
-* NOT detectable, by construction: an open wire. These are
-* switched-battery inputs, so an open harness and an unpressed
-* switch both read "not asserted" and nothing distinguishes them.
-* Spec section 2.4 records this as accepted rather than solved --
-* changing the sense would break harness compatibility, and
-* detecting it otherwise needs a pull-down plus a diagnostic
-* current source. It belongs in the FMEA.
-*
 * NOT modelled:
-*   - The bounce profile is a plausible synthetic one, not a
-*     measured contact. Real bounce depends on the switch, its
-*     age and its mounting, and 220 nF was chosen against this
-*     model rather than against the machine's actual switches.
-*   - Zener tolerance and its knee. A 3.0 V zener at low current
-*     is soft, so the clamped level moves with the part and with
-*     temperature; the 92 mV flatness figure is for an ideal one.
+*   - The bounce profile is synthetic. 4.7 uF against 3.2 k
+*     Thevenin (10k || 4.7k) is a 15 ms time constant; firmware
+*     debounce is still expected on top.
+*   - Transistor failure. OPEN (the likeliest wear-out): pad stays
+*     at 3.3 V -> reads "input inactive" on the active-high
+*     channels. SHORT C-E: pad at 0 V -> reads "active". Which of
+*     those is safe depends on the channel, and is a firmware
+*     plausibility question (see the sheet note) -- the hardware
+*     cannot make both channels fail safe with one polarity.
 *   - ESD at the connector.
-*
-* TOLERANCE -- the binding parameter is the zener's breakdown
-* voltage. Standard low-power zeners (the 1N47xx-class part this
-* would be) are commonly binned at +/-5%. Re-ran DZ3V0's BV at 2.85
-* (-5%) and 3.15 (+5%) in scratch copies, not this file:
-*
-*     BV=2.85 V (low)   node at 6 V cranking dip = 2.718 V (want >=2.31)
-*     BV=3.15 V (high)  node max over 6-40 V      = 3.104 V (want <=3.6)
-*
-* Both survive with wide margin -- the cranking-dip floor keeps
-* 0.41 V of headroom at the low corner, the abs-max ceiling keeps
-* 0.50 V at the high corner. This block's whole point is that the
-* zener flattens the response against exactly this kind of part
-* variation, and the tolerance run bears that out: a 10% total BV
-* swing (the two corners together) moves the clamped level by
-* about 0.2-0.3 V, an order of magnitude less than the pre-zener
-* divider would have moved it against a 6-40 V battery swing.
-* ------------------------------------------------------------
-*
-* ------------------------------------------------------------
-* RESULT NOTE -- temperature
-* ------------------------------------------------------------
-* Closes the "temperature" half of the NOT MODELLED bullet above.
-* Unlike the TVS parts elsewhere in this pass, a low-voltage
-* (<~5 V) zener operates in the true Zener-tunnelling regime, not
-* avalanche, which gives it a NEGATIVE breakdown tempco -- BV falls
-* as temperature rises, opposite sign from the TVS/avalanche parts.
-* INFERRED at -2 mV/C (class-typical magnitude for a 3.0 V low-power
-* zener; no specific 1N47xx-family part pulled from a datasheet this
-* session). Over -40/+125 C that is BV=3.13 V cold, 2.80 V hot,
-* re-run on the full R5a/R6a/D1a network in a scratch copy, not this
-* file (same topology and method as the BV tolerance corners above):
-*
-*             BV=2.80 (hot)   BV=3.0 (27 C)   BV=3.13 (cold)
-*   at 6 V       2.669 V         2.863 V         2.988 V
-*   at 40 V      2.755 V         2.954 V         3.084 V
-*
-* What flips: nothing, at either corner. Logic-high floor (>=2.31 V)
-* keeps 0.36 V margin even at the hot corner where BV is lowest;
-* abs-max ceiling (<=3.6 V) keeps 0.52 V even at the cold corner
-* where BV is highest. Both corners stay INSIDE the +/-5% part-
-* tolerance corners already run above (2.718-3.104 V) -- the
-* INFERRED -2 mV/C tempco used here is a smaller swing over the full
-* temperature range than a single part's binning tolerance, so this
-* does not add a new risk beyond what the TOLERANCE section already
-* cleared with wide margin.
-* ------------------------------------------------------------
