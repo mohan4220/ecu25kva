@@ -35,10 +35,22 @@ Checked by `load_dump.cir` (0.000 A, 0.000 J through the TVS) and
 
 ### `NEG-CLAMP` — negative active clamp, buck VIN
 
-N-channel MOSFET, **Vds ≥ 40 V, Rds(on) ≤ 10 mΩ at Vgs = 4.5 V**, source
-to ground, drain to VIN, driven by a comparator sensing VIN against a
-−0.1 V threshold. **In parallel with** the 60 V / 20 A clamp Schottky,
-which stays as the instant passive backstop.
+N-channel MOSFET, **Vds ≥ 80 V (100 V class), Rds(on) ≤ 10 mΩ at
+Vgs = 4.5 V**, source to ground, drain to VIN, driven by a comparator
+sensing VIN against a −0.1 V threshold. **In parallel with** the
+100 V / 20 A clamp Schottky, which stays as the instant passive backstop.
+
+> **CORRECTED 22 September 2026 — both parts were under-rated for the
+> rail they sit on.** This tag originally read **Vds ≥ 40 V** and the
+> backstop Schottky was **60 V**. Both have a terminal on `VBAT_PROT`,
+> and both were sized for the *negative* pulses they exist to catch — but
+> pulse 2a drives the **same node to +73.3 V**, where a 40 V FET is
+> 0.55× rated and a 60 V Schottky 0.82×. The 40 V FET had zero margin
+> on the 40 V load dump alone. `transient_clamp.cir` already carried the
+> rule "every part on VBAT_PROT must clear 73.3 V" — as a principle, not
+> a list, so nothing compared these two against it. It is now a table in
+> `run_sim.py`: every part with a terminal on this rail, its rating, and
+> the margin, and a part below the line fails.
 
 The requirement is really an *effective clamp impedance*, and it is worth
 stating as one: the LM5164's VIN absolute maximum is −0.3 V, pulse 1
@@ -72,16 +84,52 @@ comparator datasheet answers.
 
 ### Clamp Schottky
 
-60 V / 20 A class. It carries what the TVS used to: **13.58 A peak,
-14.5 mJ** on pulse 1, measured at its own ammeter in `negative_pulses.cir`
-rather than inferred from 150 V / 10 Ω.
+**100 V / 20 A class** — it was 60 V; see the correction above. It
+carries what the TVS used to: **13.58 A peak, 14.5 mJ** on pulse 1,
+measured at its own ammeter in `negative_pulses.cir` rather than inferred
+from 150 V / 10 Ω.
+
+A 100 V Schottky has a higher forward drop than the 60 V part
+`negative_pulses.cir` models (`SCHN`, BV = 60 V). That drop only matters
+for the comparator's propagation delay — the window before the active
+clamp engages — and is re-measured when the comparator is chosen.
 
 ### Reverse-battery FET
 
-**100 V class** — its third revision, raised each time the clamp moved.
-`transient_clamp.cir` now carries an explicit check stating this
-downstream requirement, so the next move does not depend on someone
-reading three files and noticing.
+**P-channel, |Vds| ≥ 80 V, Rds(on) ≤ 40 mΩ at Vgs = −4.5 V**, drain to
+the battery side, source to the load, with a **passive gate network**:
+47 kΩ gate-to-ground and a 12 V zener gate-to-source.
+
+> **CORRECTED 22 September 2026 — the sheet had drawn an N-FET, and
+> `reverse_battery.cir` has always modelled a P-FET.** Its header says
+> "a P-FET held on by a controller that watches the polarity", and its
+> switch model closes on positive polarity. Found while choosing the
+> controller the N-FET would have needed.
+
+**No controller IC checked can sit on this node.** It swings from
+**+73.3 V** (pulse 2a, after the TVS) to **−47.8 V** (pulse 1, the
+bidirectional TVS's negative clamp — bidirectional precisely so a
+reversed battery does not forward-bias it). That is a 121 V span:
+
+| Controller | Rated | Fails by |
+|---|---|---|
+| LM74700-Q1 | ANODE −65 V to **+65 V** | 8.3 V on the positive side |
+| LM5050-1-Q1 | IN **−0.3 V** to +100 V | 47.5 V on the negative side — and IN draws 320 µA, so a series resistor to protect it corrupts its 20 mV sense |
+
+A P-FET needs no controller: `Vgs = −V(load)`, so it is on whenever the
+load side is positive and off when it is pulled to zero. That **is** the
+block's switch model, with no IC ratings on a 121 V swing to violate.
+
+**What it gives up, recorded rather than hidden.** An ideal-diode
+controller blocks reverse *current*; this blocks reverse *polarity*. On
+a dropout that *shorts* the input, bulk capacitance discharges backward
+through the FET. The spec carries no hold-up requirement, and the
+negative clamp is already sized for this FET staying on through a whole
+pulse — its turn-off via 47 kΩ and `Ciss` takes tens of microseconds.
+
+The 40 mΩ ceiling gives 0.2 V at 5 A against the block's 0.3 V
+requirement. The model's 8 mΩ is its header's own "mid-range for a 100 V
+P-channel" and is optimistic; the ceiling is what `run_sim.py` checks.
 
 ---
 

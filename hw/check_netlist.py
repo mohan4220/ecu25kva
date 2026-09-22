@@ -32,8 +32,9 @@ EXPECTED_OPEN = {
     # (Closed 21-22 Sep 2026: the eight gate-driver ends, AUIRS2181S on
     # every injector gate and the metering gate; and the three
     # current-sense ends, INA181A1-Q1.)
-    # -- power_input's two controller gates --
-    "/power_input/VBAT_REV_GATE": "ideal-diode controller not chosen",
+    # -- power_input's clamp comparator (Q1's gate closed 22 Sep 2026:
+    #    a P-FET with a passive gate network, as reverse_battery.cir
+    #    always modelled) --
     "/power_input/NCLAMP_GATE": "negative-clamp comparator not chosen",
     # -- the EGR bridge, blocked on a >73.3 V DIR/PWM gate driver --
     "/EGR_IN1": "EGR bridge not drawn -- blocked on a rail rating",

@@ -486,6 +486,25 @@ neither number returns a catalogue hit, so the footprint has to come
 through a Bosch distributor. Same shape as the six findings above, and
 this one was mine: reading the older reference and not the newer one.
 
+**Choosing the clamp comparator found two under-rated parts and a
+drawn FET of the wrong polarity, 22 September 2026.** `NEG-CLAMP`
+specified its FET at **40 V** and the backstop Schottky was **60 V** —
+both with a terminal on `VBAT_PROT`, both sized for the negative pulses
+they catch, neither checked against pulse 2a driving the *same* node to
+**+73.3 V**. `transient_clamp.cir` carried "every part on VBAT_PROT must
+clear 73.3 V" as a principle, not a list; it is now a **table**, every
+part on the rail with its rating and margin, and a part below the line
+fails. Both are 100 V class now.
+
+And the reverse-battery FET: the sheet drew an **N-FET** with an
+undriven controller gate, while `reverse_battery.cir` has always
+modelled a **P-FET**. The node swings +73.3 V to −47.8 V and no
+controller IC checked spans it — LM74700-Q1 stops at +65 V, LM5050-1-Q1
+at −0.3 V. A P-FET with a passive gate network *is* the block's switch
+model and has no IC ratings to violate. It gives up ideal-diode hold-up
+on a *shorted*-input dropout, which the spec does not require; that is
+on the page.
+
 **Current sense chosen, 22 September 2026: INA181A1-Q1 on all three
 channels, 12 → 9 open ends.** One part and one gain — 20 — set for the
 injector, so the 18 A peak reads 1.80 V and a fault to 32.8 A is still

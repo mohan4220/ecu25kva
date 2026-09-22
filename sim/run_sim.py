@@ -351,6 +351,39 @@ def check_transient_clamp():
            "and EGR bridges go discrete -- integrated automotive H-bridges "
            "and smart switches cap out at 40-45 V",
            None, ok=DRIVER_RAIL_WORST < 80.0)
+
+    # THE RULE ABOVE WAS ENFORCED AS A PRINCIPLE AND NOT AS A LIST, and two
+    # parts slipped under it. NEG-CLAMP specified its FET at 40 V and the
+    # backstop Schottky was 60 V -- both with a terminal on VBAT_PROT,
+    # both sized for the NEGATIVE pulses they exist to catch, and neither
+    # checked against pulse 2a pushing the same node to +73.3 V. Found 22
+    # Sep 2026 while choosing the clamp's comparator. So the rule is now a
+    # table: every part with a terminal on this rail, its rating to that
+    # terminal, and the margin. A part added to the rail and not to this
+    # table is the gap this closes; a part in the table below the line
+    # fails here.
+    rail_parts = [
+        # (part, what is rated, rating V)
+        ("LM5164 buck, VIN",                        "VIN abs max",   100.0),
+        ("Q1 reverse FET, P-ch",                    "|Vds| class",    80.0),
+        ("Q2 negative-clamp FET",                   "Vds class",     100.0),
+        ("D103 negative-clamp Schottky",            "Vr class",      100.0),
+        ("TPS40210 boost ctrl, VDD (via 43 V clamp)", "clamped VDD",  52.0 * 73.3 / 43.0),
+        ("Boost inductor / FET (150 V class)",      "Vds class",     150.0),
+        ("Injector battery-side blocking diodes",   "Vr class",      150.0),
+        ("Relay flyback diodes (discrete_io)",      "Vr class",      100.0),
+        ("Relay low-side FETs (discrete_io)",       "Vds class",     100.0),
+        ("Metering FET and freewheel (metering_egr)", "Vds / Vr class", 100.0),
+        ("Injector low-side FETs (drain on boost rail)", "Vds class", 150.0),
+    ]
+    for name, what, rating in rail_parts:
+        c.that(f"  rail table: {name} -- {what}", rating / DRIVER_RAIL_WORST,
+               1.0, tol=None, ok=rating / DRIVER_RAIL_WORST >= 1.09,
+               unit="x vs 73.3 V")
+    c.that("  ... what the two corrected parts WERE",
+           "Q2 at 40 V: 0.55x. D103 at 60 V: 0.82x. Both would have failed "
+           "this table, and nothing failed before it existed", None,
+           ok=40.0 / DRIVER_RAIL_WORST < 1.0 and 60.0 / DRIVER_RAIL_WORST < 1.0)
     settled = bat[t > 1.5e-3]
     c.that("recovers to nominal after pulse", float(settled.mean()), 12.98, tol=0.1,
            unit="V")
@@ -1002,6 +1035,13 @@ def check_reverse_battery():
     c.that("  ... Schottky does NOT meet it",
            f"{float(sch.max()):.2f} V at 5 A -- fails the 0.3 V spec", None,
            ok=float(sch.max()) > 0.3)
+    # The model's 8 mOhm is the header's own "mid-range for a 100 V
+    # P-channel" and is optimistic for that class. What the sheet
+    # specifies is a CEILING, and the ceiling is what has to pass.
+    c.that("  ... at the sheet's specified ceiling, 40 mOhm at Vgs = -4.5 V",
+           5.0 * 0.040, 0.2, tol=0.001, unit="V at 5 A")
+    c.that("  ... still inside the 0.3 V requirement by", 0.3 / (5.0 * 0.040),
+           1.5, tol=0.01, unit="x")
 
     # The number that pays for the controller IC: heat that never happens.
     # The Schottky figure is class-typical (the header's "roughly 0.46 V at

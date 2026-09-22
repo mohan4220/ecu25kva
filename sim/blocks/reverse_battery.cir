@@ -16,6 +16,14 @@
 * This netlist puts both in the same simulation so the trade is a
 * number rather than an opinion.
 *
+* 22 Sep 2026 -- THE "CONTROLLER" IS PASSIVE. hw/power_input.kicad_sch
+* had drawn an N-FET with an undriven controller gate; this block always
+* said P-FET, and choosing the controller showed why it matters. The
+* node swings +73.3 V to -47.8 V and no controller IC checked spans it
+* (LM74700-Q1 to +65 V, LM5050-1-Q1 from -0.3 V). A P-FET with gate to
+* ground through 47k and a 12 V zener gate-to-source IS a switch that
+* closes on positive polarity -- the PSW model below, unchanged.
+*
 * Schottky model: a 5 A / 45 V part, roughly 0.46 V at 3 A.
 * FET: 8 mOhm Ron, mid-range for a 100 V P-channel in a footprint
 * this board can afford.
