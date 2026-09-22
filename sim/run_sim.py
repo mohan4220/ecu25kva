@@ -1923,10 +1923,38 @@ def check_boost_converter():
            tol=0.2, unit="mA")
     c.that("  ... against the 5 mA design load", ilim / 5e-3, 2.32,
            tol=0.05, unit="x")
-    c.that("pass transistor, normal (88 V at 5 mA)",
-           (99.7 - VGATE) * 5e-3, 0.438, tol=0.01, unit="W")
-    c.that("  ... into a shorted output, held by the limit",
-           99.7 * ilim, 1.157, tol=0.02, unit="W")
+    # The pass transistor, chosen 22 Sep 2026: PZTA42-Q (Nexperia, 300 V,
+    # 100 mA, SOT223, Rth(j-a) 104 K/W on 1 cm2, Tj 150 C). BOARD AMBIENT
+    # 105 C IS AN ASSUMPTION -- the spec does not state one.
+    TAMB, RTH, TJMAX, RC = 105.0, 104.0, 150.0, 6.6e3
+    p_alone = (99.7 - VGATE) * 5e-3
+    c.that("WAS: pass transistor alone, normal (88 V at 5 mA)", p_alone,
+           0.438, tol=0.01, unit="W")
+    c.that("  ... over what PZTA42-Q may dissipate at a 105 C board",
+           p_alone / ((TJMAX - TAMB) / RTH), 1.01, tol=0.01, unit="x")
+    c.that("  ... and shorted, held by the limit", 99.7 * ilim, 1.157,
+           tol=0.02, unit="W")
+    vce_n = 99.7 - VGATE - 0.28 - 5e-3 * RC
+    p_n = vce_n * 5e-3
+    c.that("IS: 2x3.3k collector resistors -- transistor, normal",
+           p_n, 0.272, tol=0.005, unit="W")
+    c.that("  ... junction at a 105 C board", TAMB + p_n * RTH, 133.3,
+           tol=0.5, unit="C")
+    vce_s = 99.7 - ilim * RC - 0.65
+    p_s = vce_s * ilim
+    c.that("  ... transistor into a shorted output", p_s, 0.259,
+           tol=0.005, unit="W")
+    c.that("  ... junction, shorted, 105 C board", TAMB + p_s * RTH, 131.9,
+           tol=0.5, unit="C")
+    p_r = (ilim * RC) * ilim / 2
+    c.that("  ... each 2512 resistor, shorted (0.59 W allowed at 105 C "
+           "on a 1 W part derated linearly 70-155 C)", p_r, 0.445,
+           tol=0.005, unit="W")
+    vmin = VGATE + 0.28 + 0.65 + 5e-3 * RC + 0.5
+    c.that("  ... lowest boost rail that still regulates 12V_GATE", vmin,
+           46.5, tol=0.1, unit="V")
+    c.that("  ... against the rail's worst droop (100 - 7.3 V)",
+           92.7 / vmin, 1.99, tol=0.02, unit="x")
 
     # -- what the boost now carries continuously -----------------------
     standing = 100.0 / 22e3 + 5e-3 + 100.0 / 1.005e6

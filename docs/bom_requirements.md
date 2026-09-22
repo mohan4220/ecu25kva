@@ -479,6 +479,7 @@ not constraints.
 | Crank-pair TVS | **SMAJ48CA-HE3** | 48 V standoff, 53.3–58.9 V breakdown, 400 W, AEC-Q101. |
 | 12 V clamps | **BZX84-C12-Q** ×2, **BZX84-C13-Q** | GATE_KILL, reverse-FET gate, 12V_GATE reference. SOT-23 with pin 3 as the cathode, so the project's `SOT-23_Zener_K1_A2` footprint is used. The GATE_KILL zener's first footprint, the stock SOT-23, had its anode where the symbol puts the cathode. |
 | VDD clamp | **BZG03C36-HM3** | See `BOOST-VDD-CLAMP`: it replaced a 43 V clamp that did not clamp. |
+| 12V_GATE pass / limit | **PZTA42-Q**, **PMBT3904-Q** | See `GATE-RAIL`. PMBT3904-Q is SOT-23 B-E-C, so it uses the `Q_NPN_BEC` symbol. |
 
 ### `LOWV-CLAMP` — the 3.0 V and 3.3 V input clamps (OPEN)
 
@@ -712,9 +713,10 @@ already designed to hold up from 6 V.
 | Part | Value | Why |
 |---|---|---|
 | Bias | 2 × 47 kΩ | 87 V split so neither resistor carries all of it; 0.87 mA |
-| Reference | 13 V zener | 13 V − Vbe − limit drop = **12.07 V** at 5 mA |
-| Pass | NPN, **Vceo ≥ 160 V**, DPAK, AEC-Q101 | 0.44 W at 5 mA; a shorted output puts the whole rail across it |
-| Limit | small-signal NPN + **56 Ω** | 0.65 V / 56 Ω = **11.6 mA**, holding a short to **1.16 W** |
+| Reference | **BZX84-C13-Q** | 13 V − Vbe − limit drop = **12.07 V** at 5 mA; 11.35–13.55 V across tolerance and temperature |
+| Collector | **2 × 3.3 kΩ, 2512** | Takes 33 V of the drop at 5 mA; 0.45 W each into a short |
+| Pass | **PZTA42-Q**, SOT223 | 300 V, AEC-Q101. **0.27 W** normal, 0.26 W shorted → Tj 133 °C at a 105 °C board |
+| Limit | **PMBT3904-Q** + **56 Ω** | 0.65 V / 56 Ω = **11.6 mA** |
 | Output | 10 µF 25 V | Holds through each driver's gate-charge pulse |
 
 Load is about 3 mA (five drivers' quiescent current plus gate charge),
@@ -722,6 +724,17 @@ designed for 5 mA. **12V_GATE clears the drivers' UVLO+ ceiling by
 2.27 V.** Standing load on the boost is now 9.65 mA — bleed, gate rail
 and divider — of its 50 mA, and the peak-phase draw still recovers in
 8.48 ms against 26.67 ms between cylinders.
+
+**Why the collector resistors.** The design first called for a DPAK
+NPN rated ≥160 V. No such datasheet could be retrieved: onsemi and
+Diodes both refused the download. The part that was retrieved,
+PZTA42-Q, is 104 K/W in SOT223, so it may dissipate only 0.43 W at a
+105 °C board. The pass transistor alone would carry 0.44 W normally
+and 1.16 W into a short. Putting 6.6 kΩ in the collector moves half the
+power into two 2512 resistors. The cost is headroom: 12V_GATE now
+needs the boost rail above 46.5 V, which is half of its worst droop.
+**The 105 °C board ambient is an assumption** — no ambient is stated
+anywhere in the spec.
 
 **Its failure runs the safe way.** If the boost stops, 12V_GATE
 collapses, every driver drops into UVLO and holds its outputs low, and

@@ -861,26 +861,35 @@ def gate_rail(sh):
                     "limit resistor = 12.1 V at 5 mA."}, rot=270)
 
     qx, qy = 760.0, 382.0
-    sh.place("Device:Q_NPN_BCE", "Q", qx, qy, "NPN 160V, DPAK",
-             fields={"Note": "Pass transistor. 88 V across it at 5 mA is "
-                             "0.44 W; into a short, the limit below holds "
-                             "it to 11.6 mA and 1.16 W. Vceo >= 160 V -- "
-                             "the collector sits on a rail that reaches "
-                             "~102 V, and a shorted output puts all of it "
-                             "across the part.",
-                     "Class": "AEC-Q101, Vceo >= 160 V, DPAK"})
+    sh.place("Device:Q_NPN_BCE", "Q", qx, qy, "PZTA42-Q",
+             footprint="Package_TO_SOT_SMD:SOT-223-3_TabPin2",
+             fields={"MPN": "PZTA42-Q",
+                     "Note": "Pass transistor. Nexperia PZTA42-Q: 300 V, "
+                             "100 mA, AEC-Q101, SOT223, 104 K/W, Tj 150 C. "
+                             "Alone it would carry 88 V x 5 mA = 0.44 W, "
+                             "and 1.16 W into a short -- over the 0.43 W "
+                             "it may dissipate at a 105 C board. The "
+                             "collector resistors take half: 0.27 W "
+                             "normal, 0.24 W shorted.",
+                     "Pins": "SOT223 is B-C-E with the collector on the "
+                             "tab, which is this symbol's numbering"})
     b = pin_xy(*PINS["Device:Q_NPN_BCE"]["1"], qx, qy, 0)
     c = pin_xy(*PINS["Device:Q_NPN_BCE"]["2"], qx, qy, 0)
     e = pin_xy(*PINS["Device:Q_NPN_BCE"]["3"], qx, qy, 0)
     sh.wire(c[0], c[1], c[0], c[1] - 6.0)
-    sh.label("BOOST_100V", c[0], c[1] - 6.0, rot=90)
+    sh.label("Q1C_12V", c[0], c[1] - 6.0, rot=90)
     stub(sh, b, -10.0, "BASE_12V")
     sh.wire(e[0], e[1], e[0], e[1] + 6.0)
     sh.label("Q1E_12V", e[0], e[1] + 6.0, rot=270)
 
     q2x = 810.0
-    sh.place("Device:Q_NPN_BCE", "Q", q2x, qy, "NPN small-signal",
-             fields={"Note": "Current limit. Conducts when the drop across "
+    sh.place("Device:Q_NPN_BEC", "Q", q2x, qy, "PMBT3904-Q",
+             footprint="Package_TO_SOT_SMD:SOT-23",
+             fields={"MPN": "PMBT3904-Q",
+                     "Pins": "SOT-23 bipolar order is B-E-C, hence the BEC "
+                             "symbol. 40 V: it never sees more than the "
+                             "~13 V between the pass base and the output",
+                     "Note": "Current limit. Conducts when the drop across "
                              "the 56 ohm reaches one Vbe -- 0.65 V / 56 = "
                              "11.6 mA -- and steals the pass transistor's "
                              "base drive. Without it a shorted 12V_GATE "
@@ -895,6 +904,16 @@ def gate_rail(sh):
     sh.wire(e2[0], e2[1], e2[0], e2[1] + 6.0)
     sh.label("12V_GATE", e2[0], e2[1] + 6.0, rot=270)
 
+    # Collector resistors: they take the voltage the pass transistor
+    # cannot dissipate. Two in series so a shorted output (79 V across
+    # them) is 0.46 W each, inside a 2512's 0.59 W at 105 C.
+    series_chain(
+        sh, 331.0, 610.0, "BOOST_100V",
+        [("Device:R", "R", "3.3k 2512",
+          {"Note": "Collector resistor, first of two. 16.5 V and 83 mW "
+                   "at 5 mA; 38 V and 0.44 W into a shorted output."}),
+         ("Device:R", "R", "3.3k 2512", {"Note": "Second of two."})],
+        "Q1C_12V")
     series_chain(
         sh, 412.0, 640.0, "Q1E_12V",
         [("Device:R", "R", "56R",

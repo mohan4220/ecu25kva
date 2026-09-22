@@ -148,6 +148,11 @@ PINS = {
     "Device:Q_PMOS_GDS": {"1": (-5.08, 0),                    # G
                           "2": (2.54, 5.08),                  # D
                           "3": (2.54, -5.08)},                # S
+    # BEC: SOT-23 bipolar order (PMBT3904-Q). Same positions as BCE,
+    # collector and emitter numbers swapped -- the GDS trick again.
+    "Device:Q_NPN_BEC": {"1": (-5.08, 0),                     # B
+                         "2": (2.54, -5.08),                  # E
+                         "3": (2.54, 5.08)},                  # C
     "Device:Q_NPN_BCE": {"1": (-5.08, 0),                     # B
                          "2": (2.54, 5.08),                   # C
                          "3": (2.54, -5.08)},                 # E
