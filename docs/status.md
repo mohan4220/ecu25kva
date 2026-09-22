@@ -486,6 +486,16 @@ neither number returns a catalogue hit, so the footprint has to come
 through a Bosch distributor. Same shape as the six findings above, and
 this one was mine: reading the older reference and not the newer one.
 
+**The EGR bridge is drawn, 22 September 2026 — 7 → 2 open ends.** It had
+been blocked since 20 September on one datasheet: DRV8873-Q1's 40 V VM
+against a 73.3 V rail. It went discrete — four 100 V FETs, two
+**AUIRS2184S** — and the decode `EGR-DRIVER` demands comes from the
+driver's structure, not a logic gate: one input per leg, so each leg's
+high and low are exclusive by construction and the 270 A state becomes a
+high-side brake. The same family as the injector drivers, chosen the
+opposite way for the opposite reason. **Coast is asserted by copper** on a
+shared, pulled-down shutdown, which costs one MCU pin, `PTB10`.
+
 **The negative clamp latched, and a passing check hid it — 22 September
 2026, 8 → 7 open ends.** Choosing its comparator meant setting real
 thresholds, and the model's were wrong: engage near +0.08 V, release above

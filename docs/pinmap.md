@@ -160,6 +160,8 @@ Committed count is unchanged at 39; the spare GPIO count is unchanged at 89.
 
 **Updated 21 September 2026:** committed count is now **41** and the spare GPIO count
 **87**, after `PTB5` and `PTA17` were added for the battery-side high switches (§1.5).
+**Updated 22 September 2026:** **42** committed, **86** spare, after `PTB10` was added
+for the EGR bridge's shared shutdown (§1.5).
 
 ---
 
@@ -177,6 +179,7 @@ Committed count is unchanged at 39; the spare GPIO count is unchanged at 89.
 | 88 | Fuel metering PWM | High-current low-side + current sense | `PTD10` | FTM2_CH0 | Hi-Z, no pull | See §2 |
 | 59 | EGR High (bridge IN1) | H-bridge | `PTB8` | FTM3_CH0 | Hi-Z, no pull | Not one of the six — see §2's scope note |
 | 81 | EGR Low (bridge IN2) | H-bridge | `PTB9` | FTM3_CH1 | Hi-Z, no pull | Not one of the six |
+| — | EGR bridge enable (shared SD̄) | Pulled LOW on the sheet — **coast** at reset | `PTB10` | FTM3_CH2 | Hi-Z, no pull | **ADDED 22 Sep 2026.** The bridge is two AUIRS2184S, one input per leg; coast needs both shutdowns asserted, and they default asserted by copper. Same timer as IN1/IN2 |
 | 50 | Main relay | Low-side FET + flyback | `PTD13` | GPIO output | Hi-Z, no pull | |
 | 69 | Buzzer relay | Low-side FET + flyback | `PTD14` | GPIO output | Hi-Z, no pull | |
 

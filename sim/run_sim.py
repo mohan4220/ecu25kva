@@ -375,6 +375,7 @@ def check_transient_clamp():
         ("Relay low-side FETs (discrete_io)",       "Vds class",     100.0),
         ("Metering FET and freewheel (metering_egr)", "Vds / Vr class", 100.0),
         ("Injector low-side FETs (drain on boost rail)", "Vds class", 150.0),
+        ("EGR bridge FETs, all four (metering_egr)", "Vds class",   100.0),
     ]
     for name, what, rating in rail_parts:
         c.that(f"  rail table: {name} -- {what}", rating / DRIVER_RAIL_WORST,

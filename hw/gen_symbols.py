@@ -644,6 +644,39 @@ UCC27517A = dict(
     hw=10.16)
 
 
+# --- AUIRS2184S, half-bridge gate driver ------------------------------
+# Same Infineon family and die as AUIRS2181S, and the reverse choice for
+# the reverse reason. The 2181's lack of interlock is what lets it fire an
+# injector, whose high and low switches are in series with the coil. The
+# 2184 has ONE input per leg -- IN high puts HO on, IN low puts LO on --
+# plus cross-conduction prevention and deadtime, which is exactly what an
+# H-bridge leg needs: high and low of the SAME leg become structurally
+# exclusive, so egr_hbridge.cir's 270 A shoot-through state stops existing
+# rather than being avoided by firmware convention.
+#
+# Pinout and logic from the IR2184(4)(S) datasheet (the industrial part,
+# same die): 1 IN, 2 SD-bar, 3 COM, 4 LO, 5 VCC, 6 VS, 7 HO, 8 VB.
+# Deadtime 280/400/520 ns; shutdown delay 270 ns max; VIH 2.7 V min.
+# The AUIRS2181(4)S datasheet's own family table confirms the 2184's
+# IN/SD logic and cross-conduction prevention. THE AUTOMOTIVE PART'S OWN
+# DATASHEET WAS NOT RETRIEVED -- no URL resolved -- and that is recorded
+# against the part rather than assumed away.
+AUIRS2184 = dict(
+    name="AUIRS2184S", fp="Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+    ds="https://www.infineon.com/assets/row/public/documents/24/49/infineon-ir21844s-datasheet-en.pdf",
+    mpn="AUIRS2184STR",
+    desc="Infineon AUIRS2184S half-bridge driver: single IN per leg, "
+         "inverting shutdown, cross-conduction prevention, ~400 ns "
+         "deadtime, 600 V, VCC 10-20 V. AEC-Q100. SOIC-8. Pinout from the "
+         "IR2184 datasheet (same die).",
+    keywords="half bridge gate driver deadtime shutdown AUIRS2184 H-bridge",
+    left=[("IN", "1", "input"), ("~{SD}", "2", "input"),
+          ("VCC", "5", "power_in"), ("COM", "3", "power_in")],
+    right=[("VB", "8", "power_in"), ("HO", "7", "output"),
+           ("VS", "6", "passive"), ("LO", "4", "output")],
+    hw=10.16)
+
+
 def main():
     rows = list(csv.DictReader(open(PINS)))
     for r in rows:
@@ -714,7 +747,8 @@ def main():
     out.append(build_tps3850(g))
     icgeom["TPS3850G33"] = g
     for part in (LM5164, TLV76733, TCAN1042, OPAMP, COMPARATOR,
-                 TPS40210, AUIRS2181, INA181, TLV3201, UCC27517A):
+                 TPS40210, AUIRS2181, INA181, TLV3201, UCC27517A,
+                 AUIRS2184):
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g

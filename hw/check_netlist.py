@@ -34,12 +34,8 @@ EXPECTED_OPEN = {
     # current-sense ends, INA181A1-Q1.)
     # (power_input's two gates closed 22 Sep 2026: Q1 a P-FET with a
     #  passive gate network, Q2 a TLV3201-Q1 + UCC27517A-Q1 pair.)
-    # -- the EGR bridge, blocked on a >73.3 V DIR/PWM gate driver --
-    "/EGR_IN1": "EGR bridge not drawn -- blocked on a rail rating",
-    "/EGR_IN2": "EGR bridge not drawn -- blocked on a rail rating",
-    "/ISNS_EGR": "EGR bridge not drawn -- blocked on a rail rating",
-    "/EGR_HIGH_59": "EGR bridge not drawn; the connector pin is real",
-    "/EGR_LOW_81": "EGR bridge not drawn; the connector pin is real",
+    # (The EGR bridge's five ends closed 22 Sep 2026: discrete, two
+    #  AUIRS2184S, coast asserted by copper on a shared shutdown.)
     # -- no part, and no pin --
     "/BARO": "onboard barometric sensor: no part chosen",
     "/TRIP_LOOP": "no connector pin -- not on the OEM diagram, needs one "

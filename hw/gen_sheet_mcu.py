@@ -67,6 +67,10 @@ NETS = {
     # channels like the five already here, so the whole injector stage
     # stays on one timer and its edges stay phase-locked to each other.
     "PTB5":  ("INJ_HS_A_BAT", "output"),  "PTA17": ("INJ_HS_B_BAT", "output"),
+    # ADDED 22 Sep 2026: the EGR bridge's shared shutdown. Pulled low on
+    # metering_egr so the bridge COASTS while this pin is Hi-Z at reset;
+    # the MCU raises it to drive. FTM3_CH2, the same timer as EGR_IN1/IN2.
+    "PTB10": ("EGR_EN", "output"),
     # --- discrete in ---
     "PTD5":  ("SW_COOLANT", "input"),     "PTD7":  ("SW_DROOP", "input"),
     "PTD11": ("IN_AUDIO_ABORT", "input"), "PTD12": ("IN_OVERRIDE_SS", "input"),

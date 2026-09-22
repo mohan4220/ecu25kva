@@ -332,59 +332,224 @@ def sense_amp(sh, cx, cy, in_label, out_net, note, supply_hier=True):
     sh.gnd(cbo[0], cbo[1] + 7.62)
 
 
-def egr_blocked(sh):
-    """The EGR half, and why there is nothing drawn in it yet."""
+def _lbl_between(sh, x, y, libid, prefix, value, top, bot, fields, rot=0):
+    sh.place(libid, prefix, x, y, value, rot=rot, fields=fields)
+    a = pin_xy(*PINS[libid]["1"], x, y, rot)
+    b = pin_xy(*PINS[libid]["2"], x, y, rot)
+    t, bo = (a, b) if a[1] < b[1] else (b, a)
+    sh.wire(t[0], t[1], t[0], t[1] - 5.0)
+    sh.label(top, t[0], t[1] - 5.0, rot=90)
+    sh.wire(bo[0], bo[1], bo[0], bo[1] + 5.0)
+    sh.label(bot, bo[0], bo[1] + 5.0, rot=270)
+
+
+def _lbl_to_gnd(sh, x, y, libid, prefix, value, top, fields, rot=0):
+    sh.place(libid, prefix, x, y, value, rot=rot, fields=fields)
+    a = pin_xy(*PINS[libid]["1"], x, y, rot)
+    b = pin_xy(*PINS[libid]["2"], x, y, rot)
+    t, bo = (a, b) if a[1] < b[1] else (b, a)
+    sh.wire(t[0], t[1], t[0], t[1] - 5.0)
+    sh.label(top, t[0], t[1] - 5.0, rot=90)
+    gnd_below(sh, bo[0], bo[1])
+
+
+def egr_leg(sh, qx, leg, out_net, note):
+    """One half-bridge: high FET, low FET, the node between them."""
+    qp = PINS["Device:Q_NMOS_GSD"]
+    node_y = 102.0
+
+    def fet(y, name, fields):
+        sh.place("Device:Q_NMOS_GSD", "Q", qx, y, "100V N-ch, <=20mOhm",
+                 fields=fields)
+        return (pin_xy(*qp["1"], qx, y, 0), pin_xy(*qp["3"], qx, y, 0),
+                pin_xy(*qp["2"], qx, y, 0))
+
+    hg, hd, hs = fet(85.0, "H", {
+        "Note": f"Leg {leg} high side. 100 V class: its drain is VBAT_PROT, "
+                "which reaches 73.3 V on pulse 2a -- the rating that took "
+                "DRV8873-Q1's 40 V VM off this job.",
+        "Current": "headroom over the actuator's 2.6-6.4 A stall"})
+    lg, ld, ls = fet(120.0, "L", {
+        "Note": f"Leg {leg} low side. Source to the shared sense shunt."})
+    sh.wire(hd[0], hd[1], hd[0], hd[1] - 10.0)
+    sh.label("VBAT_PROT", hd[0], hd[1] - 10.0, rot=90)
+    sh.wire(hs[0], hs[1], hs[0], node_y)
+    sh.wire(hs[0], node_y, ld[0], ld[1])
+    sh.junction(hs[0], node_y)
+    sh.wire(hs[0], node_y, hs[0] + 20.0, node_y)
+    sh.label(f"EGR_{leg}", hs[0] + 20.0, node_y)
+    sh.wire(ls[0], ls[1], ls[0], 140.0)
+    sh.label("EGR_ISNS", ls[0], 140.0)
+    sh.wire(hg[0], hg[1], hg[0] - 14.0, hg[1])
+    sh.label(f"EGR_{leg}H_G", hg[0] - 14.0, hg[1], rot=180)
+    sh.wire(lg[0], lg[1], lg[0] - 14.0, lg[1])
+    sh.label(f"EGR_{leg}L_G", lg[0] - 14.0, lg[1], rot=180)
+
+    _lbl_between(sh, qx - 30.0, 93.0, "Device:R", "R", "470R",
+                 f"EGR_{leg}H_G", f"EGR_{leg}",
+                 {"Source": "supervisor.cir claim 6, gate-to-SOURCE on a "
+                            "high side"})
+    _lbl_to_gnd(sh, qx - 30.0, 128.0, "Device:R", "R", "470R",
+                f"EGR_{leg}L_G",
+                {"Source": "supervisor.cir claim 6 -- GATE-PULLDOWN"})
+    sh.wire(hs[0] + 20.0, node_y, hs[0] + 30.0, node_y)
+    sh.hlabel(out_net, hs[0] + 30.0, node_y, shape="output")
+
+
+def egr_driver(sh, cx, cy, leg, in_net):
+    """AUIRS2184S for one leg, with its bootstrap."""
+    sh.place("ecu25kva:AUIRS2184S", "U", cx, cy, "AUIRS2184S",
+             footprint="Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+             fields={"Source": "IR2184(4)(S) datasheet (same die) and the "
+                               "AUIRS2181(4)S family table",
+                     "Note": f"Leg {leg}. ONE input: IN high puts HO on, IN "
+                             "low puts LO on, with cross-conduction "
+                             "prevention and ~400 ns deadtime -- so the high "
+                             "and low of this leg cannot both conduct, "
+                             "whatever the MCU does.",
+                     "Unretrieved": "the AUTOMOTIVE part's own datasheet -- "
+                                    "confirm against it at sourcing"})
+
+    def p(n):
+        d = ICPINS["AUIRS2184S"][n]
+        return pin_xy(d[0], d[1], cx, cy, 0)
+
+    ip = p("1")
+    sh.wire(ip[0], ip[1], ip[0] - 14.0, ip[1])
+    sh.hlabel(in_net, ip[0] - 14.0, ip[1], shape="input", rot=180)
+    for n, dx, name in (("2", -22.0, "EGR_SD"), ("5", -30.0, "12V_GATE")):
+        q = p(n)
+        sh.wire(q[0], q[1], q[0] + dx, q[1])
+        sh.label(name, q[0] + dx, q[1], rot=180)
+    q = p("3")
+    sh.wire(q[0], q[1], q[0] - 36.0, q[1])
+    gnd_below(sh, q[0] - 36.0, q[1])
+    for n, dx, name in (("8", 12.0, f"EGR_{leg}_VB"), ("7", 20.0, f"EGR_{leg}H_G"),
+                        ("6", 28.0, f"EGR_{leg}"), ("4", 36.0, f"EGR_{leg}L_G")):
+        q = p(n)
+        sh.wire(q[0], q[1], q[0] + dx, q[1])
+        sh.label(name, q[0] + dx, q[1])
+    _lbl_between(sh, cx - 30.0, cy + 30.0, "Device:D", "D", "200V 1A fast",
+                 "12V_GATE", f"EGR_{leg}_VB", rot=90,
+                 fields={"Note": "Bootstrap. Refreshed every PWM low phase; "
+                                 "duty is capped below 100% in firmware so a "
+                                 "held position never starves it."})
+    _lbl_between(sh, cx - 12.0, cy + 30.0, "Device:C", "C", "1uF 25V",
+                 f"EGR_{leg}_VB", f"EGR_{leg}",
+                 fields={"Note": "Bootstrap capacitor."})
+    _lbl_to_gnd(sh, cx + 8.0, cy + 30.0, "Device:C", "C", "1uF 25V",
+                "12V_GATE", {"Note": "VCC bypass at the pin."})
+
+
+def egr_bridge(sh):
+    """The EGR H-bridge, drawn 22 Sep 2026 -- discrete, two AUIRS2184S.
+
+    Blocked from 20 Sep on one datasheet: DRV8873-Q1 had exactly the
+    decoded interface EGR-DRIVER asks for and a VM absolute maximum of
+    40 V, against a rail that reaches 73.3 V. No integrated bridge in that
+    class clears it, so the bridge is discrete -- four 100 V FETs -- and
+    the decode EGR-DRIVER requires comes from the DRIVER'S STRUCTURE, not
+    from a logic gate: AUIRS2184S has one input per leg, so the high and
+    low of a leg are exclusive by construction. egr_hbridge.cir's 270 A
+    state -- both inputs high, all four on -- becomes a high-side BRAKE:
+    both legs' high switches on, no path to ground.
+
+    COAST IS THE SAFE STATE, and it is asserted by copper. egr_hbridge.cir
+    argues it: a return spring closes the valve if the motor is let go,
+    and a brake would fight it. Both drivers' SD-bar pins share EGR_SD,
+    pulled DOWN by 10k -- so at reset, with PTB10 Hi-Z, both legs are off
+    -- and a kill FET on the same node puts the bridge in coast on
+    GATE_KILL, with no MCU involvement. The MCU raises EGR_EN to drive.
+    That enable costs one MCU pin, PTB10, FTM3_CH2, on the same timer as
+    EGR_IN1/IN2.
+    """
+    sh.text("EGR BRIDGE -- discrete, two AUIRS2184S. Coast (both SD-bar "
+            "low) is the reset state and the kill state.", 300.0, 48.0,
+            size=1.8)
+    egr_leg(sh, 360.0, "A", "EGR_HIGH_59",
+            "ECU pin 59, EGR connector pin 1")
+    egr_leg(sh, 480.0, "B", "EGR_LOW_81",
+            "ECU pin 81, EGR connector pin 2")
+
+    # Shared low-side return, one shunt for the bridge.
+    rail = Rail(sh, 140.0)
+    rail.to(362.54)
+    rail.to(405.0, tap=True)
+    sh.place("Device:R", "R", 405.0, 158.0, "20mOhm 1W 1%",
+             fields={"Source": "sized here -- EGR-DRIVER headroom over a "
+                               "6.4 A stall",
+                     "Note": "6.4 A x 20 mOhm x gain 20 = 2.56 V, inside "
+                             "the ADC. Reads the bridge current during "
+                             "each DRIVE phase; low-side recirculation "
+                             "circulates between the two low FETs and "
+                             "does not pass through it, so firmware "
+                             "samples at the centre of the on-time.",
+                     "Power": "0.82 W at a 6.4 A stall"})
+    ra = pin_xy(*PINS["Device:R"]["1"], 405.0, 158.0, 0)
+    rb = pin_xy(*PINS["Device:R"]["2"], 405.0, 158.0, 0)
+    rt, rbo = (ra, rb) if ra[1] < rb[1] else (rb, ra)
+    sh.wire(405.0, 140.0, rt[0], rt[1])
+    gnd_below(sh, rbo[0], rbo[1])
+    rail.to(482.54)
+    sense_amp(sh, 528.0, 172.0, "EGR_ISNS", "ISNS_EGR",
+              "Bridge current, 20 mOhm x 20: 2.56 V at a 6.4 A stall. "
+              "-> PTD22 (ADC1_SE18).", supply_hier=False)
+
+    egr_driver(sh, 360.0, 210.0, "A", "EGR_IN1")
+    egr_driver(sh, 515.0, 210.0, "B", "EGR_IN2")
+
+    # Coast by copper: EGR_SD pulled low, raised by the MCU, killed by the
+    # supervisor.
+    sh.hlabel("EGR_EN", 310.0, 280.0, shape="input")
+    sh.wire(310.0, 280.0, 322.0, 280.0)
+    sh.place("Device:R", "R", 330.0, 280.0, "1k", rot=90,
+             fields={"Note": "So the kill FET can override a hung MCU "
+                             "driving EGR_EN high."})
+    a = pin_xy(*PINS["Device:R"]["1"], 330.0, 280.0, 90)
+    b = pin_xy(*PINS["Device:R"]["2"], 330.0, 280.0, 90)
+    l, r = (a, b) if a[0] < b[0] else (b, a)
+    sh.wire(322.0, 280.0, l[0], 280.0)
+    sh.wire(r[0], 280.0, 350.0, 280.0)
+    sh.label("EGR_SD", 350.0, 280.0)
+    _lbl_to_gnd(sh, 380.0, 292.0, "Device:R", "R", "10k", "EGR_SD",
+                {"Note": "COAST AT RESET. PTB10 is Hi-Z out of reset; this "
+                         "holds both drivers' SD-bar low, so both legs are "
+                         "off and the valve's return spring closes it."})
+    kx, ky = 420.0, 292.0
+    qp = PINS["Device:Q_NMOS_GSD"]
+    sh.place("Device:Q_NMOS_GSD", "Q", kx, ky, "60V small-signal",
+             fields={"Source": "supervisor.cir -- the kill FET, on the "
+                               "bridge's shared shutdown",
+                     "Note": "GATE_KILL puts the bridge in COAST, not "
+                             "brake -- the safe state egr_hbridge.cir "
+                             "argues for, reached without the MCU."})
+    kg = pin_xy(*qp["1"], kx, ky, 0)
+    kd = pin_xy(*qp["3"], kx, ky, 0)
+    ks = pin_xy(*qp["2"], kx, ky, 0)
+    sh.wire(kd[0], kd[1], kd[0], kd[1] - 5.0)
+    sh.label("EGR_SD", kd[0], kd[1] - 5.0, rot=90)
+    gnd_below(sh, ks[0], ks[1])
+    sh.wire(kg[0], kg[1], kg[0] - 12.0, kg[1])
+    sh.hlabel("GATE_KILL", kg[0] - 12.0, kg[1], shape="input", rot=180)
+
     sh.text(
-        "EGR BRIDGE -- NOT DRAWN. Blocked 20 Sep 2026 on a rail rating, "
-        "not on a missing idea.",
-        320.0, 70.0, size=2.2)
-    sh.text(
-        "TI DRV8873-Q1 was the candidate and it fits the functional "
-        "requirement exactly: an automotive H-bridge with the PH/EN "
-        "decoded interface\n"
-        "bom_requirements' EGR-DRIVER tag asks for -- one input pair that "
-        "cannot express both legs of a diagonal conducting at once, which "
-        "is the\n"
-        "requirement egr_hbridge.cir's 270 A shoot-through produced. "
-        "AEC-Q100 grade 1, 10 A peak, per-half-bridge current sense on "
-        "IPROPI1/IPROPI2\n"
-        "that would have fed PTD22 directly.\n"
+        "WHY DISCRETE, AND WHY THE 2184. DRV8873-Q1 was the candidate and "
+        "had exactly the decoded interface EGR-DRIVER asks for -- and a VM "
+        "absolute maximum of 40 V against a\n"
+        "rail that reaches 73.3 V. Integrated automotive bridges cap out at "
+        "40-45 V as a class. So four 100 V FETs, and the decode comes from "
+        "the driver's STRUCTURE: AUIRS2184S\n"
+        "has one input per leg, so each leg's high and low are exclusive "
+        "by construction. egr_hbridge.cir's 270 A state -- both inputs high, "
+        "all four on -- becomes a high-side\n"
+        "BRAKE. Same family as the injector drivers, chosen the opposite "
+        "way for the opposite reason: the injector's switches are in series "
+        "with a coil and must BOTH conduct.\n"
         "\n"
-        "Its VM absolute maximum is 40 V (SLVSDY7B sec.6.1).\n"
-        "\n"
-        "VBAT_PROT reaches 40.0 V for 400 ms on a suppressed load dump and "
-        "73.3 V for about 50 us on ISO 7637-2 pulse 2a. An absolute "
-        "maximum is\n"
-        "absolute: out of spec at the dump with zero margin, and at 2a by "
-        "1.8x.\n"
-        "\n"
-        "THIS IS A FACT ABOUT THE RAIL, NOT ABOUT ONE PART. It applies to "
-        "the injector high sides, the relay drivers and this bridge alike. "
-        "transient_clamp.cir\n"
-        "now carries it as enforced checks rather than as a sentence in a "
-        "comment, so the next driver sheet fails the suite instead of "
-        "rediscovering it.\n"
-        "\n"
-        "Consequence: integrated automotive H-bridges and smart switches "
-        "cap out at 40-45 V as a class and are excluded from anything "
-        "battery-connected\n"
-        "here. The EGR bridge goes discrete, for the same reason memo 12 "
-        "sent the injector drivers discrete. What it needs is a bridge "
-        "GATE DRIVER rated\n"
-        "above 73.3 V that still decodes DIR/PWM internally. No such part "
-        "has been checked against a retrieved datasheet, and this project "
-        "does not guess\n"
-        "parts into copper.\n"
-        "\n"
-        "Unblocked by: one datasheet. The four bridge FETs, the shunt, the "
-        "gate pulldowns and the kill transistors are all already specified "
-        "and will draw\n"
-        "the same way the metering unit's do on the left of this sheet.",
-        # KiCad centres a multi-line text block VERTICALLY on its anchor,
-        # so a twenty-line block reaches ten lines above this y as well as
-        # ten below. The heading above sat inside it before that was
-        # noticed.
-        320.0, 135.0, size=1.5)
+        "IN1 IN2 with EGR_EN high:  1 0 forward   0 1 reverse   1 1 "
+        "high-side brake   0 0 low-side brake.   EGR_EN low: COAST, "
+        "whatever IN1/IN2 are.",
+        300.0, 350.0, size=1.6)
 
 
 def build():
@@ -398,7 +563,7 @@ def build():
                ],
                ref_base=schlib.REF_BASE["metering_egr"])
     metering(sh)
-    egr_blocked(sh)
+    egr_bridge(sh)
     return sh
 
 

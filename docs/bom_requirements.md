@@ -256,9 +256,32 @@ by firmware convention.
 
 Current capability: headroom over a 2.6–6.4 A stall.
 
-No part is named. None has been checked against a retrieved datasheet.
-What the schematic needs from the BOM is the interface type, the current
-limiting, and that headroom.
+> **Drawn 22 September 2026 — discrete, two `AUIRS2184STR`.** No
+> integrated bridge clears the rail: DRV8873-Q1, the candidate, has a
+> 40 V VM absolute maximum against 73.3 V, and the class caps at
+> 40–45 V. So four **100 V** N-FETs (≤ 20 mΩ, headroom over the 6.4 A
+> stall), and the decode this tag requires comes from the **driver's
+> structure** rather than a logic gate: AUIRS2184S has **one input per
+> leg** — IN high puts HO on, IN low puts LO on — with cross-conduction
+> prevention and ~400 ns deadtime. Each leg's high and low are exclusive
+> by construction, so the 270 A state, both inputs high, becomes a
+> **high-side brake**.
+>
+> | EGR_EN | IN1 IN2 | bridge |
+> |---|---|---|
+> | high | 1 0 / 0 1 | forward / reverse |
+> | high | 1 1 / 0 0 | high-side / low-side brake |
+> | **low** | any | **COAST** |
+>
+> **Coast is asserted by copper.** Both drivers' SD̄ share `EGR_SD`,
+> pulled down 10 kΩ, so with `PTB10` Hi-Z at reset both legs are off and
+> the return spring closes the valve. A kill FET on the same node gives
+> coast on `GATE_KILL` without the MCU. One 20 mΩ shunt in the shared
+> low-side return feeds an INA181A1-Q1: 2.56 V at a 6.4 A stall.
+>
+> Pinout and logic are from the IR2184 datasheet (same die) and the
+> AUIRS2181(4)S family table; **the automotive part's own datasheet was
+> not retrieved** — confirm against it at sourcing.
 
 Checked by `egr_hbridge.cir`, which keeps the naive wiring as pinned
 evidence of why the requirement exists.
@@ -430,6 +453,7 @@ not constraints.
 | Supervisor | **TPS3850G33DRCT** | ±4% window variant, so its undervoltage trip clears the MCU's own LVD by 143 mV rather than 44 mV. |
 | Injector boost controller | **TPS40210QDGQRQ1** | Chosen on its **200 ns maximum off-time** — the one spec that makes 94% duty reachable at the 6 V cranking corner. See below. |
 | Gate drivers, all eight gates | **AUIRS2181STR** ×5 | **No cross-conduction interlock** — the injector's high and low switches are in series with the coil and must both be on. See below. |
+| EGR bridge drivers | **AUIRS2184STR** ×2 | One input per leg: each leg's high and low exclusive by construction. See `EGR-DRIVER`. |
 | Negative-clamp control | **TLV3201AQDCKRQ1** + **UCC27517AQDBVRQ1** | A low-side ideal diode: engage below −100 mV, release above −6.8 mV. See `NEG-CLAMP`. |
 | Current-sense amplifiers | **INA181A1QDBVRQ1** ×3 | VCM reaches −0.2 V, so it sits across a ground-referenced shunt; supplied from 3V3_MCU so its output is ADC-safe by construction. |
 
