@@ -41,7 +41,7 @@ from schlib import Sheet, Rail, pin_xy, PINS
 HW = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HW, "speed_inputs.kicad_sch")
 ICPINS = json.load(open(os.path.join(HW, "lib", "ic_pins.json")))
-COMP = "ecu25kva:COMPARATOR_GENERIC"
+COMP = "ecu25kva:TLV3201"
 GND_DROP = 7.62
 
 
@@ -146,21 +146,27 @@ def crank(sh):
             "-> zero-cross comparator -> PTB2 (FTM1_CH0)", 40.0, 34.0,
             size=1.8)
 
-    sh.place(COMP, "U", ux, uy, "COMPARATOR_GENERIC",
-             fields={"Source": "vr_conditioner.cir -- ZCSW",
-                     "Requirement": "single 3.3 V supply, PUSH-PULL "
-                                    "rail-to-rail output, mid-rail input "
-                                    "common-mode, prop delay <=1 us",
-                     "Note": "Part NOT chosen -- placeholder pin numbers, "
-                             "no footprint. The output swing sets the "
-                             "hysteresis window, so an open-drain part "
-                             "would make the window depend on its pull-up "
-                             "and its VOL."})
-    inp = ic_pin("COMPARATOR_GENERIC", 3, ux, uy)
-    inn = ic_pin("COMPARATOR_GENERIC", 2, ux, uy)
-    out = ic_pin("COMPARATOR_GENERIC", 1, ux, uy)
-    vp = ic_pin("COMPARATOR_GENERIC", 5, ux, uy)
-    vn = ic_pin("COMPARATOR_GENERIC", 4, ux, uy)
+    # TLV3201-Q1, chosen 22 Sep 2026 -- the part already on power_input
+    # for the negative clamp. Every line of VR-COMP: single 3.3 V
+    # (2.7-5.5 V), push-pull, input range (VEE)-0.2 to (VCC)+0.2 V around
+    # the 1.65 V bias, 50 ns max against a 1 us requirement, 5 mV offset
+    # against a +/-198 mV window. Same pin POSITIONS as the placeholder it
+    # replaces; IN- and GND carry different NUMBERS, and are read by number.
+    sh.place(COMP, "U", ux, uy, "TLV3201",
+             footprint="Package_TO_SOT_SMD:SOT-353_SC-70-5",
+             fields={"Source": "TI SBOS856A; vr_conditioner.cir -- ZCSW",
+                     "Requirement": "VR-COMP: single 3.3 V, push-pull, "
+                                    "mid-rail input, <=1 us -- all met",
+                     "Note": "The output swing sets the hysteresis window "
+                             "(3.3 V x 4489 / 37489 = +/-198 mV), which is "
+                             "why a push-pull part was required. Its own "
+                             "1.2 mV internal hysteresis adds nothing that "
+                             "matters against that."})
+    inp = ic_pin("TLV3201", 3, ux, uy)
+    inn = ic_pin("TLV3201", 4, ux, uy)
+    out = ic_pin("TLV3201", 1, ux, uy)
+    vp = ic_pin("TLV3201", 5, ux, uy)
+    vn = ic_pin("TLV3201", 2, ux, uy)
     sh.wire(vp[0], vp[1], vp[0], vp[1] - 6.0)
     sh.label("3V3_MCU", vp[0], vp[1] - 6.0)
     gnd_below(sh, vn[0], vn[1])
@@ -481,8 +487,8 @@ def notes(sh):
         "disagreeing, with nothing comparing them.",
         40.0, 357.0, size=1.6)
     sh.text(
-        "PARTS NOT CHOSEN ON THIS SHEET: the comparator "
-        "(COMPARATOR_GENERIC -- placeholder pins, no footprint) and the "
+        "PARTS: the comparator "
+        "(now TLV3201-Q1, the clamp comparator on power_input) and the "
         "cam Hall sensor itself, which is U8 on the unknowns register and\n"
         "needs the machine. The comparator's requirement is unusually "
         "easy, and deliberately so: biasing the floating coil to VR_BIAS "

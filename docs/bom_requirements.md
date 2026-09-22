@@ -365,8 +365,12 @@ moment the ECU most needs to keep counting teeth. 48 V clears 3600 rpm.
 Single **3.3 V** supply, **push-pull** rail-to-rail output, propagation
 delay **≤1 µs**. Input common-mode range: **mid-rail only**.
 
-Drawn as `COMPARATOR_GENERIC` — placeholder pins, no footprint — because
-no part is chosen. Three of those four are unusually easy, deliberately:
+> **Chosen 22 September 2026: `TLV3201AQDCKRQ1`** — the same part as the
+> negative clamp's comparator, so one part number serves both. 2.7–5.5 V,
+> push-pull, input range (VEE) − 0.2 V to (VCC) + 0.2 V, **50 ns max**
+> against the 1 µs requirement, 5 mV offset against a ±198 mV window.
+
+Three of those four requirements are unusually easy, deliberately:
 
 - The output swing *is* the hysteresis window (3.3 V × 4489/(4489+33000)
   = 0.395 V), so an open-drain part would make the window depend on its
