@@ -25,11 +25,13 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import json
 import schlib
-from schlib import Sheet, pin_xy, PINS
+from schlib import Sheet, Rail, pin_xy, PINS
 
 HW = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HW, "power_input.kicad_sch")
+ICPINS = json.load(open(os.path.join(HW, "lib", "ic_pins.json")))
 
 RAIL = 80.0        # the battery rail runs straight across at this y
 SHUNT = 100.0      # shunt parts sit here, between rail and ground
@@ -59,6 +61,165 @@ def shunt(sh, libid, prefix, x, value, fields, y=SHUNT, rot=0, to_gnd=True):
     return ref, top, bot
 
 
+def _gnd_below(sh, x, y):
+    sh.wire(x, y, x, y + 7.62)
+    sh.gnd(x, y + 7.62)
+
+
+def _ic(sh, part, x, y):
+    def p(n):
+        d = ICPINS[part][n]
+        return pin_xy(d[0], d[1], x, y, 0)
+    return p
+
+
+def _stub(sh, pin, dx, name):
+    sh.wire(pin[0], pin[1], pin[0] + dx, pin[1])
+    sh.label(name, pin[0] + dx, pin[1], rot=180 if dx < 0 else 0)
+
+
+def _up(sh, pin, name, hier=False):
+    sh.wire(pin[0], pin[1], pin[0], pin[1] - 6.0)
+    if hier:
+        sh.hlabel(name, pin[0], pin[1] - 6.0, shape="input", rot=90)
+    else:
+        sh.label(name, pin[0], pin[1] - 6.0, rot=90)
+
+
+def _to_gnd(sh, x, y, libid, prefix, value, label, fields, rot=0):
+    sh.wire(x, y, x, y - 6.0)
+    sh.label(label, x, y - 6.0, rot=90)
+    sh.place(libid, prefix, x, y + 14.0, value, rot=rot, fields=fields)
+    a = pin_xy(*PINS[libid]["1"], x, y + 14.0, rot)
+    b = pin_xy(*PINS[libid]["2"], x, y + 14.0, rot)
+    t, bo = (a, b) if a[1] < b[1] else (b, a)
+    sh.wire(x, y, t[0], t[1])
+    _gnd_below(sh, bo[0], bo[1])
+
+
+def _series(sh, y, x0, left, libid, prefix, value, right, fields):
+    sh.label(left, x0, y, rot=180)
+    px = x0 + 30.0
+    sh.place(libid, prefix, px, y, value, rot=90, fields=fields)
+    a = pin_xy(*PINS[libid]["1"], px, y, 90)
+    b = pin_xy(*PINS[libid]["2"], px, y, 90)
+    l, r = (a, b) if a[0] < b[0] else (b, a)
+    sh.wire(x0, y, l[0], y)
+    sh.wire(r[0], y, px + 30.0, y)
+    sh.label(right, px + 30.0, y)
+
+
+def neg_clamp_control(sh):
+    """The comparator and driver behind NCLAMP_GATE, chosen 22 Sep 2026.
+
+    THIS CLAMP IS A LOW-SIDE IDEAL DIODE -- anode ground, cathode VIN --
+    and the thresholds say so: ENGAGE when VIN < -100 mV, RELEASE when
+    VIN > -5 mV. The release threshold is the one that matters. The first
+    model released above +0.12 V, and at the end of every negative pulse
+    the returning source drove current back through the still-on clamp at
+    1.35 A x 5 mOhm = 6.7 mV -- below release, so it latched on and shorted
+    the source. run_sim.py checked only the clamp's minimum and reported it
+    resolved; a recovery check found it. -5 mV nominal puts the worst case,
+    with TLV3201-Q1's 5 mV offset and every resistor at its tolerance,
+    still at or below zero: the clamp lets go before reverse current can
+    exceed about 1 A, and cannot latch.
+
+    Both thresholds sit BELOW ground, and a single-supply comparator has
+    no negative reference to compare against. So the sense node is lifted
+    instead: 10k from VIN and 499k from 5V_MAIN put it at
+    0.9804 x VIN + 98.2 mV, which maps -100 mV at VIN to 0 V at the
+    comparator. The reference on IN+ is then ground when the output is
+    low, and 91.6 mV when it is high -- 10k to ground and 536k from the
+    output -- which is the -6.8 mV release, still below zero with the
+    comparator's full 5 mV offset against it. Both come off 5V_MAIN, so its
+    tolerance cancels.
+
+    SUPPLIES, and the order they die in, is the safety argument:
+      comparator  5V_MAIN   -- dead whenever VIN is too low to run the
+                               buck, so it CANNOT hold the clamp on at
+                               power-up and short the incoming battery.
+      driver      12V_GATE  -- from the boost reservoir, held up for
+                               ~400 ms after VBAT_PROT collapses, so the
+                               clamp keeps its gate drive through a whole
+                               pulse. In UVLO its output is held LOW.
+    """
+    sh.text("NEGATIVE-CLAMP CONTROL -- TLV3201-Q1 comparator into a "
+            "UCC27517A-Q1 driver. Engage VIN < -100 mV, release VIN > -6.8 mV.",
+            30.0, 192.0, size=1.6)
+    cx, cy = 130.0, 210.0
+    sh.place("ecu25kva:TLV3201", "U", cx, cy, "TLV3201",
+             footprint="Package_TO_SOT_SMD:SOT-353_SC-70-5",
+             fields={"Source": "TI SBOS856A -- tPD 50 ns max, push-pull, no "
+                               "phase inversion beyond the rails",
+                     "Note": "IN- is the lifted sense node; IN+ carries the "
+                             "hysteresis. Output HIGH engages the clamp."})
+    cp = _ic(sh, "TLV3201", cx, cy)
+    _stub(sh, cp("3"), -12.0, "NCL_REF")
+    _stub(sh, cp("4"), -22.0, "NCL_SENSE")
+    _stub(sh, cp("1"), 14.0, "NCL_OUT")
+    _up(sh, cp("5"), "5V_MAIN", hier=True)
+    g = cp("2"); _gnd_below(sh, g[0], g[1])
+
+    dx, dy = 250.0, 210.0
+    sh.place("ecu25kva:UCC27517A", "U", dx, dy, "UCC27517A",
+             footprint="Package_TO_SOT_SMD:SOT-23-5",
+             fields={"Source": "TI UCC27517A-Q1 -- 4 A, tD1 23 ns max at "
+                               "12 V, output LOW in UVLO",
+                     "Note": "Between the comparator and the clamp FET "
+                             "because the comparator's 52 mA would take "
+                             "about half a microsecond to charge the "
+                             "FET's gate; 4 A takes nanoseconds."})
+    dp = _ic(sh, "UCC27517A", dx, dy)
+    _stub(sh, dp("3"), -12.0, "NCL_OUT")
+    q = dp("4")
+    sh.wire(q[0], q[1], q[0] - 6.0, q[1])
+    _gnd_below(sh, q[0] - 6.0, q[1])
+    _stub(sh, dp("5"), 14.0, "NCLAMP_GATE")
+    _up(sh, dp("1"), "12V_GATE", hier=True)
+    g = dp("2"); _gnd_below(sh, g[0], g[1])
+
+    _series(sh, 238.0, 30.0, "VBAT_PROT", "Device:R", "R", "10k 1%",
+            "NCL_SENSE",
+            {"Note": "Sense series resistor. Also limits current into the "
+                     "comparator input when VIN is 73.3 V (via the clamp "
+                     "diode) or -0.5 V (the datasheet allows 10 mA beyond "
+                     "the rails; this is under 100 uA)."})
+    _series(sh, 254.0, 30.0, "5V_MAIN", "Device:R", "R", "499k 1%",
+            "NCL_SENSE",
+            {"Note": "Lifts the sense node by 98.2 mV, so VIN = -100 mV "
+                     "arrives at the comparator as 0 V and no negative "
+                     "reference is needed."})
+    _series(sh, 270.0, 30.0, "NCL_OUT", "Device:R", "R", "536k 1%",
+            "NCL_REF",
+            {"Note": "Hysteresis. With the 10k below: IN+ = 0 V with the "
+                     "output low, 91.6 mV with it high -- the -6.8 mV "
+                     "release, which stays below zero even with the "
+                     "comparator's full 5 mV offset against it. 523k "
+                     "sat at +0.5 mV worst case."})
+    _to_gnd(sh, 160.0, 238.0, "Device:R", "R", "10k 1%", "NCL_REF",
+            {"Note": "Reference to ground."})
+    sh.place("Device:D", "D", 190.0, 256.0, "BAV199 (one half)", rot=270,
+             fields={"Tag": "VR-CLAMP",
+                     "Note": "Anode to the sense node, cathode to 5V_MAIN: "
+                             "holds the comparator input inside its rail "
+                             "when VIN is at 73.3 V. LOW LEAKAGE for the "
+                             "same reason as on the crank input -- and "
+                             "here leakage lifts the sense node, which "
+                             "makes the clamp release EARLIER, the safe "
+                             "direction."})
+    k = pin_xy(*PINS["Device:D"]["1"], 190.0, 256.0, 270)
+    a = pin_xy(*PINS["Device:D"]["2"], 190.0, 256.0, 270)
+    sh.wire(k[0], k[1], k[0], k[1] - 5.0)
+    sh.label("5V_MAIN", k[0], k[1] - 5.0, rot=90)
+    sh.wire(a[0], a[1], a[0], a[1] + 5.0)
+    sh.label("NCL_SENSE", a[0], a[1] + 5.0, rot=270)
+    _to_gnd(sh, 300.0, 238.0, "Device:C", "C", "100nF", "5V_MAIN",
+            {"Note": "Comparator bypass."})
+    _to_gnd(sh, 340.0, 238.0, "Device:C", "C", "1uF 25V", "12V_GATE",
+            {"Note": "Driver bypass -- it sources 4 A peak into the clamp "
+                     "FET's gate."})
+
+
 def build():
     schlib.verify_pins()
     sh = Sheet("Power input and transient protection",
@@ -66,7 +227,7 @@ def build():
                    "Generated by hw/gen_sheet_power_input.py -- do not hand-edit until it is retired",
                    "EMI filter values are emi_filter.cir element for element",
                    "TVS and clamp: docs/bom_requirements.md tags TVS, NEG-CLAMP",
-                   "Q1 is a P-FET with a passive gate network; Q2's gate is undriven -- see the page",
+                   "Q1: P-FET, passive gate. Q2: comparator + driver, a low-side ideal diode that MUST release",
                ],
                ref_base=schlib.REF_BASE["power_input"])
 
@@ -273,7 +434,9 @@ def build():
     sh.hlabel("VBAT_PROT", 380, RAIL, shape="output")
     sh.label("VBAT_PROT", 364, RAIL)
 
-    # ---- the note that makes the two open decisions visible ----
+    neg_clamp_control(sh)
+
+    # ---- the note that makes the decisions visible ----
     sh.text(
         "OPEN -- two gates on this sheet are intentionally undriven, and ERC "
         "will report them:\\n"

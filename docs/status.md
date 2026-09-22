@@ -486,6 +486,25 @@ neither number returns a catalogue hit, so the footprint has to come
 through a Bosch distributor. Same shape as the six findings above, and
 this one was mine: reading the older reference and not the newer one.
 
+**The negative clamp latched, and a passing check hid it — 22 September
+2026, 8 → 7 open ends.** Choosing its comparator meant setting real
+thresholds, and the model's were wrong: engage near +0.08 V, release above
++0.12 V. At the end of every negative pulse the returning source drove
+1.35 A back through the still-on clamp — 6.7 mV across 5 mΩ, never
+reaching release — so it **latched on and shorted the source**. The check
+measured only the clamp's minimum and said RESOLVED; a recovery check
+failed on both pulses. It is a low-side ideal diode and now releases above
+−6.8 mV, below zero even with the comparator's full offset.
+
+Two more numbers on that block were artifacts. With the ~100 ns
+comparator-and-driver delay in, the default timestep let ngspice commit
+the hysteretic switch on a rejected trial step: the "−0.068 V" minimum was
+really **−0.177 V** — still inside the −0.3 V rating by 1.70×, which
+answers the question this block had carried since 20 September. And the
+pinned 4.74 A clamp-diode peak and a 15.8 mV "settling" difference on
+pulse 3a were coarse-step overshoot, confirmed on the unchanged original
+netlist: 4.114 A fine, equal to the flat top and to (206.5 − 0.4) / 50 Ω.
+
 **Choosing the clamp comparator found two under-rated parts and a
 drawn FET of the wrong polarity, 22 September 2026.** `NEG-CLAMP`
 specified its FET at **40 V** and the backstop Schottky was **60 V** —

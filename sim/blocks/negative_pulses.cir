@@ -181,16 +181,12 @@ Rload_off1 vbuck_off1 0    50
 *   comparator sensing VIN against a -0.1 V threshold; in parallel
 *   with the 60 V / 20 A Schottky already fitted.
 *
-* NOT MODELLED, and it is the one thing left: the comparator's own
-* propagation delay. Scl1 below switches on the instant VIN crosses
-* the threshold, so this branch shows what the clamp is worth once
-* engaged, not how long the node sits at the Schottky's -0.53 V
-* first. That interval equals the comparator delay and nothing here
-* sources it -- the same shape of gap reverse_battery.cir has with
-* its ideal-diode controller's turn-off time. What has changed is its
-* size: the unbounded question was "is a 2 ms excursion acceptable,"
-* and it is now "is a sub-microsecond one," which is a question a
-* comparator datasheet answers.
+* MODELLED SINCE 22 Sep 2026 -- the comparator's delay, and the part
+* that was worse: the thresholds. See ACLAMP below and the delay on its
+* control. This was the one thing this block listed as left; choosing the
+* comparator (TLV3201-Q1) and its driver (UCC27517A-Q1) turned it into a
+* number, and fixing the thresholds turned up a latch the block had been
+* reporting as a pass.
 * The active-clamp branch gets its OWN source, source impedance, TVS
 * and reservoir rather than hanging off bat1 with the others. It has
 * to: at 13 mOhm to ground it is by far the lowest-impedance path on
@@ -200,7 +196,26 @@ Rload_off1 vbuck_off1 0    50
 * problem as already solved. Caught by the clamp Schottky's own
 * ammeter showing 13 mA where 15 A was expected. Same separate-network
 * convention sensor_rail and can_termination use for their corners.
-.model ACLAMP SW(Ron=5m Roff=1e9 Vt=-0.1 Vh=0.02)
+* THRESHOLDS CORRECTED 22 Sep 2026. The control below is -VIN, and the
+* first version set Vt=-0.1, Vh=0.02 -- which switches ON whenever
+* -VIN > -0.08, i.e. VIN < +0.08 V, and OFF only when VIN > +0.12 V. At
+* the end of every pulse the source returns to +13.5 V and drives
+* current back through the clamp: 1.35 A through 5 mOhm is 6.7 mV,
+* never reaching +0.12 V, so the clamp LATCHED ON and shorted the source
+* for the rest of the run. run_sim.py checked only this branch's minimum
+* and reported it resolved; a recovery check added the same day failed.
+*
+* The clamp is a LOW-SIDE IDEAL DIODE -- anode ground, cathode VIN -- and
+* must release the moment its current reverses:
+*     ON   when VIN < -100 mV   (control > Vt+Vh = 0.100)
+*     OFF  when VIN > -6.8 mV   (control < Vt-Vh = 0.0068)
+* During clamping VIN = -15 A x 5 mOhm = -75 mV, inside the band, so it
+* holds. Reverse current makes VIN positive and it lets go. These are the
+* DRAWN network's thresholds (hw/power_input.kicad_sch: 10k/499k sense
+* lift, 10k/536k reference), and -6.8 mV rather than 0 because
+* TLV3201-Q1's input offset is 5 mV max: the worst-case release is then
+* -1.8 mV, still below zero.
+.model ACLAMP SW(Ron=5m Roff=1e9 Vt=0.0535 Vh=0.0467)
 Vp1c   src1c 0 PWL(0 13.5  0.2m 13.5  0.24m -136.5  2.24m -136.5
 +                   2.26m 13.5  3.5m 13.5)
 Rsrc1c src1c bat1c 10
@@ -214,7 +229,22 @@ Dneg_cl1   nschc1 vbuck_cl1 SCHN
 * closes on a RISING control voltage, so Bcl1 turns the sense around
 * and the threshold above is read against -v(vbuck_cl1).
 Bcl1  ncl1 0 V = -v(vbuck_cl1)
-Scl1  vbuck_cl1 0 ncl1 0 ACLAMP
+* THE DELAY THIS FILE USED TO LIST AS "NOT MODELLED", now sourced from
+* two retrieved datasheets rather than estimated:
+*     TLV3201-Q1   tPD  50 ns max  (TI SBOS856A, 20 mV overdrive)
+*     UCC27517A-Q1 tD1  23 ns max  (TI, VDD = 12 V, 1.8 nF)
+*     gate charge  ~20 ns          (4 A peak into the clamp FET's gate)
+*     total        ~100 ns
+* Modelled as a first-order lag, tau = 100 ns, not as an ideal delay
+* line: ngspice's lossless T element caps the timestep at its delay, and
+* at 100 ns that made the 370 ms pulse-3a run millions of steps long. A
+* first-order lag delays a RAMP by exactly tau -- and VIN's fall through
+* the threshold is a ramp, set by the pulse's own edge -- so the check in
+* run_sim.py MEASURES the engagement delay this produces rather than
+* assuming it.
+Rdl1  ncl1 ncl1d 1k
+Cdl1  ncl1d 0 100p
+Scl1  vbuck_cl1 0 ncl1d 0 ACLAMP
 Rload_cl1  vbuck_cl1 0 50
 
 * ---- Pulse 3a: -220 V (Level IV), 50 ohm, 0.1 ms, 5x at 90 ms ----
@@ -257,11 +287,22 @@ Rfet_cl3a   bat3ac vbuck_cl3a 8m
 Vsch_cl3a 0 nschc3a 0
 Dneg_cl3a   nschc3a vbuck_cl3a SCHN
 Bcl3a  ncl3a 0 V = -v(vbuck_cl3a)
-Scl3a  vbuck_cl3a 0 ncl3a 0 ACLAMP
+Rdl3a  ncl3a ncl3ad 1k
+Cdl3a  ncl3ad 0 100p
+Scl3a  vbuck_cl3a 0 ncl3ad 0 ACLAMP
 Rload_cl3a  vbuck_cl3a 0 50
 
 .control
-tran 1u 3.5m
+* 10 ns MAXIMUM TIMESTEP, and it is not optional. The active clamp is a
+* hysteretic switch behind a ~100 ns lag, and at the default step ngspice
+* committed the switch's state on a rejected trial step: the clamp
+* engaged with its lagged control at +0.04, below the +0.100 engage
+* threshold, and the run reported VIN bottoming at -0.068 V. Capped, VIN
+* crosses -100 mV, keeps falling for ~90 ns while the comparator and
+* driver react, and bottoms at about -0.18 V before the clamp pulls it
+* back. The uncapped number was optimistic by 2.6x and looked like a
+* result.
+tran 1u 3.5m 0 10n
 wrdata negative_pulses_p1.dat v(bat1) v(src1) i(Vamm1) v(vbuck_on1) v(vbuck_off1) v(vbuck_cl1) i(Vsch1)
 .endc
 

@@ -76,11 +76,47 @@ Checked by `negative_pulses.cir`: buck VIN reaches −0.068 V on pulse 1
 (4.4× inside the rating) and −0.027 V on pulse 3a (11×), against −0.528 V
 and −0.393 V with the Schottky alone.
 
-**Open, and bounded:** the comparator's propagation delay is not modelled.
-VIN sits at the Schottky's −0.53 V for exactly that long before the clamp
-engages. What changed is the size of the question — it was "is a 2 ms
-excursion acceptable," and it is now "is a sub-microsecond one," which a
-comparator datasheet answers.
+**Closed 22 September 2026 — and closing it found a latch the block had
+been reporting as a pass.**
+
+The control is **TLV3201-Q1** (50 ns max, push-pull, no phase inversion
+beyond the rails) into **UCC27517A-Q1** (4 A, 23 ns max at 12 V, output
+held low in UVLO). The comparator's 52 mA would take about half a
+microsecond to charge the clamp FET's gate; the driver takes nanoseconds.
+
+**The clamp is a low-side ideal diode, and it has to let go.** The model
+engaged it near VIN = +0.08 V and released it only above +0.12 V. At the
+end of every negative pulse the source returns to +13.5 V and drives
+current back through the still-on clamp — 1.35 A through 5 mΩ is 6.7 mV,
+never reaching the release threshold — so **the clamp latched on and
+shorted the source for the rest of the run.** `run_sim.py` checked only
+the clamp branch's *minimum* and reported it RESOLVED. A recovery check
+added the same day failed against it on both pulse 1 and pulse 3a. With a
+real battery instead of the test generator's 10 Ω, that is a dead short
+after the first negative pulse.
+
+The thresholds are now **engage below −100 mV, release above −6.8 mV**,
+from the drawn network and checked as arithmetic against it:
+
+| | |
+|---|---|
+| sense node | 10 kΩ from VIN, 499 kΩ from 5V_MAIN: 0.9804·VIN + 98.2 mV, so −100 mV arrives as 0 V and no negative reference is needed |
+| reference | 10 kΩ to ground, **536 kΩ** from the output: 0 V low, 91.6 mV high |
+| release, worst case | −6.8 mV nominal, **−1.8 mV** with the comparator's full 5 mV offset — still below zero, so it cannot hold on against reverse current (523 kΩ, the first value, sat at +0.5 mV) |
+
+**The window before it engages is now a number, and it is inside the
+rating.** With the ~100 ns delay (50 + 23 ns max plus gate charge) and a
+10 ns timestep cap, VIN crosses −100 mV, keeps falling ~90 ns, and
+bottoms at **−0.177 V** — inside the LM5164's −0.3 V by **1.70×**. The
+Schottky backstop barely conducts. The previous −0.068 V / 4.4× was
+optimistic by 2.6×: at the default step, ngspice committed the
+hysteretic switch on a rejected trial step and hid the dip.
+
+**Supplies are the power-up argument.** The comparator runs from
+5V_MAIN, which is dead whenever VIN is too low to run the buck — so it
+cannot hold the clamp on and short an incoming battery. The driver runs
+from 12V_GATE, held up ~400 ms by the boost reservoir, so the clamp keeps
+its gate through a whole pulse.
 
 ### Clamp Schottky
 
@@ -394,6 +430,7 @@ not constraints.
 | Supervisor | **TPS3850G33DRCT** | ±4% window variant, so its undervoltage trip clears the MCU's own LVD by 143 mV rather than 44 mV. |
 | Injector boost controller | **TPS40210QDGQRQ1** | Chosen on its **200 ns maximum off-time** — the one spec that makes 94% duty reachable at the 6 V cranking corner. See below. |
 | Gate drivers, all eight gates | **AUIRS2181STR** ×5 | **No cross-conduction interlock** — the injector's high and low switches are in series with the coil and must both be on. See below. |
+| Negative-clamp control | **TLV3201AQDCKRQ1** + **UCC27517AQDBVRQ1** | A low-side ideal diode: engage below −100 mV, release above −6.8 mV. See `NEG-CLAMP`. |
 | Current-sense amplifiers | **INA181A1QDBVRQ1** ×3 | VCM reaches −0.2 V, so it sits across a ground-referenced shunt; supplied from 3V3_MCU so its output is ADC-safe by construction. |
 
 ### `INA181A1QDBVRQ1` — one part, one gain, three channels

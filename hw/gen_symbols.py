@@ -607,6 +607,43 @@ INA181 = dict(
     hw=10.16)
 
 
+# --- TLV3201-Q1, comparator ------------------------------------------
+# Source: TI SBOS856A (Feb 2017, rev. Dec 2017), SC70-5 (DCK). tPD 50 ns
+# max, push-pull, VCC 2.7-5.5 V, VCM (VEE)-0.2 to (VCC)+0.2 V, inputs
+# current-limited beyond the rails are allowed to 10 mA, and "no phase
+# inversion" when they do -- which matters here, because the input it
+# senses goes 0.5 V below ground during the clamp's own engagement delay.
+TLV3201 = dict(
+    name="TLV3201", fp="Package_TO_SOT_SMD:SOT-353_SC-70-5",
+    ds="https://www.ti.com/lit/ds/symlink/tlv3201-q1.pdf",
+    mpn="TLV3201AQDCKRQ1",
+    desc="TI TLV3201-Q1 comparator, 50 ns max, push-pull, 2.7-5.5 V, no "
+         "phase inversion beyond the rails. AEC-Q100. SC70-5.",
+    keywords="comparator push-pull fast automotive TLV3201",
+    left=[("IN+", "3", "input"), ("IN-", "4", "input")],
+    right=[("OUT", "1", "output")],
+    top=[("VCC", "5", "power_in")],
+    bottom=[("GND", "2", "power_in")],
+    hw=10.16)
+
+# --- UCC27517A-Q1, single low-side gate driver ------------------------
+# Source: TI UCC27517A-Q1 datasheet, SOT-23-5 (DBV). 4 A source and sink,
+# VDD 4.5-18 V, tD1 23 ns max at 12 V, TTL input (VIN_H 2.4 V max),
+# outputs held LOW in UVLO.
+UCC27517A = dict(
+    name="UCC27517A", fp="Package_TO_SOT_SMD:SOT-23-5",
+    ds="https://www.ti.com/lit/ds/symlink/ucc27517a-q1.pdf",
+    mpn="UCC27517AQDBVRQ1",
+    desc="TI UCC27517A-Q1 single low-side gate driver, 4 A/4 A, 4.5-18 V, "
+         "23 ns max, output held low in UVLO. AEC-Q100. SOT-23-5.",
+    keywords="gate driver low side 4A automotive UCC27517A",
+    left=[("IN+", "3", "input"), ("IN-", "4", "input")],
+    right=[("OUT", "5", "output")],
+    top=[("VDD", "1", "power_in")],
+    bottom=[("GND", "2", "power_in")],
+    hw=10.16)
+
+
 def main():
     rows = list(csv.DictReader(open(PINS)))
     for r in rows:
@@ -677,7 +714,7 @@ def main():
     out.append(build_tps3850(g))
     icgeom["TPS3850G33"] = g
     for part in (LM5164, TLV76733, TCAN1042, OPAMP, COMPARATOR,
-                 TPS40210, AUIRS2181, INA181):
+                 TPS40210, AUIRS2181, INA181, TLV3201, UCC27517A):
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g

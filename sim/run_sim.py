@@ -526,19 +526,82 @@ def check_negative_pulses():
     vcl1_min, vcl3a_min = float(vbcl1.min()), float(vbcl3a.min())
     c.that("RESOLVED: buck VIN, pulse 1, with the active clamp", vcl1_min,
            LM5164_VIN_MIN, tol=None, ok=vcl1_min >= LM5164_VIN_MIN, unit="V")
-    c.that("  ... margin inside the rating", LM5164_VIN_MIN / vcl1_min, 4.4,
-           tol=None, ok=vcl1_min > LM5164_VIN_MIN, unit="x")
+    # RE-PINNED 22 Sep 2026, and all three of these moved for real
+    # reasons. They read -0.068 V / 4.4x / 7.7x with an INSTANT clamp and
+    # a default timestep. The clamp now carries the comparator-and-driver
+    # delay from two retrieved datasheets (TLV3201-Q1 50 ns + UCC27517A-Q1
+    # 23 ns + gate charge, ~100 ns) and the pulse-1 run a 10 ns timestep
+    # cap -- without which ngspice committed the hysteretic switch on a
+    # rejected trial step and hid the dip. VIN now crosses -100 mV, keeps
+    # falling ~90 ns, and bottoms at -0.177 V before the clamp pulls back.
+    c.that("  ... margin inside the rating", LM5164_VIN_MIN / vcl1_min, 1.70,
+           tol=0.1, unit="x")
+    c.that("  ... the dip past the -100 mV engage threshold is slew x delay",
+           (vcl1_min - (-0.100)) * 1e3, -77.0, tol=10.0, unit="mV")
     c.that("RESOLVED: buck VIN, pulse 3a, with the active clamp", vcl3a_min,
            LM5164_VIN_MIN, tol=None, ok=vcl3a_min >= LM5164_VIN_MIN, unit="V")
-    c.that("  ... margin inside the rating", LM5164_VIN_MIN / vcl3a_min, 11.0,
-           tol=None, ok=vcl3a_min > LM5164_VIN_MIN, unit="x")
+    # Pulse 3a's 50 ohm source and the node's 10 uF make VIN fall about
+    # five times slower than on pulse 1, so the same ~100 ns costs about a
+    # fifth as much -- -0.114 V against -0.177 V, consistent.
+    c.that("  ... margin inside the rating", LM5164_VIN_MIN / vcl3a_min, 2.62,
+           tol=0.15, unit="x")
     c.that("  ... and the improvement over the Schottky alone",
-           vbon1_min / vcl1_min, 7.7, tol=1.0, unit="x")
-    c.that("  ... NOT MODELLED: the comparator's propagation delay -- VIN "
-           "sits at the Schottky's clamp for exactly that long first",
-           "unbounded question was 'is a 2 ms excursion acceptable'; it is "
-           "now 'is a sub-microsecond one', which a comparator datasheet "
-           "answers", None, ok=True)
+           vbon1_min / vcl1_min, 2.99, tol=0.2, unit="x")
+
+    # THE CLAMP MUST LET GO. Added 22 Sep 2026, and it FAILED against the
+    # model as it stood: after pulse 1 ended, the Schottky-only branch
+    # recovered to 11.25 V and the active-clamp branch sat at 0.0067 V for
+    # the rest of the run. The clamp latched ON and shorted the returning
+    # 13.5 V source -- 1.35 A through its 5 mOhm, far below a release
+    # threshold set near +0.1 V. The checks above measured only the MOST
+    # NEGATIVE point of that branch and reported it RESOLVED; nothing
+    # asked whether it came back. With a real battery in place of the test
+    # generator's 10 ohm, that is a dead short after the first negative
+    # pulse. This clamp is a LOW-SIDE IDEAL DIODE and has to release the
+    # moment its current reverses.
+    pb = p1["vbuck_on1"]
+    t1 = p1["time"]
+    rec_on = float(np.mean(pb[t1 > 3.0e-3]))
+    rec_cl = float(np.mean(vbcl1[t1 > 3.0e-3]))
+    c.that("pulse 1: clamped VIN RECOVERS after the pulse", rec_cl, rec_on,
+           tol=0.05, unit="V")
+    c.that("  ... it does not latch into a short on the returning source",
+           rec_cl, 1.0, tol=None, ok=rec_cl > 10.0, unit="V")
+    p3 = p3a
+    t3 = p3["time"]
+    rec3_on = float(np.mean(p3["vbuck_on3a"][t3 > 365.5e-3]))
+    rec3_cl = float(np.mean(vbcl3a[t3 > 365.5e-3]))
+    c.that("pulse 3a: clamped VIN recovers after the fifth burst", rec3_cl,
+           rec3_on, tol=0.05, unit="V")
+    # The model's thresholds (-100 mV engage, -5 mV release) have to be
+    # what the DRAWN network produces, or the check above is about a
+    # circuit nobody built. hw/power_input.kicad_sch: sense node lifted by
+    # 10k from VIN and 499k from 5V_MAIN; reference 10k to ground and 523k
+    # from the comparator output (536k -- 523k put the worst case at
+    # +0.5 mV, above zero). Both ride on 5V_MAIN, so it cancels.
+    k = 499e3 / (10e3 + 499e3)
+    lift = 5.0 * 10e3 / (10e3 + 499e3)
+    ref_hi = 5.0 * 10e3 / (10e3 + 536e3)
+    engage = (0.0 - lift) / k
+    release = (ref_hi - lift) / k
+    c.that("drawn network: ENGAGE threshold at VIN", engage * 1e3, -100.2,
+           tol=0.5, unit="mV")
+    c.that("drawn network: RELEASE threshold at VIN", release * 1e3, -6.8,
+           tol=0.3, unit="mV")
+    c.that("  ... with TLV3201-Q1's full 5 mV offset against it, still "
+           "below zero -- the clamp cannot hold on against reverse current",
+           (release + 0.005) * 1e3, -1.8, tol=None, ok=release + 0.005 < 0.0,
+           unit="mV")
+    c.that("  ... and the model's ACLAMP thresholds are these two numbers",
+           "Vt=0.0535, Vh=0.0467: ON above control 0.1002, OFF below 0.0068 "
+           "-- the SW semantics measured on a ramp, not assumed", None,
+           ok=True)
+    c.that("  ... the question this block carried since 20 Sep: is the "
+           "sub-microsecond window before the clamp engages acceptable?",
+           "YES, and not marginally: VIN's fall rate is set by the 10 ohm "
+           "source into the node's 10 uF, so ~100 ns of delay costs 77 mV "
+           "past the threshold -- the Schottky backstop barely conducts",
+           None, ok=vcl1_min > LM5164_VIN_MIN)
 
     # ---- Q2: does the reverse-battery stage help or hurt ----
     # vbuck_off reproduces reverse_battery.cir's own optimistic, no-turn-off-
@@ -572,19 +635,19 @@ def check_negative_pulses():
     centers = [0.005, 0.095, 0.185, 0.275, 0.365]
     peaks = [float(bat3a[(t3 > cc - 0.2e-3) & (t3 < cc + 0.2e-3)].min())
              for cc in centers]
-    # Split the first pulse out from the rest. Pulses 2-5 are the burst
-    # proper; pulse 1 fires at t = 5 ms, while C1b is still settling from
-    # the run's own initial condition, so it is not a like-for-like
-    # sample. Lumping all five together read a 16 mV spread and looked
-    # like accumulation -- the split shows pulses 2-5 are identical to
-    # the printed precision and the whole spread is pulse 1's head start.
+    # CORRECTED 22 Sep 2026. This used to split repeat 1 out, explaining a
+    # 15.8 mV difference as "C1b still settling" when the first burst
+    # fires at 5 ms. It was not: C1b's time constant is 50 ohm x 10 uF =
+    # 0.5 ms, settled ten times over by 5 ms. The 15.8 mV was the solver's
+    # coarse default step overshooting at the 5 us burst edge -- the same
+    # artifact that inflated the clamp-diode peak below. Resolved finely,
+    # all FIVE repeats are identical, which is what the physics said.
     steady = peaks[1:]
     spread_steady = max(steady) - min(steady)
     c.that("burst: peak-to-peak spread across repeats 2-5 (accumulation "
            "would show up here)", spread_steady, 0.0, tol=1e-4, unit="V")
-    c.that("  ... and repeat 1 differs only by its own initial settling, "
-           "not by a trend", abs(peaks[0] - peaks[1]) * 1e3, 15.8, tol=3.0,
-           unit="mV")
+    c.that("  ... and repeat 1 matches them: nothing is still settling at "
+           "5 ms", abs(peaks[0] - peaks[1]) * 1e3, 0.0, tol=0.5, unit="mV")
     # A trend is what accumulation looks like. Monotonic drift across the
     # steady repeats would show here even if the spread stayed small.
     diffs = np.diff(steady)
@@ -617,8 +680,16 @@ def check_negative_pulses():
     c.that("  ... clamp diode energy, pulse 1", esch1 * 1e3, 14.5, tol=1.5,
            unit="mJ")
     isch3a_pk = float(np.abs(isch3a).max())
+    # CORRECTED 22 Sep 2026: pinned at 4.74 A, and that was a numerical
+    # overshoot. Checked on the UNCHANGED original netlist: at the default
+    # step the first burst reads 4.734 A; with a 0.1 us cap it reads
+    # 4.114 A -- equal to its own flat top and to the arithmetic,
+    # (206.5 - 0.4 V) / 50 ohm. A regression pin had been holding an
+    # integration error in place.
     c.that("  ... peak clamp-diode current, pulse 3a (50 ohm source, so "
-           "milder)", isch3a_pk, 4.74, tol=0.3, unit="A")
+           "milder)", isch3a_pk, 4.12, tol=0.05, unit="A")
+    c.that("  ... which is the flat-top current, (206.5 - 0.4) / 50 ohm",
+           (206.5 - 0.4) / 50.0, 4.12, tol=0.01, unit="A")
     # load_dump.cir's own class-typical ~0.5 J single-pulse bound, reused
     # deliberately (same TVS class, not re-derived) -- NOT the ~3 W continuous
     # bound, which would compare a 2 ms pulse against a steady-state rating
