@@ -339,6 +339,9 @@ ground plane, its connector footprint or its power path can be finished without 
   | **All 50 empty** | `TRIP_LOOP` needs a new contact **and** a new wire. Record the cavity you would use, so the board and the harness rework agree. |
 
 - [ ] **5.3 — Connector contact geometry (for the board-side footprint).**
+  **Now load-bearing (22 Sep 2026):** the owner decided the ECU carries this OEM
+  connector directly, with no adapter harness, so the board's own header is the
+  mating half of this plug.
   Connector unmated. Measure with calipers, and photograph with a scale in frame:
   **contact pitch** within a row, **row-to-row spacing**, and the **overall footprint**
   of the housing. If a contact can be seen down a cavity, photograph it.

@@ -507,18 +507,15 @@ that is recorded, not guessed.
 a connector pin *and* a harness wire — it is a new signal, not on the OEM
 diagram — which is field-brief task 5.2.
 
-**AND ONE DISAGREEMENT FOUND ON THE WAY, FOR A DECISION RATHER THAN A
-FIX.** Spec §7 deviation 1 — binding, and recorded as a choice — says
-the ECU uses **functionally-split sealed connectors** with an **adapter
-harness** to the unmodified OEM loom, and that the adapter "is a
-deliverable, not an afterthought". `hw/connector.kicad_sch` draws the
-**OEM 94-way Bosch connector on the board itself**, and field-brief task
-5.3 asks for its land pattern. The electrical content is identical either
-way — split connectors partition the same 41 nets — so nothing on the
-other nine sheets moves. What changes is the physical part on the PCB,
-whether an adapter harness exists, and where the 94-way's mating half
-lives. That is a scope decision and it is the user's, so the sheet was
-not redrawn.
+**Connector decided, 22 September 2026: the OEM Bosch 94-way.** Spec §7
+deviation 1 had said the ECU would use functionally-split sealed connectors
+with an adapter harness; `hw/connector.kicad_sch` drew the OEM 94-way on
+the board. The owner decided for the connector described in the field
+evidence — Bosch `1 928 405 192` / `194`, **code C** — so the sheet stands
+as drawn and the spec's deviation is struck through and marked reversed.
+No adapter harness. What that makes load-bearing: the board-side land
+pattern (field-brief task 5.3, via a Bosch distributor), code-C keying, and
+the loom's own answers to task 5.1 (power ground) and 5.2 (`TRIP_LOOP`).
 
 **The EGR bridge is drawn, 22 September 2026 — 7 → 2 open ends.** It had
 been blocked since 20 September on one datasheet: DRV8873-Q1's 40 V VM

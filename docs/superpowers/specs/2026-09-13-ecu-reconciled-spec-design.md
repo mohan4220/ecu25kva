@@ -833,10 +833,23 @@ the pulsed draw of two banks. Target voltage is set by the injector part — see
 
 Recorded so they are choices, not drift:
 
-1. **Connector split.** The OEM uses one 94-pin connector. We use functionally-split
+1. ~~**Connector split.** The OEM uses one 94-pin connector. We use functionally-split
    sealed connectors. This simplifies harness build and field diagnosis, at the cost
    of needing an adapter harness to mate with an unmodified Kirloskar loom. That
-   adapter is a deliverable, not an afterthought.
+   adapter is a deliverable, not an afterthought.~~
+
+   **REVERSED 22 September 2026, by the owner.** The ECU carries the **OEM connector
+   described in the field evidence** — Bosch `1 928 405 192` / `1 928 405 194`,
+   **code C**, 94-way, EDC17 family (`refs/field-evidence-2026-09-18.md` §2b) — and
+   plugs straight into the unmodified Kirloskar loom. **No adapter harness.** This is
+   no longer a deviation from the OEM design.
+
+   Consequences, all already reflected elsewhere: the board-side land pattern is now
+   load-bearing (field brief task 5.3, and a Bosch distributor quoting both numbers,
+   since neither returns a catalogue hit); **code C** keying must match exactly; and
+   the harness-side questions — which cavity is the power ground (task 5.1), and a
+   pin and wire for the new `TRIP_LOOP` (task 5.2) — are answered in the OEM loom
+   itself rather than designed into an adapter.
 2. **Onboard barometric sensor.** Not present in the OEM harness. Added on-PCB behind
    a vented port; costs nothing in harness terms and improves fuelling correction.
 3. **Independent overspeed path.** Added, per §3. The OEM does not have one.
