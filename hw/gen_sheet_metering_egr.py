@@ -45,11 +45,13 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import json
 import schlib
 from schlib import Sheet, Rail, pin_xy, r2, PINS
 
 HW = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HW, "metering_egr.kicad_sch")
+ICPINS = json.load(open(os.path.join(HW, "lib", "ic_pins.json")))
 GND_DROP = 7.62
 QP = PINS["Device:Q_NMOS_GSD"]
 
@@ -176,28 +178,78 @@ def metering(sh):
     sh.wire(kg[0], kg[1], kg[0] - 15.24, kg[1])
     sh.hlabel("GATE_KILL", kg[0] - 15.24, kg[1], shape="input", rot=180)
 
-    # ---- what drives the gate, and what has to be true of it ----
-    # MU_PWM arrives from the MCU and stops at the gate driver's input.
-    # The driver is not chosen, so the net is named and left there rather
-    # than wired into a symbol nobody has picked -- the same treatment
-    # power_input gives VBAT_REV_GATE and NCLAMP_GATE.
+    # ---- what drives the gate ----------------------------------------
+    # AUIRS2181S, chosen 21 Sep 2026 for the injector stage and used here
+    # for its LOW side only, so the whole board carries one gate-driver
+    # part number. The high side is tied off: HIN low, VS to COM, VB to
+    # VCC, HO unconnected.
     sh.hlabel("MU_PWM", 40.0, 235.0, shape="input")
     sh.wire(40.0, 235.0, 62.0, 235.0)
     sh.label("MU_DRV_IN", 62.0, 235.0)
+
+    dx, dy = 250.0, 222.0
+    sh.place("ecu25kva:AUIRS2181S", "U", dx, dy, "AUIRS2181S",
+             footprint="Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+             fields={"Source": "Infineon AUIRS2181(4)S datasheet",
+                     "Note": "LOW side only. The same part as the four "
+                             "injector drivers, so the board carries one "
+                             "gate-driver part number rather than two.",
+                     "Rout": "~8-11 ohm from the datasheet's 1.4/1.8 A "
+                             "minimum short-circuit current at 15 V -- "
+                             "inside supervisor.cir claim 2's 25 ohm "
+                             "ceiling, so the 470 ohm pulldown takes the "
+                             "gate to 11.7 V rather than dividing it down"})
+
+    def dpin(n):
+        dxy = ICPINS["AUIRS2181S"][n]
+        return pin_xy(dxy[0], dxy[1], dx, dy, 0)
+
+    def dstub(n, ddx, name):
+        pp = dpin(n)
+        sh.wire(pp[0], pp[1], pp[0] + ddx, pp[1])
+        sh.label(name, pp[0] + ddx, pp[1], rot=180 if ddx < 0 else 0)
+
+    dstub("2", -14.0, "MU_DRV_IN")
+    dstub("4", 14.0, "MU_GATE")
+    dstub("5", -22.0, "12V_GATE")
+    dstub("8", 14.0, "12V_GATE")
+    for n, ddx in (("1", -8.0), ("3", -30.0)):
+        pp = dpin(n)
+        sh.wire(pp[0], pp[1], pp[0] + ddx, pp[1])
+        gnd_below(sh, pp[0] + ddx, pp[1])
+    pp = dpin("6")
+    sh.wire(pp[0], pp[1], pp[0] + 22.0, pp[1])
+    gnd_below(sh, pp[0] + 22.0, pp[1])
+
+    # 12V_GATE arrives from the injector sheet, where it is made from the
+    # boost rail so it survives cranking.
+    # One hierarchical label on the bypass stub. A stub from the
+    # hierarchical label to a differently-named local one would only be
+    # an alias -- the injector sheet's GATE_KILL/HS_DRV_SD lesson -- and
+    # the local "12V_GATE" labels on the driver pins merge with this by
+    # name.
+    crail = Rail(sh, 272.0)
+    sh.wire(240.0, 266.0, 240.0, 272.0)
+    sh.hlabel("12V_GATE", 240.0, 266.0, shape="input", rot=90)
+    crail.to(240.0)
+    sh.place("Device:C", "C", 240.0, 286.0, "1uF 25V",
+             fields={"Note": "VCC bypass at the driver pin."})
+    ca = pin_xy(*PINS["Device:C"]["1"], 240.0, 286.0, 0)
+    cb = pin_xy(*PINS["Device:C"]["2"], 240.0, 286.0, 0)
+    c_top, c_bot = (ca, cb) if ca[1] < cb[1] else (cb, ca)
+    sh.wire(240.0, 272.0, c_top[0], c_top[1])
+    gnd_below(sh, c_bot[0], c_bot[1])
     sh.text(
-        "MU_GATE is driven by a gate driver that is NOT chosen. What it "
-        "has to be, from supervisor.cir claim 2 rather than from "
-        "preference:\n"
-        "  output impedance <= 25 ohm.  The 470 ohm pulldown is not a "
-        "perturbation on the driver, it is the bottom half of a divider "
-        "with it. At 100 ohm the gate\n"
-        "  reaches 8.25 V instead of 10 V -- the block measures the "
-        "assumed 100 ohm driver as too weak by 4.0x.\n"
-        "  Input compatible with a 3.3 V GPIO (PTD10 / FTM2_CH0), output "
-        "swinging to ~10 V, supplied from VBAT_PROT and therefore rated "
-        "for its 73.3 V worst case.\n"
-        "Same open-part treatment as power_input's two controller gates: "
-        "the requirement is drawn and named, the part is not guessed.",
+        "MU_GATE IS DRIVEN BY AN AUIRS2181S, low side only -- the same "
+        "part as the four injector drivers, so the board carries one "
+        "gate-driver part number. What it had to be, from\n"
+        "supervisor.cir claim 2: output impedance <= 25 ohm, because the "
+        "470 ohm pulldown is the bottom half of a divider with it. The "
+        "datasheet's 1.4/1.8 A minimum short-circuit\n"
+        "current at 15 V puts it at roughly 8-11 ohm, so the gate "
+        "reaches 11.7 V rather than being divided down. VCC is 12V_GATE, "
+        "made on the injector sheet from the boost\n"
+        "rail so that it survives cranking.",
         40.0, 255.0, size=1.5)
     sh.text(
         "ISNS_MU_SENSE goes to a current-sense amplifier, also not chosen. "

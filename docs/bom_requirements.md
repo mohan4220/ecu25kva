@@ -345,6 +345,83 @@ not constraints.
 | 3V3 regulator | **TLV76733QWDRBRQ1** | 1% over load *and* temperature. The supervisor makes that load-bearing. |
 | Supervisor | **TPS3850G33DRCT** | ±4% window variant, so its undervoltage trip clears the MCU's own LVD by 143 mV rather than 44 mV. |
 | Injector boost controller | **TPS40210QDGQRQ1** | Chosen on its **200 ns maximum off-time** — the one spec that makes 94% duty reachable at the 6 V cranking corner. See below. |
+| Gate drivers, all eight gates | **AUIRS2181STR** ×5 | **No cross-conduction interlock** — the injector's high and low switches are in series with the coil and must both be on. See below. |
+
+### `AUIRS2181STR` — chosen because it has *no* interlock
+
+**Infineon (International Rectifier) AUIRS2181(4)S**, datasheet dated
+10 January 2014, still hosted by Infineon. Retrieved and text-extracted
+this session. **Its first listed typical application is "Piezo / common
+rail Injection."** Confirm lifecycle status at sourcing — the datasheet
+is old even though the part is still listed.
+
+| | |
+|---|---|
+| Offset | VB **625 V** absolute maximum; VS operational **−5 V to +600 V** |
+| Supply | VCC 10–20 V; UVLO+ 8.0 / 8.9 / **9.8 V** max |
+| Logic | VIH 2.5 V min, VIL 0.8 V max — direct from a 3.3 V MCU pin |
+| Output | 1.9 A / 2.3 A typ, **1.4 A / 1.8 A min** short-circuit at 15 V |
+| Delay | 160 / 200 ns typ, 270 / 330 ns max |
+| Interlock | **None** on 2181/21814 (the 2183/2184 have it) |
+| Package | SOIC-8, AEC-Q100 |
+
+**Three properties chose it, each against a part that failed on it:**
+
+| Property | This part | Why it matters | Failed it |
+|---|---|---|---|
+| **No cross-conduction interlock** | none | In a half bridge, HO and LO together is shoot-through and every driver prevents it. Here the "high" and "low" switches are in **series with the coil** and must **both** be on for it to conduct at all | UCC27282-Q1, UCC27712-Q1 — could not fire an injector |
+| **Offset rating** | 625 V abs max, **5.4×** margin | Bank node ~103.8 V worst case, VB 12 V above it = 115.9 V | UCC27211A-Q1 — HB 120 V abs max, **4.1 V** of headroom |
+| **Negative VS** | operational to −5 V, clears by **3.7 V** | `D_fw` drops the bank node 1.0–1.3 V below ground on **every** hold off-time | UCC27211A-Q1 — HS DC min −1 V, **violated in normal operation** |
+
+The first is the one that is not a rating, and the one nobody searching
+a parametric table would filter for: the familiar reflex is that a
+half-bridge driver *without* interlock is the less safe choice. In this
+circuit interlock is not a safety feature, it is a failure to function.
+
+**Five in use.** Four on `injector` — each package pairs one high side
+with one low side, by package and not by circuit; UB2's low side is
+spare. One on `metering_egr`, low side only, so the board carries one
+gate-driver part number instead of two.
+
+**The kill path moves to `HIN`.** The part has no shutdown pin, and a
+ground-referenced FET cannot short a gate floating 100 V up. `HIN` *is*
+ground-referenced, so `supervisor.cir`'s kill FET goes there behind a
+1 kΩ from the MCU. It is slower than the low-side gate clamp — 330 ns
+maximum driver turn-off against 23 ns — and that is acceptable because
+it is not the path the fail-safe argument rests on: the low sides are in
+**series** with every coil, and killing any one stops that cylinder.
+
+Checked by `boost_converter`'s rating checks in `run_sim.py`.
+
+### `GATE-RAIL` — 12V_GATE, a discrete follower off the boost rail
+
+The board had no rail between 5 V and 40 V, and the drivers need
+10–20 V. **Its source is the boost rail, and the reason is cranking:** a
+regulator from `VBAT_PROT` cannot make 12 V from a 6–9 V cranking
+battery, and a gate rail that collapses during cranking means no
+injection exactly when the engine needs it. `BOOST_100V` is the one rail
+already designed to hold up from 6 V.
+
+**Not the LM5164 already on the board** — its VIN absolute maximum is
+**100 V** (TI datasheet §5.1), and this rail sits at ~102 V.
+
+| Part | Value | Why |
+|---|---|---|
+| Bias | 2 × 47 kΩ | 87 V split so neither resistor carries all of it; 0.87 mA |
+| Reference | 13 V zener | 13 V − Vbe − limit drop = **12.07 V** at 5 mA |
+| Pass | NPN, **Vceo ≥ 160 V**, DPAK, AEC-Q101 | 0.44 W at 5 mA; a shorted output puts the whole rail across it |
+| Limit | small-signal NPN + **56 Ω** | 0.65 V / 56 Ω = **11.6 mA**, holding a short to **1.16 W** |
+| Output | 10 µF 25 V | Holds through each driver's gate-charge pulse |
+
+Load is about 3 mA (five drivers' quiescent current plus gate charge),
+designed for 5 mA. **12V_GATE clears the drivers' UVLO+ ceiling by
+2.27 V.** Standing load on the boost is now 9.65 mA — bleed, gate rail
+and divider — of its 50 mA, and the peak-phase draw still recovers in
+8.48 ms against 26.67 ms between cylinders.
+
+**Its failure runs the safe way.** If the boost stops, 12V_GATE
+collapses, every driver drops into UVLO and holds its outputs low, and
+every gate on the board turns off.
 
 ### `TPS40210QDGQRQ1` — chosen on an off-time, not on an input range
 

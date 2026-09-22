@@ -29,17 +29,11 @@ ROOT = os.path.join(HW, "ecu25kva.kicad_sch")
 # chosen, a pin nobody has identified, or a circuit nobody has drawn.
 # Each is a real open item recorded elsewhere; none is a wiring mistake.
 EXPECTED_OPEN = {
-    # -- gate drivers and current-sense amplifiers, not chosen --
-    "/INJ_HS_A": "injector boost-side high driver not chosen",
-    "/INJ_HS_B": "injector boost-side high driver not chosen",
-    "/INJ_HS_A_BAT": "injector battery-side high driver not chosen",
-    "/INJ_HS_B_BAT": "injector battery-side high driver not chosen",
-    "/INJ_LS_1": "injector low-side driver not chosen",
-    "/INJ_LS_2": "injector low-side driver not chosen",
-    "/INJ_LS_3": "injector low-side driver not chosen",
+    # -- current-sense amplifiers, not chosen --
+    # (The eight gate-driver ends closed 21 Sep 2026: AUIRS2181S on every
+    # injector gate and the metering gate.)
     "/ISNS_INJ_A": "injector bank A current-sense amplifier not chosen",
     "/ISNS_INJ_B": "injector bank B current-sense amplifier not chosen",
-    "/MU_PWM": "metering unit gate driver not chosen",
     "/ISNS_MU": "metering unit current-sense amplifier not chosen",
     # -- power_input's two controller gates --
     "/power_input/VBAT_REV_GATE": "ideal-diode controller not chosen",
@@ -58,7 +52,7 @@ EXPECTED_OPEN = {
 
 # Nets that must span more than one sheet, because a rail that does not
 # is a rail that got disconnected by a rename.
-MUST_SPAN = ("GND", "/VBAT_PROT", "/3V3_MCU", "/5V_MAIN")
+MUST_SPAN = ("GND", "/VBAT_PROT", "/3V3_MCU", "/5V_MAIN", "/12V_GATE")
 
 # Supply pins that legitimately have no capacitor across them: the pin is
 # a return, or the "supply" is a bootstrap node whose capacitor IS the
@@ -72,7 +66,7 @@ NO_DECOUPLING_NEEDED = {
 # board by GND ALONE is a sheet whose signals never left -- one level up
 # from the local-label bug that made 5V_MAIN four nets. So the
 # connectivity check excludes these and asks again.
-GLOBAL_RAILS = {"GND", "/3V3_MCU", "/5V_MAIN", "/VBAT_PROT",
+GLOBAL_RAILS = {"GND", "/3V3_MCU", "/5V_MAIN", "/VBAT_PROT", "/12V_GATE",
                 "/5V_SENSOR_A", "/5V_SENSOR_B", "/5V_SENSOR_C"}
 
 

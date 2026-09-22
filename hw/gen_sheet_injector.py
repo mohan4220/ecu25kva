@@ -64,6 +64,7 @@ HW = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HW, "injector.kicad_sch")
 ICPINS = json.load(open(os.path.join(HW, "lib", "ic_pins.json")))
 BOOST = "ecu25kva:TPS40210"
+DRIVER = "ecu25kva:AUIRS2181S"
 GND_DROP = 7.62
 QP = PINS["Device:Q_NMOS_GSD"]
 
@@ -692,6 +693,214 @@ def boost_stage(sh):
         420.0, 442.0, size=1.6)
 
 
+def between(sh, x, y, libid, prefix, value, top, bot, fields, rot=0):
+    """A vertical two-terminal part between two labelled nets."""
+    sh.place(libid, prefix, x, y, value, rot=rot, fields=fields)
+    a = pin_xy(*PINS[libid]["1"], x, y, rot)
+    b = pin_xy(*PINS[libid]["2"], x, y, rot)
+    t, bo = (a, b) if a[1] < b[1] else (b, a)
+    sh.wire(t[0], t[1], t[0], t[1] - 5.0)
+    sh.label(top, t[0], t[1] - 5.0, rot=90)
+    sh.wire(bo[0], bo[1], bo[0], bo[1] + 5.0)
+    sh.label(bot, bo[0], bo[1] + 5.0, rot=270)
+
+
+def input_kill(sh, x, y, node):
+    """The kill clamp, moved to the driver's LOGIC input.
+
+    A ground-referenced FET cannot short a high-side gate floating 100 V
+    up, which is the finding this sheet already carries. The driver's HIN
+    pin IS ground-referenced, so the same supervisor.cir kill FET goes
+    there instead, behind a 1k from the MCU: when GATE_KILL asserts, HIN
+    is pulled low against a hung MCU driving it high, and HO follows
+    within the driver's 330 ns maximum turn-off delay.
+    """
+    kg, kd, ks = fet_pins(x, y)
+    sh.place("Device:Q_NMOS_GSD", "Q", x, y, "60V small-signal",
+             fields={"Source": "supervisor.cir -- the kill FET, moved to "
+                               "the driver's logic input",
+                     "Note": "Pulls HIN low against a hung MCU driving it "
+                             "high through the 1k. Slower than the "
+                             "low-side gate clamp -- 330 ns max driver "
+                             "turn-off against 23 ns -- and that is "
+                             "acceptable because it is not the path the "
+                             "fail-safe argument rests on: the low sides "
+                             "are in SERIES with every coil, and killing "
+                             "any one stops that cylinder's current."})
+    sh.wire(kd[0], kd[1], kd[0], kd[1] - 5.0)
+    sh.label(node, kd[0], kd[1] - 5.0, rot=90)
+    gnd_below(sh, ks[0], ks[1])
+    sh.wire(kg[0], kg[1], kg[0] - 12.0, kg[1])
+    sh.hlabel("GATE_KILL", kg[0] - 12.0, kg[1], shape="input", rot=180)
+
+
+def driver_cell(sh, cx, cy, tag, hin_src, lin, ho, vs, lo):
+    """One AUIRS2181S and its five supporting parts."""
+    sh.place(DRIVER, "U", cx, cy, "AUIRS2181S",
+             footprint="Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+             fields={"Source": "Infineon AUIRS2181(4)S datasheet, 10 Jan "
+                               "2014 -- 'Piezo / common rail Injection' is "
+                               "its first listed application",
+                     "Note": f"HO drives {ho}, referenced to {vs}. "
+                             + (f"LO drives {lo}." if lo else
+                                "LO is spare -- LIN tied low."),
+                     "Why": "NO cross-conduction interlock: the high and "
+                            "low switches here are in SERIES with the "
+                            "coil and must both be on to fire it"})
+
+    def pin(n):
+        return ic_pin("AUIRS2181S", n, cx, cy)
+
+    stub(sh, pin("1"), -12.0, f"{tag}_HIN")
+    if lin:
+        stub(sh, pin("2"), -12.0, lin)
+    else:
+        # Out past the COM stub's end before it drops. Dropping at -6 ran
+        # the ground tie straight down through the VCC and COM stubs: no
+        # connection in KiCad, since a crossing mid-span never connects,
+        # but a page that reads as if the spare input were tied to VCC.
+        lp = pin("2")
+        sh.wire(lp[0], lp[1], lp[0] - 30.0, lp[1])
+        gnd_below(sh, lp[0] - 30.0, lp[1])
+    stub(sh, pin("5"), -20.0, "12V_GATE")
+    cp = pin("3")
+    sh.wire(cp[0], cp[1], cp[0] - 26.0, cp[1])
+    gnd_below(sh, cp[0] - 26.0, cp[1])
+    stub(sh, pin("8"), 12.0, f"{tag}_VB")
+    stub(sh, pin("7"), 20.0, ho)
+    stub(sh, pin("6"), 28.0, vs)
+    if lo:
+        stub(sh, pin("4"), 36.0, lo)
+
+    ny = cy + 36.0
+    series_chain(
+        sh, cy + 20.0, cx - 58.0, hin_src,
+        [("Device:R", "R", "1k",
+          {"Note": "Between the MCU and HIN, so the kill FET below can "
+                   "override a hung MCU driving high: 3.3 mA into the "
+                   "FET, not a fight between two push-pull outputs."})],
+        f"{tag}_HIN")
+    input_kill(sh, cx + 30.0, ny, f"{tag}_HIN")
+    between(sh, cx - 44.0, ny, "Device:D", "D", "200V 1A fast",
+            "12V_GATE", f"{tag}_VB", rot=90,
+            fields={"Note": "Bootstrap diode -- the driver has none "
+                            "built in. Blocks VB, which rides 12 V above "
+                            "a bank node that reaches ~102 V: 200 V "
+                            "class. It charges whenever the bank node "
+                            "swings low: every hold off-time through "
+                            "D_fw, and between injections through the "
+                            "100k bleed."})
+    between(sh, cx - 26.0, ny, "Device:C", "C", "1uF 25V",
+            f"{tag}_VB", vs,
+            fields={"Note": "Bootstrap capacitor. A 60 nC gate over the "
+                            "38 us peak phase, plus 150 uA of IQBS, "
+                            "droops it 66 mV. Refreshed on every hold "
+                            "off-time, so even a 3 ms main injection "
+                            "never runs it down."})
+    to_gnd(sh, cx - 8.0, ny - 6.0, "Device:C", "C", "1uF 25V", "12V_GATE",
+           {"Note": "VCC bypass, at the pin."})
+
+
+def gate_rail(sh):
+    """12V_GATE: the supply every gate driver on the board runs from.
+
+    The board had no rail between 5 V and 40 V, and AUIRS2181S needs
+    10-20 V on VCC (UVLO+ 9.8 V max). THE SOURCE IS THE BOOST RAIL, and
+    the reason is cranking: a regulator from VBAT_PROT cannot make 12 V
+    from a 6-9 V cranking battery, and a gate rail that collapses during
+    cranking means no injection exactly when the engine needs it most.
+    BOOST_100V is the one rail on the board already designed to hold up
+    from 6 V -- that is what TPS40210-Q1 was chosen for.
+
+    NOT THE LM5164, although it is already on the board: its VIN absolute
+    maximum is 100 V (TI datasheet 5.1), and BOOST_100V sits at 99.7 V
+    nominal and ~102 V with the reference tolerance and a recirculation
+    bump. A discrete follower instead, because the load is tiny: five
+    drivers' quiescent current plus gate charge is about 3 mA, designed
+    for 5 mA.
+
+    FAILURE DIRECTION IS THE SAFE ONE. If the boost stops, 12V_GATE
+    collapses, every driver drops into UVLO and holds its outputs low,
+    and every gate on the board turns off.
+    """
+    sh.text("12V_GATE -- gate-drive supply for every driver on the board, "
+            "from the boost rail so it survives cranking", 610.0, 350.0,
+            size=1.8)
+    series_chain(
+        sh, 362.0, 610.0, "BOOST_100V",
+        [("Device:R", "R", "47k",
+          {"Note": "Zener bias, split in two so neither resistor carries "
+                   "the full 87 V. 0.87 mA total."}),
+         ("Device:R", "R", "47k", {"Note": "Second half."})],
+        "BASE_12V")
+    to_gnd(sh, 610.0, 392.0, "Device:D_Zener", "D", "13V", "BASE_12V",
+           {"Note": "Sets 12V_GATE: 13 V - one Vbe - the drop in the "
+                    "limit resistor = 12.1 V at 5 mA."}, rot=270)
+
+    qx, qy = 760.0, 382.0
+    sh.place("Device:Q_NPN_BCE", "Q", qx, qy, "NPN 160V, DPAK",
+             fields={"Note": "Pass transistor. 88 V across it at 5 mA is "
+                             "0.44 W; into a short, the limit below holds "
+                             "it to 11.6 mA and 1.16 W. Vceo >= 160 V -- "
+                             "the collector sits on a rail that reaches "
+                             "~102 V, and a shorted output puts all of it "
+                             "across the part.",
+                     "Class": "AEC-Q101, Vceo >= 160 V, DPAK"})
+    b = pin_xy(*PINS["Device:Q_NPN_BCE"]["1"], qx, qy, 0)
+    c = pin_xy(*PINS["Device:Q_NPN_BCE"]["2"], qx, qy, 0)
+    e = pin_xy(*PINS["Device:Q_NPN_BCE"]["3"], qx, qy, 0)
+    sh.wire(c[0], c[1], c[0], c[1] - 6.0)
+    sh.label("BOOST_100V", c[0], c[1] - 6.0, rot=90)
+    stub(sh, b, -10.0, "BASE_12V")
+    sh.wire(e[0], e[1], e[0], e[1] + 6.0)
+    sh.label("Q1E_12V", e[0], e[1] + 6.0, rot=270)
+
+    q2x = 810.0
+    sh.place("Device:Q_NPN_BCE", "Q", q2x, qy, "NPN small-signal",
+             fields={"Note": "Current limit. Conducts when the drop across "
+                             "the 56 ohm reaches one Vbe -- 0.65 V / 56 = "
+                             "11.6 mA -- and steals the pass transistor's "
+                             "base drive. Without it a shorted 12V_GATE "
+                             "gets hFE x the full bias current from a "
+                             "100 V rail."})
+    b2 = pin_xy(*PINS["Device:Q_NPN_BCE"]["1"], q2x, qy, 0)
+    c2 = pin_xy(*PINS["Device:Q_NPN_BCE"]["2"], q2x, qy, 0)
+    e2 = pin_xy(*PINS["Device:Q_NPN_BCE"]["3"], q2x, qy, 0)
+    sh.wire(c2[0], c2[1], c2[0], c2[1] - 6.0)
+    sh.label("BASE_12V", c2[0], c2[1] - 6.0, rot=90)
+    stub(sh, b2, -10.0, "Q1E_12V")
+    sh.wire(e2[0], e2[1], e2[0], e2[1] + 6.0)
+    sh.label("12V_GATE", e2[0], e2[1] + 6.0, rot=270)
+
+    series_chain(
+        sh, 412.0, 640.0, "Q1E_12V",
+        [("Device:R", "R", "56R",
+          {"Note": "The limit's sense resistor. 0.28 V drop at the 5 mA "
+                   "design load."})],
+        "12V_GATE")
+    to_gnd(sh, 720.0, 412.0, "Device:C", "C", "10uF 25V", "12V_GATE",
+           {"Note": "Holds the rail through each driver's gate-charge "
+                    "pulse."})
+    sh.wire(760.0, 420.0, 790.0, 420.0)
+    sh.label("12V_GATE", 760.0, 420.0, rot=180)
+    sh.hlabel("12V_GATE", 790.0, 420.0, shape="output")
+
+
+def gate_drivers(sh):
+    """Four AUIRS2181S: every injector gate, and one spare low side."""
+    sh.text("GATE DRIVERS -- AUIRS2181S x4. Each pairs one high side with "
+            "one low side; the pairing is by package, not by circuit.",
+            600.0, 150.0, size=1.8)
+    driver_cell(sh, 660.0, 172.0, "UA1", "HSA_BOOST_DRV_IN", "LS1_DRV_IN",
+                "HSA_BOOST_GATE", "INJ_A_03", "LS1_GATE")
+    driver_cell(sh, 775.0, 172.0, "UA2", "HSA_BAT_DRV_IN", "LS3_DRV_IN",
+                "HSA_BAT_GATE", "INJ_A_03", "LS3_GATE")
+    driver_cell(sh, 660.0, 262.0, "UB1", "HSB_BOOST_DRV_IN", "LS2_DRV_IN",
+                "HSB_BOOST_GATE", "INJ_B_05", "LS2_GATE")
+    driver_cell(sh, 775.0, 262.0, "UB2", "HSB_BAT_DRV_IN", None,
+                "HSB_BAT_GATE", "INJ_B_05", None)
+
+
 def notes(sh):
     sh.text(
         "A GROUND-REFERENCED KILL CLAMP CANNOT SERVICE A HIGH-SIDE GATE, "
@@ -713,38 +922,48 @@ def notes(sh):
         "same Miller-coupling divider supervisor.cir sized, just "
         "referenced to the terminal it has to be referenced to -- and the "
         "kill path moves into the driver: GATE_KILL must reach the\n"
-        "high-side driver's own shutdown input. That is a REQUIREMENT ON "
-        "THE UNCHOSEN PART, recorded against the driver rather than "
-        "drawn, and it is the sixth finding of the shape this\n"
+        "high-side driver's LOGIC INPUT. AUIRS2181S has no shutdown "
+        "pin, so the same kill FET sits on HIN behind a 1k from the "
+        "MCU -- the one ground-referenced point in that path. That is "
+        "drawn in the gate-driver block, and it is the sixth finding of "
+        "the shape this\n"
         "project keeps turning up: a document and an executable file "
         "agreeing with each other and both wrong about a case neither "
         "modelled.",
         40.0, 295.0, size=1.6)
     sh.text(
-        "PARTS NOT CHOSEN ON THIS SHEET. Seven gate drivers and two "
-        "current-sense amplifiers, on the same named-net treatment "
-        "power_input gives its two controller gates.\n"
+        "GATE DRIVERS: AUIRS2181S x4, chosen 21 Sep 2026. Its first "
+        "listed application is 'Piezo / common rail Injection', and "
+        "three properties decided it, each against a part\n"
+        "that failed on it. NO CROSS-CONDUCTION INTERLOCK: in a half "
+        "bridge HO and LO together is shoot-through, but here the high "
+        "and low switches are in SERIES with the coil\n"
+        "and must BOTH be on to fire it -- UCC27282-Q1 and UCC27712-Q1 "
+        "have interlock and could not fire an injector at all. 600 V "
+        "OFFSET, against UCC27211A-Q1's 120 V HB\n"
+        "absolute maximum, which the bank node plus 12 V clears by 4 V. "
+        "VS OPERATIONAL TO -5 V, against UCC27211A-Q1's -1 V HS DC "
+        "minimum, which D_fw violates on every hold\n"
+        "off-time at 1.0-1.3 V. Each package pairs one high side with "
+        "one low side; the pairing is by package, not by circuit, and "
+        "UB2's low side is spare.\n"
         "\n"
-        "  LOW-SIDE DRIVERS (LS1/LS2/LS3_DRV_IN -> *_GATE).  Output "
-        "impedance <= 25 ohm, from supervisor.cir claim 2: the 470 ohm "
-        "pulldown is not a perturbation on the driver, it is the\n"
-        "  bottom half of a divider with it, and at 100 ohm the gate "
-        "reaches 8.25 V instead of 10 V. 3.3 V logic in (PTC2/PTC3/PTB4, "
-        "FTM0_CH2/3/4), ~10 V out.\n"
-        "  HIGH-SIDE DRIVERS, FOUR OF THEM (HSA/HSB_BOOST_DRV_IN and _BAT_DRV_IN).  Both switches in a bank have their SOURCE on the same node, so ONE floating supply serves two gates.  Same "
-        "output impedance, but referenced to a source that swings to "
-        "100 V, so bootstrapped or isolated, rated above the\n"
-        "  rail, AND carrying a shutdown input for GATE_KILL per the note "
-        "above. Supplied from VBAT_PROT and therefore rated for its "
-        "73.3 V worst case.\n"
-        "  CURRENT-SENSE AMPLIFIERS (ISNS_INJ_A/B_SENSE -> PTC15 / "
-        "PTD19).  Ground-referenced -- that is the whole reason the "
-        "shunts went low-side -- gain about 33 to put 90 mV at\n"
-        "  full scale near 3.0 V, and bandwidth enough to resolve a 38 us "
-        "ramp to peak, so 100 kHz or better. A Kelvin tap at the shunt "
-        "pad, not a via into the ground pour: 90 mV sits\n"
-        "  on a return carrying 18 A and a few milliohms of pour between "
-        "pad and reference is the whole signal.",
+        "12V_GATE: the board had no rail between 5 V and 40 V, and the "
+        "drivers need 10-20 V. It is made from the BOOST rail, because "
+        "a regulator from the battery cannot make\n"
+        "12 V from a 6-9 V cranking battery -- and a gate rail that "
+        "collapses during cranking means no injection exactly when the "
+        "engine needs it. Not the LM5164 already on\n"
+        "the board: its VIN absolute maximum is 100 V and this rail sits "
+        "at ~102 V. A discrete follower with a current limit, for a "
+        "~3 mA load. If the boost stops, every driver\n"
+        "drops into UVLO and every gate turns off -- the failure runs "
+        "the safe way.\n"
+        "\n"
+        "STILL NOT CHOSEN: the two current-sense amplifiers "
+        "(ISNS_INJ_A/B_SENSE -> PTC15 / PTD19). Ground-referenced -- "
+        "that is why the shunts went low-side -- gain about 33,\n"
+        "100 kHz or better, and a Kelvin tap at the shunt pad.",
         40.0, 352.0, size=1.6)
     sh.text(
         "THE BOOST CONVERTER IS NOW DRAWN, AND THE PART WAS CHOSEN ON "
@@ -792,6 +1011,8 @@ def build():
                ref_base=schlib.REF_BASE["injector"])
     boost_rail(sh)
     boost_stage(sh)
+    gate_drivers(sh)
+    gate_rail(sh)
 
     high_side(sh, 190.0, "A (cyl 1+3)", "INJ_HS_A", "INJ_HS_A_BAT",
               "INJ_A_03", "HSA",
@@ -804,12 +1025,11 @@ def build():
               "rather than merged, because merging would put all three "
               "injectors behind one failure.")
 
-    sh.text("GATE_KILL reaches the four high sides through the driver's "
-            "own SHUTDOWN input, not through a clamp -- a ground-"
-            "referenced kill FET cannot short a gate\n"
-            "that floats 100 V up. Nothing is drawn for it here because "
-            "the driver is not chosen; see the note at the foot of the "
-            "sheet.", 150.0, 128.0, size=1.6)
+    sh.text("GATE_KILL reaches the four high sides at the drivers' HIN "
+            "inputs, not at the gates -- a ground-referenced kill FET "
+            "cannot short a gate\n"
+            "floating 100 V up, but HIN is ground-referenced. See the "
+            "gate-driver block on the right.", 150.0, 128.0, size=1.6)
 
     s1 = low_side(sh, 130.0, "INJ_LS_1", "INJ_LS1_73", "LS1_GATE",
                   "LS1_DRV_IN", 1)

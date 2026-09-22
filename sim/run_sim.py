@@ -1640,6 +1640,74 @@ def check_boost_converter():
            "200 ns of off-time is a floor in time, not in duty -- it "
            "costs 4% of the period at 150 kHz and 44% at 2.2 MHz", None,
            ok=d_max_fast < d_crank)
+
+    # -- gate drive, chosen 21 Sep 2026: AUIRS2181S on every gate ------
+    # Infineon AUIRS2181(4)S datasheet, 10 Jan 2014. Same treatment as
+    # the controller above: the datasheet's ratings against this
+    # board's operating points, as executable arithmetic.
+    BANK_MAX = 99.7 * 1.02 + 2.14   # FB reference +2%, one recirc bump
+    VGATE = 12.07                   # 12V_GATE at the 5 mA design load
+    VS_MIN = -1.3                   # D_fw at 18 A through a 20 A ultrafast
+    c.that("bank node worst case (reference +2%, one recirculation bump)",
+           BANK_MAX, 103.8, tol=0.2, unit="V")
+    vb = BANK_MAX + VGATE
+    c.that("  ... so VB reaches", vb, 115.8, tol=0.3, unit="V")
+    c.that("AUIRS2181S: VB absolute maximum 625 V, margin",
+           625.0 / vb, 5.40, tol=0.05, unit="x")
+    c.that("UCC27211A-Q1, the obvious 120 V candidate: HB margin",
+           120.0 / vb, 1.036, tol=0.01, unit="x")
+    c.that("  ... 4 V of headroom on an ABSOLUTE maximum -- rejected",
+           120.0 - vb, 4.2, tol=0.3, unit="V")
+    c.that("bank node's lowest point, D_fw conducting 18 A", VS_MIN, -1.3,
+           tol=0.05, unit="V")
+    c.that("  ... AUIRS2181S logic operational down to -5 V; clear by",
+           VS_MIN - (-5.0), 3.7, tol=0.05, unit="V")
+    c.that("  ... UCC27211A-Q1's HS DC minimum is -1 V -- violated in "
+           "NORMAL operation, not in a fault", VS_MIN < -1.0, True,
+           tol=None, ok=VS_MIN < -1.0, unit="")
+    # The one property that is not a rating. A half-bridge driver
+    # prevents HO and LO being on together, because in a half bridge
+    # that is shoot-through. Here the "high" and "low" switches are in
+    # SERIES with the coil and must BOTH be on for it to conduct.
+    c.that("cross-conduction interlock on AUIRS2181S",
+           "none (datasheet feature table: 2181 'no', 2183/2184 'yes') -- "
+           "UCC27282-Q1 and UCC27712-Q1 have it and could not fire an "
+           "injector at all", None, ok=True)
+
+    # Bootstrap: charges whenever the bank node swings low -- every hold
+    # off-time through D_fw, and between injections through the bleed.
+    droop = (60e-9 + 150e-6 * 38e-6) / 1e-6
+    c.that("bootstrap droop over the 38 us peak phase (60 nC, 150 uA IQBS, "
+           "1 uF)", droop * 1e3, 65.7, tol=1.0, unit="mV")
+
+    # -- 12V_GATE, from the boost rail so it survives cranking ---------
+    LM5164_VIN_ABSMAX = 100.0       # TI datasheet 5.1
+    c.that("why not the LM5164 already on the board: its VIN abs max",
+           LM5164_VIN_ABSMAX, 100.0, tol=0.1, unit="V")
+    c.that("  ... against the rail it would sit on", BANK_MAX,
+           LM5164_VIN_ABSMAX, tol=None, ok=BANK_MAX > LM5164_VIN_ABSMAX,
+           unit="V")
+    c.that("12V_GATE above the driver's UVLO+ ceiling (9.8 V) by",
+           VGATE - 9.8, 2.27, tol=0.05, unit="V")
+    ilim = 0.65 / 56.0
+    c.that("current limit: one Vbe across 56 ohm", ilim * 1e3, 11.6,
+           tol=0.2, unit="mA")
+    c.that("  ... against the 5 mA design load", ilim / 5e-3, 2.32,
+           tol=0.05, unit="x")
+    c.that("pass transistor, normal (88 V at 5 mA)",
+           (99.7 - VGATE) * 5e-3, 0.438, tol=0.01, unit="W")
+    c.that("  ... into a shorted output, held by the limit",
+           99.7 * ilim, 1.157, tol=0.02, unit="W")
+
+    # -- what the boost now carries continuously -----------------------
+    standing = 100.0 / 22e3 + 5e-3 + 100.0 / 1.005e6
+    c.that("standing load on the boost: bleed + gate rail + divider",
+           standing * 1e3, 9.65, tol=0.05, unit="mA")
+    t_rec = 342e-6 / (50e-3 - standing)
+    c.that("  ... so the peak-phase draw now recovers in", t_rec * 1e3,
+           8.48, tol=0.1, unit="ms")
+    c.that("  ... still inside the 26.67 ms between cylinders by",
+           26.67e-3 / t_rec, 3.15, tol=0.05, unit="x")
     return c
 
 

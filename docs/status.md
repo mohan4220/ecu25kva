@@ -486,6 +486,26 @@ neither number returns a catalogue hit, so the footprint has to come
 through a Bosch distributor. Same shape as the six findings above, and
 this one was mine: reading the older reference and not the newer one.
 
+**Gate drivers chosen, 21 September 2026: AUIRS2181S on all eight
+gates, and the open-end count fell from 20 to 12.** Its first listed
+application is common-rail injection, and the deciding property is one a
+parametric search would never filter for: it has **no cross-conduction
+interlock**. In a half bridge that is the less safe choice; here the high
+and low switches are in *series* with the coil and must both be on, so
+UCC27282-Q1 and UCC27712-Q1 — which have interlock — could not fire an
+injector at all. It also clears the two ratings the obvious 120 V part
+(UCC27211A-Q1) fails: 4.1 V of headroom on its HB absolute maximum, and a
+−1 V HS DC minimum that the freewheel diode violates on every hold
+off-time. The kill path moves to `HIN`, the one ground-referenced point
+in the high-side path.
+
+The drivers needed a rail the board did not have — 10–20 V — and **it is
+made from the boost rail** so it survives cranking. The LM5164 already on
+the board was the obvious candidate and is ruled out by its own VIN
+absolute maximum of 100 V against a ~102 V rail. A discrete follower with
+a current limit carries the ~3 mA; if the boost stops, every driver drops
+into UVLO and every gate turns off.
+
 **Choosing the second part found an error in the first sheet it touched.**
 The injector high side was drawn on 21 September with the battery
 feeding the bank node through a plain **diode-OR**, on the argument that

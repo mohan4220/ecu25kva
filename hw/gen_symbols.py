@@ -531,6 +531,52 @@ TPS40210 = dict(
     hw=13.97)
 
 
+# --- AUIRS2181S, high- and low-side gate driver -----------------------
+# Source: Infineon (International Rectifier) AUIRS2181(4)S datasheet,
+# 10 Jan 2014, still hosted by Infineon. "Lead Assignments", 8-lead SOIC.
+#
+# CHOSEN BECAUSE ITS FIRST LISTED APPLICATION IS "Piezo / common rail
+# Injection". Three properties decided it, each against a part that
+# failed on it:
+#
+#   NO CROSS-CONDUCTION INTERLOCK (datasheet feature table: 2181/21814
+#   "no", 2183/2184 "yes"). This is the non-obvious one. In a half
+#   bridge, HO and LO on together is a shoot-through and every driver
+#   prevents it. In an injector stage the "high" and "low" switches are
+#   NOT a half bridge -- they are in series with the coil, and BOTH MUST
+#   BE ON for the coil to conduct at all. A driver with interlock cannot
+#   fire an injector. UCC27282-Q1 and UCC27712-Q1 have it.
+#
+#   600 V OFFSET. The bank node reaches the boost rail, ~102 V with the
+#   reference tolerance and a recirculation bump, and VB rides 12 V above
+#   that. UCC27211A-Q1 -- the obvious 120 V candidate -- has HB absolute
+#   maximum 120 V and HS 115 V: 4.1 V of margin on an absolute maximum
+#   once the reference tolerance and one recirculation bump are counted
+#   (checked in run_sim.py under boost_converter).
+#
+#   VS OPERATIONAL TO -5 V. The freewheel diode drops the bank node below
+#   ground on every hold off-time, by 1.0-1.3 V at 10-18 A through a
+#   20 A ultrafast. UCC27211A-Q1's HS DC minimum is -1 V -- violated in
+#   normal operation, not in a fault.
+#
+# No integrated bootstrap diode (the typical connection shows it
+# external), no shutdown pin. The kill path therefore goes on HIN, where
+# the input is ground-referenced -- see hw/injector.kicad_sch.
+AUIRS2181 = dict(
+    name="AUIRS2181S", fp="Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+    ds="https://www.infineon.com/dgdl/auirs2181s.pdf",
+    mpn="AUIRS2181STR",
+    desc="Infineon AUIRS2181S high- and low-side gate driver, 600 V "
+         "offset, independent HIN/LIN with NO cross-conduction interlock, "
+         "VS operational to -5 V, VCC 10-20 V, 1.9/2.3 A. AEC-Q100. SOIC-8.",
+    keywords="gate driver high side low side bootstrap injector AUIRS2181",
+    left=[("HIN", "1", "input"), ("LIN", "2", "input"),
+          ("VCC", "5", "power_in"), ("COM", "3", "power_in")],
+    right=[("VB", "8", "power_in"), ("HO", "7", "output"),
+           ("VS", "6", "passive"), ("LO", "4", "output")],
+    hw=10.16)
+
+
 def main():
     rows = list(csv.DictReader(open(PINS)))
     for r in rows:
@@ -601,7 +647,7 @@ def main():
     out.append(build_tps3850(g))
     icgeom["TPS3850G33"] = g
     for part in (LM5164, TLV76733, TCAN1042, OPAMP, COMPARATOR,
-                 TPS40210):
+                 TPS40210, AUIRS2181):
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g
@@ -619,7 +665,7 @@ def main():
         json.dump(icgeom, f, indent=1, sort_keys=True)
     print(f"{OUT}: {total} pins in {len(units)} units, plus "
           f"TPS3850G33, LM5164, TLV76733, TCAN1042HGV, OPAMP_GENERIC, "
-          f"COMPARATOR_GENERIC, CONN_ECU_94, TPS40210")
+          f"COMPARATOR_GENERIC, CONN_ECU_94, TPS40210, AUIRS2181S")
     print(f"{LAYOUT}: {len(layout)} pin positions")
     print(f"{ICPINS}: " + ", ".join(f"{k} {len(v)}p"
                                     for k, v in sorted(icgeom.items())))
