@@ -346,6 +346,44 @@ not constraints.
 | Supervisor | **TPS3850G33DRCT** | ±4% window variant, so its undervoltage trip clears the MCU's own LVD by 143 mV rather than 44 mV. |
 | Injector boost controller | **TPS40210QDGQRQ1** | Chosen on its **200 ns maximum off-time** — the one spec that makes 94% duty reachable at the 6 V cranking corner. See below. |
 | Gate drivers, all eight gates | **AUIRS2181STR** ×5 | **No cross-conduction interlock** — the injector's high and low switches are in series with the coil and must both be on. See below. |
+| Current-sense amplifiers | **INA181A1QDBVRQ1** ×3 | VCM reaches −0.2 V, so it sits across a ground-referenced shunt; supplied from 3V3_MCU so its output is ADC-safe by construction. |
+
+### `INA181A1QDBVRQ1` — one part, one gain, three channels
+
+**TI SLYS018F**, April 2018, revised October 2024. Retrieved and
+text-extracted.
+
+| | |
+|---|---|
+| Common mode | **−0.2 V to 26 V** — covers a ground-referenced shunt |
+| Gain | 20 V/V (A1), ±1 % max over temperature |
+| Offset | **±150 µV max at VCM = 0 V**, 1 µV/°C max drift |
+| Bandwidth | 350 kHz (A1) |
+| Supply | 2.7–5.5 V; output swings to VS − 0.02 V |
+| CMRR | 84 dB min |
+
+| Channel | Shunt | Full scale | Where it sits |
+|---|---|---|---|
+| Injector bank A → `PTC15` | 5 mΩ | 1.80 V at 18 A peak, 1.00 V at 10 A hold | ADC0 |
+| Injector bank B → `PTD19` | 5 mΩ | same | ADC1 — simultaneous with bank A |
+| Metering → `PTC16` | 50 mΩ | 675 mV at the 0.675 A setpoint, 844 counts | ADC0 |
+
+**The gain is chosen for the injector.** 1.80 V at the peak leaves
+headroom to 3.28 V, so a fault current up to **32.8 A is measured rather
+than clipped** — which is what an overcurrent check needs. Offset is
+worth 30 mA of injector current (0.17 % of peak) and 3 mA of metering
+current (0.44 % of setpoint). Bandwidth resolves the 38 µs ramp to peak
+with about 0.45 µs of lag.
+
+**Supplied from 3V3_MCU, which makes the output ADC-safe by
+construction.** It cannot swing above VS − 0.02 V, so these three
+channels need no 3.3 V zener at the MCU pin — unlike every channel on
+`sensors_analog`, which arrives from the harness.
+
+**This closes `MU-ISENSE`'s open half.** That tag specified the 50 mΩ
+shunt and said "the amplifier below is not optional"; this is the
+amplifier. `IN−` goes to GND, and the tag's layout requirement stands: a
+Kelvin tap at the shunt's own ground pad, not a via into the pour.
 
 ### `AUIRS2181STR` — chosen because it has *no* interlock
 

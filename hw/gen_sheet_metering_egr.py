@@ -91,25 +91,29 @@ def metering(sh):
     sh.hlabel("VBAT_PROT", d_hi[0], d_hi[1] - 10.16, shape="input", rot=90)
 
     # ---- the switch ----
-    qx = 130.0
-    drain.to(qx)
+    # rot=0, not 270: at 270 the drain and source sit side by side and
+    # every wire to a rail above or below comes out DIAGONAL. The page
+    # plotted that way from 20 Sep until the injector sheet found the
+    # same bug; the netlist was always right, the drawing was not.
+    qx = 127.46
+    drain.to(qx + 2.54)
     sh.place("Device:Q_NMOS_GSD", "Q", qx, dy + 20.0, "100V logic-level N-ch",
-             rot=270,
+             rot=0,
              fields={"Source": "metering_unit_pwm.cir NSW (Ron 25 mOhm); "
                                "rail class from transient_clamp.cir",
                      "Note": "100 V class because it sits on VBAT_PROT, "
                              "which reaches 73.3 V on ISO 7637-2 pulse 2a",
                      "Rds_on": "25 mOhm modelled"})
-    # rot 270: drain up, source down, gate to the left.
-    qd = pin_xy(*QP["3"], qx, dy + 20.0, 270)
-    qs = pin_xy(*QP["2"], qx, dy + 20.0, 270)
-    qg = pin_xy(*QP["1"], qx, dy + 20.0, 270)
-    sh.wire(qx, dy, qd[0], qd[1])
+    # rot 0: drain up, source down, gate to the left.
+    qd = pin_xy(*QP["3"], qx, dy + 20.0, 0)
+    qs = pin_xy(*QP["2"], qx, dy + 20.0, 0)
+    qg = pin_xy(*QP["1"], qx, dy + 20.0, 0)
+    sh.wire(qd[0], dy, qd[0], qd[1])
     src = Rail(sh, qs[1])
     src.to(qs[0])
 
     # ---- the sense shunt: a schematic part, not a firmware detail ----
-    shx = 130.0
+    shx = qs[0]
     sh.place("Device:R", "R", shx, qs[1] + 20.0, "50mOhm 1%",
              fields={"Source": "bom_requirements MU-ISENSE; "
                                "metering_unit_pwm.cir Rsh4",
@@ -131,6 +135,8 @@ def metering(sh):
     # is the whole signal.
     sh.wire(s_top[0], s_top[1], s_top[0] + 25.4, s_top[1])
     sh.label("ISNS_MU_SENSE", s_top[0] + 25.4, s_top[1])
+    sense_amp(sh, 222.0, s_top[1] + 4.0, "ISNS_MU_SENSE", "ISNS_MU",
+              "50 mOhm x 0.675 A x 20 = 675 mV at the setpoint, 844 ADC counts. Same part and gain as the injector channels, so the board carries one sense-amp part number. -> PTC16 (ADC0_SE14).")
 
     # ---- the fail-safe gate network ----
     # supervisor.cir sized this: 470 ohm is the largest standard pulldown
@@ -268,6 +274,62 @@ def metering(sh):
         "already assumes, and it is why metering_unit_pwm.cir models the "
         "regulator as hysteretic rather than as a fixed duty.",
         40.0, 300.0, size=1.5)
+
+
+def sense_amp(sh, cx, cy, in_label, out_net, note, supply_hier=True):
+    """INA181A1-Q1 across a ground-referenced shunt.
+
+    IN- goes to GND, and that is a LAYOUT instruction the netlist cannot
+    carry: it must be a Kelvin tap at the shunt's own ground pad, not a
+    via into the pour, because tens of millivolts of signal sit on a
+    return carrying the full load current and a few milliohms of pour
+    between pad and amplifier is the whole signal.
+    """
+    import json as _json
+    geom = _json.load(open(os.path.join(HW, "lib", "ic_pins.json")))["INA181A1"]
+
+    def p(n):
+        return pin_xy(geom[n][0], geom[n][1], cx, cy, 0)
+
+    sh.place("ecu25kva:INA181A1", "U", cx, cy, "INA181A1",
+             footprint="Package_TO_SOT_SMD:SOT-23-6",
+             fields={"Source": "TI SLYS018F -- gain 20, 350 kHz, VCM "
+                               "-0.2 V to 26 V, offset +/-150 uV at VCM=0",
+                     "Note": note,
+                     "Layout": "IN- is a KELVIN tap at the shunt's ground "
+                               "pad, not a via into the pour"})
+    a = p("3")
+    sh.wire(a[0], a[1], a[0] - 14.0, a[1])
+    sh.label(in_label, a[0] - 14.0, a[1], rot=180)
+    b = p("4")
+    sh.wire(b[0], b[1], b[0] - 6.0, b[1])
+    sh.wire(b[0] - 6.0, b[1], b[0] - 6.0, b[1] + 8.0)
+    sh.gnd(b[0] - 6.0, b[1] + 8.0)
+    for n in ("2", "5"):
+        q = p(n)
+        sh.wire(q[0], q[1], q[0], q[1] + 7.62)
+        sh.gnd(q[0], q[1] + 7.62)
+    v = p("6")
+    sh.wire(v[0], v[1], v[0], v[1] - 6.0)
+    if supply_hier:
+        sh.hlabel("3V3_MCU", v[0], v[1] - 6.0, shape="input", rot=90)
+    else:
+        sh.label("3V3_MCU", v[0], v[1] - 6.0, rot=90)
+    o = p("1")
+    sh.wire(o[0], o[1], o[0] + 14.0, o[1])
+    sh.hlabel(out_net, o[0] + 14.0, o[1], shape="output")
+    # Bypass beside it, on the same supply name.
+    bx = cx + 24.0
+    sh.wire(bx, cy - 16.0, bx, cy - 10.0)
+    sh.label("3V3_MCU", bx, cy - 16.0, rot=90)
+    sh.place("Device:C", "C", bx, cy - 5.0, "100nF",
+             fields={"Note": "At the VS pin."})
+    ca = pin_xy(*PINS["Device:C"]["1"], bx, cy - 5.0, 0)
+    cb = pin_xy(*PINS["Device:C"]["2"], bx, cy - 5.0, 0)
+    ct, cbo = (ca, cb) if ca[1] < cb[1] else (cb, ca)
+    sh.wire(bx, cy - 10.0, ct[0], ct[1])
+    sh.wire(cbo[0], cbo[1], cbo[0], cbo[1] + 7.62)
+    sh.gnd(cbo[0], cbo[1] + 7.62)
 
 
 def egr_blocked(sh):

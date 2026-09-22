@@ -577,6 +577,36 @@ AUIRS2181 = dict(
     hw=10.16)
 
 
+# --- INA181A1-Q1, current-sense amplifier ----------------------------
+# Source: TI SLYS018F (Apr 2018, rev. Oct 2024), Table 5-1, SOT-23-6
+# (DBV). Gain 20 V/V (A1), 350 kHz, VCM -0.2 V to 26 V, VS 2.7-5.5 V,
+# offset +/-150 uV max at VCM = 0 V.
+#
+# ONE PART NUMBER FOR ALL THREE CHANNELS, and the gain is chosen for the
+# injector's sake: 5 mOhm x 18 A x 20 = 1.80 V at the peak, leaving
+# headroom to 3.28 V -- so a fault current up to 32.8 A is still
+# MEASURED rather than clipped, which is what an overcurrent check
+# needs. The metering channel takes the same gain and reads its
+# 0.675 A setpoint at 675 mV, 844 ADC counts.
+#
+# SUPPLIED FROM 3V3_MCU, which makes the output ADC-safe by
+# construction: it cannot swing above VS - 0.02 V, so these three
+# channels need no 3.3 V zener at the MCU pin, unlike every channel on
+# sensors_analog.
+INA181 = dict(
+    name="INA181A1", fp="Package_TO_SOT_SMD:SOT-23-6",
+    ds="https://www.ti.com/lit/ds/symlink/ina181-q1.pdf",
+    mpn="INA181A1QDBVRQ1",
+    desc="TI INA181A1-Q1 current-sense amplifier, gain 20, 350 kHz, "
+         "VCM -0.2 V to 26 V, VS 2.7-5.5 V. AEC-Q100 grade 1. SOT-23-6.",
+    keywords="current sense amplifier shunt automotive INA181",
+    left=[("IN+", "3", "input"), ("IN-", "4", "input")],
+    right=[("OUT", "1", "output")],
+    top=[("VS", "6", "power_in")],
+    bottom=[("GND", "2", "power_in"), ("REF", "5", "input")],
+    hw=10.16)
+
+
 def main():
     rows = list(csv.DictReader(open(PINS)))
     for r in rows:
@@ -647,7 +677,7 @@ def main():
     out.append(build_tps3850(g))
     icgeom["TPS3850G33"] = g
     for part in (LM5164, TLV76733, TCAN1042, OPAMP, COMPARATOR,
-                 TPS40210, AUIRS2181):
+                 TPS40210, AUIRS2181, INA181):
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g
@@ -665,7 +695,7 @@ def main():
         json.dump(icgeom, f, indent=1, sort_keys=True)
     print(f"{OUT}: {total} pins in {len(units)} units, plus "
           f"TPS3850G33, LM5164, TLV76733, TCAN1042HGV, OPAMP_GENERIC, "
-          f"COMPARATOR_GENERIC, CONN_ECU_94, TPS40210, AUIRS2181S")
+          f"COMPARATOR_GENERIC, CONN_ECU_94, TPS40210, AUIRS2181S, INA181A1")
     print(f"{LAYOUT}: {len(layout)} pin positions")
     print(f"{ICPINS}: " + ", ".join(f"{k} {len(v)}p"
                                     for k, v in sorted(icgeom.items())))

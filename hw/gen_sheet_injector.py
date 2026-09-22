@@ -901,6 +901,62 @@ def gate_drivers(sh):
                 "HSB_BAT_GATE", "INJ_B_05", None)
 
 
+def sense_amp(sh, cx, cy, in_label, out_net, note, supply_hier=True):
+    """INA181A1-Q1 across a ground-referenced shunt.
+
+    IN- goes to GND, and that is a LAYOUT instruction the netlist cannot
+    carry: it must be a Kelvin tap at the shunt's own ground pad, not a
+    via into the pour, because tens of millivolts of signal sit on a
+    return carrying the full load current and a few milliohms of pour
+    between pad and amplifier is the whole signal.
+    """
+    import json as _json
+    geom = _json.load(open(os.path.join(HW, "lib", "ic_pins.json")))["INA181A1"]
+
+    def p(n):
+        return pin_xy(geom[n][0], geom[n][1], cx, cy, 0)
+
+    sh.place("ecu25kva:INA181A1", "U", cx, cy, "INA181A1",
+             footprint="Package_TO_SOT_SMD:SOT-23-6",
+             fields={"Source": "TI SLYS018F -- gain 20, 350 kHz, VCM "
+                               "-0.2 V to 26 V, offset +/-150 uV at VCM=0",
+                     "Note": note,
+                     "Layout": "IN- is a KELVIN tap at the shunt's ground "
+                               "pad, not a via into the pour"})
+    a = p("3")
+    sh.wire(a[0], a[1], a[0] - 14.0, a[1])
+    sh.label(in_label, a[0] - 14.0, a[1], rot=180)
+    b = p("4")
+    sh.wire(b[0], b[1], b[0] - 6.0, b[1])
+    sh.wire(b[0] - 6.0, b[1], b[0] - 6.0, b[1] + 8.0)
+    sh.gnd(b[0] - 6.0, b[1] + 8.0)
+    for n in ("2", "5"):
+        q = p(n)
+        sh.wire(q[0], q[1], q[0], q[1] + 7.62)
+        sh.gnd(q[0], q[1] + 7.62)
+    v = p("6")
+    sh.wire(v[0], v[1], v[0], v[1] - 6.0)
+    if supply_hier:
+        sh.hlabel("3V3_MCU", v[0], v[1] - 6.0, shape="input", rot=90)
+    else:
+        sh.label("3V3_MCU", v[0], v[1] - 6.0, rot=90)
+    o = p("1")
+    sh.wire(o[0], o[1], o[0] + 14.0, o[1])
+    sh.hlabel(out_net, o[0] + 14.0, o[1], shape="output")
+    # Bypass beside it, on the same supply name.
+    bx = cx + 24.0
+    sh.wire(bx, cy - 16.0, bx, cy - 10.0)
+    sh.label("3V3_MCU", bx, cy - 16.0, rot=90)
+    sh.place("Device:C", "C", bx, cy - 5.0, "100nF",
+             fields={"Note": "At the VS pin."})
+    ca = pin_xy(*PINS["Device:C"]["1"], bx, cy - 5.0, 0)
+    cb = pin_xy(*PINS["Device:C"]["2"], bx, cy - 5.0, 0)
+    ct, cbo = (ca, cb) if ca[1] < cb[1] else (cb, ca)
+    sh.wire(bx, cy - 10.0, ct[0], ct[1])
+    sh.wire(cbo[0], cbo[1], cbo[0], cbo[1] + 7.62)
+    sh.gnd(cbo[0], cbo[1] + 7.62)
+
+
 def notes(sh):
     sh.text(
         "A GROUND-REFERENCED KILL CLAMP CANNOT SERVICE A HIGH-SIDE GATE, "
@@ -1013,6 +1069,11 @@ def build():
     boost_stage(sh)
     gate_drivers(sh)
     gate_rail(sh)
+    sh.text("CURRENT SENSE -- INA181A1-Q1 per bank, gain 20", 705.0, 452.0, size=1.6)
+    sense_amp(sh, 755.0, 478.0, "ISNS_INJ_A_SENSE", "ISNS_INJ_A",
+              "Bank A. 5 mOhm x 18 A x 20 = 1.80 V at the peak, 1.00 V at the 10 A hold -- and headroom to 3.28 V, so a fault up to 32.8 A is MEASURED, not clipped. -> PTC15 (ADC0_SE13).")
+    sense_amp(sh, 755.0, 540.0, "ISNS_INJ_B_SENSE", "ISNS_INJ_B",
+              "Bank B. Same scaling. On ADC1 while bank A is on ADC0, so the two can be sampled simultaneously. -> PTD19 (ADC1_SE17).", supply_hier=False)
 
     high_side(sh, 190.0, "A (cyl 1+3)", "INJ_HS_A", "INJ_HS_A_BAT",
               "INJ_A_03", "HSA",

@@ -486,6 +486,15 @@ neither number returns a catalogue hit, so the footprint has to come
 through a Bosch distributor. Same shape as the six findings above, and
 this one was mine: reading the older reference and not the newer one.
 
+**Current sense chosen, 22 September 2026: INA181A1-Q1 on all three
+channels, 12 → 9 open ends.** One part and one gain — 20 — set for the
+injector, so the 18 A peak reads 1.80 V and a fault to 32.8 A is still
+measured rather than clipped. Supplied from 3V3_MCU, which makes its
+output ADC-safe by construction and removes the need for a clamp. The
+metering FET was also redrawn: it had been placed at `rot=270` since
+20 September, which gives diagonal drain and source wires — the same
+drawing bug the injector sheet had, fixed there first.
+
 **Gate drivers chosen, 21 September 2026: AUIRS2181S on all eight
 gates, and the open-end count fell from 20 to 12.** Its first listed
 application is common-rail injection, and the deciding property is one a

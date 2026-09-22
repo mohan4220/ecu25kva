@@ -29,12 +29,9 @@ ROOT = os.path.join(HW, "ecu25kva.kicad_sch")
 # chosen, a pin nobody has identified, or a circuit nobody has drawn.
 # Each is a real open item recorded elsewhere; none is a wiring mistake.
 EXPECTED_OPEN = {
-    # -- current-sense amplifiers, not chosen --
-    # (The eight gate-driver ends closed 21 Sep 2026: AUIRS2181S on every
-    # injector gate and the metering gate.)
-    "/ISNS_INJ_A": "injector bank A current-sense amplifier not chosen",
-    "/ISNS_INJ_B": "injector bank B current-sense amplifier not chosen",
-    "/ISNS_MU": "metering unit current-sense amplifier not chosen",
+    # (Closed 21-22 Sep 2026: the eight gate-driver ends, AUIRS2181S on
+    # every injector gate and the metering gate; and the three
+    # current-sense ends, INA181A1-Q1.)
     # -- power_input's two controller gates --
     "/power_input/VBAT_REV_GATE": "ideal-diode controller not chosen",
     "/power_input/NCLAMP_GATE": "negative-clamp comparator not chosen",
