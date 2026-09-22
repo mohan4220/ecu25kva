@@ -479,7 +479,74 @@ not constraints.
 | Crank-pair TVS | **SMAJ48CA-HE3** | 48 V standoff, 53.3–58.9 V breakdown, 400 W, AEC-Q101. |
 | 12 V clamps | **BZX84-C12-Q** ×2, **BZX84-C13-Q** | GATE_KILL, reverse-FET gate, 12V_GATE reference. SOT-23 with pin 3 as the cathode, so the project's `SOT-23_Zener_K1_A2` footprint is used. The GATE_KILL zener's first footprint, the stock SOT-23, had its anode where the symbol puts the cathode. |
 | VDD clamp | **BZG03C36-HM3** | See `BOOST-VDD-CLAMP`: it replaced a 43 V clamp that did not clamp. |
+| Buck inductor | **Würth 7447714330** | WE-PD 1050, 33 µH, Isat 2.9 A typ against a 1.18 A worst peak (1.72× after a −30% hot derate), 79 mΩ, AEC-Q200 Grade 1. This closes the Isat gap `buck_preregulator.cir` left open. Land pattern not in KiCad 7. |
 | 12V_GATE pass / limit | **PZTA42-Q**, **PMBT3904-Q** | See `GATE-RAIL`. PMBT3904-Q is SOT-23 B-E-C, so it uses the `Q_NPN_BEC` symbol. |
+
+### `POWER-PATH` — what the input filter and reverse FET actually carry (OPEN)
+
+Every high-current load on the board draws from VBAT_PROT: the injector
+battery switches (10 A hold), the EGR bridge (up to 6.4 A stall) and
+the relay coils. VBAT_PROT is fed through connector pin 21, then the
+20 A fuse, the 22 µH + 0.5 µH EMI filter, the TVS and the reverse FET.
+Two blocks sized parts on that path, and neither was written with this
+load in mind:
+
+- `reverse_battery.cir` states its claim at **5 A** (0.2 V).
+- `emi_filter.cir` was written for the buck's 400 kHz noise and never
+  states a DC current.
+
+A 22 µH inductor that does not saturate at 15–20 A is a large part.
+
+The connector has two more battery feeds, pins **04** and **06**
+(`V_BAT_1R/2R`, each fused 10 A in the loom). The spec says they "feed
+high-current loads [?]", and the board uses them only as ADC senses.
+Moving the injector and EGR supply onto 04/06, with its own protection,
+would leave pin 21 feeding the electronics: a few amps through the
+filter. Keeping everything on pin 21 means resizing the filter, the fuse
+and the reverse FET for the full load, and relying on one contact to
+carry it.
+
+**This is an architecture decision.** L101, L102 and F101 stay unchosen
+until it is made.
+
+### `BOOST-SLOPE` — current-mode stability constrains the boost inductor (OPEN)
+
+TPS40210-Q1 applies a fixed internal ramp of fSW × VDD / 20. TI's
+Equation 9 (SLVS861F §7.3.3) therefore caps the sense resistor at
+`VDD·L·fSW / (60·(VOUT + VD − VIN))`, and TI recommends 80% of that.
+
+| | 330 µH, VDD ≈ battery |
+|---|---|
+| 13.5 V in | ceiling 99.7 mΩ (at 80%): 82 mΩ **passes** |
+| 6 V cranking, VDD 5.16 V | ceiling 44.9 mΩ (at 100%): 82 mΩ **fails**, 1.83× over |
+
+The failure is subharmonic oscillation while cranking. TI says the
+voltage loop still regulates, but ripple grows. The inductor makes it
+worse. A 330 µH part rated to saturate above the 2.2 A current limit is
+not a part that exists in SMD: the search found 330 µH parts at
+0.2–0.4 A. The buildable direction is a smaller inductor, which lowers
+the ceiling further: 100 µH allows 30 mΩ.
+
+TI's own remedy is to feed VDD from the output side for a steeper ramp.
+VDD's 52 V absolute maximum rules out connecting it to the 100 V rail
+directly; it would need a clamped feed, such as the 36 V zener that is
+already there. Either that, or accept subharmonic operation while
+cranking. **L401 stays unchosen** until one of those is decided. The
+candidate at 100 µH is Würth **7447709101**: WE-PD 1260, Isat 3.1 A typ,
+110 mΩ max, AEC-Q200 Grade 1.
+
+### `SENSOR-PTC` — real PTCs are not specified the way this was written (OPEN)
+
+The requirement below asks for R25 = 3.0 Ω nominal with a −30% spread.
+PTC datasheets do not work that way. Bourns MF-USMF020 (AEC-Q200) is
+specified as a **range, 0.40–5.00 Ω**. At its 0.40 Ω minimum it
+contributes 0.14× of the 2.78 Ω the fault-current ceiling needs. Its
+hold current also derates from 0.20 A at 23 °C to **0.10 A at 85 °C**,
+half the requirement.
+
+The fault-current ceiling has to come from a fixed series resistor, or
+from the regulator's own limit, with the PTC only doing the tripping.
+Its hold current then has to be chosen at the hot corner.
 
 ### `LOWV-CLAMP` — the 3.0 V and 3.3 V input clamps (OPEN)
 

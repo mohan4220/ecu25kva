@@ -211,6 +211,11 @@ CHOSEN = {
         "SMAJ48CA-HE3", "Diode_SMD:D_SMA",
         "Vishay TransZorb, 48 V standoff, VBR 53.3-58.9 V, 400 W, "
         "AEC-Q101"),
+    ("Device:L", "33uH"): (
+        "7447714330", "",
+        "Wurth WE-PD 1050, 33 uH, Isat 2.9 A typ, IR 2.5 A, 79 mOhm max, "
+        "AEC-Q200 Grade 1. No WE-PD land pattern in KiCad 7 -- drawn in "
+        "phase 3 from the Wurth drawing"),
     ("Device:D", "100V 3A fast"): (
         "VS-3ECH02HM3", "Diode_SMD:D_SMC",
         "Vishay FRED Pt, 200 V, 3 A, 130 A surge, AEC-Q101, SMC"),

@@ -709,7 +709,28 @@ one class left open.**
   KiCad 7 footprint. The BAV199 pairs are drawn as separate half-parts
   and need one package per pair.
 
-**Footprints are the phase-3 input, not a phase-2 gate:** 74 of 297
+**Transistors and magnetics, 22 September 2026: three more open items,
+and two of them are design decisions, not part choices.**
+
+- **12V_GATE pass transistor.** The DPAK part could not be retrieved.
+  The verified PZTA42-Q in SOT223 would have run 1.01× over its hot
+  rating, so two 3.3 kΩ collector resistors now take half the power.
+  The **105 °C board ambient is an assumption**; the spec states none.
+- **POWER-PATH.** The injector and EGR current all flows through pin
+  21, the EMI filter and a reverse FET sized for 5 A. Pins 04/06 are
+  separate 10 A battery feeds that are used only as senses.
+  Architecture decision needed.
+- **BOOST-SLOPE.** By TI's Equation 9, the drawn boost goes subharmonic
+  while cranking (82 mΩ against a 44.9 mΩ ceiling). The 330 µH it
+  needs does not exist at a 2.2 A saturation rating, and a smaller
+  inductor makes the ceiling lower.
+- **SENSOR-PTC.** A real PTC is specified from 0.40 to 5.00 Ω, not
+  "3.0 Ω ±30%", and its hold current halves at 85 °C.
+- The netlist gate now counts the **power ground** as an open item
+  instead of passing it silently: GND reaches the connector only
+  through sensor-ground pins.
+
+**Footprints are the phase-3 input, not a phase-2 gate:** 76 of 299
 components carry one, and they are exactly the parts with a retrieved
 datasheet behind them.
 

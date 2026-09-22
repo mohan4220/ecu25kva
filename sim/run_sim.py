@@ -1211,6 +1211,14 @@ def check_buck_preregulator():
            ok=vr1 < 50e-3, unit="mV")
     c.that("output ripple at 40 V", vr2 * 1e3, 50.0, tol=None,
            ok=vr2 < 50e-3, unit="mV")
+    # The Isat gap named in the block header, closed 22 Sep 2026:
+    # Wurth 7447714330 (WE-PD 1050, 33 uH, AEC-Q200 Grade 1): ISAT(10%)
+    # 2.9 A typ, IR 2.5 A, RDC 79 mOhm max. Hot derate taken at -30%
+    # (the header's class-typical ferrite figure, not read off a curve).
+    c.that("L1 (7447714330) Isat hot against the 1.18 A worst peak",
+           2.9 * 0.7 / 1.18, 1.72, tol=0.02, unit="x")
+    c.that("  ... DCR loss at 1 A", 1.0 ** 2 * 0.079, 0.079, tol=0.001,
+           unit="W")
     return c
 
 
@@ -1306,6 +1314,16 @@ def check_sensor_rail():
     c.that("  ... fault current at the specified part's nominal, still "
            "inside the 0.3-3.0 A trip window", ifault_nom, 1.6, tol=None,
            ok=0.3 < ifault_nom < 3.0, unit="A")
+    # A REAL PTC, 22 Sep 2026: Bourns MF-USMF020 (AEC-Q200) -- Ihold
+    # 0.20 A at 23 C falling to 0.10 A at 85 C, resistance given as a
+    # RANGE, Rmin 0.40 to R1max 5.00 ohm. SENSOR-PTC was written for a
+    # "3.0 ohm nominal, -30%" part, which is not how PTCs are specified.
+    # Pinned as the finding; OPEN item SENSOR-PTC, no part chosen.
+    c.that("SENSOR-PTC: real PTC's Rmin against the 2.78 ohm the "
+           "fault-current ceiling needs", 0.40 / 2.78, 0.144, tol=0.005,
+           unit="x")
+    c.that("  ... hold current at 85 C against the >=200 mA requirement",
+           0.10 / 0.20, 0.5, tol=0.01, unit="x")
     return c
 
 
@@ -1818,6 +1836,32 @@ def check_boost_converter():
            (d_max - d_crank) * 100, 2.95, tol=0.2, unit="points")
     c.that("  ... so the cranking corner is reachable", d_max, d_crank,
            tol=None, ok=d_max > d_crank, unit="")
+
+    # -- subharmonic stability: TI SLVS861F sec.7.3.3, Equation 9 ------
+    # Internal ramp is fixed at fSW * VDD / 20, so the sense resistor has
+    # a ceiling: RISNS(max) = VDD * L * fSW / (60 * (VOUT + VD - VIN)),
+    # and TI says use 80% or less of it. Found 22 Sep 2026 while choosing
+    # the inductor: the drawn 330 uH / 82 mOhm passes at 13.5 V and FAILS
+    # at the cranking corner, and 330 uH at a 2.2 A saturation rating is
+    # not a part that exists in SMD -- the buildable direction (smaller L)
+    # makes it worse. OPEN item BOOST-SLOPE; L401 stays unchosen.
+    def risns_max(vdd, l, vin):
+        return vdd * l * FSW / (60.0 * (VOUT + VF - vin))
+    L_DRAWN, RSNS_DRAWN = 330e-6, 0.082
+    r_nom = 0.8 * risns_max(13.2, L_DRAWN, 13.5)
+    c.that("BOOST-SLOPE: 80% RISNS(max) at 13.5 V, 330 uH", r_nom * 1e3,
+           99.7, tol=0.2, unit="mOhm")
+    c.that("  ... drawn 82 mOhm is inside it", RSNS_DRAWN, r_nom,
+           tol=None, ok=RSNS_DRAWN <= r_nom, unit="ohm")
+    r_crank = risns_max(5.16, L_DRAWN, VIN_CRANK)
+    c.that("  ... 100% RISNS(max) at the 6 V cranking corner (VDD 5.16 V)",
+           r_crank * 1e3, 44.9, tol=0.2, unit="mOhm")
+    c.that("  ... drawn 82 mOhm EXCEEDS it -- subharmonic while cranking "
+           "(pinned as the finding)", RSNS_DRAWN / r_crank, 1.83,
+           tol=0.02, unit="x")
+    c.that("  ... and 100 uH (a buildable part) at 13.5 V allows only",
+           0.8 * risns_max(13.2, 100e-6, 13.5) * 1e3, 30.2, tol=0.2,
+           unit="mOhm")
 
     # -- the switch, chosen 22 Sep 2026: DMN15H310SK3 (Diodes, DPAK) ---
     # 150 V, +/-20 V Vgs, Vth 3 V max, Rds(on) 350 mOhm max at Vgs 4 V --

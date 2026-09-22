@@ -41,6 +41,18 @@ EXPECTED_OPEN = {
                   "of the 50 unconfirmed",
 }
 
+# Open items at the connector that no single-pin rule can see: a net can
+# have many pins and still be missing the one that matters. GND reaches
+# the connector only through these sensor-ground pins -- none of which is
+# a power return. Field brief tasks 1.1 and 5.1 settle it; when a power
+# ground pin joins GND this exemption goes stale and the check fails.
+GND_SENSOR_ONLY = {"8", "30", "44"}
+BOUNDARY_OPEN = {
+    "power ground": "GND leaves the board only through sensor-ground pins "
+                    "8/30/44; the 18 A injector return has no pin. Field "
+                    "brief 1.1 / 5.1",
+}
+
 # Nets that must span more than one sheet, because a rail that does not
 # is a rail that got disconnected by a rename.
 MUST_SPAN = ("GND", "/VBAT_PROT", "/3V3_MCU", "/5V_MAIN", "/12V_GATE")
@@ -140,6 +152,15 @@ def main():
     unexplained = sorted(single - set(EXPECTED_OPEN))
     check("every single-pin net is a recorded open item",
           not unexplained, f"not in EXPECTED_OPEN: {unexplained}")
+
+    gnd_j = set()
+    for n, p in nets:
+        if n == "GND":
+            gnd_j = {pin for ref, pin in p if ref == "J1001"}
+    check("power ground is a recorded open item: GND reaches the connector "
+          "only through sensor grounds", gnd_j == GND_SENSOR_ONLY,
+          f"GND connector pins now {sorted(gnd_j, key=int)} -- if a power "
+          "ground was added, retire BOUNDARY_OPEN['power ground']")
 
     stale = sorted(set(EXPECTED_OPEN) - single)
     check("no stale exemptions -- an open item that closed must leave "
@@ -248,7 +269,10 @@ def main():
     if failed:
         print(f"  {failed} check(s) FAILED")
         return 1
-    print(f"  {len(EXPECTED_OPEN)} open items, each named and none silent")
+    print(f"  {len(EXPECTED_OPEN) + len(BOUNDARY_OPEN)} open items, each "
+          "named and none silent:")
+    for k, v in list(EXPECTED_OPEN.items()) + list(BOUNDARY_OPEN.items()):
+        print(f"    {k}: {v}")
     print("  schematic connectivity OK")
     return 0
 
