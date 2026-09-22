@@ -1,0 +1,3 @@
+(fp_lib_table
+  (lib (name "ecu25kva")(type "KiCad")(uri "${KIPRJMOD}/lib/ecu25kva.pretty")(options "")(descr "Project footprints -- stock packages renumbered to match their symbols (gen_footprints.py)"))
+)

@@ -368,7 +368,7 @@ def check_transient_clamp():
         ("Q1 reverse FET, P-ch",                    "|Vds| class",    80.0),
         ("Q2 negative-clamp FET",                   "Vds class",     100.0),
         ("D103 negative-clamp Schottky",            "Vr class",      100.0),
-        ("TPS40210 boost ctrl, VDD (via 43 V clamp)", "clamped VDD",  52.0 * 73.3 / 43.0),
+        ("TPS40210 boost ctrl, VDD (220R + 36 V clamp, 46.6 V worst)", "clamped VDD",  52.0 * 73.3 / 46.62),
         ("Boost inductor / FET (150 V class)",      "Vds class",     150.0),
         ("Injector battery-side blocking diodes",   "Vr class",      150.0),
         ("Relay flyback diodes (discrete_io)",      "Vr class",      100.0),
@@ -1730,8 +1730,21 @@ def check_boost_converter():
     FSW = 150e3            # chosen -- see the duty checks below
     VOUT, VF = 100.0, 0.9
     VIN_CRANK, VIN_DUMP, VIN_2A = 6.0, 40.0, 73.3
-    RVDD, VZ = 47.0, 43.0  # the series resistor and clamp this needs
+    RVDD = 220.0           # the series resistor -- was 47, see below
     QG_MAX = 25e-9         # the gate-charge ceiling the FET spec carries
+    QG_TYP = 8.7e-9        # DMN15H310SK3 at 10 V, typ -- no max given
+    # The clamp: Vishay BZG03C36-HM3 (BZG03C-M series, Rev. 1.0,
+    # 24-Oct-2025): VZ 34-38 V at IZT 10 mA, ZZ 40 ohm max there,
+    # TKVZ +0.06 to +0.11 %/K. AEC-Q101, SMA, 3 W / 1.25 W.
+    VZ_MIN, VZ_MAX, IZT, ZZ = 34.0, 38.0, 10e-3, 40.0
+    TK_MIN, TK_MAX = 0.06e-2, 0.11e-2
+
+    def clamp(vz_knee, zz, r):
+        """VDD and zener current with a real zener: knee plus ZZ above
+        IZT (ZZ is the small-signal figure at IZT; used as a bound, since
+        dynamic resistance falls with current)."""
+        i = (VIN_2A - vz_knee + IZT * zz) / (r + zz)
+        return vz_knee + (i - IZT) * zz, i
 
     c.that("TPS40210-Q1 VDD absolute maximum", VDD_ABSMAX, 52.0, tol=0.1,
            unit="V")
@@ -1741,24 +1754,55 @@ def check_boost_converter():
            "same shape as DRV8873-Q1's 40 V VM. Solvable here and not "
            "there: VDD draws milliamps, not motor current", None,
            ok=VIN_2A > VDD_ABSMAX)
-    c.that("clamped VDD during pulse 2a", VZ, 43.0, tol=0.1, unit="V")
-    c.that("  ... inside the absolute maximum by", VDD_ABSMAX / VZ, 1.21,
-           tol=0.02, unit="x")
-    c.that("  ... and the clamp does NOT conduct on a load dump",
-           VZ - VIN_DUMP, 3.0, tol=0.1, unit="V")
-    izap = (VIN_2A - VZ) / RVDD
-    c.that("  ... zener current during the 50 us pulse", izap * 1e3, 645.0,
-           tol=5.0, unit="mA")
-    c.that("  ... energy it has to absorb", izap * VZ * 50e-6 * 1e3, 1.39,
-           tol=0.05, unit="mJ")
+
+    # WHAT WAS DRAWN until 22 Sep 2026: 47 ohm and "a 43 V zener", checked
+    # as an ideal 43.0 V source. The real part in that class, BZG03C43-M,
+    # is 40-46 V at 10 mA, +0.12 %/K max, ZZ 45 ohm max -- and 47 ohm lets
+    # a quarter of an amp through it.
+    v_old, _ = clamp(46.0 * (1 + 0.12e-2 * 100), 45.0, 47.0)
+    c.that("WAS: 47 ohm + BZG03C43-M, VDD at pulse 2a, hot", v_old, 61.9,
+           tol=0.1, unit="V")
+    c.that("  ... over the 52 V absolute maximum by", v_old / VDD_ABSMAX,
+           1.19, tol=0.01, unit="x")
+    c.that("  ... and its 40 V minimum conducts on the load dump it was "
+           "chosen to stay out of", "43 V nominal was the whole argument; "
+           "the tolerance band starts at 40.0", None, ok=40.0 <= VIN_DUMP)
+
+    # IS: 220 ohm, which the chosen switch's gate charge now allows, and
+    # a 36 V zener, which the larger resistor makes safe on the dump. 39 V
+    # gave 49.4 V -- inside 52 but 1.05x, under the rail table's 1.09x.
+    vk_hot = VZ_MAX * (1 + TK_MAX * 100)
+    vdd_2a, iz_2a = clamp(vk_hot, ZZ, RVDD)
+    c.that("VDD at pulse 2a: 220 ohm + BZG03C36, VZ max, 125 C, ZZ bound",
+           vdd_2a, 46.62, tol=0.05, unit="V")
+    c.that("  ... inside the absolute maximum by", VDD_ABSMAX / vdd_2a,
+           1.115, tol=0.01, unit="x")
+    c.that("  ... zener current during the 50 us pulse", iz_2a * 1e3, 121.2,
+           tol=0.5, unit="mA")
+    c.that("  ... series resistor, peak dissipation for 50 us",
+           iz_2a ** 2 * RVDD, 3.23, tol=0.03, unit="W")
+    vk_cold = VZ_MIN * (1 - TK_MIN * 65)
+    i_dump = max(0.0, (VIN_DUMP - vk_cold) / RVDD)
+    c.that("load dump, VZ min at -40 C: zener current for 400 ms",
+           i_dump * 1e3, 33.3, tol=0.1, unit="mA")
+    c.that("  ... zener dissipation for 400 ms (1.25 W is the STEADY "
+           "rating at 25 C; this leans on thermal mass, not read off a "
+           "Zth curve)", i_dump * vk_cold, 1.09, tol=0.01, unit="W")
 
     # The same series resistor has to not starve the part at the other
     # end of the range, which is the real constraint on its value.
-    idd = IDD_MAX + QG_MAX * FSW
+    idd = IDD_MAX + QG_TYP * FSW
     vdd_crank = VIN_CRANK - idd * RVDD
-    c.that("VDD at the 6 V cranking dip", vdd_crank, 5.71, tol=0.05, unit="V")
+    c.that("VDD at the 6 V cranking dip (Qg typ at 10 V, over-states "
+           "the charge at a 5.7 V gate)", vdd_crank, 5.16, tol=0.01,
+           unit="V")
     c.that("  ... above the UVLO turn-on ceiling by",
-           vdd_crank - UVLO_ON_MAX, 1.21, tol=0.05, unit="V")
+           vdd_crank - UVLO_ON_MAX, 0.66, tol=0.01, unit="V")
+    vdd_ceiling = VIN_CRANK - (IDD_MAX + QG_MAX * FSW) * RVDD
+    c.that("  ... and at the 25 nC ceiling the FET spec allowed",
+           vdd_ceiling, 4.625, tol=0.01, unit="V")
+    c.that("  ... still above UVLO, which is why the ceiling stays",
+           vdd_ceiling - UVLO_ON_MAX, 0.125, tol=0.01, unit="V")
 
     # -- duty cycle: the number that actually chose this controller --
     d_crank = 1.0 - VIN_CRANK / (VOUT + VF)
@@ -1782,7 +1826,7 @@ def check_boost_converter():
     # maximum. The duty above is lossless; this is the same corner with
     # the switch and the 82 mOhm sense resistor in the on-path, at 2x the
     # 25 C Rds(on) for a hot junction (assumed, not read off a curve).
-    QG_TYP, RDS_4V, RSNS = 8.7e-9, 0.350, 0.082
+    RDS_4V, RSNS = 0.350, 0.082
     c.that("Q401 gate charge (typ) under the 25 nC ceiling by",
            QG_MAX / QG_TYP, 2.87, tol=0.02, unit="x")
     iin = VOUT * 50e-3 / (VIN_CRANK * 0.85)
@@ -1860,6 +1904,20 @@ def check_boost_converter():
            unit="V")
     c.that("12V_GATE above the driver's UVLO+ ceiling (9.8 V) by",
            VGATE - 9.8, 2.27, tol=0.05, unit="V")
+    # The zener, chosen 22 Sep 2026: BZX84-C13-Q, 12.4-14.1 V at 5 mA.
+    # It runs at 0.87 mA, where Vz sits lower -- 0.3 V taken as the
+    # low-current shift (estimated from rdif 170 ohm at 1 mA, not read
+    # off a curve). Vbe 0.55-0.75 V over temperature.
+    vg_lo = 12.4 - 0.3 - 0.75
+    vg_hi = 14.1 - 0.55
+    c.that("12V_GATE low corner (BZX84-C13-Q min, low current, hot Vbe)",
+           vg_lo, 11.35, tol=0.01, unit="V")
+    c.that("  ... above the driver UVLO+ ceiling (9.8 V) by",
+           vg_lo - 9.8, 1.55, tol=0.01, unit="V")
+    c.that("12V_GATE high corner (C13-Q max, cold Vbe)", vg_hi, 13.55,
+           tol=0.01, unit="V")
+    c.that("  ... under the chosen FETs' 20 V Vgs rating by",
+           20.0 / vg_hi, 1.48, tol=0.01, unit="x")
     ilim = 0.65 / 56.0
     c.that("current limit: one Vbe across 56 ohm", ilim * 1e3, 11.6,
            tol=0.2, unit="mA")

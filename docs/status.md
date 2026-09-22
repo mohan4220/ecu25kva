@@ -631,11 +631,13 @@ works.
 **And it hit the 73.3 V rail rating for the third time.** VDD absolute
 maximum is 52 V. Same shape as DRV8873-Q1's 40 V `VM`, which took that
 part off the EGR bridge — solvable here only because this pin draws
-2.5 mA plus gate charge rather than a motor's current, so 47 Ω and a
-43 V zener hold it inside the rating. 43 V rather than 39 V so the clamp
-stays *out* of conduction during the 400 ms load dump and only works
-during the 50 µs pulse. All of it is checked as executable arithmetic
-under `boost_converter`, not as prose.
+2.5 mA plus gate charge rather than a motor's current, so a series
+resistor and a zener hold it inside the rating. All of it is checked as
+executable arithmetic under `boost_converter`, not as prose. *(Corrected
+22 September: the clamp as first drawn — 47 Ω and a 43 V zener checked
+as an ideal 43.0 V source — gives 61.9 V with a real part. It is now
+220 Ω and a 36 V BZG03C36-HM3, 46.6 V worst case. See §7's parts
+entry.)*
 
 The converter stage is drawn — `injector` moved to A1 to hold it — and
 the loop compensation is the one thing on it marked as a starting point
@@ -683,7 +685,31 @@ changed:
   94.8% of the 97.0% available. The gate pulldowns were sized for
   Crss = 500 pF; the worst chosen part is 300 pF max.
 
-**Footprints are the phase-3 input, not a phase-2 gate:** 58 of 297
+**Diodes chosen, 22 September 2026, with one design error found and
+one class left open.**
+
+- **The boost controller's VDD clamp did not clamp.** It had been
+  checked as an ideal 43.0 V source behind 47 Ω. The real 43 V part is
+  40–46 V with +0.12 %/K and 45 Ω of impedance, which puts **61.9 V**
+  on a 52 V pin at 125 °C. Its 40 V minimum also conducts on the load
+  dump it was chosen to avoid. It is now 220 Ω and a BZG03C36-HM3:
+  46.6 V worst case, and 33 mA on the dump. The chosen boost switch's
+  small gate charge is what makes 220 Ω possible. A 39 V zener was
+  tried first, and the `transient_clamp` rail table rejected it at
+  1.05×. See `BOOST-VDD-CLAMP`.
+- **Three stock footprints number their pads against the symbol.**
+  TO-277A (the backstop Schottky) and SOT-23 zeners have the cathode
+  on pad 3. `hw/gen_footprints.py` now derives renumbered copies into
+  `hw/lib/ecu25kva.pretty`. The GATE_KILL zener, footprinted in the
+  previous commit with the stock SOT-23, had been reversed.
+- **LOWV-CLAMP is open**, covering the 15 input clamps at 3.0 V and
+  3.3 V. A sub-5 V zener at tens of µA leaks enough to matter, and the
+  model's sharp-knee zener hides it.
+- **Phase-3 notes.** The seven VS-16EDH02HM3 are SMPD, which has no
+  KiCad 7 footprint. The BAV199 pairs are drawn as separate half-parts
+  and need one package per pair.
+
+**Footprints are the phase-3 input, not a phase-2 gate:** 74 of 297
 components carry one, and they are exactly the parts with a retrieved
 datasheet behind them.
 

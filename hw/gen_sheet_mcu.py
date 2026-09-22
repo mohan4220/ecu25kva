@@ -309,9 +309,7 @@ def supervisor(sh):
     ky = d[1] - 7.62
     zx = d[0] + 7.62
     sh.place("Device:D_Zener", "D", zx, ky + 3.81, "12V", rot=270,
-             footprint="Package_TO_SOT_SMD:SOT-23",
-             fields={"MPN": "BZX84-C12-Q",
-                     "Source": "run_sim transient_clamp -- GATE_KILL clamp",
+             fields={"Source": "run_sim transient_clamp -- GATE_KILL clamp",
                      "Note": "Cathode GATE_KILL, anode GND: kill gates "
                              "never exceed 12.7 V against a 20 V Vgs "
                              "rating, whatever VBAT_PROT does"})

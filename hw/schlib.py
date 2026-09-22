@@ -154,6 +154,64 @@ PINS = {
 }
 
 
+# Class values resolved to part numbers, each against a retrieved
+# datasheet (docs/bom_requirements.md, "Chosen parts"). Keyed by lib id
+# AND value, so a "12V" zener and a "12V" anything-else stay distinct.
+# A footprint of "" means the part is chosen but its land pattern is not
+# in the KiCad 7 library and has to be drawn in phase 3.
+CHOSEN = {
+    ("Device:D", "150V 20A ultrafast"): (
+        "VS-16EDH02HM3", "",
+        "Vishay FRED Pt, 200 V, 16 A avg, 250 A surge, trr 32 ns, "
+        "AEC-Q101. SMPD (TO-263AC), cathode on the tab -- no KiCad 7 "
+        "footprint, drawn in phase 3"),
+    ("Device:D", "150V 2A ultrafast"): (
+        "VS-2EMH02HM3", "Diode_SMD:D_SMA",
+        "Vishay FRED Pt, 200 V, 2 A, trr 25 ns, AEC-Q101, SMA"),
+    ("Device:D", "200V 1A fast"): (
+        "VS-1EMH02HM3", "Diode_SMD:D_SMA",
+        "Vishay FRED Pt, 200 V, 1 A, 50 A surge, AEC-Q101, SMA"),
+    ("Device:D", "100V 1A fast"): (
+        "VS-1EMH02HM3", "Diode_SMD:D_SMA",
+        "The bootstrap diode's part: 200 V covers the 100 V class, and "
+        "one part number beats two"),
+    ("Device:D_Schottky", "100V 20A"): (
+        "SS20PH102HM3", "ecu25kva:TO-277A_K1_A2",
+        "Vishay TMBS, 100 V, 20 A, 310 A surge, AEC-Q101 (HM3). "
+        "TO-277A renumbered so the cathode tab is pad 1 -- see "
+        "gen_footprints.py"),
+    # BZX84-Cxx-Q (Nexperia, AEC-Q101, SOT-23, 250 mW): 11.4-12.7 V for
+    # C12, 12.4-14.1 V for C13, at 5 mA. The plain BZX84 series is no
+    # longer automotive-qualified.
+    ("Device:D_Zener", "12V"): (
+        "BZX84-C12-Q", "ecu25kva:SOT-23_Zener_K1_A2",
+        "Nexperia BZX84-Q, 11.4-12.7 V at 5 mA, AEC-Q101"),
+    ("Device:D_Zener", "13V"): (
+        "BZX84-C13-Q", "ecu25kva:SOT-23_Zener_K1_A2",
+        "Nexperia BZX84-Q, 12.4-14.1 V at 5 mA, AEC-Q101"),
+    # NOT the 3.0 V and 3.3 V clamps on the discrete, analog and speed
+    # inputs. BZX84-C3V0-Q / C3V3-Q are specified at 5 mA and these run
+    # at tens of uA, where a sub-5 V zener's knee is soft; the datasheet
+    # allows 10 / 5 uA of leakage at only 1 V. Open item LOWV-CLAMP in
+    # docs/bom_requirements.md.
+    ("Device:D_Zener", "36V 3W"): (
+        "BZG03C36-HM3", "Diode_SMD:D_SMA",
+        "Vishay BZG03C-M, 34-38 V at 10 mA, ZZ 40 ohm max, +0.06-0.11 "
+        "%/K, 3 W / 1.25 W, AEC-Q101, SMA"),
+    ("Device:D_TVS", "SMCJ43CA"): (
+        "SMCJ43CA-HM3", "Diode_SMD:D_SMC",
+        "Vishay TransZorb, 43 V standoff, VBR 47.8-52.8 V, VC 69.4 V at "
+        "21.6 A, 1500 W, AEC-Q101"),
+    ("Device:D_TVS", "SMAJ48CA"): (
+        "SMAJ48CA-HE3", "Diode_SMD:D_SMA",
+        "Vishay TransZorb, 48 V standoff, VBR 53.3-58.9 V, 400 W, "
+        "AEC-Q101"),
+    ("Device:D", "100V 3A fast"): (
+        "VS-3ECH02HM3", "Diode_SMD:D_SMC",
+        "Vishay FRED Pt, 200 V, 3 A, 130 A surge, AEC-Q101, SMC"),
+}
+
+
 def verify_pins():
     """Check PINS against the installed libraries. Called by every sheet
     generator before it draws anything -- a wrong offset here produces
@@ -298,6 +356,15 @@ class Sheet:
         `(footprint "emi_filter.cir C1 -- ESR 5 mOhm...")`.
         """
         self.libs[libid] = symbol_def(libid)
+        # A class value ("200V 1A fast") that has been resolved to a part
+        # becomes that part here, once, for every sheet that draws it.
+        # The class is kept as a field, so the requirement still travels
+        # with the part that meets it.
+        if (libid, value) in CHOSEN and not footprint:
+            mpn, footprint, why = CHOSEN[(libid, value)]
+            fields = dict({"MPN": mpn, "Class": value, "Chosen": why},
+                          **(fields or {}))
+            value = mpn
         # Pass `ref` explicitly to put several symbols on the SAME
         # component -- which is how a multi-unit part works. Allocating a
         # fresh reference per unit instead gives six separate one-unit

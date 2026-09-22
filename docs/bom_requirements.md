@@ -470,6 +470,40 @@ not constraints.
 | 100 V N-channel | **IPD90N10S4-06** ×8 | Negative clamp, metering, four EGR, two injector battery switches (60 V class needed; one part number instead of two). 6.7 mΩ max at 10 V, ±20 V Vgs, AEC-Q101, TO-252. The logic-level sibling `-S4L-06` was rejected for its ±16 V Vgs: every one of these gates is driven from 12V_GATE. |
 | Injector 150 V FETs | **SQM85N15-19** ×5 | Two boost-side high sides, three low sides. 19 mΩ max at 10 V — the model's 20 mΩ. ±20 V Vgs, AEC-Q101, TO-263. Qg 120 nC max sets the bootstrap droop: 126 mV. |
 | Boost switch | **DMN15H310SK3** | 150 V, Vth 3 V max, 350 mΩ max at Vgs **4 V** — specified below the 5.7 V it gets while cranking. Qg 8.7 nC typ. AEC-Q101, TO-252. Cranking duty with its drop, hot: 94.8% against 97.0% available. |
+| Injector recirculation, blocking, freewheel | **VS-16EDH02HM3** ×7 | 200 V, 16 A avg, 250 A surge, trr 32 ns, AEC-Q101. SMPD (TO-263AC): **no KiCad 7 footprint — drawn in phase 3.** Average current per diode is tens of mA; the rating is for the 18 A peaks. |
+| Boost diode | **VS-2EMH02HM3** | 200 V, 2 A, trr 25 ns, AEC-Q101, SMA. |
+| Bootstrap and relay flyback diodes | **VS-1EMH02HM3** ×8 | 200 V, 1 A, 50 A surge, AEC-Q101, SMA. The relay flybacks needed only 100 V; one part number instead of two. |
+| Metering freewheel | **VS-3ECH02HM3** | 200 V, 3 A, 130 A surge, AEC-Q101, SMC. |
+| Negative-clamp backstop Schottky | **SS20PH102HM3** | 100 V, 20 A, 310 A surge, AEC-Q101, TO-277A. Stock footprint puts the cathode on pad 3; the project's `TO-277A_K1_A2` renumbers it (`hw/gen_footprints.py`). |
+| Battery TVS | **SMCJ43CA-HM3** | 43 V standoff, 47.8–52.8 V breakdown, 69.4 V clamping at 21.6 A, 1500 W, AEC-Q101. |
+| Crank-pair TVS | **SMAJ48CA-HE3** | 48 V standoff, 53.3–58.9 V breakdown, 400 W, AEC-Q101. |
+| 12 V clamps | **BZX84-C12-Q** ×2, **BZX84-C13-Q** | GATE_KILL, reverse-FET gate, 12V_GATE reference. SOT-23 with pin 3 as the cathode, so the project's `SOT-23_Zener_K1_A2` footprint is used. The GATE_KILL zener's first footprint, the stock SOT-23, had its anode where the symbol puts the cathode. |
+| VDD clamp | **BZG03C36-HM3** | See `BOOST-VDD-CLAMP`: it replaced a 43 V clamp that did not clamp. |
+
+### `LOWV-CLAMP` — the 3.0 V and 3.3 V input clamps (OPEN)
+
+These are 15 zeners: six 3.0 V parts on the discrete inputs, and nine
+3.3 V parts on the analog and speed inputs. None has a part number yet,
+and that is deliberate. The obvious family, BZX84-C3V0-Q and C3V3-Q,
+is specified at 5 mA, but these clamps sit at tens of microamps for
+most of their life. Below 5 V, a zener's knee is soft rather than
+sharp. The datasheet itself allows **10 µA** (3V0) and **5 µA** (3V3)
+of reverse leakage at only **1 V**.
+
+- **On a discrete input,** 10 µA through the ~28 kΩ source is 0.28 V.
+  The logic-high margin at the cranking dip is 0.36–0.41 V, so the
+  leakage consumes most of it.
+- **On an analog input,** the leakage is a signal-dependent load on the
+  ADC node, and it matters most near full scale.
+
+`discrete_input.cir` models the zener with a sharp knee (IBV = 5 mA),
+and that is why this has not surfaced as a failed check.
+
+Choosing a part means either finding one whose current at the working
+voltage is specified, or replacing the zener. The alternative is a
+series resistor with a low-leakage clamp to the 3V3 rail (BAV199, which
+the speed inputs already use). The model needs the chosen part's real
+knee either way.
 
 ### `GATE-KILL-CLAMP` — 12 V zener on GATE_KILL
 
@@ -738,23 +772,39 @@ off the EGR bridge — and it is solvable here for a reason that did not
 apply there. A motor bridge's `VM` carries the motor current; this pin
 carries 2.5 mA plus gate charge. So it gets its own clamp:
 
-### `BOOST-VDD-CLAMP` — 47 Ω, 1 W, and a 43 V zener, 1 W
+### `BOOST-VDD-CLAMP` — 220 Ω, 1 W, and a BZG03C36-HM3
 
 | | |
 |---|---|
-| Pulse 2a, 73.3 V | zener passes (73.3 − 43)/47 = **645 mA**, for 50 µs = **1.39 mJ** |
-| Load dump, 40 V for 400 ms | **43 V clamp does not conduct at all** |
-| Cranking, 6 V in | 2.5 mA + 25 nC × 150 kHz = 6.25 mA, dropping **0.29 V** → VDD = **5.71 V** |
-| against UVLO turn-on max 4.5 V | **1.21 V of margin** |
+| Pulse 2a, 73.3 V | 121 mA through the zener for 50 µs; **VDD 46.6 V** worst case against 52 V abs max (1.12×) |
+| Load dump, 40 V for 400 ms | 33 mA at the zener's cold minimum (32.7 V), **1.09 W** for 400 ms. The 1.25 W rating is steady-state at 25 °C, so this relies on thermal mass; not yet checked against a Zth curve |
+| Cranking, 6 V in | 2.5 mA + 8.7 nC × 150 kHz = 3.8 mA, dropping 0.84 V → **VDD = 5.16 V** |
+| against UVLO turn-on max 4.5 V | **0.66 V of margin**; 0.125 V even at the 25 nC gate-charge ceiling |
 
-**43 V rather than 39 V is the whole point of the value.** A 39 V clamp
-would sit in conduction for the load dump's entire 400 ms at roughly
-0.8 W. A 43 V clamp only works during the 50 µs pulse, where 1.39 mJ is
-nothing.
+The worst case is taken as VZ max (38 V at 10 mA), heated to 125 °C at
+the +0.11 %/K maximum tempco. On top of that sits the 40 Ω maximum
+dynamic impedance, applied from 10 mA up to the pulse current. That
+last figure is a small-signal value at 10 mA, and dynamic resistance
+falls with current, so it is a bound, not an estimate.
 
-The 47 Ω is squeezed from both ends: small enough that 6.25 mA does not
-drop the part below UVLO at the cranking dip, large enough that the
-zener sees 645 mA and not more during the pulse.
+**What was drawn first, and why it was wrong.** The first design was
+47 Ω and "a 43 V zener", and it was checked as an ideal 43.0 V source.
+The real part in that class, BZG03C43-M, is 40–46 V at 10 mA, up to
++0.12 %/K, with a 45 Ω impedance. With 47 Ω in series, a quarter of an
+amp flows during the pulse. At 125 °C that puts **61.9 V** on a 52 V
+pin. The value was also chosen so the clamp would stay out of
+conduction during the 40 V load dump, but its tolerance band starts at
+40.0 V. Found on 22 September 2026, when the zener was chosen and its
+datasheet read. The old design is kept as a pinned check.
+
+The fix is in the resistor. The chosen boost switch, DMN15H310SK3, has
+a small gate charge, which lowers the pin's current enough to allow
+220 Ω. That cuts the pulse current by a factor of five and limits
+load-dump conduction to 33 mA. Once the dump current is limited, a
+lower zener is safe, and it gives back the margin the tempco takes.
+39 V was tried first and gave 49.4 V. That is inside 52 V but only
+1.05×, below the 1.09× the `transient_clamp` rail table requires of
+every part on this rail, and the table failed it.
 
 **The power stage is untouched by any of this** — the inductor and FET
 see the rail directly, and are 150 V class for it, the same class the

@@ -489,10 +489,13 @@ def boost_stage(sh):
     pulse 2a -- 1.41x over. The same shape of finding that took
     DRV8873-Q1 off the EGR bridge, and solvable here for a reason that
     did not apply there: VDD draws 2.5 mA plus gate charge, not motor
-    current, so 47 ohm and a 43 V zener hold it inside the rating
-    through the pulse. 43 V is chosen so the clamp stays OUT of
-    conduction during the 40 V load dump, which lasts 400 ms rather than
-    50 us and would otherwise cook it.
+    current, so 220 ohm and a 36 V zener hold it inside the rating
+    through the pulse: 46.6 V worst case, a real zener's tolerance,
+    tempco and dynamic resistance included. It was 47 ohm and 43 V until
+    22 Sep 2026, checked as an ideal 43.0 V clamp; with the real part in
+    that class it is 61.9 V. The larger resistor is what the chosen
+    switch's small gate charge allows, and it limits the load-dump
+    conduction a 36 V zener has to 33 mA.
 
     The POWER stage is untouched by that: the inductor and FET see the
     rail directly and are 150 V class for it, the same class the
@@ -608,20 +611,19 @@ def boost_stage(sh):
     cy = 528.0
     cluster = [
         (440.0, "Device:C", "C", "1uF 100V", "VDD_BOOST", 0,
-         {"Note": "VDD bypass, INSIDE the 47 ohm. 100 V class anyway -- "
+         {"Note": "VDD bypass, INSIDE the 220 ohm. 100 V class anyway -- "
                   "it is one resistor away from a 73.3 V rail."}),
         # rot=270 puts the CATHODE at the top. At rot=0 a zener is
         # HORIZONTAL, both pins share a y, and to_gnd's top/bottom pick
         # is then arbitrary -- which is how the first netlist came back
         # with the clamp's anode on VDD and its cathode on ground, on a
         # page that plotted correctly.
-        (480.0, "Device:D_Zener", "D", "43V 1W", "VDD_BOOST", 270,
+        (480.0, "Device:D_Zener", "D", "36V 3W", "VDD_BOOST", 270,
          {"Tag": "BOOST-VDD-CLAMP",
-          "Note": "Cathode to VDD. 43 V, not 39 V, so it stays OUT of "
-                  "conduction during the 400 ms 40 V load dump and only "
-                  "works during the 50 us pulse -- 645 mA, 1.39 mJ. A "
-                  "lower clamp would sit in conduction for 400 ms at "
-                  "0.8 W instead."}),
+          "Note": "Cathode to VDD. Pulse 2a: 121 mA for 50 us, VDD 46.6 V "
+                  "worst case (VZ max, 125 C, ZZ). Load dump: 33 mA for "
+                  "400 ms at the cold VZ minimum, 1.09 W. Both checked "
+                  "in run_sim boost_converter."}),
         (520.0, "Device:C", "C", "330pF", "RC_BOOST", 0,
          {"Source": "TPS40210-Q1 -- with 365k to VDD this sets 150 kHz",
           "Note": "The datasheet's own reference point is 182k/330pF = "
@@ -652,12 +654,13 @@ def boost_stage(sh):
     # ---- the series strings ----------------------------------------
     series_chain(
         sh, 556.0, 40.0, "VBAT_PROT",
-        [("Device:R", "R", "47R 1W",
+        [("Device:R", "R", "220R 1W",
           {"Tag": "BOOST-VDD-CLAMP",
-           "Note": "The other half of the clamp. Small enough that 6.25 mA "
-                   "drops only 0.29 V, so VDD is 5.71 V at the cranking "
-                   "dip against a 4.5 V UVLO ceiling; large enough that "
-                   "the zener sees 645 mA and not more during pulse 2a."})],
+           "Note": "The other half of the clamp. Small enough that 3.8 mA "
+                   "(DMN15H310SK3's gate charge) drops 0.84 V, so VDD is "
+                   "5.16 V at the cranking dip against a 4.5 V UVLO "
+                   "ceiling; large enough to hold pulse 2a to 121 mA and "
+                   "VDD to 46.6 V. 3.2 W peak for 50 us."})],
         "VDD_BOOST", hlabel_in=True)
     series_chain(
         sh, 574.0, 40.0, "VDD_BOOST",
@@ -1058,11 +1061,12 @@ def notes(sh):
         "7637-2 pulse 2a -- over by 1.41x. Same shape as DRV8873-Q1's "
         "40 V VM, which took that part off the EGR bridge. It is "
         "solvable here for a reason that did not apply there: VDD\n"
-        "draws 2.5 mA plus gate charge, not a motor's current, so 47 ohm "
-        "and a 43 V zener hold the pin inside its rating through the "
-        "pulse. 43 V rather than 39 V so the clamp stays OUT\n"
-        "of conduction during the 40 V load dump, which lasts 400 ms "
-        "instead of 50 us and would otherwise sit it at 0.8 W. The "
+        "draws 2.5 mA plus gate charge, not a motor's current, so 220 "
+        "ohm and a 36 V zener hold the pin at 46.6 V worst case through "
+        "the pulse -- the zener's tolerance, tempco and\n"
+        "dynamic resistance included. (47 ohm and an ideal 43 V were "
+        "drawn first; the real part gave 61.9 V.) On the 400 ms load "
+        "dump the clamp passes 33 mA at most. The "
         "POWER stage is untouched: the inductor and FET see the\n"
         "rail directly and are 150 V class for it. All of this is "
         "checked in run_sim.py under boost_converter -- not with a "

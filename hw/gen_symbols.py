@@ -509,9 +509,10 @@ def build_conn94(geom):
 # ISO 7637-2 pulse 2a. This part CANNOT sit directly on that rail -- the
 # same shape of finding that took DRV8873-Q1 off the EGR bridge. It is
 # solvable here and was not there, because VDD draws 2.5 mA plus gate
-# charge rather than a bridge's motor current: a 47 ohm series resistor
-# and a 43 V zener keep the pin inside its rating through the pulse and
-# out of conduction entirely during the 40 V load dump. The power stage
+# charge rather than a bridge's motor current: a 220 ohm series resistor
+# and a 36 V zener (BZG03C36-HM3) hold the pin at 46.6 V worst case
+# through the pulse, and limit load-dump conduction to 33 mA. (47 ohm
+# and an ideal 43 V clamp were drawn first; see BOOST-VDD-CLAMP.) The power stage
 # is untouched by this -- the inductor and FET see the rail directly and
 # are rated 150 V for it.
 TPS40210 = dict(
