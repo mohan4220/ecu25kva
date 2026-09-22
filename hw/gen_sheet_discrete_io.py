@@ -26,11 +26,18 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import schlib
 from schlib import Sheet, Rail, pin_xy, PINS
+import json
 
 HW = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HW, "discrete_io.kicad_sch")
 GND_DROP = 7.62
 QP = PINS["Device:Q_NMOS_GSD"]
+ICPINS = json.load(open(os.path.join(HW, "lib", "ic_pins.json")))
+
+
+def ic_pin(part, num, x, y):
+    dx, dy = ICPINS[part][str(num)]
+    return pin_xy(dx, dy, x, y, 0)
 
 
 def gnd_below(sh, x, y):
@@ -114,7 +121,6 @@ def clamped_input(sh, x0, y, in_net, out_net, label, pullup=None):
 def relay(sh, x0, y, gate_net, out_net, label):
     """relay_driver.cir: low-side switch, coil to battery, flyback diode."""
     sh.text(label, x0, y - 26.0, size=1.6)
-    sh.hlabel("VBAT_PROT", x0, y - 18.0, shape="input")
     # The coil itself is off-sheet -- it lives in the harness. What this
     # board carries is the switch, the flyback path and the gate network.
     dx = x0 + 30.0
@@ -128,7 +134,10 @@ def relay(sh, x0, y, gate_net, out_net, label):
     da = pin_xy(*PINS["Device:D"]["1"], dx, y - 18.0, 270)
     db = pin_xy(*PINS["Device:D"]["2"], dx, y - 18.0, 270)
     d_k, d_a = (da, db) if da[1] < db[1] else (db, da)
-    sh.wire(x0, y - 18.0, d_k[0], d_k[1])
+    # Straight in at the cathode's own height -- drawn to the diode's
+    # centre line, this wire ran diagonally to a pin 3.81 mm above it.
+    sh.wire(x0, d_k[1], d_k[0], d_k[1])
+    sh.hlabel("VBAT_PROT", x0, d_k[1], shape="input")
 
     drain = Rail(sh, y)
     drain.to(d_a[0])
@@ -139,15 +148,18 @@ def relay(sh, x0, y, gate_net, out_net, label):
     drain.to(d_a[0])
 
     qx = x0 + 52.0
-    sh.place("Device:Q_NMOS_GSD", "Q", qx, y + 16.0, "100V logic-level N-ch",
-             rot=270,
-             fields={"Source": "relay_driver.cir S1 (Ron 50 mOhm)",
+    sh.place("Device:Q_NMOS_GSD", "Q", qx, y + 16.0, "PMV280ENEA",
+             rot=270, footprint="Package_TO_SOT_SMD:SOT-23",
+             fields={"Source": "relay_driver.cir S1 (Ron 50 mOhm); "
+                               "Nexperia PMV280ENEA datasheet",
+                     "MPN": "PMV280ENEA",
                      "Note": "100 V class because the drain sits on "
                              "VBAT_PROT. Coil current is only 13.5/160 = "
                              "84 mA, so Rds(on) is not the constraint -- "
                              "the voltage class is.",
-                     "Vgs": "Fully enhanced at 3.0 V, driven straight from "
-                            "the GPIO"})
+                     "Vgs": "Driven at 4.4 V min by the AHCT buffer: Rds(on) "
+                            "432 mOhm max at 4.5 V, 36 mV at 84 mA. +/-20 V "
+                            "Vgs, Vth 1.3-2.7 V. AEC-Q101."})
     qd = pin_xy(*QP["3"], qx, y + 16.0, 270)
     qs = pin_xy(*QP["2"], qx, y + 16.0, 270)
     qg = pin_xy(*QP["1"], qx, y + 16.0, 270)
@@ -162,8 +174,11 @@ def relay(sh, x0, y, gate_net, out_net, label):
     sh.wire(qg[0], qg[1], px, qg[1])
     sh.wire(px, qg[1], qg[0] - 20.32, qg[1])
     sh.junction(px, qg[1])
-    sh.hlabel(gate_net, qg[0] - 20.32, qg[1], shape="input", rot=180)
-    # Pulldown so the relay is off while the GPIO is Hi-Z at reset.
+    # The buffer sits a row below, clear of the drain rail.
+    sh.wire(qg[0] - 20.32, qg[1], qg[0] - 20.32, qg[1] + 30.48)
+    buffer_5v(sh, qg[0] - 20.32, qg[1] + 30.48, gate_net)
+    # Gate pulldown: holds the FET off while 5V_MAIN is absent and the
+    # buffer's output is undefined.
     sh.place("Device:R", "R", px, qg[1] + 16.0, "10k",
              fields={"Source": "gate pulldown -- PTD13/PTD14 are Hi-Z with "
                                "no pull at reset",
@@ -178,6 +193,56 @@ def relay(sh, x0, y, gate_net, out_net, label):
     b = pin_xy(*PINS["Device:R"]["2"], px, qg[1] + 16.0, 0)
     t, bo = (a, b) if a[1] < b[1] else (b, a)
     sh.wire(px, qg[1], t[0], t[1])
+    gnd_below(sh, bo[0], bo[1])
+
+
+def buffer_5v(sh, yx, yy, gate_net):
+    """The relay FET's gate at 5 V, not 3.3 V. Every 100 V automotive
+    small-signal FET looked at (PMV280ENEA, DMN10H220LQ, BSS123N) is
+    specified at Vgs = 4.5 V and no lower, with a threshold up to
+    2.5-2.8 V that rises further when cold -- 0.5 V of overdrive from a
+    3.3 V pin is not a guarantee. An AHCT buffer on 5V_MAIN reads the
+    GPIO on TTL thresholds (VIH 2 V) and drives 4.4 V minimum. Its
+    output Y lands on (yx, yy)."""
+    lib = "ecu25kva:AHCT1G125"
+    ux, uy = yx - 15.24, yy + 1.27
+    sh.place(lib, "U", ux, uy, "SN74AHCT1G125-Q1",
+             footprint="Package_TO_SOT_SMD:SOT-23-5",
+             fields={"Source": "TI SN74AHCT1G125-Q1 datasheet, sec.5.3 / "
+                               "5.5 -- VIH 2 V, VOH 4.4 V at VCC 4.5 V",
+                     "MPN": "CAHCT1G125QDBVRQ1"})
+    a = ic_pin("AHCT1G125", 2, ux, uy)
+    oe = ic_pin("AHCT1G125", 1, ux, uy)
+    vcc = ic_pin("AHCT1G125", 5, ux, uy)
+    gnd = ic_pin("AHCT1G125", 3, ux, uy)
+    # OE is active low: tied to ground, the buffer always drives.
+    sh.wire(oe[0], oe[1], oe[0] - 2.54, oe[1])
+    gnd_below(sh, oe[0] - 2.54, oe[1])
+    gnd_below(sh, gnd[0], gnd[1])
+    # Supply rail high enough that the capacitor and its ground clear
+    # the body; the capacitor hangs to the LEFT, above the A input.
+    ry = vcc[1] - 17.78
+    sh.wire(vcc[0], vcc[1], vcc[0], ry)
+    dec = Rail(sh, ry)
+    dec.to(vcc[0])
+    vshunt(sh, "Device:C", "C", vcc[0] - 12.7, ry + 3.81, "100nF",
+           {"Note": "At the buffer's own VCC pin"}, dec)
+    dec.to(vcc[0] - 25.4)
+    sh.label("5V_MAIN", vcc[0] - 25.4, ry, rot=180)
+    # Input: the GPIO, with a pulldown -- PTD13/PTD14 are Hi-Z with no
+    # pull at reset, and a floating CMOS input is neither state.
+    inp = Rail(sh, a[1])
+    inp.to(a[0])
+    inp.to(a[0] - 10.16, tap=True)
+    inp.to(a[0] - 20.32)
+    sh.hlabel(gate_net, a[0] - 20.32, a[1], shape="input", rot=180)
+    sh.place("Device:R", "R", a[0] - 10.16, a[1] + 16.0, "100k",
+             fields={"Source": "input pulldown -- relay OFF from reset "
+                               "until firmware drives the pin"})
+    r1 = pin_xy(*PINS["Device:R"]["1"], a[0] - 10.16, a[1] + 16.0, 0)
+    r2_ = pin_xy(*PINS["Device:R"]["2"], a[0] - 10.16, a[1] + 16.0, 0)
+    t, bo = (r1, r2_) if r1[1] < r2_[1] else (r2_, r1)
+    sh.wire(a[0] - 10.16, a[1], t[0], t[1])
     gnd_below(sh, bo[0], bo[1])
 
 
@@ -243,10 +308,15 @@ def build():
     for x0, y, innet, outnet, pu, label in rows:
         clamped_input(sh, x0, y, innet, outnet, label, pullup=pu)
 
-    relay(sh, 60.0, 270.0, "RLY_MAIN", "RLY_MAIN_OUT",
+    relay(sh, 60.0, 255.0, "RLY_MAIN", "RLY_MAIN_OUT",
           "ECU pin 50 -- main relay, low side <- PTD13")
-    relay(sh, 260.0, 270.0, "RLY_BUZZER", "RLY_BUZZER_OUT",
+    relay(sh, 260.0, 255.0, "RLY_BUZZER", "RLY_BUZZER_OUT",
           "ECU pin 69 -- buzzer relay, low side <- PTD14")
+    # The sheet's one HIERARCHICAL 5V_MAIN: both relay buffers carry the
+    # name as a local label, which alone would make it a sheet-local net.
+    sh.wire(460.0, 236.0, 466.0, 236.0)
+    sh.hlabel("5V_MAIN", 460.0, 236.0, shape="input", rot=180)
+    sh.label("5V_MAIN", 466.0, 236.0)
     notes(sh)
     return sh
 

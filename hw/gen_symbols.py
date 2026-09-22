@@ -644,6 +644,26 @@ UCC27517A = dict(
     hw=10.16)
 
 
+# --- SN74AHCT1G125-Q1, single buffer, 3-state -------------------------
+# Source: TI SN74AHCT1G125-Q1 datasheet, SOT-23-5 (DBV). VCC 3-5.5 V; at
+# VCC 4.5-5.5 V, VIH 2 V min and VIL 0.8 V max -- TTL thresholds, so a
+# 3.3 V GPIO drives it -- and VOH 4.4 V min at -50 uA. OE is active LOW.
+# AEC-Q100. The relay drivers' level shift: no 100 V automotive
+# small-signal FET found with Rds(on) guaranteed below Vgs = 4.5 V.
+AHCT125 = dict(
+    name="AHCT1G125", fp="Package_TO_SOT_SMD:SOT-23-5",
+    ds="https://www.ti.com/lit/ds/symlink/sn74ahct1g125-q1.pdf",
+    mpn="CAHCT1G125QDBVRQ1",
+    desc="TI SN74AHCT1G125-Q1 single buffer, 3-state, OE active low, TTL "
+         "inputs at 5 V (VIH 2 V), VOH 4.4 V min. AEC-Q100. SOT-23-5.",
+    keywords="buffer level shift 3-state TTL automotive AHCT1G125",
+    left=[("A", "2", "input"), ("~{OE}", "1", "input")],
+    right=[("Y", "4", "output")],
+    top=[("VCC", "5", "power_in")],
+    bottom=[("GND", "3", "power_in")],
+    hw=10.16)
+
+
 # --- AUIRS2184S, half-bridge gate driver ------------------------------
 # Same Infineon family and die as AUIRS2181S, and the reverse choice for
 # the reverse reason. The 2181's lack of interlock is what lets it fire an
@@ -811,7 +831,7 @@ def main():
     icgeom["TPS3850G33"] = g
     for part in (LM5164, TLV76733, TCAN1042, OPAMP, COMPARATOR,
                  TPS40210, AUIRS2181, INA181, TLV3201, UCC27517A,
-                 AUIRS2184, MPXH6115, INA592):
+                 AUIRS2184, MPXH6115, INA592, AHCT125):
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g

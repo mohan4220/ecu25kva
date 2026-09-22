@@ -385,6 +385,21 @@ def check_transient_clamp():
            "Q2 at 40 V: 0.55x. D103 at 60 V: 0.82x. Both would have failed "
            "this table, and nothing failed before it existed", None,
            ok=40.0 / DRIVER_RAIL_WORST < 1.0 and 60.0 / DRIVER_RAIL_WORST < 1.0)
+    # GATE_KILL is pulled to this rail (47k, mcu sheet) and loaded only by
+    # FET gates, so unclamped it follows the rail. Found 22 Sep 2026 while
+    # choosing the kill FETs: a +/-20 V Vgs part would see 73.3 V.
+    VGS_MAX, VZ_MAX, R_KILL = 20.0, 12.7, 47e3
+    c.that("  GATE_KILL unclamped vs a 20 V Vgs rating (the finding)",
+           DRIVER_RAIL_WORST / VGS_MAX, 3.67, tol=0.05, unit="x over")
+    c.that("  GATE_KILL with BZX84-C12-Q (12.7 V max at 5 mA) -- margin",
+           VGS_MAX / VZ_MAX, 1.57, tol=0.05, unit="x")
+    c.that("  ... hot: BZX84-C12-Q +10 mV/K max, 100 K above 25 C",
+           VGS_MAX / (VZ_MAX + 10e-3 * 100), 1.46, tol=0.01, unit="x")
+    c.that("  ... zener current at the pulse peak",
+           (DRIVER_RAIL_WORST - VZ_MAX) / R_KILL * 1e3, 1.29, tol=0.05, unit="mA")
+    c.that("  ... 47k pullup dissipation at the pulse peak",
+           (DRIVER_RAIL_WORST - VZ_MAX) ** 2 / R_KILL * 1e3, 78.1, tol=0.1,
+           unit="mW (0603 = 100 mW)")
     settled = bat[t > 1.5e-3]
     c.that("recovers to nominal after pulse", float(settled.mean()), 12.98, tol=0.1,
            unit="V")
@@ -960,6 +975,20 @@ def check_relay_driver():
     c.that("  ... diode suppresses the kick by",
            float(without.max()) / float(withd.max()), 10.0, tol=None,
            ok=float(without.max()) / float(withd.max()) > 10, unit="x")
+
+    # Gate drive, as drawn. The model drives the gate to 5 V; the sheet
+    # did not, until 22 Sep 2026 -- it took the gate straight from a 3.3 V
+    # GPIO while every 100 V automotive small-signal FET looked at is
+    # specified at Vgs = 4.5 V and no lower. An SN74AHCT1G125-Q1 on
+    # 5V_MAIN now drives it. PMV280ENEA: Vth 2.7 V max, Rds(on) 432 mOhm
+    # max at 4.5 V. AHCT VOH: 4.4 V min at VCC 4.5 V and -50 uA.
+    VTH_MAX, RDS_45, I_COIL = 2.7, 0.432, 13.5 / 160.0
+    c.that("  gate overdrive from a bare 3.3 V GPIO (was)", 3.3 - VTH_MAX, 0.6,
+           tol=0.01, unit="V")
+    c.that("  gate overdrive from the AHCT buffer at VCC 4.5 V (is)",
+           4.4 - VTH_MAX, 1.7, tol=0.01, unit="V")
+    c.that("  ... FET drop at coil current, Rds(on) at the 4.5 V point",
+           I_COIL * RDS_45 * 1e3, 36.5, tol=0.5, unit="mV")
     return c
 
 

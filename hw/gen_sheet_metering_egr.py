@@ -168,8 +168,10 @@ def metering(sh):
     # without any MCU involvement at all -- that is what lets it work
     # against a hung MCU rather than only a reset one.
     kx = px - 28.0
-    sh.place("Device:Q_NMOS_GSD", "Q", kx, qg[1] + 18.0, "60V small-signal",
-             fields={"Source": "supervisor.cir -- the kill FET; memo 11 "
+    sh.place("Device:Q_NMOS_GSD", "Q", kx, qg[1] + 18.0, "2N7002BK",
+             footprint="Package_TO_SOT_SMD:SOT-23",
+             fields={"MPN": "2N7002BK",
+                     "Source": "supervisor.cir -- the kill FET; memo 11 "
                                "'Recommendation: the circuit to build'",
                      "Note": "In parallel with the 470 ohm pulldown, not "
                              "instead of it. Ron 5 ohm dominates the "
@@ -517,8 +519,10 @@ def egr_bridge(sh):
                          "off and the valve's return spring closes it."})
     kx, ky = 420.0, 292.0
     qp = PINS["Device:Q_NMOS_GSD"]
-    sh.place("Device:Q_NMOS_GSD", "Q", kx, ky, "60V small-signal",
-             fields={"Source": "supervisor.cir -- the kill FET, on the "
+    sh.place("Device:Q_NMOS_GSD", "Q", kx, ky, "2N7002BK",
+             footprint="Package_TO_SOT_SMD:SOT-23",
+             fields={"MPN": "2N7002BK",
+                     "Source": "supervisor.cir -- the kill FET, on the "
                                "bridge's shared shutdown",
                      "Note": "GATE_KILL puts the bridge in COAST, not "
                              "brake -- the safe state egr_hbridge.cir "

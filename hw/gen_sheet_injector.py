@@ -201,8 +201,10 @@ def gate_network(sh, gp, gate_name, kill=True):
     if not kill:
         return
     kx = px - 30.0
-    sh.place("Device:Q_NMOS_GSD", "Q", kx, gy + 18.0, "60V small-signal",
-             fields={"Source": "supervisor.cir -- the kill FET",
+    sh.place("Device:Q_NMOS_GSD", "Q", kx, gy + 18.0, "2N7002BK",
+             footprint="Package_TO_SOT_SMD:SOT-23",
+             fields={"MPN": "2N7002BK",
+                     "Source": "supervisor.cir -- the kill FET",
                      "Note": "In parallel with the 470 ohm pulldown, not "
                              "instead of it. Ron 5 ohm dominates the "
                              "pulldown by ~2000x -- modelled kill time "
@@ -716,8 +718,10 @@ def input_kill(sh, x, y, node):
     within the driver's 330 ns maximum turn-off delay.
     """
     kg, kd, ks = fet_pins(x, y)
-    sh.place("Device:Q_NMOS_GSD", "Q", x, y, "60V small-signal",
-             fields={"Source": "supervisor.cir -- the kill FET, moved to "
+    sh.place("Device:Q_NMOS_GSD", "Q", x, y, "2N7002BK",
+             footprint="Package_TO_SOT_SMD:SOT-23",
+             fields={"MPN": "2N7002BK",
+                     "Source": "supervisor.cir -- the kill FET, moved to "
                                "the driver's logic input",
                      "Note": "Pulls HIN low against a hung MCU driving it "
                              "high through the 1k. Slower than the "

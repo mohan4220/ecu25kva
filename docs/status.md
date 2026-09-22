@@ -643,7 +643,26 @@ rather than a result, because a current-mode boost's loop depends on the
 inductor's real DCR and the capacitor's real ESR and is a bench
 measurement.
 
-**Footprints are the phase-3 input, not a phase-2 gate:** 7 of 201
+**Small-signal parts chosen, 22 September 2026. Choosing them found
+two errors, both in gate drive.**
+
+1. **Every kill-FET gate could see 73.3 V.** `GATE_KILL` is pulled to
+   VBAT_PROT on purpose, so the kill path has a supply during a 3V3
+   brownout. Nothing on the net draws DC, so the net follows the rail
+   up to the pulse-2a peak. That is 3.7× a small-signal FET's ±20 V Vgs
+   rating. A BZX84-C12-Q now clamps the net at 12.7 V. See
+   `GATE-KILL-CLAMP`.
+2. **The relay FETs' gates were driven from a 3.3 V pin.** The
+   schematic noted them "fully enhanced at 3.0 V", and no 100 V
+   automotive FET checked is specified below Vgs = 4.5 V. An
+   SN74AHCT1G125-Q1 on 5V_MAIN now drives each gate. See `RELAY-GATE`.
+
+Parts chosen: 2N7002BK for the nine kill FETs and the reset inverter,
+PMV280ENEA for the relay FETs. The same pass fixed a diagonal wire from
+VBAT_PROT to each relay flyback diode, a drawing bug present since the
+sheet was first drawn.
+
+**Footprints are the phase-3 input, not a phase-2 gate:** 43 of 297
 components carry one, and they are exactly the parts with a retrieved
 datasheet behind them.
 

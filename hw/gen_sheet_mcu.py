@@ -264,8 +264,12 @@ def supervisor(sh):
 
     # ---- the inverting stage, and the rail its pullup sits on ----
     qx, qy = INV_AT
-    sh.place("Device:Q_NMOS_GSD", "Q", qx, qy, "60V logic-level N-ch",
-             fields={"Source": "memo 11 Recommendation -- 'through one "
+    sh.place("Device:Q_NMOS_GSD", "Q", qx, qy, "2N7002BK",
+             footprint="Package_TO_SOT_SMD:SOT-23",
+             fields={"MPN": "2N7002BK",
+                     "Vgs": "Gate from ~RESET at 3.3 V: Vth 1.1-2.1 V, and "
+                            "it sinks 1.6 mA at most (73.3 V / 47k)",
+                     "Source": "memo 11 Recommendation -- 'through one "
                                "inverting stage'; supervisor.cir models "
                                "the inverter and kill FET as one switch",
                      "Note": "RESET low (fault) turns this OFF, so the "
@@ -294,7 +298,29 @@ def supervisor(sh):
     sh.label("VBAT_PROT", t[0], t[1] - 5.08)
     sh.hlabel("VBAT_PROT", t[0], t[1] - 7.62, shape="input")
     sh.wire(bo[0], bo[1], bo[0], d[1] - 7.62)
-    sh.wire(d[0], d[1] - 7.62, d[0] + 15.24, d[1] - 7.62)
+
+    # Gate clamp. With Q301 off, nothing on GATE_KILL draws DC -- it is
+    # nine FET gates and the drivers' HIN kill FETs -- so without this
+    # the node follows VBAT_PROT to 73.3 V (pulse 2a) and every kill
+    # gate sees 3.7x a small-signal FET's +/-20 V Vgs rating. The zener
+    # holds it at 12 V (12.7 V max) and costs 1.3 mA through the 47k at
+    # the pulse peak. Below 12 V -- cranking -- it is out of circuit and
+    # GATE_KILL is the battery, which is what the pullup is there for.
+    ky = d[1] - 7.62
+    zx = d[0] + 7.62
+    sh.place("Device:D_Zener", "D", zx, ky + 3.81, "12V", rot=270,
+             footprint="Package_TO_SOT_SMD:SOT-23",
+             fields={"MPN": "BZX84-C12-Q",
+                     "Source": "run_sim transient_clamp -- GATE_KILL clamp",
+                     "Note": "Cathode GATE_KILL, anode GND: kill gates "
+                             "never exceed 12.7 V against a 20 V Vgs "
+                             "rating, whatever VBAT_PROT does"})
+    za = pin_xy(*PINS["Device:D_Zener"]["2"], zx, ky + 3.81, 270)
+    sh.wire(d[0], ky, zx, ky)
+    sh.wire(zx, ky, d[0] + 15.24, ky)
+    sh.junction(zx, ky)
+    sh.wire(za[0], za[1], za[0], za[1] + 5.08)
+    sh.gnd(za[0], za[1] + 5.08)
     sh.label("GATE_KILL", d[0] + 15.24, d[1] - 7.62)
     sh.hlabel("GATE_KILL", d[0] + 17.78, d[1] - 7.62, shape="output")
 

@@ -462,6 +462,48 @@ not constraints.
 | EGR bridge drivers | **AUIRS2184STR** ×2 | One input per leg: each leg's high and low exclusive by construction. See `EGR-DRIVER`. |
 | Negative-clamp control | **TLV3201AQDCKRQ1** + **UCC27517AQDBVRQ1** | A low-side ideal diode: engage below −100 mV, release above −6.8 mV. See `NEG-CLAMP`. |
 | Current-sense amplifiers | **INA181A1QDBVRQ1** ×3 | VCM reaches −0.2 V, so it sits across a ground-referenced shunt; supplied from 3V3_MCU so its output is ADC-safe by construction. |
+| Kill FETs and reset inverter | **2N7002BK** ×10 | 60 V, ±20 V Vgs, Vth 1.1–2.1 V, 2 Ω max at Vgs 5 V against the 5 Ω `supervisor.cir` assumes. AEC-Q101. Needs `GATE-KILL-CLAMP`. |
+| GATE_KILL clamp | **BZX84-C12-Q** | 11.4–12.7 V at 5 mA, +10 mV/K max. AEC-Q101. The plain BZX84 series is no longer automotive-qualified; the `-Q` suffix is. |
+| Relay FETs | **PMV280ENEA** ×2 | 100 V, ±20 V Vgs, 432 mΩ max at Vgs 4.5 V. AEC-Q101. Driven through a buffer — see `RELAY-GATE`. |
+| Relay gate buffers | **CAHCT1G125QDBVRQ1** ×2 | SN74AHCT1G125-Q1 on 5V_MAIN: VIH 2 V reads a 3.3 V GPIO, VOH 4.4 V min drives the FET. AEC-Q100. |
+
+### `GATE-KILL-CLAMP` — 12 V zener on GATE_KILL
+
+`GATE_KILL` is pulled up by 47 kΩ to **VBAT_PROT**, not 3V3_MCU, and for a
+good reason: a pullup on the rail being supervised has no supply during
+the brownout it exists to catch. But nothing on the net draws DC: it is
+nine FET gates and a reset inverter's drain. So with the inverter off, the
+net follows the battery rail, and that rail reaches **73.3 V** on
+pulse 2a. That is 3.7× the ±20 V Vgs rating of any small-signal FET.
+
+This was not caught while the kill path was drawn. It surfaced on
+22 Sep 2026, when the first kill FET was being chosen and its Vgs rating
+had to be checked against what drives its gate.
+
+A BZX84-C12-Q from GATE_KILL to ground holds the net at 12.7 V max, or
+13.7 V at 125 °C. Its current at the pulse peak is 1.3 mA, and the 47k
+dissipates 78 mW for the pulse's duration. Below 12 V, which includes
+cranking, the zener is out of circuit and GATE_KILL is the battery,
+which is what the pullup is there for. The numbers are checked in
+`run_sim` `transient_clamp`.
+
+### `RELAY-GATE` — the relay FETs' gates at 5 V, through a buffer
+
+The relay sheet drove each FET's gate straight from a 3.3 V GPIO, and its
+field note said "fully enhanced at 3.0 V". No part backed that claim. The
+100 V automotive small-signal FETs checked were PMV280ENEA, DMN10H220LQ
+and BSS123N. Every one of them specifies Rds(on) at Vgs = 4.5 V and no
+lower, and their Vth runs up to 2.5–2.8 V. That leaves 0.5–0.8 V of
+overdrive, less when cold, and the datasheets guarantee nothing there.
+The 100 V class is not optional here, because the drain is on VBAT_PROT
+through the coil.
+
+So an SN74AHCT1G125-Q1 on 5V_MAIN sits between the pin and the gate.
+Its TTL inputs read 3.3 V logic (VIH 2 V at VCC 4.5–5.5 V), and its
+output is 4.4 V minimum. OE is tied low. A 100 k pulldown on the input
+keeps the relay off while the GPIO is Hi-Z from reset. The existing
+10 k pulldown on the gate covers the case where 5V_MAIN is absent. At
+84 mA of coil current, the PMV280ENEA drops 36 mV.
 
 ### `INA592IDR` — the difference amplifiers, and a stronger argument
 
