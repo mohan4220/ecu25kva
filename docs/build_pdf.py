@@ -60,6 +60,8 @@ FONTS = (
 BOOK = [
     ("00-status", "status.md", "Build Status",
      "What is done, what is not, and what each gap is waiting on"),
+    ("00a-handoff", "HANDOFF.md", "Handoff",
+     "Setting up on another machine, what is verified, what is open, the traps"),
     ("01-handbook", "handbook/index.html", "Field Handbook",
      "The machine, its interface, the circuits in narrative, and how to run it"),
     ("02-sensors", "handbook/sensors.html", "Sensor Reference",
@@ -77,6 +79,8 @@ BOOK = [
      "S32K148 to the 94-way connector -- 37 signals, with package pins and reset state"),
     ("04b-bom", "bom_requirements.md", "BOM Requirements",
      "What the schematic has to buy, and the simulation block that says so"),
+    ("04c-decisions", "decisions-log.md", "Design Decisions",
+     "Every fork put to the owner: the question, the options, the choice, the reason"),
     ("05-engine", "research/01-engine-identity.md", "Memo 01 -- Engine Identity",
      "Which engine this actually is, established from five hardware constraints"),
     ("06-gcu", "research/02-kg640c-gcu.md", "Memo 02 -- KG640C Controller",

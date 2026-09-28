@@ -7,9 +7,16 @@ engine **3GK550ETA 4SR1**, application code `GK3.8703`, 26.5 kW at 1500 rpm,
 ## Start here
 
 **[`docs/pdf/ECU-Bible.pdf`](docs/pdf/ECU-Bible.pdf)** — everything, in reading
-order, in one 163-page file. Cover, field handbook, sensor reference, circuit
-reference, the specification, all nine research memos, the plan. Bookmarked, so
-the PDF reader's outline pane is the table of contents.
+order, in one 328-page file. Cover, handoff, field handbook, sensor reference,
+circuit reference, the specification, the decisions log, all twelve research
+memos, the plan. Bookmarked, so the PDF reader's outline pane is the table of
+contents.
+
+Resuming work, or moving to another machine?
+**[`docs/HANDOFF.md`](docs/HANDOFF.md)** — setup, what is verified, what is
+open, and the traps that already cost a session each.
+**[`docs/decisions-log.md`](docs/decisions-log.md)** — every design fork put to
+the owner, with the options and the reasoning.
 
 Prefer the browser? Three of those are live HTML:
 [the handbook](docs/handbook/index.html),
@@ -26,8 +33,9 @@ Prefer the browser? Three of those are live HTML:
 | `docs/handbook/sensors.html` | Sensor reference — every sensor, what it measures, how it's read, what the data drives |
 | `docs/superpowers/specs/` | The reconciled specification — the binding source of truth |
 | `refs/` | The OEM wiring diagram, the DSE4522 configuration, machine photographs, and the extracted pinout |
-| `docs/research/` | Nine research memos: engine ID, GCU, connector, injector, MCU, standards, BOM, inspection brief, sensor front-ends |
-| `sim/` | Seventeen SPICE circuits that run and check themselves, plus the schematic and page generators |
+| `docs/research/` | Twelve research memos: engine ID, GCU, connector, injector, MCU, standards, BOM, inspection brief, sensor front-ends, injector turn-off, supervisor, driver architecture |
+| `sim/` | Twenty-four SPICE circuits that run and check themselves |
+| `hw/` | The ten schematic-sheet generators, the symbol/footprint generators and the netlist gate |
 
 ## Rebuilding the PDFs
 
