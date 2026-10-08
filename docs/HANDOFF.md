@@ -122,7 +122,7 @@ started, and no firmware exists.
 |---|---|
 | Simulation blocks | **25 of 25 pass** |
 | Netlist connectivity | **passes**, with 2 named open items |
-| Footprints | **314 of 333** components |
+| Footprints | **317 of 333** components |
 | Chip R and C packaged | **208 of 208** |
 
 **Verified part numbers** are in `docs/bom_requirements.md` under
@@ -147,9 +147,10 @@ for each.
 1. **POWER-PATH — built 8 October 2026.** Pin 04 now feeds `VBAT_INJ`
    and pin 06 feeds `VBAT_EGR`, each through a TVS, an
    SQM120P10-10m1L reverse P-FET and a Schottky (`power_path.cir`, and
-   the netlist gate checks the split). Left over: state pin 21's
-   reduced load and choose L101, L102 and F101 for it, and check the
-   two new rails' conducted emissions. The original item read: move
+   the netlist gate checks the split). Pin 21's L101, L102 and F101
+   are chosen for its new 2.95 A bound (`docs/bom_requirements.md`
+   § POWER-PATH, with the thin margins stated). Left over: the two new
+   rails' conducted emissions, and F101's pulse-cycling data. The original item read: move
    the injector and EGR supply onto connector
    pins 04/06 (10 A fused each in the loom) with their own protection,
    leaving pin 21 feeding the electronics through the EMI filter and
@@ -202,12 +203,11 @@ for each.
   (five failed retrievals) — both need a distributor or FAE, not
   another search.
 
-### 4.4 The 19 components still without a footprint
+### 4.4 The 16 components still without a footprint
 
 | Parts | Why |
 |---|---|
 | D408–D414 (VS-16EDH02HM3 ×7), L201, J1001 | chosen, but no KiCad 7 land pattern — must be drawn |
-| L101, L102, F101 | unblocked: size for pin 21's reduced load |
 | L401 | blocked on BOOST-SLOPE |
 | F201–F203 | blocked on the sensor-supply redesign |
 | C313, C401 | not yet chosen |

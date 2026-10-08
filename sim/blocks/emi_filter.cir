@@ -57,13 +57,24 @@ Rs  s a 50
 * C1 is TWO 2.2 uF 100 V X7R 1210 in parallel since 22 Sep 2026: 4.7 uF
 * at 100 V is not in KEMET's automotive X7R range (1210 stops at 50 V),
 * and the node sees 73.3 V. Paralleling halves the ESR and the ESL.
-L1  a b 22u
+* L1 is Wurth 7447709220 (WE-PD, AEC-Q200 Grade 1), chosen 8 Oct 2026:
+* RDC 28 mOhm max, and its 10 MHz typical self-resonance means 11.5 pF
+* across it -- above 10 MHz L1 is a capacitor, so the FM band rests on
+* stage 2. Both modelled here since the part was chosen.
+L1  a b1 22u
+RL1 b1 b 28m
+CL1 a b 11.5p
 C1  b c1 4.4u
 Rc1 c1 c2 2.5m
 Lc1 c2 0  0.75n
 
 * ---- stage 2: lossy ferrite bead ----
-Lf  b d 0.5u
+* Lf is Wurth 744314047 (WE-HCI 7050, AEC-Q200 Grade 1), chosen 8 Oct
+* 2026: 0.47 uH, RDC 1.35 mOhm, self-resonance 235 MHz typ (0.98 pF).
+* Rf is the sheet's own 120 ohm resistor across it.
+Lf  b d1 0.47u
+RLf d1 d 1.35m
+CLf b d 0.98p
 Rf  b d 120
 
 C2  d e1 100n
@@ -92,12 +103,16 @@ Rl2 r  0 50
 .param C1temp=3.74u
 Vst  st 0 AC 1
 Rst  st at 50
-L1t  at bt 22u
+L1t  at bt1 22u
+RL1t bt1 bt 28m
+CL1t at bt 11.5p
 C1t  bt ct1 {C1temp}
 Rc1t ct1 ct2 2.5m
 Lc1t ct2 0  0.75n
 
-Lft  bt dt 0.5u
+Lft  bt dt1 0.47u
+RLft dt1 dt 1.35m
+CLft bt dt 0.98p
 Rft  bt dt 120
 
 C2t  dt et1 100n
@@ -134,6 +149,12 @@ wrdata emi_filter.dat vdb(d) vdb(r) vdb(dt)
 * choke stays a specification, not a simulated result, until
 * there is a layout to model it against. Recorded rather than
 * quietly omitted.
+*
+* CHOSEN PARTS, 8 Oct 2026 -- L1 and Lf now carry their datasheet RDC
+* and self-resonance, and Lf is 0.47 uH. The nominal margins at 150 and
+* 400 kHz fell to 0.56 dB and 0.73 dB (from 1.17 and 1.55 below); the
+* FM band is unaffected (-95.7 dB at 100 MHz). Everything below this
+* paragraph was written against the ideal-inductor model.
 *
 * TOLERANCE -- the checks at 150 kHz and 400 kHz pass at nominal by
 * 1.17 dB and 1.55 dB, the thinnest margins in this repo. The two

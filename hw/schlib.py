@@ -221,6 +221,23 @@ CHOSEN = {
         "Wurth WE-PD 1050, 33 uH, Isat 2.9 A typ, IR 2.5 A, 79 mOhm max, "
         "AEC-Q200 Grade 1. No WE-PD land pattern in KiCad 7 -- drawn in "
         "phase 3 from the Wurth drawing"),
+    # Pin 21's filter and fuse, chosen 8 Oct 2026 once POWER-PATH left
+    # them carrying only the electronics: 2.95 A, an upper bound
+    # (emi_filter in run_sim.py).
+    ("Device:L", "22uH"): (
+        "7447709220", "Inductor_SMD:L_Wuerth_WE-PD-Typ-LS",
+        "Wurth WE-PD 1210, 22 uH, IR 5.3 A, Isat 6.5 A typ, 28 mOhm max, "
+        "SRF 10 MHz, 120 V, AEC-Q200 Grade 1. Land pattern checked "
+        "against the datasheet's: 2.9 x 5.4 pads, 7.0 gap"),
+    ("Device:L", "0.47uH"): (
+        "744314047", "Inductor_SMD:L_Wuerth_HCI-7050",
+        "Wurth WE-HCI 7050, 0.47 uH, IR 18 A, Isat 9 A typ, 1.35 mOhm, "
+        "SRF 235 MHz, AEC-Q200 Grade 1. Land pattern checked: 2.7 x 2.2 "
+        "pads, 2.4 gap"),
+    ("Device:Fuse", "5A"): (
+        "0437005.WRA", "Fuse:Fuse_1206_3216Metric",
+        "Littelfuse 437A, 1206 fast-acting, 63 V DC, 50 A interrupting, "
+        "melting I2t 2.30 A2s, AEC-Q200. 3.16 A continuous at 105 C"),
     ("Device:D", "100V 3A fast"): (
         "VS-3ECH02HM3", "Diode_SMD:D_SMC",
         "Vishay FRED Pt, 200 V, 3 A, 130 A surge, AEC-Q101, SMC"),

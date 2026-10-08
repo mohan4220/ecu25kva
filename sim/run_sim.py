@@ -310,6 +310,15 @@ def check_sensor_ratiometric():
     return c
 
 
+# F101, pin 21's board fuse: Littelfuse 0437005.WRA (437A series, 1206,
+# AEC-Q200), datasheet revised 09/08/21, chosen 8 Oct 2026. Nominal
+# melting I2t is measured at a 1 ms opening time. The 20% ceiling for a
+# REPEATED pulse is the common fuse-fatigue rule of thumb, not a figure
+# from a retrieved Littelfuse document -- pulse-cycling data is open.
+F101_MELT_I2T = 2.30     # A2s
+F101_PULSE_FRACTION = 0.20
+
+
 def check_transient_clamp():
     c = Checks("transient_clamp -- ISO 7637-2 pulse 2a, +112 V / 2 ohm / 50 us")
     d = sim("transient_clamp", {"transient_clamp.dat": ["time", "bat", "src"]})["transient_clamp.dat"]
@@ -435,6 +444,16 @@ def check_transient_clamp():
     settled = bat[t > 1.5e-3]
     c.that("recovers to nominal after pulse", float(settled.mean()), 12.98, tol=0.1,
            unit="V")
+
+    # F101 is ahead of the TVS, so the whole line current goes through it:
+    # (src - bat) across the 2 ohm source resistance.
+    iline = (src - bat) / 2.0
+    i2t = float(np.trapezoid(iline ** 2, t))
+    c.that("F101: pulse 2a I2t through the fuse", i2t, 0.0572, tol=0.002,
+           unit="A2s")
+    c.that("  ... as a fraction of 0437005.WRA's 2.30 A2s melting I2t",
+           i2t / F101_MELT_I2T * 100, F101_PULSE_FRACTION * 100, tol=None,
+           ok=i2t / F101_MELT_I2T < F101_PULSE_FRACTION, unit="%")
     return c
 
 
@@ -756,6 +775,16 @@ def check_negative_pulses():
            "TVS current is numerically zero throughout the burst at "
            "C1 = 10 uF; the accumulation question only bites once C1 is "
            "derated enough for the TVS to conduct at all", None, ok=True)
+
+    # F101 carries the clamp Schottky's current: pin -> fuse -> filter ->
+    # Q101 (still on) -> Schottky. Pulse 1 is the worst pulse for the fuse.
+    i2t1 = float(np.trapezoid(isch1 ** 2, t1))
+    c.that("F101: pulse 1 I2t through the fuse", i2t1, 0.371, tol=0.01,
+           unit="A2s")
+    c.that("  ... as a fraction of 0437005.WRA's 2.30 A2s melting I2t "
+           "(repeated pulse: 20% rule of thumb, pulse-cycling data open)",
+           i2t1 / F101_MELT_I2T * 100, F101_PULSE_FRACTION * 100, tol=None,
+           ok=i2t1 / F101_MELT_I2T < F101_PULSE_FRACTION, unit="%")
     return c
 
 
@@ -1623,6 +1652,44 @@ def check_emi_filter():
     # different C1 case size/voltage rating, or whether -40 dB was never
     # the right gate to begin with, is the same open measurement question
     # the "is 40 dB enough" line above already leaves open.
+
+    # ---- what pin 21 carries since POWER-PATH (8 Oct 2026) ----
+    # An upper bound, not an estimate: the buck draws input current only
+    # while its high side conducts, and never more than the inductor
+    # current, so its AVERAGE input current cannot exceed the peak limit --
+    # whatever the 5 V load turns out to be. LM5164 SNVSAU4D: IPEAK1 max
+    # 1.75 A. The metering freewheel current returns THROUGH this path;
+    # adding its magnitude over-states the total, the safe direction.
+    i_buck = 1.75
+    i_relays = 2 * 24.0 / 160.0          # two coils at a 24 V jump start
+    i_meter = 0.862                       # metering_unit_pwm, -40 C open loop
+    i_vdd = 0.037                         # boost VDD feed, load-dump zener current
+    i21 = i_buck + i_relays + i_meter + i_vdd
+    c.that("pin 21 DC current, upper bound (buck at its peak limit)", i21,
+           2.949, tol=0.002, unit="A")
+    # L101 = Wurth 7447709220: IR 5.3 A (40 K rise), Isat 6.5 A typ,
+    # operating max 125 C. Rise scales as I^2.
+    rise = 40.0 * (i21 / 5.3) ** 2
+    c.that("L101 7447709220: saturation margin over the bound (Isat 6.5 A typ)",
+           6.5 / i21, 2.2, tol=0.05, unit="x")
+    c.that("  ... self-heating at the bound, on a 105 C board", 105.0 + rise,
+           117.4, tol=0.2, unit="C")
+    c.that("  ... under its 125 C operating maximum", 105.0 + rise, 125.0,
+           tol=None, ok=105.0 + rise < 125.0, unit="C")
+    # L102 = Wurth 744314047: IR 18 A (50 K rise), Isat 9 A typ.
+    c.that("L102 744314047: saturation margin (Isat 9 A typ)", 9.0 / i21,
+           3.05, tol=0.05, unit="x")
+    # F101 = 0437005.WRA: 80% continuous, then the temperature re-rating
+    # curve -- 79% at 105 C, READ OFF THE DATASHEET'S GRAPH (85% at 75 C is
+    # the one point the datasheet states in text, and the curve matches it).
+    i_fuse = 5.0 * 0.80 * 0.79
+    c.that("F101 0437005.WRA: continuous rating at 105 C (80% x 79%)", i_fuse,
+           3.16, tol=0.01, unit="A")
+    c.that("  ... over the pin 21 bound by", i_fuse / i21, 1.07, tol=0.01,
+           unit="x")
+    c.that("  ... the largest 437A rating still rated 63 V (7 A is 35 V, "
+           "under the 40 V load dump)", 63.0, 40.0, tol=None, ok=63.0 > 40.0,
+           unit="V")
     return c
 
 

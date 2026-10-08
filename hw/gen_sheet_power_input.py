@@ -326,14 +326,19 @@ def build():
     sh.wire(30, RAIL, 48.19, RAIL)
 
     # ---- fuse ----
-    # 20 A, matching the OEM harness fuse 8F1 the metering unit sits behind.
-    _, _, f_r = series(sh, "Device:Fuse", "F", 52, "20A",
-                       {"Source": "spec sec.2.2 -- OEM harness fuse 8F1 class",
+    # 5 A since 8 Oct 2026. It was 20 A, "matching the OEM harness fuse
+    # 8F1 class", while every load on the board ran through it; POWER-PATH
+    # left it the electronics only, 2.95 A as an upper bound.
+    _, _, f_r = series(sh, "Device:Fuse", "F", 52, "5A",
+                       {"Source": "run_sim.py emi_filter (pin 21 load), "
+                                  "transient_clamp and negative_pulses "
+                                  "(pulse I2t)",
                        })
 
     # ---- EMI filter, first stage ----
     _, l1_l, l1_r = series(sh, "Device:L", "L", 80, "22uH",
-                           {"Source": "emi_filter.cir L1"})
+                           {"Source": "emi_filter.cir L1 -- RDC and "
+                                      "self-resonance modelled"})
     sh.wire(f_r, RAIL, l1_l, RAIL)
 
     # C1 is two 2.2 uF 100 V parts: 4.7 uF at 100 V is not in KEMET's
@@ -350,8 +355,9 @@ def build():
     sh.label("VBAT_EMI1", 92, RAIL)
 
     # ---- EMI filter, second stage: Lf damped by Rf in parallel ----
-    _, lf_l, lf_r = series(sh, "Device:L", "L", 138, "0.5uH",
-                           {"Source": "emi_filter.cir Lf"})
+    _, lf_l, lf_r = series(sh, "Device:L", "L", 138, "0.47uH",
+                           {"Source": "emi_filter.cir Lf -- RDC and "
+                                      "self-resonance modelled"})
     sh.wire(108, RAIL, lf_l, RAIL)
     # Rf sits above the rail, across Lf -- the damping that stops the
     # second stage ringing with C2.

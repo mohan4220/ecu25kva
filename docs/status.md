@@ -767,6 +767,18 @@ sized. Conducted emissions on the two new rails are open. This was
 done on macOS with KiCad 10 for `kicad-cli` and KiCad 7.0.11's symbol
 libraries for generation, and ngspice 42.
 
+**Pin 21's filter and fuse chosen, 8 October 2026.** Pin 21's load is
+now stated as an upper bound of 2.95 A: the LM5164's 1.75 A peak limit
+caps the buck's input current, plus the relays, the metering freewheel
+and the boost VDD feed. The parts are L101 Würth 7447709220 (22 µH,
+Isat 6.5 A), L102 Würth 744314047 (0.47 µH), and F101 Littelfuse
+0437005.WRA (5 A, 63 V, 3.16 A at 105 °C). F101 used to be 20 A. The
+EMI model now carries the inductors' RDC and self-resonance, and its
+150 kHz margin fell to 0.56 dB. The fuse's pulse I²t is now computed
+from the simulated waveforms: 16 % of melting on pulse 1, against a
+20 % rule of thumb whose pulse-cycling data is still open. 317 of 333
+components now have footprints.
+
 ---
 
 ## 8. Work at the machine

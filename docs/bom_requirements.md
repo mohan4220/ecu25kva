@@ -467,6 +467,9 @@ not constraints.
 | Relay FETs | **PMV280ENEA** ×2 | 100 V, ±20 V Vgs, 432 mΩ max at Vgs 4.5 V. AEC-Q101. Driven through a buffer — see `RELAY-GATE`. |
 | Relay gate buffers | **CAHCT1G125QDBVRQ1** ×2 | SN74AHCT1G125-Q1 on 5V_MAIN: VIH 2 V reads a 3.3 V GPIO, VOH 4.4 V min drives the FET. AEC-Q100. |
 | Reverse-battery FET | **SQD50P08-25L** | −80 V P-channel, ±20 V Vgs, 31 mΩ max at −4.5 V against a 40 mΩ ceiling. AEC-Q101, TO-252. |
+| Pin 21 filter inductor L101 | **7447709220** | Würth WE-PD 1210, 22 µH ±20%, IR 5.3 A, Isat 6.5 A typ, RDC 28 mΩ max, SRF 10 MHz typ, 120 V, AEC-Q200 Grade 1, −40 to +125 °C. Datasheet rev 003.001 (2024-05-08). |
+| Pin 21 second stage L102 | **744314047** | Würth WE-HCI 7050, 0.47 µH ±20%, IR 18 A, Isat 9 A typ, RDC 1.35 mΩ, SRF 235 MHz typ, AEC-Q200 Grade 1, −40 to +150 °C. Datasheet rev 004.001 (2025-02-06). |
+| Pin 21 fuse F101 | **0437005.WRA** | Littelfuse 437A, 1206 fast-acting, 5 A, 63 V DC, 50 A interrupting, melting I²t 2.30 A²s, 15.9 mΩ, AEC-Q200. Datasheet revised 09/08/21. 79 % re-rating at 105 °C read off its curve. |
 | Reverse-battery FETs, pins 04/06 | **SQM120P10-10m1L** ×2 | −100 V P-channel, ±20 V Vgs, 10.1 mΩ max at −10 V, 20.5 mΩ at 175 °C, 15.0 mΩ at −4.5 V, RthJA 40 °C/W. AEC-Q101, TO-263. Vishay doc 76943 Rev. A, retrieved 8 Oct 2026. `POWER-PATH`. |
 | 100 V N-channel | **IPD90N10S4-06** ×8 | Negative clamp, metering, four EGR, two injector battery switches (60 V class needed; one part number instead of two). 6.7 mΩ max at 10 V, ±20 V Vgs, AEC-Q101, TO-252. The logic-level sibling `-S4L-06` was rejected for its ±16 V Vgs: every one of these gates is driven from 12V_GATE. |
 | Injector 150 V FETs | **SQM85N15-19** ×5 | Two boost-side high sides, three low sides. 19 mΩ max at 10 V — the model's 20 mΩ. ±20 V Vgs, AEC-Q101, TO-263. Qg 120 nC max sets the bootstrap droop: 126 mV. |
@@ -552,10 +555,35 @@ own loads, and that VBAT_PROT no longer reaches either power stage.
 
 **What this leaves open:**
 
-- **L101, L102 and F101 are unblocked** but still unchosen. They now
-  carry only pin 21's load (the buck, the relays, the metering
-  freewheel and the boost VDD), which still has to be stated as a
-  number before they are sized.
+- **L101, L102 and F101 are chosen (8 October 2026)** for what pin 21
+  now carries, stated as an upper bound of **2.95 A**. The bound is
+  1.75 A for the buck, from the LM5164's IPEAK1 maximum, since its
+  average input current cannot exceed its peak limit. Then 0.30 A for
+  two relay coils at 24 V, 0.86 A for the metering freewheel, and
+  0.04 A for the boost VDD feed. `run_sim.py` checks all of it under
+  `emi_filter`, `transient_clamp` and `negative_pulses`:
+
+  | Part | Choice | Against the 2.95 A bound |
+  |---|---|---|
+  | L101 | Würth **7447709220**, 22 µH WE-PD | Isat 6.5 A typ (2.2×); 117 °C on a 105 °C board, under its 125 °C maximum |
+  | L102 | Würth **744314047**, 0.47 µH WE-HCI 7050 | Isat 9 A typ (3.05×) |
+  | F101 | Littelfuse **0437005.WRA**, 5 A 437A | 3.16 A continuous at 105 °C (1.07×); pulse 1 I²t 16 % of melting, pulse 2a 2.5 % |
+
+  **Thin margins, stated:**
+
+  - **F101's 1.07×** is against a bound the buck cannot actually
+    sustain; the estimated real load is 0.25–0.5 A at the input. 5 A is
+    also the largest 437A rating still rated for 63 V, since 7 A is
+    35 V, under the 40 V load dump. If the fuse opens on overload, the
+    board loses power, which is the fail-safe direction.
+  - **The 20 % pulse ceiling** for the repeated pulse 1 is a fuse-fatigue
+    rule of thumb, not a retrieved figure. Littelfuse pulse-cycling
+    data is open.
+  - **The EMI filter's margins at 150 kHz and 400 kHz fell** to 0.56 dB
+    and 0.73 dB once the model carried the real inductors' RDC and
+    self-resonance (they were 1.17 and 1.55 dB with ideal inductors).
+    Lf is 0.47 µH, not the 0.5 µH it was modelled at. The gates are
+    still the unvalidated placeholders `emi_filter` already flags.
 - **Conducted emissions from the EGR PWM and the injector chopping**
   no longer pass through the pin-21 filter. They were never modelled
   through it either, but the new rails have only 4.4 µF of ceramic
