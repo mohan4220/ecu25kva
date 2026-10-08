@@ -467,6 +467,7 @@ not constraints.
 | Relay FETs | **PMV280ENEA** ×2 | 100 V, ±20 V Vgs, 432 mΩ max at Vgs 4.5 V. AEC-Q101. Driven through a buffer — see `RELAY-GATE`. |
 | Relay gate buffers | **CAHCT1G125QDBVRQ1** ×2 | SN74AHCT1G125-Q1 on 5V_MAIN: VIH 2 V reads a 3.3 V GPIO, VOH 4.4 V min drives the FET. AEC-Q100. |
 | Reverse-battery FET | **SQD50P08-25L** | −80 V P-channel, ±20 V Vgs, 31 mΩ max at −4.5 V against a 40 mΩ ceiling. AEC-Q101, TO-252. |
+| Reverse-battery FETs, pins 04/06 | **SQM120P10-10m1L** ×2 | −100 V P-channel, ±20 V Vgs, 10.1 mΩ max at −10 V, 20.5 mΩ at 175 °C, 15.0 mΩ at −4.5 V, RthJA 40 °C/W. AEC-Q101, TO-263. Vishay doc 76943 Rev. A, retrieved 8 Oct 2026. `POWER-PATH`. |
 | 100 V N-channel | **IPD90N10S4-06** ×8 | Negative clamp, metering, four EGR, two injector battery switches (60 V class needed; one part number instead of two). 6.7 mΩ max at 10 V, ±20 V Vgs, AEC-Q101, TO-252. The logic-level sibling `-S4L-06` was rejected for its ±16 V Vgs: every one of these gates is driven from 12V_GATE. |
 | Injector 150 V FETs | **SQM85N15-19** ×5 | Two boost-side high sides, three low sides. 19 mΩ max at 10 V — the model's 20 mΩ. ±20 V Vgs, AEC-Q101, TO-263. Qg 120 nC max sets the bootstrap droop: 126 mV. |
 | Boost switch | **DMN15H310SK3** | 150 V, Vth 3 V max, 350 mΩ max at Vgs **4 V** — specified below the 5.7 V it gets while cranking. Qg 8.7 nC typ. AEC-Q101, TO-252. Cranking duty with its drop, hot: 94.8% against 97.0% available. |
@@ -530,7 +531,41 @@ Things this pass found:
   lose a large part of their capacitance at their working voltage. The
   1.5× rule does not capture that.
 
-### `POWER-PATH` — what the input filter and reverse FET actually carry (OPEN)
+### `POWER-PATH` — what the input filter and reverse FET actually carry (CLOSED 8 October 2026)
+
+**Built.** Pin 04 now feeds `VBAT_INJ` and pin 06 feeds `VBAT_EGR`.
+Each feed runs through its own SMCJ43CA TVS, an **SQM120P10-10m1L**
+reverse P-FET (passive gate, as Q1), an SS20PH102HM3 Schottky backstop
+and 2 × 2.2 µF 100 V. The reasons for the split are in
+`docs/decisions-log.md` §2a. `power_path.cir` checks these figures:
+
+| | EGR, pin 06 | Injector, pin 04 |
+|---|---|---|
+| Load | 6.4 A stall, continuous | 10 A hold 3 ms / 26.67 ms + 0.98 A boost |
+| FET drop at 175 °C RDS(on) | 0.131 V | 0.225 V peak |
+| FET dissipation | 0.84 W | 0.30 W (3.8 A RMS) |
+| Tj at a 105 °C board | 139 °C | 117 °C |
+| Tj while cranking (Vgs −6 V) | 155 °C (RDS(on) inferred) | — |
+
+The netlist gate checks that each rail leaves its own FET, reaches its
+own loads, and that VBAT_PROT no longer reaches either power stage.
+
+**What this leaves open:**
+
+- **L101, L102 and F101 are unblocked** but still unchosen. They now
+  carry only pin 21's load (the buck, the relays, the metering
+  freewheel and the boost VDD), which still has to be stated as a
+  number before they are sized.
+- **Conducted emissions from the EGR PWM and the injector chopping**
+  no longer pass through the pin-21 filter. They were never modelled
+  through it either, but the new rails have only 4.4 µF of ceramic
+  each. A CISPR 25 check of these two rails is open.
+- Anything placed on VBAT_INJ or VBAT_EGR has to tolerate about
+  −0.5 V on pulse 1. The Schottky holds the rail there, and there is no
+  active clamp on these rails. The present loads are switch and bridge
+  FETs, a diode and an inductor, and all of them do.
+
+The original requirement follows.
 
 Every high-current load on the board draws from VBAT_PROT: the injector
 battery switches (10 A hold), the EGR bridge (up to 6.4 A stall) and

@@ -64,6 +64,8 @@ NET_V = {
     # battery side
     "/VBAT_PROT": BAT, "/power_input/VBAT_CLAMPED": BAT,
     "/power_input/VBAT_REV_GATE": BAT, "/V_BAT_1R": HARNESS,
+    "/VBAT_INJ": BAT, "/VBAT_EGR": BAT,
+    "/power_input/VBAT_INJ_GATE": BAT, "/power_input/VBAT_EGR_GATE": BAT,
     "/V_BAT_2R": HARNESS, "/TRIP_LOOP": HARNESS,
     "/IN_AUDIO_ABORT_H": HARNESS, "/IN_OVERRIDE_SS_H": HARNESS,
     "/IN_IGNITION_H": HARNESS, "/SW_COOLANT_C": HARNESS,

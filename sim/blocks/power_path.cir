@@ -1,0 +1,78 @@
+* ============================================================
+* POWER-PATH -- the injector and EGR feeds on pins 04 and 06
+* ============================================================
+* Decided 8 Oct 2026 (docs/decisions-log.md 2a): the high-current loads
+* leave pin 21. Pin 04 (V_BAT_1R, 10 A loom fuse) feeds the injector --
+* the battery hold switches and the boost converter's input. Pin 06
+* (V_BAT_2R, 10 A loom fuse) feeds the EGR H-bridge. Pin 21 keeps the
+* buck, the relay coils and the metering valve's freewheel diode.
+* Separate rails, not paralleled: two fuses in parallel never share, so
+* one clears first and hands the whole load to the other.
+*
+* Each rail gets the pin-21 protection minus what its loads do not
+* need: TVS -> reverse-battery P-FET -> Schottky backstop. No EMI
+* inductor (a 22 uH part that carries 10 A is the problem POWER-PATH
+* exists to remove) and no active negative clamp (that exists for the
+* buck's -0.3 V pins; bridge and switch FETs ride the Schottky's -0.5 V).
+*
+* THE FET. Vishay SQM120P10-10m1L, datasheet doc 76943 Rev. A
+* (retrieved 8 Oct 2026): -100 V, +/-20 V Vgs, AEC-Q101, TO-263.
+*   RDS(on) max  10.1 mOhm  Vgs -10 V, 25 C
+*                16.8 mOhm  Vgs -10 V, 125 C
+*                20.5 mOhm  Vgs -10 V, 175 C   <- modelled here
+*                15.0 mOhm  Vgs -4.5 V, 25 C
+*   RthJA 40 C/W on 1 in2 FR4.
+* The switch carries the 175 C figure: the junction never gets there
+* (run_sim.py checks that), so this over-states every drop and every
+* watt -- the safe direction.
+*
+* Same passive gate as Q1 on pin 21: 47k to ground, 12 V zener
+* gate-to-source, so Vgs = -V(rail), clamped at -12 V. On whenever the
+* load side is positive, off when it is not -- the switch model below.
+*
+* LOADS, worst case:
+*   EGR   6.4 A continuous -- the actuator's stall, held. Nothing about
+*         stall is brief if the firmware or the valve hangs.
+*   INJ   10 A hold for 3 ms every 26.67 ms (memo 04's 1-3 ms envelope,
+*         240 crank degrees at 1500 rpm), plus 0.98 A continuous into
+*         the boost converter -- its own cranking-corner input current
+*         from boost_converter, applied at 13.5 V too, so it is an upper
+*         bound there.
+* ============================================================
+.model PSW  SW(Ron=20.5m Roff=1e9 Vt=0.5 Vh=0.1)
+
+* ---- pin 06 -> VBAT_EGR, 13.5 V ----
+Vegr  begr 0 DC 13.5
+Segr  begr regr begr 0 PSW
+Iegr  regr 0 DC 6.4
+
+* ---- pin 04 -> VBAT_INJ, 13.5 V ----
+Vinj  binj 0 DC 13.5
+Sinj  binj rinj binj 0 PSW
+Iinjb rinj 0 DC 0.98
+Iinjh rinj 0 PULSE(0 10 1m 1u 1u 3m 26.67m)
+
+* ---- reversed battery on both feeds ----
+Vrev  brev 0 DC -14
+Srev  brev rrev brev 0 PSW
+Rrev  rrev 0 1k
+
+.control
+tran 10u 54.34m
+let i_egr = i(Vegr)
+let i_inj = i(Vinj)
+wrdata power_path.dat v(begr) v(regr) i_egr v(binj) v(rinj) i_inj
+dc Vrev -14 -1 0.5
+wrdata power_path_rev.dat v(rrev)
+.endc
+
+.end
+
+* ------------------------------------------------------------
+* RESULT NOTE
+* ------------------------------------------------------------
+* The cranking corner (6 V, so Vgs = -6 V) is arithmetic in run_sim.py,
+* not a second run: the only datasheet point near it is -4.5 V, and
+* that figure is given at 25 C only. Scaling it by the -10 V curve's own
+* 175 C / 25 C ratio (20.5 / 10.1) gives 30.4 mOhm -- INFERRED, stated
+* as such where it is used.

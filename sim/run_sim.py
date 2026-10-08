@@ -1199,6 +1199,85 @@ def check_reverse_battery():
     return c
 
 
+def check_power_path():
+    c = Checks("power_path -- injector on pin 04, EGR on pin 06, one P-FET each")
+    d = sim("power_path", {
+        "power_path.dat": ["time", "begr", "regr", "iegr", "binj", "rinj",
+                           "iinj"],
+        "power_path_rev.dat": ["vrev", "rrev"],
+    })
+    p = d["power_path.dat"]
+    t = p["time"]
+    # One full injector period, 1 ms to 27.67 ms. Averaged over TIME:
+    # the samples bunch up at the hold pulse's edges.
+    w = (t >= 1e-3) & (t <= 27.67e-3)
+    tw = t[w]
+
+    def tmean(arr):
+        return float(np.trapezoid(arr[w], tw) / (tw[-1] - tw[0]))
+
+    TAMB, RTH, TJMAX = 105.0, 40.0, 175.0   # board; datasheet RthJA; abs max
+    R25_45, R25_10, R175_10 = 15.0e-3, 10.1e-3, 20.5e-3
+
+    # ---- EGR, pin 06: 6.4 A stall, continuous ----
+    iegr = np.abs(p["iegr"])
+    drop_e = float(np.max(p["begr"] - p["regr"]))
+    pe = tmean(iegr * (p["begr"] - p["regr"]))
+    c.that("EGR rail: FET drop at 6.4 A stall, 175 C RDS(on)", drop_e, 0.131,
+           tol=0.002, unit="V")
+    c.that("  ... FET dissipation, continuous", pe, 0.840, tol=0.01, unit="W")
+    c.that("  ... junction at a 105 C board (RthJA 40 C/W)", TAMB + pe * RTH,
+           138.6, tol=0.5, unit="C")
+    c.that("  ... under the 175 C maximum by", TJMAX - (TAMB + pe * RTH),
+           36.4, tol=0.5, unit="C")
+    c.that("  ... stall current inside pin 06's 10 A loom fuse",
+           float(iegr.max()), 10.0, tol=None, ok=float(iegr.max()) < 10.0,
+           unit="A")
+
+    # ---- injector, pin 04: 10 A hold pulses plus the boost input ----
+    iinj = np.abs(p["iinj"])
+    drop_i = float(np.max(p["binj"] - p["rinj"]))
+    pi = tmean(iinj * (p["binj"] - p["rinj"]))
+    irms = float(np.sqrt(tmean(iinj ** 2)))
+    c.that("injector rail: FET drop at 10.98 A peak (hold + boost)", drop_i,
+           0.225, tol=0.002, unit="V")
+    c.that("  ... RMS current, 3 ms hold every 26.67 ms", irms, 3.797,
+           tol=0.02, unit="A")
+    c.that("  ... FET dissipation, averaged over a cylinder period", pi,
+           0.296, tol=0.005, unit="W")
+    c.that("  ... junction at a 105 C board", TAMB + pi * RTH, 116.8,
+           tol=0.5, unit="C")
+    c.that("  ... RMS inside pin 04's 10 A loom fuse", irms, 10.0, tol=None,
+           ok=irms < 10.0, unit="A")
+
+    # ---- cranking: 6 V on the rail, so Vgs = -6 V ----
+    # The datasheet gives -4.5 V at 25 C only. INFERRED: scaled by the
+    # -10 V curve's own 175 C / 25 C ratio.
+    r_crank = R25_45 * R175_10 / R25_10
+    c.that("cranking: RDS(on) at Vgs -4.5 V, 175 C (INFERRED)",
+           r_crank * 1e3, 30.4, tol=0.1, unit="mOhm")
+    pc = 6.4 ** 2 * r_crank
+    c.that("  ... EGR stall while cranking: FET dissipation", pc, 1.247,
+           tol=0.005, unit="W")
+    c.that("  ... junction at a 105 C board", TAMB + pc * RTH, 154.9,
+           tol=0.5, unit="C")
+    c.that("  ... still under 175 C by", TJMAX - (TAMB + pc * RTH), 20.1,
+           tol=0.5, unit="C")
+    c.that("  ... injector peak drop while cranking", 10.98 * r_crank,
+           0.334, tol=0.003, unit="V")
+
+    # ---- gate and reverse battery ----
+    c.that("Vgs held by the 12 V zener, against the +/-20 V rating",
+           20.0 / 12.0, 1.667, tol=0.001, unit="x")
+    rrev = d["power_path_rev.dat"]["rrev"]
+    c.that("reversed battery: both feeds block -14 V (leak into 1k)",
+           abs(float(rrev.min())) * 1e3, 0.0, tol=None,
+           ok=abs(float(rrev.min())) < 0.05, unit="mV")
+    c.that("  ... |Vds| while blocking, against -100 V", 14.0, 100.0,
+           tol=None, ok=14.0 < 100.0, unit="V")
+    return c
+
+
 def check_buck_preregulator():
     c = Checks("buck_preregulator -- 6-40 V to 5 V, 400 kHz, power chain stage 4")
     d = sim("buck_preregulator", {
@@ -2569,6 +2648,7 @@ CHECKS = {
     "egr_hbridge": check_egr_hbridge,
     "emi_filter": check_emi_filter,
     "reverse_battery": check_reverse_battery,
+    "power_path": check_power_path,
     "buck_preregulator": check_buck_preregulator,
     "sensor_rail": check_sensor_rail,
     "mcu_pdn": check_mcu_pdn,

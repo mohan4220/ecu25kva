@@ -307,8 +307,8 @@ Confirmed pins from the wiring diagram. **44 of 94.** See §8 for the remaining 
 | Pin | Signal | Front-end |
 |---|---|---|
 | 21 | Battery + feed | Main input: EMI filter → fuse → TVS → reverse-battery FET |
-| 04 | `V_V_BAT_1R` (10 A fused) | **120 k / 10 k** divider → ADC; feeds high-current loads `[?]` |
-| 06 | `V_V_BAT_2R` (10 A fused) | **120 k / 10 k** divider → ADC; feeds high-current loads `[?]` |
+| 04 | `V_V_BAT_1R` (10 A fused) | **120 k / 10 k** divider → ADC; **injector feed `VBAT_INJ`** since 8 Oct 2026 (POWER-PATH, decisions log §2a, §5) |
+| 06 | `V_V_BAT_2R` (10 A fused) | **120 k / 10 k** divider → ADC; **EGR feed `VBAT_EGR`** since 8 Oct 2026 (POWER-PATH, decisions log §2a, §5) |
 | 09 | `SYNCHRONIZATION GROUND` | Function unresolved — see §8 |
 
 The battery-sense divider is **120 k / 10 k, not the 75 k / 10 k** inherited from
@@ -876,7 +876,7 @@ needs the machine.
 | U4 | Controller J1939 expectations | **Largely answered** — CAN source addresses **234** (engine) / **44** (instrumentation); J1939-75 instrumentation on, alarms off; the controller takes **oil pressure, coolant temperature, coolant level and ENGINE SPEED** from our ECU over CAN; `ECU Data Fail → Shutdown` | Firmware, CAN sheet | Remaining: the exact PGN set. Log the live bus, or read DSE publication 057-004 |
 | U5 | Injector part number and drive profile | **Partly answered** — memo 04 gives a family envelope (65–115 V, 12–24 A peak, 8–13 A hold, 40–100 A/ms) sufficient to design the driver | Boost rail *target* voltage, not the driver sheet itself | Photograph the injector body for a Bosch `0445 1xx xxx` or Kirloskar `F6.xxx.xx.x.pr`. **Separately: the calibration data is a different problem — see §9 and memo 04** |
 | U6 | Pin 09 `SYNCHRONIZATION GROUND` function | Open | Power/ground plan | OEM pin list; drawn red despite the name |
-| U7 | Pins 04/06 — sense only, or load feeds? | Open | Power sheet current rating | Measure on the live engine, or OEM pin list |
+| U7 | Pins 04/06 — sense only, or load feeds? | Open — no longer blocking | The board now uses them as load feeds (POWER-PATH, 8 Oct 2026), relying on the 10 A loom fuse sizing the wire. Measuring still confirms the OEM's own use | Measure on the live engine, or OEM pin list |
 | U8 | 6-pin intake throttle — on the ECU at all? | **Partially answered 18 Sep 2026** — reported **battery-fed**, so the ECU does not supply it | Whether a throttle *driver* is in scope. Supply and control are separate questions and only supply is answered | Still needs brief task 3.11: follow the cable and see whether it terminates at the 94-way connector. A battery-fed actuator can still be ECU-commanded |
 | U9 | Catalyst temp sensor — connected where? | Open | Whether an EGT front-end is in scope | Trace on the engine |
 | U10 | `SENT` in the colour legend — which signal? | Open | Possible digital sensor front-end | Inspect harness; SENT is SAE J2716 |

@@ -72,9 +72,21 @@ put them in `~/.zshrc`:
 export NGSPICE_LIB=$HOME/opt/ngspice-42/lib/libngspice.0.dylib
 export SPICE_SCRIPTS=$HOME/opt/ngspice-42/share/ngspice/scripts   # else no spinit
 export PATH="/Applications/KiCad/KiCad.app/Contents/MacOS:$PATH"
-export KICAD_SYMBOL_DIR=/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols
+export KICAD_SYMBOL_DIR=$HOME/opt/kicad7-libs/kicad-symbols-7.0.11   # see below
 export KICAD_FOOTPRINT_DIR=/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints
 export CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+```
+
+**Generate against KiCad 7.0.11's symbols, not KiCad 10's.** The
+generators copy each library symbol into the sheet, so KiCad 10's
+library would change every symbol on every regenerated sheet (and
+`schlib` cannot read its tab-indented format anyway). With the 7.0.11
+library an unchanged sheet regenerates identically, apart from UUIDs.
+KiCad 10 is used only for `kicad-cli`.
+
+```bash
+mkdir -p ~/opt/kicad7-libs && cd ~/opt/kicad7-libs
+curl -fsSL https://gitlab.com/kicad/libraries/kicad-symbols/-/archive/7.0.11/kicad-symbols-7.0.11.tar.gz | tar xz
 ```
 
 The PDFs come out two pages shorter on this Chrome (326, not 328) with
@@ -85,9 +97,9 @@ Verify the whole project in one go:
 
 ```bash
 set -o pipefail
-.venv/bin/python sim/run_sim.py | tail -3        # expect 24/24 blocks pass
+.venv/bin/python sim/run_sim.py | tail -3        # expect 25/25 blocks pass
 .venv/bin/python hw/check_netlist.py | tail -6   # expect "schematic connectivity OK", 2 open items
-.venv/bin/python hw/assign_passives.py           # expect 202 packaged, 0 unresolved
+.venv/bin/python hw/assign_passives.py           # expect 208 packaged, 0 unresolved
 .venv/bin/python docs/build_pdf.py | tail -1     # rebuilds docs/pdf/ECU-Bible.pdf
 ```
 
@@ -108,10 +120,10 @@ started, and no firmware exists.
 
 | Gate | State |
 |---|---|
-| Simulation blocks | **24 of 24 pass** |
+| Simulation blocks | **25 of 25 pass** |
 | Netlist connectivity | **passes**, with 2 named open items |
-| Footprints | **300 of 319** components |
-| Chip R and C packaged | **202 of 202** |
+| Footprints | **314 of 333** components |
+| Chip R and C packaged | **208 of 208** |
 
 **Verified part numbers** are in `docs/bom_requirements.md` under
 "Chosen parts" — every one against a datasheet that was actually
@@ -130,9 +142,15 @@ for each.
 
 ## 4. What is open, in the order I would do it
 
-### 4.1 Three approved redesigns, not yet built
+### 4.1 Three approved redesigns: one built, two to go
 
-1. **POWER-PATH** — move the injector and EGR supply onto connector
+1. **POWER-PATH — built 8 October 2026.** Pin 04 now feeds `VBAT_INJ`
+   and pin 06 feeds `VBAT_EGR`, each through a TVS, an
+   SQM120P10-10m1L reverse P-FET and a Schottky (`power_path.cir`, and
+   the netlist gate checks the split). Left over: state pin 21's
+   reduced load and choose L101, L102 and F101 for it, and check the
+   two new rails' conducted emissions. The original item read: move
+   the injector and EGR supply onto connector
    pins 04/06 (10 A fused each in the loom) with their own protection,
    leaving pin 21 feeding the electronics through the EMI filter and
    reverse FET. Today every high-current load runs through a path whose
@@ -189,7 +207,7 @@ for each.
 | Parts | Why |
 |---|---|
 | D408–D414 (VS-16EDH02HM3 ×7), L201, J1001 | chosen, but no KiCad 7 land pattern — must be drawn |
-| L101, L102, F101 | blocked on POWER-PATH |
+| L101, L102, F101 | unblocked: size for pin 21's reduced load |
 | L401 | blocked on BOOST-SLOPE |
 | F201–F203 | blocked on the sensor-supply redesign |
 | C313, C401 | not yet chosen |
@@ -228,7 +246,7 @@ These each cost a debugging session already:
   voltages on net names — so give any node whose voltage matters a real
   label.
 - **`--force`**, or the generator keeps the existing sheet.
-- **The ngspice version matters.** The suite passes 24/24 on ngspice 42
+- **The ngspice version matters.** The suite passes on ngspice 42
   and fails on 47 (see §2). Upgrading the simulator is a change that
   needs the whole suite re-run, not a routine update.
 - **Simulation models hide things.** An idealised zener hid both the
@@ -247,7 +265,7 @@ These each cost a debugging session already:
 | `hw/assign_passives.py` | packages every chip R and C from the voltage across it |
 | `hw/gen_symbols.py`, `hw/gen_footprints.py` | project symbols and renumbered footprints |
 | `hw/check_netlist.py` | the connectivity gate: shadowed nets, decoupling, rails, open items |
-| `sim/blocks/*.cir` | 24 self-checking SPICE blocks |
+| `sim/blocks/*.cir` | 25 self-checking SPICE blocks |
 | `sim/run_sim.py` | runs them and asserts every claim as arithmetic |
 | `docs/bom_requirements.md` | requirements, chosen parts, and the open design items |
 | `docs/status.md` | the long-form running record |

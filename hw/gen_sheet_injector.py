@@ -376,7 +376,7 @@ def high_side(sh, bx, bank, boost_net, bat_net, out_net, tag, note):
                         "into the battery every peak phase. Reverse "
                         "stress is 100 - 13.5 = 86.5 V, so 150 V class "
                         "like the rest of that rail."},
-               "VBAT_PROT", drop=16.0)
+               "VBAT_INJ", drop=16.0)
 
     # -- the freewheel path hold chopping needs ----------------------
     fx = bx + 200.0
@@ -518,7 +518,9 @@ def boost_stage(sh):
 
     # ---- power path ------------------------------------------------
     py = 455.0
-    sh.hlabel("VBAT_PROT", 40.0, py, shape="input")
+    # POWER-PATH (8 Oct 2026): the power stage draws from pin 04's own
+    # feed. The controller's VDD stays on VBAT_PROT until BOOST-SLOPE.
+    sh.hlabel("VBAT_INJ", 40.0, py, shape="input")
     pw = Rail(sh, py)
     pw.to(40.0)
     # Two 2.2 uF 100 V: 4.7 uF at 100 V is not in KEMET's automotive
@@ -527,7 +529,7 @@ def boost_stage(sh):
            {"Note": "Input bulk, one of two -- see the next part."}, pw)
     vshunt(sh, "Device:C", "C", 75.0, py + 18.0, "2.2uF 100V",
            {"Note": "Input bulk. 100 V class because it sits on "
-                    "VBAT_PROT, which reaches 73.3 V on pulse 2a -- the "
+                    "VBAT_INJ, which reaches 73.3 V on pulse 2a -- the "
                     "same rule every other battery-connected part on this "
                     "board is held to."}, pw)
     sh.place("Device:L", "L", 115.0, py, "330uH 3A", rot=90,

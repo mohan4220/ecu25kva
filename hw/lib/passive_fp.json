@@ -29,6 +29,26 @@
   "value": "1uF 25V",
   "why": "13.6 V peak, needs >= 25 V; KEMET X7R AUTO 0805 25 V"
  },
+ "C107": {
+  "footprint": "Capacitor_SMD:C_1210_3225Metric",
+  "value": "2.2uF 100V",
+  "why": "73.3 V peak, needs >= 100 V; KEMET X7R AUTO 1210 100 V"
+ },
+ "C108": {
+  "footprint": "Capacitor_SMD:C_1210_3225Metric",
+  "value": "2.2uF 100V",
+  "why": "73.3 V peak, needs >= 100 V; KEMET X7R AUTO 1210 100 V"
+ },
+ "C109": {
+  "footprint": "Capacitor_SMD:C_1210_3225Metric",
+  "value": "2.2uF 100V",
+  "why": "73.3 V peak, needs >= 100 V; KEMET X7R AUTO 1210 100 V"
+ },
+ "C110": {
+  "footprint": "Capacitor_SMD:C_1210_3225Metric",
+  "value": "2.2uF 100V",
+  "why": "73.3 V peak, needs >= 100 V; KEMET X7R AUTO 1210 100 V"
+ },
  "C201": {
   "footprint": "Capacitor_SMD:C_1210_3225Metric",
   "value": "2.2uF 100V",
@@ -453,6 +473,16 @@
   "footprint": "Resistor_SMD:R_0603_1608Metric",
   "value": "10k 1%",
   "why": "5.5 V peak, 3.0 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R108": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "47k",
+  "why": "73.3 V peak, 12.3 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R109": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "47k",
+  "why": "73.3 V peak, 12.3 mW cont; 0805 = 150 V, 74 mW at 105 C"
  },
  "R201": {
   "footprint": "Resistor_SMD:R_0805_2012Metric",

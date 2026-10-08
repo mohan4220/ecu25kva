@@ -254,6 +254,31 @@ def main():
         n_pins = len(hit[0]) if hit else 0
         check(f"{rail} spans the project ({n_pins} pins)", n_pins > 5)
 
+    # -- POWER-PATH (8 Oct 2026): the high-current loads left pin 21 --
+    # Each feed must leave its own reverse FET and reach its own loads,
+    # and VBAT_PROT must not reach them any more. On the injector sheet
+    # VBAT_PROT keeps exactly one job, the boost controller's VDD feed,
+    # until BOOST-SLOPE moves it.
+    pins_of = dict(named)
+    for rail, load_sheet in (("/VBAT_INJ", "injector"),
+                             ("/VBAT_EGR", "metering_egr")):
+        pins = pins_of.get(rail, [])
+        fet = [r for r, _ in pins if comps.get(r) == "SQM120P10-10m1L"
+               and sheet_of.get(r) == "power_input"]
+        loads = [r for r, _ in pins if sheet_of.get(r) == load_sheet]
+        check(f"{rail} runs from its own reverse FET to the {load_sheet} "
+              f"sheet ({len(loads)} load pins)", len(fet) == 1 and loads,
+              f"FET {fet}, loads {loads}")
+    prot = pins_of.get("/VBAT_PROT", [])
+    egr_on_prot = [r for r, _ in prot if sheet_of.get(r) == "metering_egr"
+                   and comps.get(r) == "IPD90N10S4-06"]
+    inj_on_prot = [f"{r} {comps.get(r)}" for r, _ in prot
+                   if sheet_of.get(r) == "injector"
+                   and comps.get(r) != "220R 1W"]
+    check("VBAT_PROT no longer feeds the EGR bridge or the injector power "
+          "stage", not egr_on_prot and not inj_on_prot,
+          f"EGR FETs {egr_on_prot}, injector parts {inj_on_prot}")
+
     # Every chip R and C is packaged by assign_passives.py. One without a
     # footprint is a part added or re-valued since the map was built.
     fp_of = dict(re.findall(r'\(comp\s+\(ref "([^"]+)"\)\s*\n\s*\(value '

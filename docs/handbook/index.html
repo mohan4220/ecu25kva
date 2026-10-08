@@ -279,7 +279,7 @@ html{scroll-behavior:smooth}
       <thead><tr><th>Pin</th><th>Signal</th><th>Class</th><th>Front-end</th></tr></thead>
       <tbody>
         <tr><td class="pin">21</td><td class="k">Battery + feed</td><td><span class="w red">supply</span></td><td>EMI filter → fuse → TVS → reverse-battery FET</td></tr>
-        <tr><td class="pin">04 / 06</td><td class="k">V_V_BAT_1R / 2R</td><td><span class="w red">supply</span></td><td>120 k / 10 k divider → ADC · 10 A fused each</td></tr>
+        <tr><td class="pin">04 / 06</td><td class="k">V_V_BAT_1R / 2R</td><td><span class="w red">supply</span></td><td>120 k / 10 k divider → ADC · 10 A fused each · 04 feeds the injector, 06 the EGR bridge (POWER-PATH, 8 Oct 2026)</td></tr>
         <tr><td class="pin">09</td><td class="k">Synchronization ground</td><td><span class="w red">?</span></td><td>Function unresolved</td></tr>
         <tr><td class="pin">11 / 41 / 79 / 34</td><td class="k">Boost pressure + air temp</td><td><span class="w magenta">analog</span></td><td>Combo sensor, 4-pin, shared supply and ground</td></tr>
         <tr><td class="pin">33</td><td class="k">Coolant temperature</td><td><span class="w magenta">analog</span></td><td>NTC, pull-up divider · ground splices to 34</td></tr>
@@ -6077,7 +6077,7 @@ z
         <tr><td class="pin">U2</td><td class="k">Boost air temp — NTC or ratiometric?</td><td>One sensor front-end</td><td>One resistance reading across the sensor, engine cold</td></tr>
         <tr><td class="pin">U5</td><td class="k">Injector part number</td><td>Boost rail target, not the driver itself</td><td>Read the injector body</td></tr>
         <tr><td class="pin">U6</td><td class="k">What pin 09 "synchronization ground" does</td><td>Ground plan</td><td>Continuity, battery disconnected</td></tr>
-        <tr><td class="pin">U7</td><td class="k">Are pins 04/06 sense-only or load feeds?</td><td>Power sheet current rating</td><td>Measure current at the fuse</td></tr>
+        <tr><td class="pin">U7</td><td class="k">Are pins 04/06 sense-only or load feeds?</td><td>No longer blocking: the board now uses them as load feeds (POWER-PATH, 8 Oct 2026)</td><td>Measure current at the fuse</td></tr>
         <tr><td class="pin">U8</td><td class="k">Is the 6-pin intake throttle on the ECU?</td><td>Whether a throttle driver is in scope</td><td>Follow the cable by hand</td></tr>
         <tr><td class="pin">U9</td><td class="k">Where the catalyst temp sensor goes</td><td>Whether an EGT front-end is needed</td><td>Trace on the engine</td></tr>
         <tr><td class="pin">U10</td><td class="k">Which signal uses SENT</td><td>Possible digital sensor front-end</td><td>Inspect the harness</td></tr>

@@ -50,7 +50,9 @@ pin 21 and resize the fuse, filter and reverse FET for the full load,
 with one contact carrying it.
 
 **Chosen: move the high-current loads to pins 04/06.**
-**Status: not yet implemented.**
+**Status: built 8 October 2026** (`power_path.cir`, power_input sheet).
+
+How it was built took three more questions, recorded in §5.
 
 ### 2b. Boost converter stability while cranking — BOOST-SLOPE
 
@@ -181,6 +183,143 @@ the sensors up (0.16 V of droop), and stays connected through the 40 V
 dump.
 
 **Status: not yet implemented.**
+
+## 5. How the POWER-PATH feeds are built (8 October)
+
+§2a decided that the loads move to pins 04/06. These three questions
+decided how. Each was asked with a recommended option, and each was
+answered with it.
+
+### 5a. Which loads go on which pin
+
+**Asked:** how should the high-current loads be split across pins 04
+and 06?
+
+**Options:**
+- **04 injector, 06 EGR** (recommended). Pin 04 feeds the injector hold
+  switches and the boost converter input; pin 06 feeds the EGR
+  H-bridge. Separate rails, separate protection: an EGR short blows
+  only its own fuse, and no two fuses are paralleled. The injector
+  averages well under its fuse rating (10 A only during holds of about
+  1–3 ms), and the EGR's 6.4 A stall is inside its 10 A fuse.
+- **04 + 06 paralleled** onto one high-current rail. Two fuses in
+  parallel never share evenly: one blows first and dumps the whole
+  load on the other.
+
+**Chosen: 04 injector (`VBAT_INJ`), 06 EGR (`VBAT_EGR`).**
+
+**Why it was a question:** U7, whether the OEM uses pins 04/06 as load
+feeds at all, is still open. What makes them usable is the harness
+itself: each pin has its own 10 A loom fuse, and a fuse is sized to
+protect its wire.
+
+### 5b. Reverse-battery protection on the new rails
+
+**Asked:** what should provide reverse-battery protection on the two
+new rails?
+
+**Options:**
+- **A P-FET per rail** (recommended). Same passive topology as Q1 on
+  pin 21: a gate resistor to ground plus a zener, and no controller IC,
+  so nothing has to be rated for the +73 / −48 V swing. It needs a
+  lower-RDS(on) part, chosen from a retrieved datasheet, for 6.4 A
+  continuous at a 105 °C board. The reversed-battery fault is removed
+  rather than managed.
+- **Fuse only.** No series element: a reversed battery drives current
+  through the bridge FETs' body diodes until the 10 A loom fuse blows.
+  No drop or heat in normal running, but it relies on the FETs
+  surviving the fuse's clearing time — a managed failure, which the
+  standing rule argues against.
+
+**Chosen: a P-FET per rail — SQM120P10-10m1L** (Vishay doc 76943,
+retrieved 8 October).
+
+**Why it was a question:** pin 21's SQD50P08-25L could not simply be
+copied. At the EGR's 6.4 A stall it would dissipate 1.3–1.8 W, which
+takes a DPAK on a 105 °C board past its junction limit. The chosen
+part runs at 139 °C (155 °C while cranking), checked in
+`power_path.cir`.
+
+### 5c. What stays on pin 21
+
+**Asked:** which loads stay on pin 21, the filtered electronics feed?
+
+**Options:**
+- **Buck, relays, metering** (recommended). Pin 21 keeps the buck (all
+  the electronics), the relay coils (~84 mA) and the metering valve's
+  freewheel diode (0.86 A max; the valve itself is powered by the
+  OEM's 20 A fuse 8F1). The boost controller's VDD stays on VBAT_PROT
+  until BOOST-SLOPE moves it. Pin 21 then carries a couple of amps.
+- **Buck only.** Move the relay coils and the metering freewheel onto
+  the new rails as well. Pin 21 becomes electronics-only, but the
+  relays and the metering valve then depend on the 04/06 fuses too.
+
+**Chosen: buck, relays and metering stay on pin 21.**
+
+**Consequence:** L101, L102 and F101 are unblocked and are now sized
+for pin 21's reduced load, which still has to be stated as a number.
+
+---
+
+## 6. The toolchain on a new machine (7–8 October)
+
+Setting the project up on macOS raised three questions. They are about
+tools, not the circuit, but two of them decide which simulator and
+which libraries the circuits are checked against.
+
+### 6a. Which KiCad
+
+**Asked:** the project was generated and verified with kicad-cli
+7.0.11, but Homebrew offers only KiCad 10. Install 7.0.11 from
+kicad.org, KiCad 10 from Homebrew, or skip KiCad for now?
+
+**Options:** 7.0.11, which matches the verified netlists (recommended
+at the time); KiCad 10, which is easier to keep updated, but its
+netlist export and libraries may differ; or no KiCad.
+
+**Chosen: KiCad 10** (10.0.7, installed by the owner).
+
+**Consequence:** two things had to change for KiCad 10. `kicad-cli` 10
+writes its netlist one token per line, so the parsers in
+`check_netlist.py` and `assign_passives.py` were changed to accept
+either layout. The results were identical to KiCad 7's, and
+`passive_fp.json` came out byte for byte the same. The generators copy
+library symbols into each sheet, so they are pointed at **KiCad
+7.0.11's symbol library**, downloaded separately. With it, an
+unchanged sheet regenerates identically apart from UUIDs. KiCad 10's
+library would have changed every symbol on every regenerated sheet.
+That library choice was not put to the owner; it follows from this
+answer.
+
+### 6b. Which ngspice
+
+**What happened:** Homebrew's ngspice 47 failed three blocks that pass
+on the original machine. `injector_turnoff` and `boost_converter`
+never finished, and `metering_unit_pwm` missed by 3 %. The suite also
+stalled at random. Fixes for all three were found: a ramp on an on/off
+charger model, a step-size cap and a time-weighted average. But the
+random stall remained.
+
+**The owner's position:** first, that the circuits must work on the
+latest version too. Then, after the random stall: build ngspice 42
+from source rather than spend more time on 47.
+
+**Chosen: ngspice 42, built from source** into `~/opt/ngspice-42`. The
+committed suite passes 24/24 on it unchanged (25/25 with
+`power_path`).
+
+**Still open:** the suite does not pass on ngspice 47 for the three
+causes above. Upgrading the simulator is a change that needs the whole
+suite re-run (`docs/HANDOFF.md` §2 and §5).
+
+### 6c. Keep the ngspice 47 fixes or not
+
+**Asked:** with 42 passing the committed code, revert the 47-specific
+edits to the netlists, `run_sim.py` and `ngrun.py`, and commit only the
+setup changes?
+
+**Chosen: revert.** The 47 fixes are not in the repository; §6b
+records what they were.
 
 ---
 

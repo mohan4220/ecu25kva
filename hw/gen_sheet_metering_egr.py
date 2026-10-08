@@ -372,14 +372,15 @@ def egr_leg(sh, qx, leg, out_net, note):
                 pin_xy(*qp["2"], qx, y, 0))
 
     hg, hd, hs = fet(85.0, "H", {
-        "Note": f"Leg {leg} high side. 100 V class: its drain is VBAT_PROT, "
+        "Note": f"Leg {leg} high side. 100 V class: its drain is VBAT_EGR "
+                "(pin 06, POWER-PATH), "
                 "which reaches 73.3 V on pulse 2a -- the rating that took "
                 "DRV8873-Q1's 40 V VM off this job.",
         "Current": "headroom over the actuator's 2.6-6.4 A stall"})
     lg, ld, ls = fet(120.0, "L", {
         "Note": f"Leg {leg} low side. Source to the shared sense shunt."})
     sh.wire(hd[0], hd[1], hd[0], hd[1] - 10.0)
-    sh.label("VBAT_PROT", hd[0], hd[1] - 10.0, rot=90)
+    sh.hlabel("VBAT_EGR", hd[0], hd[1] - 10.0, shape="input", rot=90)
     sh.wire(hs[0], hs[1], hs[0], node_y)
     sh.wire(hs[0], node_y, ld[0], ld[1])
     sh.junction(hs[0], node_y)

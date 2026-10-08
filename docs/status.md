@@ -239,7 +239,7 @@ reliable without the machine.
 ### Open — 8
 
 **U2** charge-air sensor topology · **U6** pin 09 function · **U7** pins 04/06 sense or
-feed · **U9** catalyst sensor routing · **U10** SENT signal identity · **U15** what
+feed (no longer blocking: the board uses them as load feeds since 8 Oct) · **U9** catalyst sensor routing · **U10** SENT signal identity · **U15** what
 `CRS-878` denotes · **U16** alternator rectifier suppressed or not · plus U12's
 contact-type confirmation, which gates nothing
 
@@ -266,7 +266,7 @@ contact-type confirmation, which gates nothing
 |---|---|---|
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
-| 1.5 | Block-level simulation | **Done — 24 blocks, 24 passing** |
+| 1.5 | Block-level simulation | **Done — 25 blocks, 25 passing** (power_path added 8 Oct 2026) |
 | **2** | **KiCad hierarchical schematic capture** | **Complete — 196 components, 113 multi-pin nets, 18 named open ends** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
 | 4 | Firmware skeleton | Not started |
@@ -753,6 +753,19 @@ chosen separately:
 **Footprints are the phase-3 input, not a phase-2 gate:** 264 of 302
 components carry one, and they are exactly the parts with a retrieved
 datasheet behind them.
+
+**POWER-PATH built, 8 October 2026.** The injector and EGR loads moved
+off pin 21. Pin 04 now feeds `VBAT_INJ` (the hold switches and the boost
+input) and pin 06 feeds `VBAT_EGR` (the EGR bridge). Each has a TVS, an
+SQM120P10-10m1L reverse P-FET, a Schottky backstop and 4.4 µF of bulk.
+New block `power_path.cir` (18 checks): EGR stall gives Tj 139 °C at a
+105 °C board (155 °C while cranking), and the injector gives Tj 117 °C.
+The netlist gate checks the split. The result is 333 components, 314
+with footprints, and 208 passives packaged. L101, L102 and F101 are
+unblocked and now need pin 21's reduced load stated before they are
+sized. Conducted emissions on the two new rails are open. This was
+done on macOS with KiCad 10 for `kicad-cli` and KiCad 7.0.11's symbol
+libraries for generation, and ngspice 42.
 
 ---
 

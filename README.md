@@ -65,7 +65,8 @@ Page rules live in [`docs/print.css`](docs/print.css).
 ```
 
 Each check is a claim about the circuit, so a red line means the **design** is
-wrong, not the simulator. All seventeen blocks currently pass.
+wrong, not the simulator. All 25 blocks currently pass (on ngspice 42 — see
+`docs/HANDOFF.md` §2).
 
 The netlists are plain SPICE — they also open directly in KiCad's built-in
 simulator (Tools → Simulator), LTspice, or standalone ngspice. See
@@ -79,7 +80,7 @@ python3 -m venv .venv && .venv/bin/pip install PySpice numpy schemdraw markdown 
 
 ## Where the project stands
 
-Phase 1 is complete: nine research memos, **seventeen verified circuit blocks**
+Phase 1 is complete: twelve research memos, **25 verified circuit blocks**
 covering the whole power chain, both sensor front-end topologies, the speed
 input, the injector boost rail and its reservoir, both actuator drivers and the
 CAN termination — and a specification carrying the corrections that simulation
