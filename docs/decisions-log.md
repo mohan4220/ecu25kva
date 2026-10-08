@@ -508,6 +508,129 @@ the current every cycle.
 
 ---
 
+## 9. The three capacitors that are not ceramic (8 October)
+
+Every chip capacitor on the board is a multilayer ceramic, packaged
+automatically by `assign_passives.py`. Three are not, because each needs
+something a ceramic cannot give: a lot of capacitance at high voltage, or
+a controlled internal resistance. They were left open until now.
+
+| Ref | Job | Chosen |
+|---|---|---|
+| C313 | bulk on the MCU's 3.3 V supply | KEMET T599D157M006ATE025, 150 µF polymer tantalum, **plus R306, 22 mΩ 1 %** in series |
+| C211 | holds the sensor supply up while the cut-off is open | Chemi-Con HHXC630ARA470MHA0G, 47 µF 63 V hybrid polymer, 8 × 10 mm |
+| C401 + C420 | the injector's 100 V energy tank | **two** Chemi-Con HHXC800ARA820MJC5G, 82 µF 80 V hybrid polymer, 10 × 12.5 mm, in series = 41 µF, 160 V |
+
+All three are AEC-Q200, surface-mount, and rated to 125 °C or higher.
+Chemi-Con figures are from its 2026 catalogue (CAT. No. E1001A); KEMET's
+from the part's own specification sheet.
+
+### The idea behind all three: ESR
+
+Every real capacitor has a small resistance in series with it, its
+**ESR**. In wet aluminium electrolytics it rises steeply in the cold,
+because the liquid inside thickens: typically 4–10× at −40 °C. A
+**polymer** or **hybrid polymer** capacitor replaces most or all of that
+liquid with a conductive solid, so its ESR barely moves. Chemi-Con
+guarantees the HXC series' impedance at −55 °C is **at most twice** its
+20 °C value. That one property is why all three choices are polymer
+types.
+
+### C313 — the bulk capacitor needs a *minimum* resistance
+
+`mcu_pdn.cir` showed the bulk capacitor's ESR is not just a loss but
+the damping for a resonance between the regulator and the capacitor. Too
+little ESR and the supply rings; too much and it stops filtering. The
+requirement (`PDN-BULK`) was therefore a band: 20–50 mΩ.
+
+Two findings changed how it was met:
+
+- **A capacitor datasheet gives a maximum ESR, never a minimum.** No
+  part can be bought "at least 20 mΩ". So the floor is a separate
+  resistor: 22 mΩ, 1 %, in series with a capacitor whose own ESR is
+  25 mΩ at most. Even if the capacitor's ESR were zero, the pair is
+  21.8 mΩ.
+- **The ceiling was conservative.** A sweep of the same model shows the
+  100 mΩ target holds from about 17 mΩ up to about 95 mΩ. The pair's
+  worst high end is 72.2 mΩ: resistor +1 % plus the capacitor at
+  KEMET's 2× end-of-life limit. Both ends pass at the smallest
+  capacitance the datasheet allows (96 µF): 71.9 and 86.9 mΩ.
+
+No question was put to the owner: the resistor is the only way to meet
+a requirement both ends of which are needed.
+
+### C211 — the sensor hold-up
+
+When the TPS48110-Q1 opens for a voltage spike (§7), this capacitor
+keeps the three sensor regulators running. The only new demands are a
+voltage rating above the 40 V load dump the switch lets through, and a
+capacitance that survives aging. The HXC part gives 63 V (1.58× over
+40 V). At −20 % tolerance and −30 % end of life it is 26.3 µF.
+`sensor_rail.cir` now runs its two worst corners at 26.3 µF, not the
+33 µF it used before, and still passes: the rail's lowest point
+is 9.2 V. Its ESR drop at −55 °C, aged, with all three regulators at
+their limit, is 0.25 V. No question was needed.
+
+### C401 — the injector tank, and the question
+
+**What it does.** The boost converter can only trickle-charge this
+capacitor. The capacitor alone delivers the injector's opening pulse:
+18 A within about 40 µs, every injection. Its ESR is in series with the
+injector. At 18 A, every ohm of ESR costs 18 V of push and slows the
+opening.
+
+**What the search found.** The tank sits at 100 V and reaches 104 V,
+so it needs a part rated above 100 V. In the catalogues searched,
+**no capacitor rated above 100 V publishes its ESR at all**, cold or
+warm. Chemi-Con's 160 V parts give only a 120 Hz loss figure. Vishay's
+specified-cold series stops at 80 V. Parts rated up to 80 V do publish
+it, including HXC.
+
+**Asked:** "C401 is the injector's 100 V energy tank … No single
+capacitor rated above 100 V publishes its cold ESR. Which way?"
+
+| | **2 × 80 V hybrid in series (recommended)** | 1 × 160 V wet electrolytic |
+|---|---|---|
+| Part | 2 × Chemi-Con HXC 82 µF 80 V, SMD | 1 × Chemi-Con GXF 51 µF 160 V, radial |
+| ESR at −55 °C, aged | 224 mΩ, from the datasheet | not specified; estimated ~8 Ω |
+| Time to 18 A at −40 °C, lowest rail | 45 µs (38 µs nominal) | never reaches 18 A at the estimate: 10.2 A at most |
+| Cost and space | one extra can, 10 × 12.5 mm | cheapest, one part |
+
+**The owner's answer:** "2× 80 V in series (Recommended)."
+
+**Why it matters:** the injector controller ends the opening phase when
+the current reaches its peak threshold. A tank that cannot push 18 A
+through its own resistance never ends that phase, and the engine
+misfires. That would happen on a cold start, late in the part's life,
+which is the hardest fault to find in the field.
+
+**How two in series work:**
+
+- **Capacitance halves, voltage rating doubles.** 41 µF, 160 V. The
+  sims now run at 41 µF. The droop per injection is 8.3 V (it was
+  7.3 V). On the smallest stack the datasheet allows (−20 %, then
+  −30 % aged) it is 14.9 V, so the rail never falls below 85.1 V.
+  Every check that used the old 92.7 V low point now uses that figure.
+  The gate-driver bank node rises to 104.1 V, since each hold-cutoff
+  bump is 2.45 V on 41 µF. Recovery time does not change; it depends
+  on charge, not capacitance.
+- **The bleed balances the stack.** Two capacitors in series only share
+  the voltage evenly if something forces them to. The 22 kΩ bleed that
+  `BOOST-BLEED` already required is now 2 × 11 kΩ, one across each can
+  (R401, R435). With the worst leakage mismatch the datasheet allows,
+  each can settles at 52.4 V on an 80 V part. The first charge from
+  0 V is the worst moment: it splits by capacitance alone, so 71.0 V
+  can land on one can. That is 1.13× under its rating. Total bleed
+  current and power are unchanged.
+- **Ripple:** the injection pulses plus the charger's switching current,
+  counted as if it never stopped, are 1.06 A rms against 2.1 A rated at
+  125 °C.
+
+All of it is executable arithmetic in `run_sim.py` under
+`boost_converter`, beside the converter's own datasheet checks.
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a

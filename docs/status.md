@@ -748,7 +748,7 @@ chosen separately:
 - Blocked on LOWV-CLAMP: the 15 zeners at 3.0 and 3.3 V.
 - Land pattern needed in phase 3: the seven SMPD diodes, L201 and J1001.
 - BAV199 pairs, drawn as separate halves: 5.
-- Not yet chosen: C313 (polymer) and C401 (electrolytic).
+- Not yet chosen: C313 (polymer) and C401 (electrolytic). Both chosen 8 October, decisions log §9.
 
 **Footprints are the phase-3 input, not a phase-2 gate:** 264 of 302
 components carry one, and they are exactly the parts with a retrieved
@@ -803,6 +803,18 @@ sense resistor is 62 mΩ. Equation 9 holds at the worst corner by
 1.12×. Building it found that the oscillator's −20 % frequency corner
 would have failed the 100 µH design outright. The result is 362
 components, 345 with footprints, and 230 passives packaged.
+
+**The three non-ceramic capacitors chosen, 8 October 2026** (decisions
+log §9). Each is a polymer type, because a polymer's ESR barely moves
+in the cold. C313 is a KEMET T599 150 µF with a 22 mΩ resistor in
+series. No datasheet gives an ESR minimum, so the resistor is
+`PDN-BULK`'s floor. C211 is a Chemi-Con HXC 47 µF 63 V. C401 is now two
+HXC 82 µF 80 V cans in series, because no part rated above 100 V
+publishes a cold ESR; the owner chose that over one 160 V wet can. The
+injector still reaches 18 A in 45 µs at −40 °C, aged. The sims run the
+41 µF stack, and every check uses its worst-case low point, 85.1 V. The
+22 kΩ bleed is split 2 × 11 kΩ to balance the cans. The result is 365
+components, 351 with footprints, and 232 passives packaged.
 
 ---
 

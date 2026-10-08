@@ -23,6 +23,13 @@ BLOCKS = HERE / "blocks"
 PASS = "\033[32mPASS\033[0m"
 FAIL = "\033[31mFAIL\033[0m"
 
+# The injector boost reservoir, C401 + C420: two Chemi-Con HXC 82 uF / 80 V
+# in series, 41 uF (decisions log section 9). Its lowest point is the
+# 342 uC peak-phase draw on the smallest stack the datasheet allows:
+# -20% tolerance, then -30% end of life (HXC endurance limit).
+C_RES, Q_PEAK = 41e-6, 342e-6
+RAIL_MIN = 100.0 - Q_PEAK / (C_RES * 0.8 * 0.7)
+
 
 class Checks:
     def __init__(self, title):
@@ -929,10 +936,10 @@ def check_injector_turnoff():
     # the on-phase draw already characterized in boost_converter.cir.
     droop = 100.0 - at(38e-6)
     bump = at(90e-6) - at(38e-6)
-    c.that("on-phase droop, pilot event", droop, 7.3, tol=0.5, unit="V")
+    c.that("on-phase droop, pilot event", droop, 8.34, tol=0.5, unit="V")
     c.that("  ... matches boost_converter.cir's own droop figure",
            "cross-check between two independently built models", None,
-           ok=abs(droop - 7.3) < 1.0)
+           ok=abs(droop - 8.32) < 1.0)
     c.that("recovery bump, pilot event (isolated)", bump, 6.9, tol=1.2, unit="V")
     c.that("  ... undershoots the droop it is paired with (real losses)",
            f"{bump:.2f} V recovered vs {droop:.2f} V drawn -- net loss, not gain",
@@ -1394,7 +1401,7 @@ def check_sensor_rail():
     # ---- the hold-up: sensors stay powered while the FET is open ----
     n3pre = float(d["n3"][pre][-1])
     n3min = float(d["n3"][dur].min())
-    c.that("all trackers at their limit, hold-up aged to 33 uF: VSNS low",
+    c.that("all trackers at their limit, hold-up at 26.3 uF (C211 tol + aged): VSNS low",
            n3min, n3pre, tol=None, ok=n3min >= n3pre - 0.05, unit="V")
     c.that("  ... headroom over 5 V + 0.52 V dropout", n3min - 5.0 - DROPOUT,
            3.7, tol=None, ok=n3min - 5.0 - DROPOUT > 0, unit="V")
@@ -1427,6 +1434,16 @@ def check_sensor_rail():
     inrush = 0.63 * 12.0 * 47e-6 / (100e3 * 22e-9)
     c.that("inrush into 47 uF at turn-on (SLUSEE5E Eq. 3)", inrush, 0.162,
            tol=0.002, unit="A")
+
+    # ---- the hold-up, chosen 8 Oct 2026: C211 ----
+    # Chemi-Con HHXC630ARA470MHA0G (HXC series, CAT. No. E1001A 2026):
+    # hybrid polymer, 47 uF / 63 V, 8 x 10 mm, ESR 40 mOhm max at 20 C,
+    # Z(-55)/Z(+20) <= 2.0 at 100 kHz, 4000 h at 125 C to ESR <= 200% and
+    # C -30%. The blocks above already run it at -20% then -30%.
+    c.that("C211 against the 40 V load dump, which the cut-off passes",
+           63.0 / 40.0, 1.575, tol=0.005, unit="x")
+    c.that("  ... ESR drop, -55 C, end of life, all trackers at limit",
+           0.040 * 2 * 2 * 1.56, 0.25, tol=0.01, unit="V")
 
     # ---- cranking: 6 V, all three trackers at their limit ----
     head = 6.0 - 3 * ILIM * 0.013 - 5.0 - DROPOUT
@@ -1530,10 +1547,10 @@ def check_mcu_pdn():
     pk_cold = float(d["z10s_cold"].max())
     pk_warm = float(d["z10s_warm"].max())
     c.that("RESOLVED: peak with the specified polymer bulk at its cold-ESR "
-           "limit (Rb=50 mOhm)", pk_cold * 1e3, 100.0, tol=None,
+           "limit (Rb=72.2 mOhm, 96 uF: T599 + 22 mOhm, aged)", pk_cold * 1e3, 100.0, tol=None,
            ok=pk_cold < 0.1, unit="mOhm")
     c.that("  ... and at the low-ESR end the same part reaches warm "
-           "(Rb=20 mOhm) -- the under-damped side", pk_warm * 1e3, 100.0,
+           "(Rb=21.78 mOhm: the 22 mOhm resistor alone) -- the under-damped side", pk_warm * 1e3, 100.0,
            tol=None, ok=pk_warm < 0.1, unit="mOhm")
     c.that("  ... worst of the two ends, margin under target",
            100.0 - max(pk_cold, pk_warm) * 1e3, 10.0, tol=None,
@@ -1849,7 +1866,7 @@ def check_boost_converter():
 
     # Arrangement A: reservoir supplies the peak phase only.
     droop_a = 100.0 - float(ra.min())
-    c.that("droop, peak phase only (47 uF)", droop_a, 7.3, tol=1.5, unit="V")
+    c.that("droop, peak phase only (41 uF)", droop_a, 8.32, tol=0.3, unit="V")
     c.that("  ... rail stays usefully above battery", float(ra.min()), 60.0,
            tol=None, ok=float(ra.min()) > 60, unit="V")
 
@@ -1881,14 +1898,14 @@ def check_boost_converter():
     b = res["boost_converter_bleed.dat"]
     tb, no_bleed, bleed = b["time"], b["rcc"], b["rdd"]
     c.that("one hold-cutoff event puts this on the rail",
-           (float(no_bleed.max()) - 100.0) / 3.0, 2.14, tol=0.1,
+           (float(no_bleed.max()) - 100.0) / 3.0, 2.45, tol=0.1,
            unit="V/event")
     c.that("without a bleed, three events stack to", float(no_bleed.max()),
-           106.4, tol=0.3, unit="V")
+           107.35, tol=0.3, unit="V")
     c.that("  ... and it STAYS there -- nothing can discharge it",
-           float(np.interp(89e-3, tb, no_bleed)), 106.4, tol=0.3, unit="V")
+           float(np.interp(89e-3, tb, no_bleed)), 107.35, tol=0.3, unit="V")
     c.that("with a 22k bleed, same three events reach",
-           float(bleed.max()), 102.14, tol=0.3, unit="V")
+           float(bleed.max()), 102.45, tol=0.3, unit="V")
     c.that("  ... but the rail is back at setpoint before the next "
            "cylinder", float(np.interp(27.6e-3, tb, bleed)), 100.0,
            tol=0.1, unit="V")
@@ -2042,7 +2059,7 @@ def check_boost_converter():
     # 2x3.3k collector resistors, and a PMBT3904-Q limiter across 56 ohm.
     # VDD = VZ - one Vbe (0.55-0.75 V) - the 56 ohm drop.
     RB, RC2, RLIM = 15e3, 6.6e3, 56.0
-    iz_lo = (92.7 - 41.0) / RB                 # boost at its worst droop
+    iz_lo = (RAIL_MIN - 41.0) / RB             # boost at its worst droop
     vdd_lo = (37.0 * (1 - 0.06e-2 * 65) - ZZ * (IZT - iz_lo) - 0.75
               - idd * RLIM)
     vdd_hi = 41.0 * (1 + 0.11e-2 * 100) - 0.55
@@ -2053,9 +2070,9 @@ def check_boost_converter():
            tol=0.05, unit="V")
     c.that("  ... inside the 52 V absolute maximum by", VDD_ABSMAX / vdd_hi,
            1.157, tol=0.005, unit="x")
-    head = 92.7 - idd * RC2 - idd * RLIM - 0.5 - vdd_hi
-    c.that("  ... still regulating at the rail's worst droop (92.7 V), "
-           "headroom", head, 21.3, tol=0.2, unit="V")
+    head = RAIL_MIN - idd * RC2 - idd * RLIM - 0.5 - vdd_hi
+    c.that("  ... still regulating at the rail's worst droop (RAIL_MIN), "
+           "headroom", head, 13.71, tol=0.2, unit="V")
     vce_n = 104.0 - idd * RC2 - idd * RLIM - vdd_lo
     c.that("  ... pass transistor, normal (104 V rail, lowest VDD)",
            vce_n * idd, 0.171, tol=0.005, unit="W")
@@ -2145,19 +2162,19 @@ def check_boost_converter():
     # Infineon AUIRS2181(4)S datasheet, 10 Jan 2014. Same treatment as
     # the controller above: the datasheet's ratings against this
     # board's operating points, as executable arithmetic.
-    BANK_MAX = 99.7 * 1.02 + 2.14   # FB reference +2%, one recirc bump
+    BANK_MAX = 99.7 * 1.02 + 2.45   # FB reference +2%, one recirc bump
     VGATE = 12.07                   # 12V_GATE at the 5 mA design load
     VS_MIN = -1.3                   # D_fw at 18 A through a 20 A ultrafast
     c.that("bank node worst case (reference +2%, one recirculation bump)",
-           BANK_MAX, 103.8, tol=0.2, unit="V")
+           BANK_MAX, 104.1, tol=0.2, unit="V")
     vb = BANK_MAX + VGATE
-    c.that("  ... so VB reaches", vb, 115.8, tol=0.3, unit="V")
+    c.that("  ... so VB reaches", vb, 116.2, tol=0.3, unit="V")
     c.that("AUIRS2181S: VB absolute maximum 625 V, margin",
-           625.0 / vb, 5.40, tol=0.05, unit="x")
+           625.0 / vb, 5.38, tol=0.05, unit="x")
     c.that("UCC27211A-Q1, the obvious 120 V candidate: HB margin",
-           120.0 / vb, 1.036, tol=0.01, unit="x")
+           120.0 / vb, 1.033, tol=0.01, unit="x")
     c.that("  ... 4 V of headroom on an ABSOLUTE maximum -- rejected",
-           120.0 - vb, 4.2, tol=0.3, unit="V")
+           120.0 - vb, 3.8, tol=0.3, unit="V")
     c.that("bank node's lowest point, D_fw conducting 18 A", VS_MIN, -1.3,
            tol=0.05, unit="V")
     c.that("  ... AUIRS2181S logic operational down to -5 V; clear by",
@@ -2242,8 +2259,8 @@ def check_boost_converter():
     vmin = VGATE + 0.28 + 0.65 + 5e-3 * RC + 0.5
     c.that("  ... lowest boost rail that still regulates 12V_GATE", vmin,
            46.5, tol=0.1, unit="V")
-    c.that("  ... against the rail's worst droop (100 - 7.3 V)",
-           92.7 / vmin, 1.99, tol=0.02, unit="x")
+    c.that("  ... against the rail's worst droop (RAIL_MIN)",
+           RAIL_MIN / vmin, 1.83, tol=0.02, unit="x")
 
     # -- what the boost now carries continuously -----------------------
     standing = (100.0 / 22e3 + 5e-3 + 100.0 / 1.005e6
@@ -2256,6 +2273,63 @@ def check_boost_converter():
            10.56, tol=0.1, unit="ms")
     c.that("  ... still inside the 26.67 ms between cylinders by",
            26.67e-3 / t_rec, 2.53, tol=0.05, unit="x")
+
+    # -- the reservoir, chosen 8 Oct 2026: C401 + C420 ------------------
+    # Two Chemi-Con HHXC800ARA820MJC5G in series (CAT. No. E1001A 2026,
+    # HXC series, read from the retrieved catalogue): hybrid polymer,
+    # 82 uF / 80 V, ESR 28 mOhm max at 20 C 100 kHz, Z(-55)/Z(+20) <= 2.0
+    # AT 100 kHz, endurance 4000 h at 125 C to ESR <= 200% and C -30%,
+    # leakage 0.01CV, 2.1 A rms rated at 125 C 100 kHz. No part rated
+    # above 100 V in that catalogue publishes an ESR at all, cold or warm
+    # -- decisions log section 9 is why the stack exists.
+    ESR_HXC, IR_HXC, VR_HXC = 0.028, 2.1, 80.0
+    esr_stack = 2 * ESR_HXC * 2.0 * 2.0       # two cans, -55 C, end of life
+    c.that("reservoir ESR, worst: two cans, -55 C, end of life",
+           esr_stack * 1e3, 224.0, tol=1.0, unit="mOhm")
+    # injector_boost.cir's coil, its -40 C resistance, driven from the
+    # LOWEST rail (RAIL_MIN) through the stack's worst ESR. Closed form
+    # of the RL step, the same one check_injector_boost cites.
+    L_INJ, R_INJ_COLD = 200e-6, 0.37
+    r_tot = R_INJ_COLD + esr_stack
+    t_pk = L_INJ / r_tot * np.log(RAIL_MIN / (RAIL_MIN - 18.0 * r_tot))
+    c.that("time to 18 A at -40 C, lowest rail, worst ESR", t_pk * 1e6,
+           45.2, tol=0.5, unit="us")
+    c.that("  ... against 38 us nominal: still a 4.5% slice of a 1 ms "
+           "injection", t_pk / 1e-3 * 100, 4.52, tol=0.05, unit="%")
+    # The rejected single 160 V can. Its cold ESR is unpublished; 8 ohm
+    # is this log's ESTIMATE of an aged part at -40 C, not a datasheet
+    # figure -- which is the point.
+    i_max = RAIL_MIN / (R_INJ_COLD + 8.0)
+    c.that("rejected 1x 160 V wet can at an estimated 8 ohm aged and cold: "
+           "highest current it can push", i_max, 18.0, tol=None,
+           ok=i_max < 18.0, unit="A")
+    # Voltage per can. Worst is the first charge from 0 V, split by
+    # capacitance alone: one can fresh at +20%, the other -20% and aged.
+    v_split = BANK_MAX * 1.2 / (1.2 + 0.8 * 0.7)
+    c.that("one can, first charge, worst capacitance split", v_split,
+           71.0, tol=0.2, unit="V")
+    c.that("  ... under its 80 V rating by", VR_HXC / v_split, 1.127,
+           tol=0.005, unit="x")
+    # Settled, the 22k bleed -- now 2 x 11k, one across each can -- sets
+    # the split. The worst leakage mismatch is one can at 0.01CV, the
+    # other at zero.
+    i_lk = 0.01 * 82 * 80 * 1e-6
+    v_bal = (BANK_MAX + 11e3 * i_lk) / 2
+    c.that("one can, settled on the 2 x 11k bleed, worst leakage",
+           v_bal, 52.43, tol=0.05, unit="V")
+    c.that("  ... each 11k 2512 dissipates", v_bal ** 2 / 11e3, 0.250,
+           tol=0.005, unit="W")
+    # Ripple. The injection pulse, 37.5 a second (3 cylinders, 1500 rpm),
+    # plus the converter's diode current at its highest limit treated as
+    # CONTINUOUS -- it is not; the charger idles most of the 26.67 ms.
+    i_pulse = 18.0 * np.sqrt(38e-6 * 37.5 / 3.0)
+    d_off = 13.5 / (VOUT + VF)
+    i_chg = np.sqrt((ilim_hi ** 2) * d_off - (ilim_hi * d_off) ** 2)
+    i_rms = float(np.hypot(i_pulse, i_chg))
+    c.that("reservoir ripple: injection pulses + charger, continuous",
+           i_rms, 1.063, tol=0.01, unit="A")
+    c.that("  ... under the 2.1 A rated at 125 C, 100 kHz, by",
+           IR_HXC / i_rms, 1.975, tol=0.01, unit="x")
     return c
 
 

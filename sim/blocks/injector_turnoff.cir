@@ -94,7 +94,7 @@ Vg  g 0 PWL(
 + 30m    0)
 
 * ---- boost reservoir, identical mechanism to boost_converter.cir ----
-Crail rail 0 47u ic=100
+Crail rail 0 41u ic=100
 Bchg  0 rail I = v(rail) < 100 ? 50m : 0
 
 * ---- high side: bank-shared switch to the boost rail, plus its
@@ -147,7 +147,7 @@ Dcb    db   batb DREC
 * 10 A hold-current figure (ic=10, no preceding ramp) and lets it
 * recirculate through the same diode pair, to measure that addition
 * directly. ----
-Crailh railh 0 47u ic=100
+Crailh railh 0 41u ic=100
 Bchgh  0 railh I = v(railh) < 100 ? 50m : 0
 Dfwh     0    fwnh DREC
 Vamm_fwh fwnh hih   0

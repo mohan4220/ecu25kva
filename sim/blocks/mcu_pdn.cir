@@ -139,12 +139,26 @@ Lc3  c4 0  0.08n
 *     n4  Rb = 50 mOhm, the specified part at its cold-ESR LIMIT
 *     n5  Rb = 20 mOhm, the same part warm, at the low-ESR end a
 *         polymer part actually reaches -- the under-damped case
-.param RbSpecCold=50m
-.param RbSpecWarm=20m
+*
+* THE PART, chosen 8 Oct 2026 (decisions log section 9): KEMET
+* T599D157M006ATE025, polymer tantalum, 150 uF, 25 mOhm MAX at 100 kHz,
+* in series with a 22 mOhm 1% resistor (R306). A capacitor datasheet
+* gives an ESR maximum and never a minimum, so the floor cannot be
+* bought -- the resistor IS the floor. The two networks are now the
+* real ends of that pair, on the smallest stack the datasheet allows
+* (150 uF -20% tolerance, -20% end of life = 96 uF):
+*     n4  21.78 + 2 x 25 = 72.2 mOhm (resistor +1%, capacitor ESR at
+*         KEMET's 2x end-of-life limit) -- the over-damped end
+*     n5  21.78 mOhm (resistor -1%, capacitor ESR taken as zero)
+* Swept 5-80 mOhm: the peak stays under 100 mOhm from about 17 mOhm
+* up to about 95, so the old 50 mOhm ceiling was conservative and the
+* floor is the side that binds.
+.param RbSpecCold=72.2m
+.param RbSpecWarm=21.78m
 Iac4 n4 0 AC 1
 Rldo4 n4 l4 0.01
 Lldo4 l4 0 0.15u
-Cb4  n4 b5 150u
+Cb4  n4 b5 96u
 Rb4  b5 b6 {RbSpecCold}
 Lb4  b6 0  2n
 Cc4  n4 c5 1u
@@ -154,7 +168,7 @@ Lc4  c6 0  0.08n
 Iac5 n5 0 AC 1
 Rldo5 n5 l5 0.01
 Lldo5 l5 0 0.15u
-Cb5  n5 b7 150u
+Cb5  n5 b7 96u
 Rb5  b7 b8 {RbSpecWarm}
 Lb5  b8 0  2n
 Cc5  n5 c7 1u

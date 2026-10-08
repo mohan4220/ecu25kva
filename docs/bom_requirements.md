@@ -173,6 +173,14 @@ P-channel" and is optimistic; the ceiling is what `run_sim.py` checks.
 
 ### `PDN-BULK` — 3V3_MCU bulk capacitor
 
+> **Chosen, 8 October 2026 (decisions log §9):** KEMET
+> T599D157M006ATE025 (150 µF polymer tantalum, 25 mΩ max) **in series
+> with R306, 22 mΩ 1 %**. A datasheet gives an ESR maximum and never a
+> minimum, so the resistor is the band's floor: the pair is 21.8–72.2 mΩ
+> across temperature and end of life. A sweep shows the target holds
+> from about 17 to 95 mΩ, so the 50 mΩ ceiling below was conservative.
+> `mcu_pdn.cir` checks both ends at 96 µF: 71.9 and 86.9 mΩ.
+
 **Polymer** aluminium electrolytic or polymer tantalum, 150 µF, specified
 by an **ESR band of 20–50 mΩ across −40…+125 °C** — not by a 25 °C
 typical figure.
@@ -202,8 +210,8 @@ transient step — not a round convention. Checked by `mcu_pdn.cir`.
 > resistors; 1 % would put the bottom at 39.8 V, inside the 40 V dump.
 > Inrush is 0.16 A into 47 µF. Cranking headroom is 0.46 V. The
 > controller's VS and CS pins see 4.9 V/µs through 100 Ω + 22 nF,
-> against their 60 V/µs limit. Still open: the 47 µF / 63 V hold-up
-> part (C211, chosen separately), and land patterns for the
+> against their 60 V/µs limit. The hold-up, C211, was chosen 8 October
+> (Chemi-Con HXC, decisions log §9). Still open: land patterns for the
 > TPS48110-Q1 (DGX-19) and the TPS7B4253-Q1 (TI's DDA0008J pad matches
 > no KiCad variant). The 10 µF 50 V output capacitors are 2220, the
 > only case KEMET makes at 50 V; they face the harness, so buy them
@@ -412,7 +420,11 @@ and the ±0.2 V window the E24 network above lands on.
 
 ### `BOOST-BLEED` — injector boost reservoir bleed
 
-**22 kΩ, 1 W**, across the 47 µF / 100 V reservoir.
+**22 kΩ, 1 W**, across the reservoir. Since 8 October 2026 the
+reservoir is two 82 µF / 80 V cans in series (41 µF, decisions log §9),
+and the bleed is **2 × 11 kΩ 1 W**, one across each can (R401, R435).
+Same total current and power; the split also balances the stack, at
+52.4 V per can worst case.
 
 The charger regulates from **one side only**: `boost_converter.cir`'s
 `Bchg` adds 50 mA while the rail is below setpoint and adds nothing
@@ -429,14 +441,14 @@ next cylinder fires":
 | | |
 |---|---|
 | event charge | 10 A decaying to 0 over 20 µs = 100 µC |
-| on 47 µF | 2.14 V of rail rise |
+| on 41 µF | 2.45 V of rail rise |
 | above setpoint | charger is **off**, so the whole 100 V / 22 kΩ = 4.55 mA discharges it |
 | time to clear | **21.4 ms**, against **26.67 ms** between cylinders at 1500 rpm |
 | cost | **455 mW**, burned continuously whenever the rail is up |
 
 Checked by `boost_converter.cir` arrangement C, which runs two identical
 reservoirs — one bare, one bled — through three such events at the real
-cylinder spacing. Bare, the rail stacks to 106.4 V and stays there.
+cylinder spacing. Bare, the rail stacks to 107.4 V and stays there.
 
 A comparator-gated shunt costs nothing at idle and is the alternative.
 It is more parts, and it is a part nobody has chosen.
@@ -512,6 +524,9 @@ not constraints.
 | VDD clamp | **BZG03C36-HM3** | See `BOOST-VDD-CLAMP`: it replaced a 43 V clamp that did not clamp. |
 | Buck inductor | **Würth 7447714330** | WE-PD 1050, 33 µH, Isat 2.9 A typ against a 1.18 A worst peak (1.72× after a −30% hot derate), 79 mΩ, AEC-Q200 Grade 1. This closes the Isat gap `buck_preregulator.cir` left open. Land pattern not in KiCad 7. |
 | 12V_GATE pass / limit | **PZTA42-Q**, **PMBT3904-Q** | See `GATE-RAIL`. PMBT3904-Q is SOT-23 B-E-C, so it uses the `Q_NPN_BEC` symbol. |
+| 3V3_MCU bulk (C313) | **T599D157M006ATE025** + 22 mΩ 1 % (R306) | KEMET polymer tantalum, 150 µF, 6.3 V (5.4 V at 125 °C), 25 mΩ max, −55/+150 °C, AEC-Q200, 7343-31. The resistor is `PDN-BULK`'s ESR floor; see decisions log §9. |
+| Sensor hold-up (C211) | **HHXC630ARA470MHA0G** | Chemi-Con HXC hybrid polymer, 47 µF 63 V, 8 × 10 mm SMD, 40 mΩ max, Z(−55)/Z(20) ≤ 2 at 100 kHz, 4000 h at 125 °C, AEC-Q200. 1.58× over the 40 V load dump; 26.3 µF tolerance-and-aged corner in `sensor_rail.cir`. |
+| Boost reservoir (C401, C420) | **HHXC800ARA820MJC5G** ×2, in series | Chemi-Con HXC hybrid polymer, 82 µF 80 V, 10 × 12.5 mm SMD, 28 mΩ max, cold ratio ≤ 2, 2.1 A rms at 125 °C, AEC-Q200. 41 µF / 160 V stack, balanced by the 2 × 11 kΩ bleed. Chosen over one 160 V wet can because no part above 100 V publishes a cold ESR (decisions log §9). |
 
 ### `PASSIVE-PACKAGES` — 188 resistors and capacitors, sized by what is across them
 
@@ -935,7 +950,7 @@ is old even though the part is still listed.
 | Property | This part | Why it matters | Failed it |
 |---|---|---|---|
 | **No cross-conduction interlock** | none | In a half bridge, HO and LO together is shoot-through and every driver prevents it. Here the "high" and "low" switches are in **series with the coil** and must **both** be on for it to conduct at all | UCC27282-Q1, UCC27712-Q1 — could not fire an injector |
-| **Offset rating** | 625 V abs max, **5.4×** margin | Bank node ~103.8 V worst case, VB 12 V above it = 115.9 V | UCC27211A-Q1 — HB 120 V abs max, **4.1 V** of headroom |
+| **Offset rating** | 625 V abs max, **5.4×** margin | Bank node ~104.1 V worst case (41 µF reservoir), VB 12 V above it = 116.2 V | UCC27211A-Q1 — HB 120 V abs max, **3.8 V** of headroom |
 | **Negative VS** | operational to −5 V, clears by **3.7 V** | `D_fw` drops the bank node 1.0–1.3 V below ground on **every** hold off-time | UCC27211A-Q1 — HS DC min −1 V, **violated in normal operation** |
 
 The first is the one that is not a rating, and the one nobody searching

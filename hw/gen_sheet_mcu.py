@@ -355,12 +355,12 @@ def decoupling(sh):
     xb = x0 - 10 * 12.7
     sh.place("Device:C_Polarized", "C", xb, y0, "150uF",
              fields={"Source": "mcu_pdn.cir bulk; bom_requirements PDN-BULK",
-                     "Note": "POLYMER, specified by an ESR BAND of "
-                             "20-50 mOhm across -40/+125 C. Not a ceiling: "
-                             "at 20 mOhm the PDN peak climbs back to "
-                             "92 mOhm, because this part's ESR is also the "
-                             "damping.",
-                     "ESR": "20-50 mOhm over temperature"})
+                     "Note": "POLYMER tantalum, 25 mOhm max, IN SERIES "
+                             "with the 22 mOhm resistor beside it. The "
+                             "pair is the ESR band: a capacitor datasheet "
+                             "gives a maximum, never a minimum, so the "
+                             "resistor is the floor (decisions log 9).",
+                     "ESR": "pair 21.8-72.2 mOhm, -40/+125 C, end of life"})
     a = pin_xy(*PINS["Device:C_Polarized"]["1"], xb, y0, 0)
     b = pin_xy(*PINS["Device:C_Polarized"]["2"], xb, y0, 0)
     t, bo = (a, b) if a[1] < b[1] else (b, a)
@@ -368,10 +368,24 @@ def decoupling(sh):
     sh.wire(t[0], t[1] - 6.35, t[0] + 12.7, t[1] - 6.35)
     sh.hlabel("3V3_MCU", t[0] - 5.08, t[1] - 6.35, shape="input", rot=180)
     sh.wire(t[0] - 5.08, t[1] - 6.35, t[0], t[1] - 6.35)
-    sh.wire(bo[0], bo[1], bo[0], bo[1] + 6.35)
-    sh.wire(bo[0], bo[1] + 6.35, bo[0] + 12.7, bo[1] + 6.35)
-    sh.gnd(bo[0] - 5.08, bo[1] + 6.35)
-    sh.wire(bo[0] - 5.08, bo[1] + 6.35, bo[0], bo[1] + 6.35)
+    yr = bo[1] + 6.35
+    sh.wire(bo[0], bo[1], bo[0], yr)
+    sh.label("BULK_RTN", bo[0], yr)
+    # The floor of the band, lying along the return. Placed after the
+    # supervisor's resistors, so their references keep their numbers.
+    xr = bo[0] - 10.16
+    sh.place("Device:R", "R", xr, yr, "22mOhm 1%", rot=90,
+             fields={"Source": "mcu_pdn.cir Rb; decisions log 9",
+                     "Note": "Damping for the regulator-against-bulk "
+                             "resonance that the polymer bulk is too good "
+                             "to provide. Below 17 mOhm total the PDN "
+                             "peak passes 100 mOhm."})
+    r1 = pin_xy(*PINS["Device:R"]["1"], xr, yr, 90)
+    r2 = pin_xy(*PINS["Device:R"]["2"], xr, yr, 90)
+    rr, rl = (r1, r2) if r1[0] > r2[0] else (r2, r1)
+    sh.wire(rr[0], rr[1], bo[0], yr)
+    sh.wire(rl[0], rl[1], rl[0] - 5.08, rl[1])
+    sh.gnd(rl[0] - 5.08, rl[1])
 
 
 # Conn_ARM_JTAG_SWD_10 pin geometry, read out of the stock library

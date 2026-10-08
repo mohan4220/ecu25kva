@@ -88,6 +88,8 @@ NET_V = {
     # bank nodes: boost only for the 38 us peak; battery through hold
     "/INJ_A_03": (24.0, 104.0), "/INJ_B_05": (24.0, 104.0),
     "/injector/FB_BOOST_MID": (51.0, 51.0),  # 499k/499k midpoint
+    "/injector/BOOST_MID": (52.4, 71.0),     # C401/C420 stack midpoint
+    "/mcu/BULK_RTN": (0.05, 0.5),            # C313 to its 22 mOhm
     "/injector/BIAS_12V_MID": (58.5, 58.5),  # 47k/47k midpoint
     "/injector/Q1C_MID": (83.5, 83.5),  # collector string midpoint
     "/injector/Q1C_12V": (67.0, 67.0),
@@ -196,6 +198,7 @@ SHUNT_FP = {
     "20mOhm 1W 1%": "Resistor_SMD:R_2512_6332Metric",
     "50mOhm 1%": "Resistor_SMD:R_1206_3216Metric",
     "62mOhm 1%": "Resistor_SMD:R_1206_3216Metric",   # boost sense, BOOST-SLOPE
+    "22mOhm 1%": "Resistor_SMD:R_1206_3216Metric",   # C313 ESR floor
 }
 
 R_FP = {s: f"Resistor_SMD:R_{s}_{m}Metric" for s, m in [
@@ -218,10 +221,10 @@ KEMET = json.load(open(os.path.join(HW, "lib", "kemet_x7r_auto.json")))
 # flexible termination, and keep it off the board's edges and fixings.
 C_CASES = ["0603", "0805", "1206", "1210", "1812", "2220"]   # smallest first
 C_FLOOR = 25.0          # <=1 uF: never below 25 V, for DC-bias headroom
-SPECIAL_C = {           # not MLCC -- chosen separately
-    "150uF": "polymer, PDN-BULK ESR band -- chosen separately",
-    "47uF 150V": "aluminium electrolytic -- chosen separately",
-    "47uF 63V": "sensor hold-up, electrolytic or polymer -- chosen separately",
+SPECIAL_C = {           # not MLCC -- chosen in schlib.CHOSEN, decisions log 9
+    "T599D157M006ATE025": "C313, polymer tantalum, PDN-BULK",
+    "HHXC630ARA470MHA0G": "C211, hybrid polymer, sensor hold-up",
+    "HHXC800ARA820MJC5G": "C401/C420, hybrid polymer, boost reservoir",
 }
 
 
@@ -295,8 +298,6 @@ def main():
         kind = ref[0]
         if kind not in "RC" or not re.match(r"^[RC]\d", ref):
             continue
-        if kind == "C" and re.match(r"^C\d", ref) and "uF 150V" in val:
-            continue                     # electrolytic, chosen separately
         nets = netsof[ref]
         if len(nets) != 2:
             continue

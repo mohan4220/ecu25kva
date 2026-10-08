@@ -33,7 +33,7 @@
 *      before the comparator opens it, so the hold-up starts the open
 *      period above its pre-pulse level, even with all three trackers at
 *      their current limit. 47 uF, the decision's value, is enough. The
-*      corners below age it to 33 uF.
+*      corners below take C211 (HXC, decisions log 9) to 26.3 uF.
 *   3. With L1 NOT saturated, the clamp node peaks at 76.6 V, above the
 *      73.3 V transient_clamp.cir reports. That block has no filter; here
 *      L1's stored energy goes into the TVS. Every part on that node is
@@ -56,9 +56,9 @@
 *
 * THREE COPIES of the chain, one per corner, each with its own source:
 *   X1  nominal     47 uF, L1 22 uH (linear), threshold mid, 3 us delay
-*   X2  top         33 uF (hold-up aged -30%), L1 saturated, HIGHEST
+*   X2  top         26.3 uF (C211 -20% then -30% aged), L1 sat., HIGHEST
 *                   threshold, LONGEST delay, light load -- highest VSNS
-*   X3  droop       33 uF, L1 saturated, LOWEST threshold, SHORTEST
+*   X3  droop       26.3 uF, L1 saturated, LOWEST threshold, SHORTEST
 *                   delay, all three trackers at their 520 mA limit --
 *                   longest open time and largest droop
 * Threshold corners are the divider (340k / 10k, 0.1%) against OV rising
@@ -127,8 +127,8 @@ Iload vsns 0 {iload}
 Vpulse src 0 PWL(0 13.5  0.999m 13.5  1.0m 125.5  1.05m 125.5  1.0505m 13.5  3m 13.5)
 
 X1 src p1 n1 s1 CHAIN lm=22u chold=47u vtrip=41.30 vrel=39.00 tdel=3u   iload=0.15
-X2 src p2 n2 s2 CHAIN lm=1n  chold=33u vtrip=42.08 vrel=39.62 tdel=4u   iload=0.15
-X3 src p3 n3 s3 CHAIN lm=1n  chold=33u vtrip=40.52 vrel=38.38 tdel=2.6u iload=1.56
+X2 src p2 n2 s2 CHAIN lm=1n  chold=26.3u vtrip=42.08 vrel=39.62 tdel=4u   iload=0.15
+X3 src p3 n3 s3 CHAIN lm=1n  chold=26.3u vtrip=40.52 vrel=38.38 tdel=2.6u iload=1.56
 
 .control
 tran 20n 1.4m 0.9m 20n

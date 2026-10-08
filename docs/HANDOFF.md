@@ -99,7 +99,7 @@ Verify the whole project in one go:
 set -o pipefail
 .venv/bin/python sim/run_sim.py | tail -3        # expect 25/25 blocks pass
 .venv/bin/python hw/check_netlist.py | tail -6   # expect "schematic connectivity OK", 2 open items
-.venv/bin/python hw/assign_passives.py           # expect 230 packaged, 0 unresolved
+.venv/bin/python hw/assign_passives.py           # expect 232 packaged, 0 unresolved
 .venv/bin/python docs/build_pdf.py | tail -1     # rebuilds docs/pdf/ECU-Bible.pdf
 ```
 
@@ -122,8 +122,8 @@ started, and no firmware exists.
 |---|---|
 | Simulation blocks | **25 of 25 pass** |
 | Netlist connectivity | **passes**, with 2 named open items |
-| Footprints | **345 of 362** components |
-| Chip R and C packaged | **230 of 230** |
+| Footprints | **351 of 365** components |
+| Chip R and C packaged | **232 of 232** |
 
 **Verified part numbers** are in `docs/bom_requirements.md` under
 "Chosen parts" — every one against a datasheet that was actually
@@ -161,7 +161,7 @@ for each.
 2. **SENSOR-PTC — built 8 October 2026.** The cut-off is a TPS48110-Q1
    (chosen over the LTC4368 for AEC-Q100, decisions log §7).
    `sensor_rail.cir` is rewritten and the trackers' input peaks at
-   22.3 V. Open: the 47 µF hold-up part (C211) and two land patterns.
+   22.3 V. Open: two land patterns. C211 was chosen 8 October (§4.2).
    The original item read: one TPS7B4253-Q1 per sensor group, ADJ
    tracking 5V_MAIN, behind a 100 V-class overvoltage cut-off (an
    LTC4368-class controller was the candidate; **its datasheet was not
@@ -185,13 +185,12 @@ for each.
 
 ### 4.2 Parts still unchosen
 
-- **C401** — 47 µF, 150 V class injector reservoir (electrolytic; needs
-  a ripple-current and ESR-at-−40 °C check, since it delivers the
-  injection pulse).
-- **C211** — 47 µF, 63 V sensor hold-up on VSNS (electrolytic or
-  polymer, AEC-Q200, 125 °C). `sensor_rail.cir` checks it down to 33 µF.
-- **C313** — 150 µF polymer bulk, specified as an **ESR band** of
-  20–50 mΩ across −40/+125 °C, not a ceiling. See `PDN-BULK`.
+The three non-ceramic capacitors were chosen 8 October 2026 (decisions
+log §9): C313 is a KEMET T599 polymer tantalum with a 22 mΩ series
+resistor (R306) as its ESR floor. C211 is a Chemi-Con HXC 47 µF 63 V.
+C401 + C420 are two HXC 82 µF 80 V cans in series, balanced by the
+2 × 11 kΩ bleed. What is left:
+
 - **The trip-loop clamp** — the LOWV-CLAMP residual. It is the one input
   that still needs a continuous clamp, because its healthy band *is* the
   clamp level. It is also blocked on a connector pin.
@@ -214,13 +213,12 @@ for each.
   (five failed retrievals) — both need a distributor or FAE, not
   another search.
 
-### 4.4 The 17 components still without a footprint
+### 4.4 The 14 components still without a footprint
 
 | Parts | Why |
 |---|---|
 | D408–D414 (VS-16EDH02HM3 ×7), L201, J1001 | chosen, but no KiCad 7 land pattern — must be drawn |
 | U203 (TPS48110-Q1, DGX-19), U204–U206 (TPS7B4253-Q1, DDA-8) | chosen, but no matching KiCad land pattern — must be drawn |
-| C211, C313, C401 | not yet chosen |
 | D806 | the trip-loop clamp, the LOWV-CLAMP residual |
 
 `hw/gen_footprints.py` is where a drawn land pattern goes. It derives

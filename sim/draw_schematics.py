@@ -327,7 +327,7 @@ def injector_turnoff(d):
     d += elm.Dot(open=True).label("BOOST RAIL\n~100 V", "left")
     d += elm.Line().right().length(0.5)
     d += (rail := elm.Dot())
-    d += elm.Capacitor().down().at(rail.center).label("Cres\n47u", loc="bottom")
+    d += elm.Capacitor().down().at(rail.center).label("Cres\n2x82u series", loc="bottom")
     d += elm.Ground()
 
     d += elm.Line().right().at(rail.center).length(0.6)
@@ -596,7 +596,7 @@ def sensor_rail(d):
         "Q201 + TPS48110-Q1\nopens above 40.5-42.1 V")
     d += (vs := elm.Dot())
     d += elm.Label().at((vs.center[0], vs.center[1] + 0.45)).label("VSNS")
-    d += elm.Capacitor(polar=True).down().at(vs.center).label("47u\nhold-up")
+    d += elm.Capacitor(polar=True).down().at(vs.center).label("47u 63V\nhold-up (HXC)")
     d += elm.Ground()
     d += elm.Line().right().at(vs.center).length(7.6)
 
@@ -624,7 +624,7 @@ def mcu_pdn(d):
     d += elm.Line().right().length(3.2)
     d += elm.Dot(open=True).label("S32K148\nVDD pins", "right")
 
-    d += elm.Capacitor().down().at(rail.center).label("Cbulk 150u\nESR 50m")
+    d += elm.Capacitor().down().at(rail.center).label("Cbulk 150u\n+ 22m series")
     d += elm.Ground()
 
     d.push()
@@ -817,7 +817,7 @@ def boost_converter(d):
         "boost\nswitch")
     d += elm.Ground()
 
-    d += elm.Capacitor().down().at(rail.center).label("Cres\n47u")
+    d += elm.Capacitor().down().at(rail.center).label("Cres 41u\n2x82u 80V series")
     d += elm.Ground()
 
     d += elm.Label().at((rail.center[0] + 0.5, rail.center[1] - 3.1)).label(

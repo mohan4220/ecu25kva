@@ -634,9 +634,14 @@
   "value": "47k",
   "why": "73.3 V peak, 12.3 mW cont; 0805 = 150 V, 74 mW at 105 C"
  },
+ "R306": {
+  "footprint": "Resistor_SMD:R_1206_3216Metric",
+  "value": "22mOhm 1%",
+  "why": "shunt: 22mOhm 1%"
+ },
  "R401": {
   "footprint": "Resistor_SMD:R_2512_6332Metric",
-  "value": "22k 1W",
+  "value": "11k 1W",
   "why": "1 W stated in value"
  },
  "R402": {
@@ -803,6 +808,11 @@
   "footprint": "Resistor_SMD:R_0603_1608Metric",
   "value": "56R",
   "why": "0.7 V peak, 0.9 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R435": {
+  "footprint": "Resistor_SMD:R_2512_6332Metric",
+  "value": "11k 1W",
+  "why": "1 W stated in value"
  },
  "R501": {
   "footprint": "Resistor_SMD:R_1206_3216Metric",

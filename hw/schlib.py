@@ -247,6 +247,22 @@ CHOSEN = {
         "0437005.WRA", "Fuse:Fuse_1206_3216Metric",
         "Littelfuse 437A, 1206 fast-acting, 63 V DC, 50 A interrupting, "
         "melting I2t 2.30 A2s, AEC-Q200. 3.16 A continuous at 105 C"),
+    # The three capacitors that were not MLCC, chosen 8 Oct 2026 --
+    # decisions log 9. Chemi-Con figures from CAT. No. E1001A 2026.
+    ("Device:C_Polarized", "150uF"): (
+        "T599D157M006ATE025", "Capacitor_Tantalum_SMD:CP_EIA-7343-31_Kemet-D",
+        "KEMET T599 polymer tantalum, 150 uF, 6.3 V (5.4 V at 125 C), "
+        "25 mOhm max at 100 kHz, -55/+150 C, AEC-Q200. In series with a "
+        "22 mOhm resistor: the pair is PDN-BULK's ESR band"),
+    ("Device:C_Polarized", "47uF 63V"): (
+        "HHXC630ARA470MHA0G", "Capacitor_SMD:CP_Elec_8x10",
+        "Chemi-Con HXC hybrid polymer, 47 uF, 63 V, 8 x 10 mm, 40 mOhm "
+        "max, Z(-55)/Z(20) <= 2 at 100 kHz, 4000 h at 125 C, AEC-Q200"),
+    ("Device:C_Polarized", "82uF 80V"): (
+        "HHXC800ARA820MJC5G", "Capacitor_SMD:CP_Elec_10x12.5",
+        "Chemi-Con HXC hybrid polymer, 82 uF, 80 V, 10 x 12.5 mm, 28 mOhm "
+        "max, Z(-55)/Z(20) <= 2 at 100 kHz, 2.1 A rms at 125 C, 4000 h "
+        "at 125 C, AEC-Q200. Two in series: 41 uF, 160 V"),
     ("Device:D", "100V 3A fast"): (
         "VS-3ECH02HM3", "Diode_SMD:D_SMC",
         "Vishay FRED Pt, 200 V, 3 A, 130 A surge, AEC-Q101, SMC"),

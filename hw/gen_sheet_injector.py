@@ -234,32 +234,67 @@ def boost_rail(sh):
     sh.label("BOOST_100V", 40.0, y)
     rail = Rail(sh, y)
     rail.to(40.0)
-    vshunt(sh, "Device:C_Polarized", "C", 80.0, y + 20.0, "47uF 150V",
-           {"Source": "boost_converter.cir Ca",
-            "Note": "The converter cannot deliver 18 A -- it delivers a "
-                    "trickle and this capacitor delivers the pulse. "
-                    "342 uC per peak phase gives 7.3 V of droop, so the "
-                    "rail sags to 92.7 V. Its job is to be much larger "
-                    "than 13.5 V, not to be exactly 100 V.",
-            "Vr": "150 V class: 100 V setpoint plus the recirculation "
-                  "bump, same margin logic transient_clamp used"}, rail)
-    vshunt(sh, "Device:R", "R", 120.0, y + 20.0, "22k 1W",
-           {"Source": "boost_converter.cir arrangement C; "
-                      "bom_requirements BOOST-BLEED",
-            "Note": "The charger regulates from BELOW only -- 50 mA while "
-                    "the rail is under setpoint, nothing above it. Without "
-                    "this resistor ANY excursion above 100 V is permanent: "
-                    "three hold-cutoff recirculation events stack to "
-                    "106.4 V and stay there.",
-            "Sizing": "one 100 uC event is 2.14 V on 47 uF; above setpoint "
-                      "the charger is off so the whole 4.55 mA discharges "
-                      "it in 21.4 ms, against 26.67 ms between cylinders",
-            "Cost": "455 mW burned continuously whenever the rail is up"},
-           rail)
+    stack_top(sh, "Device:C_Polarized", "C", 80.0, y + 20.0, "82uF 80V",
+              {"Source": "boost_converter.cir Ca; decisions log 9",
+               "Note": "TOP of a two-can stack with C420 -- 41 uF, 160 V. "
+                       "The converter cannot deliver 18 A; it delivers a "
+                       "trickle and this stack delivers the pulse. 342 uC "
+                       "per peak phase gives 8.3 V of droop, 14.9 V on the "
+                       "smallest aged stack.",
+               "Why two": "No capacitor rated above 100 V publishes a cold "
+                          "ESR. These do: 28 mOhm max, at most 2x at -55 C. "
+                          "Stack worst 224 mOhm aged and cold -- 18 A in "
+                          "45 us, against 38 us nominal."}, rail)
+    stack_top(sh, "Device:R", "R", 120.0, y + 20.0, "11k 1W",
+              {"Source": "boost_converter.cir arrangement C; "
+                         "bom_requirements BOOST-BLEED; decisions log 9",
+               "Note": "Half of the 22k bleed, across C401. The charger "
+                       "regulates from BELOW only; without the bleed any "
+                       "excursion above 100 V is permanent -- three "
+                       "hold-cutoff events stack to 107.4 V and stay.",
+               "Also": "Balances the stack: with R435 it holds each can at "
+                       "52.4 V worst leakage mismatch, 80 V parts",
+               "Cost": "250 mW each, 455 mW the pair"}, rail)
     rail.to(160.0)
     sh.text("the converter that feeds this rail is drawn at the foot of "
             "the sheet -- TPS40210-Q1, VBAT_PROT to BOOST_100V",
             180.0, 40.0, size=1.6)
+
+
+def stack_top(sh, libid, prefix, x, y, value, fields, rail):
+    """Upper half of a two-part stack: rail on top, BOOST_MID below."""
+    sh.place(libid, prefix, x, y, value, fields=fields)
+    a = pin_xy(*PINS[libid]["1"], x, y, 0)
+    b = pin_xy(*PINS[libid]["2"], x, y, 0)
+    t, bo = (a, b) if a[1] < b[1] else (b, a)
+    rx, ry = rail.to(t[0], tap=True)
+    sh.wire(rx, ry, t[0], t[1])
+    sh.wire(bo[0], bo[1], bo[0], bo[1] + 4.0)
+    sh.label("BOOST_MID", bo[0], bo[1] + 4.0)
+
+
+def stack_bottom(sh, libid, prefix, x, y, value, fields):
+    """Lower half: BOOST_MID on top, ground below."""
+    sh.place(libid, prefix, x, y, value, fields=fields)
+    a = pin_xy(*PINS[libid]["1"], x, y, 0)
+    b = pin_xy(*PINS[libid]["2"], x, y, 0)
+    t, bo = (a, b) if a[1] < b[1] else (b, a)
+    sh.wire(t[0], t[1], t[0], t[1] - 4.0)
+    sh.label("BOOST_MID", t[0], t[1] - 4.0)
+    gnd_below(sh, bo[0], bo[1])
+
+
+def boost_rail_lower(sh):
+    """The stack's lower can and lower bleed half -- placed last so every
+    earlier reference keeps its number (decisions log 9)."""
+    stack_bottom(sh, "Device:C_Polarized", "C", 80.0, 92.0, "82uF 80V",
+                 {"Source": "boost_converter.cir Ca; decisions log 9",
+                  "Note": "BOTTOM of the stack with C401. First charge "
+                          "splits by capacitance alone: 71.0 V worst on an "
+                          "80 V part, then the 11k pair evens it out."})
+    stack_bottom(sh, "Device:R", "R", 120.0, 92.0, "11k 1W",
+                 {"Source": "decisions log 9",
+                  "Note": "Lower half of the 22k bleed, across C420."})
 
 
 def high_side(sh, bx, bank, boost_net, bat_net, out_net, tag, note):
@@ -720,7 +755,7 @@ def boost_stage(sh):
         "TOPOLOGY and the starting values; the loop gets measured.\n"
         "\n"
         "NOT DRAWN, and deliberately: no output capacitor appears here, "
-        "because the 47 uF reservoir at the top of this sheet IS the "
+        "because the 41 uF reservoir at the top of this sheet IS the "
         "output capacitor. Its 22k bleed is the only thing that can\n"
         "take charge OFF this rail -- a boost converter cannot pull its "
         "own output down, which is the same one-sided regulation "
@@ -1256,6 +1291,7 @@ def build():
                "for simultaneous sampling) stay independent.")
     notes(sh)
     vdd_follower(sh)
+    boost_rail_lower(sh)
     return sh
 
 
