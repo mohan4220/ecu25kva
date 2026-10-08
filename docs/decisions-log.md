@@ -182,7 +182,8 @@ instead disconnects for the 50 µs pulse, while a 47 µF capacitor holds
 the sensors up (0.16 V of droop), and stays connected through the 40 V
 dump.
 
-**Status: not yet implemented.**
+**Status: in progress.** The cut-off controller was chosen on 8
+October: the **TPS48110-Q1**, see §7.
 
 ## 5. How the POWER-PATH feeds are built (8 October)
 
@@ -320,6 +321,80 @@ setup changes?
 
 **Chosen: revert.** The 47 fixes are not in the repository; §6b
 records what they were.
+
+## 7. The overvoltage cut-off in front of the sensor trackers (8 October)
+
+§4 chose a tracking regulator per sensor group "behind a 100 V-class
+overvoltage cut-off", and named an LTC4368-class controller as the
+candidate. Its datasheet had never been retrieved. Retrieving it, and
+looking for an alternative, turned the candidate into a choice.
+
+### What the part is for
+
+The three sensor regulators (TPS7B4253-Q1, one per group) survive at
+most **45 V** on their input. This board's battery rail reaches
+**73.3 V** for about 50 µs on ISO 7637-2 pulse 2a, a standard automotive
+surge test. So the regulators need a fast automatic switch in front of
+them:
+
+- normally **on**, passing battery power through;
+- above about 45 V it switches **off** within a few microseconds, and a
+  47 µF capacitor after it keeps the sensors powered meanwhile;
+- when the surge has passed, it switches back **on**.
+
+It is a small controller chip driving one power transistor. It must
+stay **on** through the 40 V load dump, which lasts 400 ms, far longer
+than the capacitor could bridge.
+
+### The question
+
+**Asked:** which overvoltage cut-off controller should feed the three
+sensor trackers?
+
+The first time it was asked, the options were given only as datasheet
+figures, and the owner replied that they could not decide between two
+part numbers. The question was then explained as above, with this
+comparison:
+
+| | **TPS48110-Q1** (Texas Instruments) | **LTC4368** (Analog Devices) |
+|---|---|---|
+| Survives | 100 V | 100 V |
+| Switches off in | 2.6–4 µs after the threshold | under 8 µs |
+| Automotive-qualified (AEC-Q100) | **yes**, Grade 1 | **no**: C, I and H grades only (H = −40 to +125 °C) |
+| Around it | a few more parts: charge-pump capacitor, unused current-sense pins tied off | simpler, 10 pins |
+| Datasheet | SLUSEE5E (April 2026), from ti.com | Rev A, read through a mirror because analog.com timed out |
+| Extra check needed | a 60 V/µs limit on how fast its input may rise | — |
+
+**Recommended: TPS48110-Q1.** Electrically, either would do the job.
+The deciding point is qualification. AEC-Q100 means the chip has passed
+the automotive industry's stress tests for temperature cycling,
+vibration and lifetime. Every other IC on this board has it, and the
+LTC4368 would have been the one exception, on the part that protects
+the sensor supply. The standing rule puts reliability before cost and
+convenience.
+
+**Chosen: TPS48110-Q1** ("ok use the recommended one").
+
+**Consequences:**
+
+- **Slew limit:** the input slew rate on pulse 2a's edge has to be
+  checked against the 60 V/µs limit. The `sensor_rail` rewrite does
+  that.
+- **Threshold window:** the OV threshold must sit above the 40 V load
+  dump at its lowest tolerance, and trip early enough that the
+  regulators' input stays under 45 V. That includes the rise during the
+  controller's 2.6–4 µs reaction time. The window is narrow, and the
+  `sensor_rail` rewrite pins it.
+- **The switch transistor** is the board's existing 100 V N-FET,
+  IPD90N10S4-06, so there is one part number fewer to buy.
+
+### A limit this design does not remove
+
+The trackers' outputs survive −1 V to +45 V, so a sensor supply wire
+shorted to battery is survived at 24 V (jump start) and at 40 V (load
+dump). A short to battery **at the same time as** a pulse 2a surge
+(73.3 V) would exceed it. That is a double fault, and it is recorded
+rather than designed out.
 
 ---
 

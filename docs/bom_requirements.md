@@ -196,6 +196,16 @@ transient step — not a round convention. Checked by `mcu_pdn.cir`.
 
 ### `SENSOR-PTC` — 5 V sensor rail, one per sensor group
 
+> **Superseded (decisions log §4, §7).** The PTCs are being replaced by
+> one **TPS7B4253-Q1** tracking regulator per group (TI SLVSCP3D, rev.
+> Nov 2025), following 5V_MAIN to ±4 mV and limiting at 301–520 mA.
+> The three sit behind one **TPS48110-Q1** overvoltage cut-off (TI
+> SLUSEE5E, rev. Apr 2026, AEC-Q100 Grade 1) switching an
+> IPD90N10S4-06, with 47 µF of hold-up after it. The cut-off opens for
+> pulse 2a (73.3 V; the trackers are rated 45 V) and stays closed
+> through the 40 V load dump. The text below is the PTC requirement it
+> replaces, kept for the record.
+
 Resettable PTC, hold current ≥ 200 mA, **R25 = 3.0 Ω nominal**.
 
 Sized against the ceiling rather than guessed. The polyfuse has to be
