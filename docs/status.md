@@ -816,6 +816,21 @@ injector still reaches 18 A in 45 µs at −40 °C, aged. The sims run the
 22 kΩ bleed is split 2 × 11 kΩ to balance the cans. The result is 365
 components, 351 with footprints, and 232 passives packaged.
 
+**Four land patterns drawn, 8 October 2026.** Every chosen part with no
+KiCad land pattern now has one, drawn in `hw/gen_footprints.py` from
+the maker's recommended layout:
+- the SMPD for the seven VS-16EDH02HM3 (Vishay 95604; the tab is the
+  cathode, so it is pad 1, matching the symbol's K);
+- WE-PD 1050 for L201;
+- TI DGX0019A for the TPS48110-Q1, position 16 empty as on the part;
+- TI DDA0008J for the three TPS7B4253-Q1. Its thermal pad has a
+  2.6 × 3.2 solder-mask-defined opening, which no stock variant has.
+
+All four parse and plot in kicad-cli. They are written in KiCad 7
+format, because the installed KiCad 10 library is newer than the project
+files. 363 of 365 components now have a footprint. The two left are
+J1001, which needs the Bosch drawing, and D806, the trip-loop clamp.
+
 ---
 
 ## 8. Work at the machine

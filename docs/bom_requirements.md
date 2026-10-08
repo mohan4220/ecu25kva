@@ -211,9 +211,9 @@ transient step — not a round convention. Checked by `mcu_pdn.cir`.
 > Inrush is 0.16 A into 47 µF. Cranking headroom is 0.46 V. The
 > controller's VS and CS pins see 4.9 V/µs through 100 Ω + 22 nF,
 > against their 60 V/µs limit. The hold-up, C211, was chosen 8 October
-> (Chemi-Con HXC, decisions log §9). Still open: land patterns for the
-> TPS48110-Q1 (DGX-19) and the TPS7B4253-Q1 (TI's DDA0008J pad matches
-> no KiCad variant). The 10 µF 50 V output capacitors are 2220, the
+> (Chemi-Con HXC, decisions log §9). The TPS48110-Q1 (DGX0019A) and
+> TPS7B4253-Q1 (DDA0008J) land patterns are drawn in
+> `hw/gen_footprints.py` from TI's own layouts. The 10 µF 50 V output capacitors are 2220, the
 > only case KEMET makes at 50 V; they face the harness, so buy them
 > with flexible termination.
 >
@@ -505,15 +505,15 @@ not constraints.
 | Pin 21 filter inductor L101 | **7447709220** | Würth WE-PD 1210, 22 µH ±20%, IR 5.3 A, Isat 6.5 A typ, RDC 28 mΩ max, SRF 10 MHz typ, 120 V, AEC-Q200 Grade 1, −40 to +125 °C. Datasheet rev 003.001 (2024-05-08). |
 | Pin 21 second stage L102 | **744314047** | Würth WE-HCI 7050, 0.47 µH ±20%, IR 18 A, Isat 9 A typ, RDC 1.35 mΩ, SRF 235 MHz typ, AEC-Q200 Grade 1, −40 to +150 °C. Datasheet rev 004.001 (2025-02-06). |
 | Pin 21 fuse F101 | **0437005.WRA** | Littelfuse 437A, 1206 fast-acting, 5 A, 63 V DC, 50 A interrupting, melting I²t 2.30 A²s, 15.9 mΩ, AEC-Q200. Datasheet revised 09/08/21. 79 % re-rating at 105 °C read off its curve. |
-| Sensor trackers, ×3 | **TPS7B4253QDDARQ1** | TI TPS7B4253-Q1, SLVSCP3D (rev. Nov 2025): tracks ADJ to ±4 mV, 300 mA, limit 301–520 mA, dropout 520 mV max at 200 mA, IN −40…45 V, OUT −1…45 V. AEC-Q100. DDA PowerPAD-8; land pattern to draw. |
-| Sensor-supply OV cut-off | **TPS48110AQDGXRQ1** | TI TPS4811-Q1, SLUSEE5E (rev. Apr 2026): 100 V abs max, OV 1.16–1.20 V rising, 2.6–4 µs to gate off, 4 A pull-down, 60 V/µs limit on drain-side pins. AEC-Q100 Grade 1. DGX VSSOP-19; land pattern to draw. Chosen over LTC4368 (not AEC-Q100): decisions log §7. |
+| Sensor trackers, ×3 | **TPS7B4253QDDARQ1** | TI TPS7B4253-Q1, SLVSCP3D (rev. Nov 2025): tracks ADJ to ±4 mV, 300 mA, limit 301–520 mA, dropout 520 mV max at 200 mA, IN −40…45 V, OUT −1…45 V. AEC-Q100. DDA PowerPAD-8; land pattern drawn from TI DDA0008J (`gen_footprints.py`). |
+| Sensor-supply OV cut-off | **TPS48110AQDGXRQ1** | TI TPS4811-Q1, SLUSEE5E (rev. Apr 2026): 100 V abs max, OV 1.16–1.20 V rising, 2.6–4 µs to gate off, 4 A pull-down, 60 V/µs limit on drain-side pins. AEC-Q100 Grade 1. DGX VSSOP-19; land pattern drawn from TI DGX0019A (`gen_footprints.py`). Chosen over LTC4368 (not AEC-Q100): decisions log §7. |
 | Boost inductor L401 | **7447709151** | Würth WE-PD 1210, 150 µH ±20%, IR 2.1 A, Isat 2.7 A (10 %) / 3.3 A (30 %) typ, RDC 200 mΩ max, 120 V, AEC-Q200 Grade 1. Datasheet rev 003.001 (2024-05-08). Decisions log §8. |
 | Boost VDD reference | **BZG03C39-HM3** | Vishay BZG03C-M, 37–41 V at 10 mA, ZZ 40 Ω, +0.06–0.11 %/K, AEC-Q101, SMA. Doc 86574 Rev. 1.0. |
 | Reverse-battery FETs, pins 04/06 | **SQM120P10-10m1L** ×2 | −100 V P-channel, ±20 V Vgs, 10.1 mΩ max at −10 V, 20.5 mΩ at 175 °C, 15.0 mΩ at −4.5 V, RthJA 40 °C/W. AEC-Q101, TO-263. Vishay doc 76943 Rev. A, retrieved 8 Oct 2026. `POWER-PATH`. |
 | 100 V N-channel | **IPD90N10S4-06** ×8 | Negative clamp, metering, four EGR, two injector battery switches (60 V class needed; one part number instead of two). 6.7 mΩ max at 10 V, ±20 V Vgs, AEC-Q101, TO-252. The logic-level sibling `-S4L-06` was rejected for its ±16 V Vgs: every one of these gates is driven from 12V_GATE. |
 | Injector 150 V FETs | **SQM85N15-19** ×5 | Two boost-side high sides, three low sides. 19 mΩ max at 10 V — the model's 20 mΩ. ±20 V Vgs, AEC-Q101, TO-263. Qg 120 nC max sets the bootstrap droop: 126 mV. |
 | Boost switch | **DMN15H310SK3** | 150 V, Vth 3 V max, 350 mΩ max at Vgs **4 V** — specified below the 5.7 V it gets while cranking. Qg 8.7 nC typ. AEC-Q101, TO-252. Cranking duty with its drop, hot: 94.8% against 97.0% available. |
-| Injector recirculation, blocking, freewheel | **VS-16EDH02HM3** ×7 | 200 V, 16 A avg, 250 A surge, trr 32 ns, AEC-Q101. SMPD (TO-263AC): **no KiCad 7 footprint — drawn in phase 3.** Average current per diode is tens of mA; the rating is for the 18 A peaks. |
+| Injector recirculation, blocking, freewheel | **VS-16EDH02HM3** ×7 | 200 V, 16 A avg, 250 A surge, trr 32 ns, AEC-Q101. SMPD (TO-263AC): land pattern drawn from Vishay doc 95604, tab = cathode (`gen_footprints.py`). Average current per diode is tens of mA; the rating is for the 18 A peaks. |
 | Boost diode | **VS-2EMH02HM3** | 200 V, 2 A, trr 25 ns, AEC-Q101, SMA. |
 | Bootstrap and relay flyback diodes | **VS-1EMH02HM3** ×8 | 200 V, 1 A, 50 A surge, AEC-Q101, SMA. The relay flybacks needed only 100 V; one part number instead of two. |
 | Metering freewheel | **VS-3ECH02HM3** | 200 V, 3 A, 130 A surge, AEC-Q101, SMC. |
@@ -522,7 +522,7 @@ not constraints.
 | Crank-pair TVS | **SMAJ48CA-HE3** | 48 V standoff, 53.3–58.9 V breakdown, 400 W, AEC-Q101. |
 | 12 V clamps | **BZX84-C12-Q** ×2, **BZX84-C13-Q** | GATE_KILL, reverse-FET gate, 12V_GATE reference. SOT-23 with pin 3 as the cathode, so the project's `SOT-23_Zener_K1_A2` footprint is used. The GATE_KILL zener's first footprint, the stock SOT-23, had its anode where the symbol puts the cathode. |
 | VDD clamp | **BZG03C36-HM3** | See `BOOST-VDD-CLAMP`: it replaced a 43 V clamp that did not clamp. |
-| Buck inductor | **Würth 7447714330** | WE-PD 1050, 33 µH, Isat 2.9 A typ against a 1.18 A worst peak (1.72× after a −30% hot derate), 79 mΩ, AEC-Q200 Grade 1. This closes the Isat gap `buck_preregulator.cir` left open. Land pattern not in KiCad 7. |
+| Buck inductor | **Würth 7447714330** | WE-PD 1050, 33 µH, Isat 2.9 A typ against a 1.18 A worst peak (1.72× after a −30% hot derate), 79 mΩ, AEC-Q200 Grade 1. This closes the Isat gap `buck_preregulator.cir` left open. Land pattern drawn from the Würth drawing (`gen_footprints.py`). |
 | 12V_GATE pass / limit | **PZTA42-Q**, **PMBT3904-Q** | See `GATE-RAIL`. PMBT3904-Q is SOT-23 B-E-C, so it uses the `Q_NPN_BEC` symbol. |
 | 3V3_MCU bulk (C313) | **T599D157M006ATE025** + 22 mΩ 1 % (R306) | KEMET polymer tantalum, 150 µF, 6.3 V (5.4 V at 125 °C), 25 mΩ max, −55/+150 °C, AEC-Q200, 7343-31. The resistor is `PDN-BULK`'s ESR floor; see decisions log §9. |
 | Sensor hold-up (C211) | **HHXC630ARA470MHA0G** | Chemi-Con HXC hybrid polymer, 47 µF 63 V, 8 × 10 mm SMD, 40 mΩ max, Z(−55)/Z(20) ≤ 2 at 100 kHz, 4000 h at 125 °C, AEC-Q200. 1.58× over the 40 V load dump; 26.3 µF tolerance-and-aged corner in `sensor_rail.cir`. |

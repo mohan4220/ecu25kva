@@ -122,7 +122,7 @@ started, and no firmware exists.
 |---|---|
 | Simulation blocks | **25 of 25 pass** |
 | Netlist connectivity | **passes**, with 2 named open items |
-| Footprints | **351 of 365** components |
+| Footprints | **363 of 365** components |
 | Chip R and C packaged | **232 of 232** |
 
 **Verified part numbers** are in `docs/bom_requirements.md` under
@@ -161,7 +161,7 @@ for each.
 2. **SENSOR-PTC — built 8 October 2026.** The cut-off is a TPS48110-Q1
    (chosen over the LTC4368 for AEC-Q100, decisions log §7).
    `sensor_rail.cir` is rewritten and the trackers' input peaks at
-   22.3 V. Open: two land patterns. C211 was chosen 8 October (§4.2).
+   22.3 V. C211 and both land patterns were done 8 October.
    The original item read: one TPS7B4253-Q1 per sensor group, ADJ
    tracking 5V_MAIN, behind a 100 V-class overvoltage cut-off (an
    LTC4368-class controller was the candidate; **its datasheet was not
@@ -213,18 +213,23 @@ C401 + C420 are two HXC 82 µF 80 V cans in series, balanced by the
   (five failed retrievals) — both need a distributor or FAE, not
   another search.
 
-### 4.4 The 14 components still without a footprint
+### 4.4 The 2 components still without a footprint
 
 | Parts | Why |
 |---|---|
-| D408–D414 (VS-16EDH02HM3 ×7), L201, J1001 | chosen, but no KiCad 7 land pattern — must be drawn |
-| U203 (TPS48110-Q1, DGX-19), U204–U206 (TPS7B4253-Q1, DDA-8) | chosen, but no matching KiCad land pattern — must be drawn |
+| J1001 | the Bosch 94-way header: needs the distributor drawing (§4.3) |
 | D806 | the trip-loop clamp, the LOWV-CLAMP residual |
 
-`hw/gen_footprints.py` is where a drawn land pattern goes. It derives
-footprints from stock ones by renumbering pads, and already carries two
-(a TO-277A and a SOT-23 zener whose stock pad numbering would otherwise
-have reversed the part).
+`hw/gen_footprints.py` holds the project footprints. It derives two from
+stock by renumbering pads: a TO-277A and a SOT-23 zener, whose stock pad
+numbering would otherwise have reversed the part. It also **draws** four
+from the makers' recommended layouts (8 October): SMPD for D408–D414
+(tab = cathode = pad 1), WE-PD 1050 for L201, TI DGX0019A for U203
+(position 16 empty) and TI DDA0008J for U204–U206 (thermal pad 2.95 ×
+4.9 copper, 2.6 × 3.2 solder-mask-defined opening). They are written in
+KiCad 7 format. The installed KiCad 10 library is newer than KiCad 7
+can open, so the script skips re-deriving the two stock copies from it.
+TI's optional thermal vias under the DDA pad are left to layout.
 
 ### 4.5 Then
 

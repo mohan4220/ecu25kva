@@ -376,6 +376,7 @@ def sensor_rail(sh):
     # ---- the controller ----
     ux, uy = 120.0, 318.0
     sh.place("ecu25kva:TPS48110", "U", ux, uy, "TPS48110",
+             footprint="ecu25kva:TI_DGX0019A_VSSOP-19_3x5.1mm_P0.5mm",
              fields={"MPN": "TPS48110AQDGXRQ1",
                      "Source": "TI SLUSEE5E -- decisions log 7",
                      "Note": "Used only for its OV cut-off. Current sense, "
@@ -437,6 +438,7 @@ def sensor_rail(sh):
     for i, grp in enumerate("ABC"):
         tx, ty = 300.0 + i * 70.0, 318.0
         sh.place("ecu25kva:TPS7B4253", "U", tx, ty, "TPS7B4253",
+                 footprint="ecu25kva:TI_DDA0008J_HSOIC-8_EP2.95x4.9_Mask2.6x3.2",
                  fields={"MPN": "TPS7B4253QDDARQ1",
                          "Source": "TI SLVSCP3D -- decisions log 4",
                          "Note": f"Group {grp}: tracks 5V_MAIN to +/-4 mV, "

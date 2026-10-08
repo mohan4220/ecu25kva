@@ -171,10 +171,10 @@ PASSIVE_FP = json.load(open(_PFP)) if os.path.exists(_PFP) else {}
 # in the KiCad 7 library and has to be drawn in phase 3.
 CHOSEN = {
     ("Device:D", "150V 20A ultrafast"): (
-        "VS-16EDH02HM3", "",
+        "VS-16EDH02HM3", "ecu25kva:Vishay_SMPD_TO-263AC_K1_A2",
         "Vishay FRED Pt, 200 V, 16 A avg, 250 A surge, trr 32 ns, "
-        "AEC-Q101. SMPD (TO-263AC), cathode on the tab -- no KiCad 7 "
-        "footprint, drawn in phase 3"),
+        "AEC-Q101. SMPD (TO-263AC), cathode on the tab -- land pattern "
+        "drawn from Vishay doc 95604 (gen_footprints.py)"),
     ("Device:D", "150V 2A ultrafast"): (
         "VS-2EMH02HM3", "Diode_SMD:D_SMA",
         "Vishay FRED Pt, 200 V, 2 A, trr 25 ns, AEC-Q101, SMA"),
@@ -217,10 +217,10 @@ CHOSEN = {
         "Vishay TransZorb, 48 V standoff, VBR 53.3-58.9 V, 400 W, "
         "AEC-Q101"),
     ("Device:L", "33uH"): (
-        "7447714330", "",
+        "7447714330", "ecu25kva:L_Wuerth_WE-PD-1050",
         "Wurth WE-PD 1050, 33 uH, Isat 2.9 A typ, IR 2.5 A, 79 mOhm max, "
-        "AEC-Q200 Grade 1. No WE-PD land pattern in KiCad 7 -- drawn in "
-        "phase 3 from the Wurth drawing"),
+        "AEC-Q200 Grade 1. No WE-PD 1050 land pattern in KiCad 7 -- drawn "
+        "from the Wurth drawing (gen_footprints.py)"),
     # Pin 21's filter and fuse, chosen 8 Oct 2026 once POWER-PATH left
     # them carrying only the electronics: 2.95 A, an upper bound
     # (emi_filter in run_sim.py).

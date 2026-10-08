@@ -654,7 +654,7 @@ UCC27517A = dict(
 # 4.9 mm pad, which no KiCad SOIC-8-1EP variant matches -- drawn in
 # phase 3, so no footprint is named.
 TPS7B4253 = dict(
-    name="TPS7B4253", fp="",
+    name="TPS7B4253", fp="ecu25kva:TI_DDA0008J_HSOIC-8_EP2.95x4.9_Mask2.6x3.2",
     ds="https://www.ti.com/lit/ds/symlink/tps7b4253-q1.pdf",
     mpn="TPS7B4253QDDARQ1",
     desc="TI TPS7B4253-Q1 300 mA tracking LDO, +/-4 mV, IN -40..45 V, "
@@ -674,7 +674,7 @@ TPS7B4253 = dict(
 # drain-side pins. AEC-Q100 Grade 1. No KiCad DGX-19 land pattern --
 # drawn in phase 3.
 TPS48110 = dict(
-    name="TPS48110", fp="",
+    name="TPS48110", fp="ecu25kva:TI_DGX0019A_VSSOP-19_3x5.1mm_P0.5mm",
     ds="https://www.ti.com/lit/ds/symlink/tps4811-q1.pdf",
     mpn="TPS48110AQDGXRQ1",
     desc="TI TPS48110-Q1 100 V smart high-side driver, adjustable OV "
