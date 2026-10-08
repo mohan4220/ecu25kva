@@ -27,7 +27,7 @@ import os
 import re
 import uuid
 
-KICAD_SYMS = "/usr/share/kicad/symbols"
+KICAD_SYMS = os.environ.get("KICAD_SYMBOL_DIR", "/usr/share/kicad/symbols")
 LOCAL_SYMS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib")
 
 _CACHE = {}

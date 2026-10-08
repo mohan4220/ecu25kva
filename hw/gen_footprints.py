@@ -24,7 +24,7 @@ import re
 
 HW = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HW, "lib", "ecu25kva.pretty")
-STOCK = "/usr/share/kicad/footprints"
+STOCK = os.environ.get("KICAD_FOOTPRINT_DIR", "/usr/share/kicad/footprints")
 
 # new name: (stock library, stock footprint, {stock pad: new pad})
 REMAP = {

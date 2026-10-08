@@ -94,14 +94,14 @@ def export_netlist(path):
 
 def parse(text):
     comps = {}
-    for m in re.finditer(r'\(comp \(ref "([^"]+)"\)\s*\n\s*\(value "([^"]*)"\)',
+    for m in re.finditer(r'\(comp\s+\(ref "([^"]+)"\)\s*\(value "([^"]*)"\)',
                          text):
         comps[m.group(1)] = m.group(2)
     nets = []
     i = text.index("(nets")
-    for b in re.split(r'\n    \(net ', text[i:])[1:]:
+    for b in re.split(r'\n\s*\(net\s', text[i:])[1:]:
         name = re.search(r'\(name "([^"]*)"\)', b).group(1)
-        pins = re.findall(r'\(node \(ref "([^"]+)"\) \(pin "([^"]+)"\)', b)
+        pins = re.findall(r'\(node\s+\(ref "([^"]+)"\)\s+\(pin "([^"]+)"\)', b)
         nets.append((name, pins))
     return comps, nets
 
@@ -140,7 +140,7 @@ def main():
           f"({len(comps)} components)", True)
 
     dup = [r for r, c in collections.Counter(
-        re.findall(r'\(comp \(ref "([^"]+)"\)', text)).items() if c > 1]
+        re.findall(r'\(comp\s+\(ref "([^"]+)"\)', text)).items() if c > 1]
     check("every reference is unique across all ten sheets",
           not dup, f"duplicates: {dup}" if dup else "")
 
@@ -167,8 +167,8 @@ def main():
           "EXPECTED_OPEN", not stale, f"no longer single-pin: {stale}")
 
     by_sheet = collections.defaultdict(set)
-    for m in re.finditer(r'\(comp \(ref "([^"]+)"\).*?'
-                         r'\(sheetpath \(names "([^"]*)"', text, re.S):
+    for m in re.finditer(r'\(comp\s+\(ref "([^"]+)"\).*?'
+                         r'\(sheetpath\s+\(names "([^"]*)"', text, re.S):
         by_sheet[m.group(2)].add(m.group(1))
     check(f"components land on {len(by_sheet)} sheet paths",
           len(by_sheet) >= 10, f"paths: {sorted(by_sheet)}")
@@ -192,7 +192,7 @@ def main():
 
     # -- sheet-to-sheet signal paths --------------------------------
     sheet_of = dict(re.findall(
-        r'\(comp \(ref "([^"]+)"\).*?\(sheetpath \(names "([^"]*)"',
+        r'\(comp\s+\(ref "([^"]+)"\).*?\(sheetpath\s+\(names "([^"]*)"',
         text, re.S))
     sheet_of = {r: p.strip("/") for r, p in sheet_of.items()}
     all_sheets = set(sheet_of.values())
@@ -227,7 +227,7 @@ def main():
             r'\(pin \(num "([^"]+)"\) \(name "([^"]*)"\) \(type "([^"]+)"\)',
             chunk))
     part_of = dict(re.findall(
-        r'\(comp \(ref "([^"]+)"\).*?\(libsource \(lib "[^"]*"\) '
+        r'\(comp\s+\(ref "([^"]+)"\).*?\(libsource\s+\(lib "[^"]*"\)\s*'
         r'\(part "([^"]+)"\)', text, re.S))
     net_of = {(r, p): n for n, pins in named for r, p in pins}
     cap_nets = {net_of[(r, p)] for n, pins in named for r, p in pins
@@ -256,8 +256,8 @@ def main():
 
     # Every chip R and C is packaged by assign_passives.py. One without a
     # footprint is a part added or re-valued since the map was built.
-    fp_of = dict(re.findall(r'\(comp \(ref "([^"]+)"\)\s*\n\s*\(value '
-                            r'"[^"]*"\)\s*\n\s*\(footprint "([^"]*)"\)', text))
+    fp_of = dict(re.findall(r'\(comp\s+\(ref "([^"]+)"\)\s*\n\s*\(value '
+                            r'"[^"]*"\)\s*\(footprint "([^"]*)"\)', text))
     bare = sorted(r for r, v in comps.items()
                   if re.match(r"^[RC]\d", r) and not fp_of.get(r)
                   and v not in ("150uF", "47uF 150V"))

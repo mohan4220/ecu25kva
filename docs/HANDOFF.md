@@ -48,6 +48,39 @@ System packages (not pip):
 | `libngspice.so.0` | the simulator, driven by ctypes | override the path with `NGSPICE_LIB=` if it lives elsewhere |
 | `inkscape`, `imagemagick` | only for eyeballing rendered sheets | optional |
 
+**On macOS** (set up 8 October 2026, KiCad 10.0.7, ngspice 42): KiCad
+from kicad.org or `brew install --cask kicad`, and Chrome for the PDF
+build. **Use ngspice 42, not Homebrew's 47** — on 47, three blocks fail
+(`injector_turnoff` and `boost_converter` never finish, and
+`metering_unit_pwm` misses by 3 %), and the suite stalls at random.
+Build 42 from the release tarball (clang needs one warning disabled):
+
+```bash
+curl -fsSL -o ngspice-42.tar.gz \
+  https://sourceforge.net/projects/ngspice/files/ng-spice-rework/old-releases/42/ngspice-42.tar.gz/download
+tar xzf ngspice-42.tar.gz && cd ngspice-42
+./configure --prefix=$HOME/opt/ngspice-42 --with-ngshared --enable-xspice \
+  --enable-cider --disable-debug --without-x CFLAGS=-O2 \
+  CXXFLAGS="-O2 -Wno-invalid-specialization"
+make -j8 && make install
+```
+
+Nothing lives at the Linux paths, so the scripts read these instead —
+put them in `~/.zshrc`:
+
+```bash
+export NGSPICE_LIB=$HOME/opt/ngspice-42/lib/libngspice.0.dylib
+export SPICE_SCRIPTS=$HOME/opt/ngspice-42/share/ngspice/scripts   # else no spinit
+export PATH="/Applications/KiCad/KiCad.app/Contents/MacOS:$PATH"
+export KICAD_SYMBOL_DIR=/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols
+export KICAD_FOOTPRINT_DIR=/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints
+export CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+```
+
+The PDFs come out two pages shorter on this Chrome (326, not 328) with
+no source change — font metrics, not content. Don't commit a rebuild
+for that alone.
+
 Verify the whole project in one go:
 
 ```bash
@@ -195,6 +228,9 @@ These each cost a debugging session already:
   voltages on net names — so give any node whose voltage matters a real
   label.
 - **`--force`**, or the generator keeps the existing sheet.
+- **The ngspice version matters.** The suite passes 24/24 on ngspice 42
+  and fails on 47 (see §2). Upgrading the simulator is a change that
+  needs the whole suite re-run, not a routine update.
 - **Simulation models hide things.** An idealised zener hid both the
   leakage that started LOWV-CLAMP and an 84 mV loading error that a
   passing check had pinned as the expected value. When a model's part

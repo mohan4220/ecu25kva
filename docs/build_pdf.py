@@ -27,6 +27,7 @@ How it works, and why this way:
   same attribute a reader's theme toggle would set.
 """
 import html
+import os
 import pathlib
 import re
 import shutil
@@ -42,7 +43,8 @@ ROOT = DOCS.parent
 OUT = DOCS / "pdf"
 PRINT_CSS = (DOCS / "print.css").read_text()
 
-CHROME = shutil.which("google-chrome") or shutil.which("chromium") \
+CHROME = os.environ.get("CHROME") or shutil.which("google-chrome") \
+    or shutil.which("chromium") \
     or shutil.which("chromium-browser")
 
 FONTS = (

@@ -250,10 +250,10 @@ def netlist():
 
 def main():
     text = netlist()
-    comps = dict(re.findall(r'\(comp \(ref "([^"]+)"\)\s*\(value "([^"]*)"',
+    comps = dict(re.findall(r'\(comp\s+\(ref "([^"]+)"\)\s*\(value "([^"]*)"',
                             text))
     netsof = collections.defaultdict(list)
-    for blk in text.split("(net (code")[1:]:
+    for blk in re.split(r'\(net\s+\(code', text)[1:]:
         name = re.search(r'\(name "([^"]+)"', blk).group(1)
         for ref, _pin in re.findall(
                 r'\(ref "([^"]+)"\)\s*\(pin "([^"]+)"', blk):
