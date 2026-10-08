@@ -72,7 +72,8 @@ is TI's own remedy and steepens the ramp, and use 100 µH; or accept
 subharmonic operation while cranking.
 
 **Chosen: feed VDD from the clamped output side, 100 µH.**
-**Status: not yet implemented.** The finding is pinned as a check.
+**Revised 8 October: 150 µH (Würth 7447709151), see §8.**
+**Status: built 8 October 2026.**
 
 ### 2c. Sensor-supply protection — SENSOR-PTC
 
@@ -409,6 +410,101 @@ shorted to battery is survived at 24 V (jump start) and at 40 V (load
 dump). A short to battery **at the same time as** a pulse 2a surge
 (73.3 V) would exceed it. That is a double fault, and it is recorded
 rather than designed out.
+
+## 8. The boost inductor, revisited (8 October)
+
+§2b approved two changes to the injector boost converter: feed the
+controller's supply (VDD) from the clamped output side, and use a
+100 µH inductor (Würth 7447709101). Building it showed the 100 µH part
+does not fit every rule.
+
+### What the inductor and its sense resistor have to do
+
+The TPS40210-Q1 measures inductor current through a small sense
+resistor, and that one resistor sets two things:
+
+- **Stability.** TI's Equation 9 caps the resistor at 80 % of
+  VDD × L × fSW / (60 × (VOUT + VD − VIN)). Below it the converter is
+  stable; above it, it goes "subharmonic" and oscillates at half its
+  switching frequency. The worst corner is the 6 V cranking dip.
+  Feeding VDD from the boost output raises VDD from about 5 V to about
+  32 V while cranking, which is the whole remedy.
+- **The current limit.** The controller cuts each cycle when the
+  resistor's voltage reaches 120–180 mV, a 1.5 : 1 spread over
+  tolerance and temperature. The limit has to sit high enough never to
+  trip in normal running (TI's Equation 49), and low enough that in a
+  fault the inductor does not saturate badly.
+
+### The first question
+
+**Asked:** with the approved 100 µH inductor, all three rules cannot be
+met strictly. Allow the fault current limit to reach the inductor's
+softer 30 % saturation point, or find a bigger inductor?
+
+**The owner's answer:** "150 µH inductor comes in size 10x10x4 SMD
+package."
+
+**Checked against Würth's own datasheets:**
+
+- **7447714151, 10 × 10 × 4 mm:** 150 µH, Isat 1.4 A typ. It cannot
+  work. Normal cranking peaks at about 1.14 A, so TI's rule puts the
+  current limit's minimum near 1.8 A and its maximum near 2.7 A. The
+  part would saturate in normal running, not just in a fault.
+- **7447709151, 12 × 12 mm:** 150 µH, Isat 2.7 A (10 %) and 3.3 A
+  (30 %) typ, in the **same footprint** as the approved 100 µH part.
+
+### The second question
+
+**Asked:** which boost inductor?
+
+| | 100 µH 7447709101 (as approved) | **150 µH 7447709151** |
+|---|---|---|
+| Sense resistor | 50 mΩ | 62 mΩ |
+| Current limit, min–max | 2.4–3.6 A | 1.9–2.9 A |
+| Limit max vs 10 % saturation | 16 % over | 7 % over |
+| Limit max vs 30 % saturation | 5 % under | 14 % under |
+| Stability margin (Eq. 9, 80 % rule) | 1.07× | 1.30× |
+| No false trip while cranking (Eq. 49) | 1.27× | 1.07× |
+
+**Recommended and chosen: 150 µH, Würth 7447709151, with a 62 mΩ sense
+resistor.** It has more stability margin and less fault-current
+saturation, in the same footprint. This revises the 100 µH in §2b; the
+VDD-from-output remedy stands.
+
+**Why neither choice is strict:** the 1.5 : 1 spread of the current-
+limit threshold means the limit's maximum is always 1.5 × its minimum.
+The minimum has to clear normal cranking current, so the maximum lands
+above the first softening point of any inductor this size. Partial
+saturation during a fault is not damaging: the controller still cuts
+the current every cycle.
+
+### How it was built
+
+- **VDD from the output.** A follower off the 100 V rail gives VDD
+  34.3–45.0 V. It is 12V_GATE's circuit with a 39 V zener (BZG03C39,
+  same Vishay family as the 36 V clamp): a PZTA42-Q pass transistor,
+  2 × 3.3 kΩ collector resistors, and a PMBT3904-Q limiting at
+  11.6 mA. A follower off a 100 V rail needs that protection whatever
+  it feeds. If VDD shorted, the follower would otherwise burn.
+- **Start-up from the battery.** The old 220 Ω feed became a 180 Ω
+  start-up path, with its 36 V clamp, into a Schottky (SS20PH102,
+  already on the board). The Schottky stops the follower pushing about
+  0.1 A back into the battery rail. 180 Ω, not 220 Ω, buys back the
+  Schottky's drop: VDD is 4.77 V at the 6 V cranking dip, against the
+  4.5 V start threshold.
+- **Found while building it:** the oscillator's timing resistor
+  returns to VDD, and TI specifies the frequency −20 % / +7 % across
+  VDD. Equation 9 scales with frequency, so the stability check has to
+  use −20 %. At that corner the 150 µH design keeps 1.12×. The 100 µH
+  design would have failed outright (42.9 mΩ against its 50 mΩ). The
+  choice in this section was the right one for a reason nobody had
+  seen yet.
+- **Stated, not hidden:** the switch FET's datasheet gives only a
+  typical gate charge. At twice that, start-up margin falls to 17 mV.
+  Until the output passes about 36 V, the controller runs from the
+  battery feed with a shallow ramp, so subharmonic operation is
+  possible for the first milliseconds of a cranking start, not in
+  running.
 
 ---
 

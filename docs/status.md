@@ -792,6 +792,18 @@ reaches 76.6 V with an unsaturated filter inductor, against 73.3 V in
 components, 335 with footprints, and 225 passives packaged. Open: the
 47 µF hold-up part, and two land patterns.
 
+**BOOST-SLOPE built, 8 October 2026: all three approved redesigns are
+now in.** The TPS40210-Q1 runs from its own output through a
+12V_GATE-style follower (34.3–45.0 V); the battery only starts it,
+through 180 Ω and a Schottky. L401 is 150 µH, Würth 7447709151, not the
+approved 100 µH. Two questions to the owner settled that (decisions
+log §8): the owner's 10 × 10 × 4 mm suggestion saturates at 1.4 A, and
+the 12 × 12 mm 150 µH beats 100 µH on stability and saturation. The
+sense resistor is 62 mΩ. Equation 9 holds at the worst corner by
+1.12×. Building it found that the oscillator's −20 % frequency corner
+would have failed the 100 µH design outright. The result is 362
+components, 345 with footprints, and 230 passives packaged.
+
 ---
 
 ## 8. Work at the machine

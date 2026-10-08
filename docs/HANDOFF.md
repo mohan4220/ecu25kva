@@ -99,7 +99,7 @@ Verify the whole project in one go:
 set -o pipefail
 .venv/bin/python sim/run_sim.py | tail -3        # expect 25/25 blocks pass
 .venv/bin/python hw/check_netlist.py | tail -6   # expect "schematic connectivity OK", 2 open items
-.venv/bin/python hw/assign_passives.py           # expect 225 packaged, 0 unresolved
+.venv/bin/python hw/assign_passives.py           # expect 230 packaged, 0 unresolved
 .venv/bin/python docs/build_pdf.py | tail -1     # rebuilds docs/pdf/ECU-Bible.pdf
 ```
 
@@ -122,8 +122,8 @@ started, and no firmware exists.
 |---|---|
 | Simulation blocks | **25 of 25 pass** |
 | Netlist connectivity | **passes**, with 2 named open items |
-| Footprints | **335 of 353** components |
-| Chip R and C packaged | **225 of 225** |
+| Footprints | **345 of 362** components |
+| Chip R and C packaged | **230 of 230** |
 
 **Verified part numbers** are in `docs/bom_requirements.md` under
 "Chosen parts" — every one against a datasheet that was actually
@@ -142,7 +142,7 @@ for each.
 
 ## 4. What is open, in the order I would do it
 
-### 4.1 Three approved redesigns: two built, one to go
+### 4.1 Three approved redesigns: all three built
 
 1. **POWER-PATH — built 8 October 2026.** Pin 04 now feeds `VBAT_INJ`
    and pin 06 feeds `VBAT_EGR`, each through a TVS, an
@@ -171,7 +171,12 @@ for each.
    SENSOR-PTC requirement. `sensor_rail.cir` needs rewriting with it,
    including the fault-containment check (one group shorted, the other
    two and the MCU unaffected).
-3. **BOOST-SLOPE** — feed the TPS40210's VDD from the clamped output
+3. **BOOST-SLOPE — built 8 October 2026.** VDD comes from a follower off
+   the output (34.3–45.0 V), with the battery for start-up only. L401
+   is **150 µH**, Würth 7447709151 (decisions log §8 revised the
+   approved 100 µH), and the sense resistor is 62 mΩ. Equation 9 holds
+   by 1.12× at the worst corner, oscillator −20 % included. The original
+   item read: feed the TPS40210's VDD from the clamped output
    side to steepen its internal ramp, and drop L401 to 100 µH (Würth
    7447709101, Isat 3.1 A typ, AEC-Q200). Re-check TI Equation 9 at the
    cranking corner after the change; the current design is 1.83× over
@@ -209,12 +214,11 @@ for each.
   (five failed retrievals) — both need a distributor or FAE, not
   another search.
 
-### 4.4 The 18 components still without a footprint
+### 4.4 The 17 components still without a footprint
 
 | Parts | Why |
 |---|---|
 | D408–D414 (VS-16EDH02HM3 ×7), L201, J1001 | chosen, but no KiCad 7 land pattern — must be drawn |
-| L401 | blocked on BOOST-SLOPE |
 | U203 (TPS48110-Q1, DGX-19), U204–U206 (TPS7B4253-Q1, DDA-8) | chosen, but no matching KiCad land pattern — must be drawn |
 | C211, C313, C401 | not yet chosen |
 | D806 | the trip-loop clamp, the LOWV-CLAMP residual |

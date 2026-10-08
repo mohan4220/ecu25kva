@@ -224,6 +224,15 @@ CHOSEN = {
     # Pin 21's filter and fuse, chosen 8 Oct 2026 once POWER-PATH left
     # them carrying only the electronics: 2.95 A, an upper bound
     # (emi_filter in run_sim.py).
+    ("Device:L", "150uH"): (
+        "7447709151", "Inductor_SMD:L_Wuerth_WE-PD-Typ-LS",
+        "Wurth WE-PD 1210, 150 uH, IR 2.1 A, Isat 2.7 A (10%) / 3.3 A "
+        "(30%) typ, 200 mOhm max, 120 V, AEC-Q200 Grade 1. Same land "
+        "pattern as 7447709220 (2.9 x 5.4 pads, 7.0 gap). Decisions log 8"),
+    ("Device:D_Zener", "39V 3W"): (
+        "BZG03C39-HM3", "Diode_SMD:D_SMA",
+        "Vishay BZG03C-M, 37-41 V at 10 mA, ZZ 40 ohm max, +0.06-0.11 "
+        "%/K, 3 W / 1.25 W, AEC-Q101, SMA (doc 86574 Rev. 1.0)"),
     ("Device:L", "22uH"): (
         "7447709220", "Inductor_SMD:L_Wuerth_WE-PD-Typ-LS",
         "Wurth WE-PD 1210, 22 uH, IR 5.3 A, Isat 6.5 A typ, 28 mOhm max, "

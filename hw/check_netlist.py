@@ -257,8 +257,9 @@ def main():
     # -- POWER-PATH (8 Oct 2026): the high-current loads left pin 21 --
     # Each feed must leave its own reverse FET and reach its own loads,
     # and VBAT_PROT must not reach them any more. On the injector sheet
-    # VBAT_PROT keeps exactly one job, the boost controller's VDD feed,
-    # until BOOST-SLOPE moves it.
+    # VBAT_PROT keeps exactly one job: the boost controller's START-UP
+    # feed (180 ohm into VDD_BAT, then a Schottky). Once running, the
+    # controller runs from its own output (BOOST-SLOPE).
     pins_of = dict(named)
     for rail, load_sheet in (("/VBAT_INJ", "injector"),
                              ("/VBAT_EGR", "metering_egr")):
@@ -274,7 +275,7 @@ def main():
                    and comps.get(r) == "IPD90N10S4-06"]
     inj_on_prot = [f"{r} {comps.get(r)}" for r, _ in prot
                    if sheet_of.get(r) == "injector"
-                   and comps.get(r) != "220R 1W"]
+                   and comps.get(r) != "180R 1W"]
     check("VBAT_PROT no longer feeds the EGR bridge or the injector power "
           "stage", not egr_on_prot and not inj_on_prot,
           f"EGR FETs {egr_on_prot}, injector parts {inj_on_prot}")

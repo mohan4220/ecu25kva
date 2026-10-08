@@ -495,6 +495,8 @@ not constraints.
 | Pin 21 fuse F101 | **0437005.WRA** | Littelfuse 437A, 1206 fast-acting, 5 A, 63 V DC, 50 A interrupting, melting I²t 2.30 A²s, 15.9 mΩ, AEC-Q200. Datasheet revised 09/08/21. 79 % re-rating at 105 °C read off its curve. |
 | Sensor trackers, ×3 | **TPS7B4253QDDARQ1** | TI TPS7B4253-Q1, SLVSCP3D (rev. Nov 2025): tracks ADJ to ±4 mV, 300 mA, limit 301–520 mA, dropout 520 mV max at 200 mA, IN −40…45 V, OUT −1…45 V. AEC-Q100. DDA PowerPAD-8; land pattern to draw. |
 | Sensor-supply OV cut-off | **TPS48110AQDGXRQ1** | TI TPS4811-Q1, SLUSEE5E (rev. Apr 2026): 100 V abs max, OV 1.16–1.20 V rising, 2.6–4 µs to gate off, 4 A pull-down, 60 V/µs limit on drain-side pins. AEC-Q100 Grade 1. DGX VSSOP-19; land pattern to draw. Chosen over LTC4368 (not AEC-Q100): decisions log §7. |
+| Boost inductor L401 | **7447709151** | Würth WE-PD 1210, 150 µH ±20%, IR 2.1 A, Isat 2.7 A (10 %) / 3.3 A (30 %) typ, RDC 200 mΩ max, 120 V, AEC-Q200 Grade 1. Datasheet rev 003.001 (2024-05-08). Decisions log §8. |
+| Boost VDD reference | **BZG03C39-HM3** | Vishay BZG03C-M, 37–41 V at 10 mA, ZZ 40 Ω, +0.06–0.11 %/K, AEC-Q101, SMA. Doc 86574 Rev. 1.0. |
 | Reverse-battery FETs, pins 04/06 | **SQM120P10-10m1L** ×2 | −100 V P-channel, ±20 V Vgs, 10.1 mΩ max at −10 V, 20.5 mΩ at 175 °C, 15.0 mΩ at −4.5 V, RthJA 40 °C/W. AEC-Q101, TO-263. Vishay doc 76943 Rev. A, retrieved 8 Oct 2026. `POWER-PATH`. |
 | 100 V N-channel | **IPD90N10S4-06** ×8 | Negative clamp, metering, four EGR, two injector battery switches (60 V class needed; one part number instead of two). 6.7 mΩ max at 10 V, ±20 V Vgs, AEC-Q101, TO-252. The logic-level sibling `-S4L-06` was rejected for its ±16 V Vgs: every one of these gates is driven from 12V_GATE. |
 | Injector 150 V FETs | **SQM85N15-19** ×5 | Two boost-side high sides, three low sides. 19 mΩ max at 10 V — the model's 20 mΩ. ±20 V Vgs, AEC-Q101, TO-263. Qg 120 nC max sets the bootstrap droop: 126 mV. |
@@ -645,7 +647,29 @@ carry it.
 **This is an architecture decision.** L101, L102 and F101 stay unchosen
 until it is made.
 
-### `BOOST-SLOPE` — current-mode stability constrains the boost inductor (OPEN)
+### `BOOST-SLOPE` — current-mode stability constrains the boost inductor (CLOSED 8 October 2026)
+
+**Built** (decisions log §2b, §8). The TPS40210-Q1 runs from its own
+output through a follower: 34.3–45.0 V, with a 39 V zener, PZTA42-Q,
+2 × 3.3 kΩ and a PMBT3904-Q limiter, as 12V_GATE. The battery feeds it
+only at start-up, through 180 Ω, the 36 V clamp and a Schottky. **L401
+is Würth 7447709151, 150 µH**, and the sense resistor is **62 mΩ**.
+`run_sim boost_converter` checks, at the worst corner (VDD 34.3 V,
+120 µH, oscillator −20 %, 6 V in):
+
+| Check | Result |
+|---|---|
+| Equation 9, TI's 80 % ceiling | 69.4 mΩ: 62 mΩ inside by 1.12× |
+| Equation 49, no false trip | 65.1 mΩ: inside by 1.05× |
+| Current limit | 1.94–2.90 A: 7 % past L401's 10 % saturation, 14 % under its 30 % point, in a fault only |
+| Start-up VDD at 6 V | 4.77 V against the 4.5 V threshold |
+| Standing load on the boost | 17.6 mA; peak-phase recovery 10.6 ms against 26.7 ms |
+
+Stated rather than hidden: at twice the switch FET's typical gate
+charge (no maximum is given), start-up margin is 17 mV. Before the
+output passes about 36 V, the ramp is still the battery's.
+
+The original finding follows.
 
 TPS40210-Q1 applies a fixed internal ramp of fSW × VDD / 20. TI's
 Equation 9 (SLVS861F §7.3.3) therefore caps the sense resistor at

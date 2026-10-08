@@ -92,7 +92,12 @@ NET_V = {
     "/injector/Q1C_MID": (83.5, 83.5),  # collector string midpoint
     "/injector/Q1C_12V": (67.0, 67.0),
     "/injector/BASE_12V": (13.7, 13.7), "/injector/Q1E_12V": GATE12,
-    "/injector/VDD_BOOST": (24.0, 46.6), "/injector/RC_BOOST": (24.0, 46.6),
+    # BOOST-SLOPE: VDD is the output follower's 34.3-45.0 V once running,
+    # and 47.5 V while pulse 2a reaches it through the start-up Schottky.
+    "/injector/VDD_BOOST": (45.0, 47.5), "/injector/RC_BOOST": (45.0, 47.5),
+    "/injector/VDD_BAT": (24.0, 47.5), "/injector/VDD_REF": (45.5, 45.5),
+    "/injector/VDD_Q1E": (45.5, 45.5), "/injector/VDD_REF_MID": BOOST,
+    "/injector/VDD_Q1C": BOOST, "/injector/VDD_Q1C_MID": BOOST,
     "/injector/BP_BOOST": (8.5, 8.5), "/injector/EN_BOOST": LOGIC5,
     "/injector/FB_BOOST": LOGIC5, "/injector/COMP_BOOST": LOGIC5,
     "/injector/SS_BOOST": LOGIC5, "/injector/COMP_RC_BOOST": LOGIC5,
@@ -170,6 +175,12 @@ PAIR_V = {
                      "2a edge across the 22 nF, microseconds"),
     ("/power_input/VBAT_CLAMPED", "/power_input/VBAT_EMI1"):
         (0.2, 1.0, "ferrite damper Rf, across Lf: filter AC only"),
+    ("/injector/BOOST_100V", "/injector/VDD_REF_MID"):
+        (34.0, 34.0, "upper half of the 2x7.5k VDD-follower zener bias"),
+    ("/injector/VDD_REF", "/injector/VDD_REF_MID"):
+        (34.0, 34.0, "lower half of the 2x7.5k VDD-follower zener bias"),
+    ("/injector/VDD_BOOST", "/injector/VDD_Q1E"):
+        (0.22, 0.65, "56 ohm limit sense: 3.9 mA, one Vbe at the limit"),
     ("/12V_GATE", "/injector/Q1E_12V"):
         (0.28, 0.65, "56 ohm limit sense: 5 mA, one Vbe at the limit"),
     ("/CAN1_H", "/can/CAN1_SPLIT"): (1.0, 40.0, "half the 2 V dominant"),
@@ -184,7 +195,7 @@ SHUNT_FP = {
     "5mOhm 2W 1%": "Resistor_SMD:R_2512_6332Metric",
     "20mOhm 1W 1%": "Resistor_SMD:R_2512_6332Metric",
     "50mOhm 1%": "Resistor_SMD:R_1206_3216Metric",
-    "82mOhm 1%": "Resistor_SMD:R_1206_3216Metric",
+    "62mOhm 1%": "Resistor_SMD:R_1206_3216Metric",   # boost sense, BOOST-SLOPE
 }
 
 R_FP = {s: f"Resistor_SMD:R_{s}_{m}Metric" for s, m in [

@@ -532,18 +532,17 @@ def boost_stage(sh):
                     "VBAT_INJ, which reaches 73.3 V on pulse 2a -- the "
                     "same rule every other battery-connected part on this "
                     "board is held to."}, pw)
-    sh.place("Device:L", "L", 115.0, py, "330uH 3A", rot=90,
-             fields={"Source": "sized here -- boost_converter.cir models "
-                               "the converter as an average current and "
-                               "has no inductor",
-                     "Note": "At 150 kHz and 13.5 V in, ripple is 0.24 A "
-                             "on a 0.44 A average -- continuous "
-                             "conduction with room. Saturation rating is "
-                             "set by the current limit above it, not by "
-                             "the operating current: 82 mOhm sense "
-                             "against a 120-180 mV threshold trips "
-                             "somewhere in 1.46-2.20 A.",
-                     "DCR": "<=0.2 ohm -- 0.2 W at the 1 A cranking corner"})
+    sh.place("Device:L", "L", 115.0, py, "150uH", rot=90,
+             fields={"Source": "run_sim boost_converter, BOOST-SLOPE -- "
+                               "decisions log 2b and 8",
+                     "Note": "150 uH, not the 330 uH first drawn (no SMD "
+                             "part) or the 100 uH first approved (too "
+                             "little stability margin). With 62 mOhm "
+                             "sense the current limit is 1.94-2.90 A: "
+                             "7% past the 10% saturation point, 14% "
+                             "under the 30% point, in a fault only.",
+                     "DCR": "200 mOhm max -- 0.2 W at the 1 A cranking "
+                            "corner"})
     la = pin_xy(*PINS["Device:L"]["1"], 115.0, py, 90)
     lb = pin_xy(*PINS["Device:L"]["2"], 115.0, py, 90)
     l_l, l_r = (la, lb) if la[0] < lb[0] else (lb, la)
@@ -587,13 +586,14 @@ def boost_stage(sh):
     sns = Rail(sh, 492.0)
     sns.to(sp[0])
     sh.wire(sp[0], sp[1], sp[0], 492.0)
-    vshunt(sh, "Device:R", "R", sp[0], 492.0 + 16.0, "82mOhm 1%",
-           {"Source": "TPS40210-Q1 Table 6.5, VISNS(oc) 120-180 mV",
-            "Note": "Current limit lands in 1.46-2.20 A across the "
-                    "threshold's own tolerance, against a 1.06 A peak at "
-                    "the cranking corner -- 38% margin at the ADVERSE "
-                    "end of the threshold, which is the end that matters.",
-            "Power": "1.06^2 * 82 mOhm = 92 mW"}, sns)
+    vshunt(sh, "Device:R", "R", sp[0], 492.0 + 16.0, "62mOhm 1%",
+           {"Source": "TPS40210-Q1 Table 6.5, VISNS(oc) 120-180 mV; Eq. 9 "
+                      "and Eq. 49 -- run_sim boost_converter",
+            "Note": "Inside TI's 80% stability ceiling by 1.12x at the "
+                    "worst corner (VDD 34.3 V, 120 uH, 120 kHz, 6 V in), "
+                    "and under Eq. 49's no-false-trip ceiling by 1.05x. "
+                    "Limit 1.94-2.90 A.",
+            "Power": "1.18^2 * 62 mOhm = 86 mW"}, sns)
     sns.to(230.0)
     sh.label("ISNS_BOOST", 230.0, 492.0)
     sh.wire(gp[0], gp[1], 170.0, gp[1])
@@ -624,19 +624,20 @@ def boost_stage(sh):
     cy = 528.0
     cluster = [
         (440.0, "Device:C", "C", "1uF 100V", "VDD_BOOST", 0,
-         {"Note": "VDD bypass, INSIDE the 220 ohm. 100 V class anyway -- "
-                  "it is one resistor away from a 73.3 V rail."}),
+         {"Note": "VDD bypass. 100 V class anyway -- a Schottky and "
+                  "a resistor away from a 73.3 V rail."}),
         # rot=270 puts the CATHODE at the top. At rot=0 a zener is
         # HORIZONTAL, both pins share a y, and to_gnd's top/bottom pick
         # is then arbitrary -- which is how the first netlist came back
         # with the clamp's anode on VDD and its cathode on ground, on a
         # page that plotted correctly.
-        (480.0, "Device:D_Zener", "D", "36V 3W", "VDD_BOOST", 270,
+        (480.0, "Device:D_Zener", "D", "36V 3W", "VDD_BAT", 270,
          {"Tag": "BOOST-VDD-CLAMP",
-          "Note": "Cathode to VDD. Pulse 2a: 121 mA for 50 us, VDD 46.6 V "
-                  "worst case (VZ max, 125 C, ZZ). Load dump: 33 mA for "
-                  "400 ms at the cold VZ minimum, 1.09 W. Both checked "
-                  "in run_sim boost_converter."}),
+          "Note": "On the battery side of the Schottky, so it clamps the "
+                  "start-up feed and never the follower. Pulse 2a: 143 mA "
+                  "for 50 us, 47.5 V worst case. Load dump: 41 mA for "
+                  "400 ms at the cold VZ minimum, 1.33 W. run_sim "
+                  "boost_converter."}),
         (520.0, "Device:C", "C", "330pF", "RC_BOOST", 0,
          {"Source": "TPS40210-Q1 -- with 365k to VDD this sets 150 kHz",
           "Note": "The datasheet's own reference point is 182k/330pF = "
@@ -667,14 +668,14 @@ def boost_stage(sh):
     # ---- the series strings ----------------------------------------
     series_chain(
         sh, 556.0, 40.0, "VBAT_PROT",
-        [("Device:R", "R", "220R 1W",
+        [("Device:R", "R", "180R 1W",
           {"Tag": "BOOST-VDD-CLAMP",
-           "Note": "The other half of the clamp. Small enough that 3.8 mA "
-                   "(DMN15H310SK3's gate charge) drops 0.84 V, so VDD is "
-                   "5.16 V at the cranking dip against a 4.5 V UVLO "
-                   "ceiling; large enough to hold pulse 2a to 121 mA and "
-                   "VDD to 46.6 V. 3.2 W peak for 50 us."})],
-        "VDD_BOOST", hlabel_in=True)
+           "Note": "START-UP feed only since BOOST-SLOPE: the follower "
+                   "off the output takes VDD once the boost runs. 180, "
+                   "down from 220, so VDD is 4.77 V at the cranking dip "
+                   "through the Schottky. Pulse 2a: 143 mA, 47.5 V on "
+                   "VDD_BAT, 3.7 W for 50 us."})],
+        "VDD_BAT", hlabel_in=True)
     series_chain(
         sh, 574.0, 40.0, "VDD_BOOST",
         [("Device:R", "R", "365k 1%",
@@ -1109,6 +1110,94 @@ def notes(sh):
         40.0, 400.0, size=1.6)
 
 
+def vdd_follower(sh):
+    """BOOST-SLOPE: the controller's VDD from the boost output.
+
+    TI's own remedy for the slope-compensation shortfall (SLVS861F Eq. 9,
+    decisions log 2b and 8): the internal ramp scales with VDD, so VDD
+    from the output, about 34-45 V, instead of the battery, about 5 V
+    while cranking. The circuit is 12V_GATE's with a 39 V reference --
+    pass transistor, collector resistors, a limiter -- because a
+    follower off a 100 V rail needs the same protection whatever it
+    feeds. Placed last so no existing reference moves.
+    """
+    sh.text("VDD FOLLOWER (BOOST-SLOPE) -- the TPS40210-Q1 runs from its "
+            "own output once started: VDD 34.3-45.0 V. The battery path "
+            "only starts it.", 430.0, 340.0, size=1.6)
+    series_chain(
+        sh, 350.0, 430.0, "BOOST_100V",
+        [("Device:R", "R", "7.5k",
+          {"Note": "Zener bias, split in two like 12V_GATE's: 3.4-4.5 mA."}),
+         ("Device:R", "R", "7.5k", {"Note": "Second half."})],
+        "VDD_REF", mids=["VDD_REF_MID"])
+    to_gnd(sh, 570.0, 360.0, "Device:D_Zener", "D", "39V 3W", "VDD_REF",
+           {"Note": "Sets VDD: 39 V - one Vbe - the 56 ohm drop. "
+                    "34.3-45.0 V over tolerance and temperature, inside "
+                    "the 52 V absolute maximum by 1.16x."}, rot=270)
+    series_chain(
+        sh, 368.0, 430.0, "BOOST_100V",
+        [("Device:R", "R", "3.3k 2512",
+          {"Note": "Collector resistor: takes the voltage the pass "
+                   "transistor cannot, as in 12V_GATE."}),
+         ("Device:R", "R", "3.3k 2512", {"Note": "Second half."})],
+        "VDD_Q1C", mids=["VDD_Q1C_MID"])
+
+    qy = 395.0
+    sh.place("Device:Q_NPN_BCE", "Q", 470.0, qy, "PZTA42-Q",
+             footprint="Package_TO_SOT_SMD:SOT-223-3_TabPin2",
+             fields={"MPN": "PZTA42-Q",
+                     "Note": "VDD pass transistor: 0.17 W normal, 0.26 W "
+                             "into a shorted VDD (limited to 11.6 mA).",
+                     "Pins": "SOT223 is B-C-E with the collector on the "
+                             "tab, which is this symbol's numbering"})
+    b = pin_xy(*PINS["Device:Q_NPN_BCE"]["1"], 470.0, qy, 0)
+    c = pin_xy(*PINS["Device:Q_NPN_BCE"]["2"], 470.0, qy, 0)
+    e = pin_xy(*PINS["Device:Q_NPN_BCE"]["3"], 470.0, qy, 0)
+    sh.wire(c[0], c[1], c[0], c[1] - 6.0)
+    sh.label("VDD_Q1C", c[0], c[1] - 6.0, rot=90)
+    stub(sh, b, -10.0, "VDD_REF")
+    sh.wire(e[0], e[1], e[0], e[1] + 6.0)
+    sh.label("VDD_Q1E", e[0], e[1] + 6.0, rot=270)
+
+    sh.place("Device:Q_NPN_BEC", "Q", 520.0, qy, "PMBT3904-Q",
+             footprint="Package_TO_SOT_SMD:SOT-23",
+             fields={"MPN": "PMBT3904-Q",
+                     "Pins": "SOT-23 bipolar order is B-E-C",
+                     "Note": "Current limit, as 12V_GATE's: conducts at one "
+                             "Vbe across the 56 ohm and steals the pass "
+                             "transistor's base drive."})
+    b2 = pin_xy(*PINS["Device:Q_NPN_BCE"]["1"], 520.0, qy, 0)
+    c2 = pin_xy(*PINS["Device:Q_NPN_BCE"]["2"], 520.0, qy, 0)
+    e2 = pin_xy(*PINS["Device:Q_NPN_BCE"]["3"], 520.0, qy, 0)
+    sh.wire(c2[0], c2[1], c2[0], c2[1] - 6.0)
+    sh.label("VDD_REF", c2[0], c2[1] - 6.0, rot=90)
+    stub(sh, b2, -10.0, "VDD_Q1E")
+    sh.wire(e2[0], e2[1], e2[0], e2[1] + 6.0)
+    sh.label("VDD_BOOST", e2[0], e2[1] + 6.0, rot=270)
+
+    series_chain(
+        sh, 415.0, 430.0, "VDD_Q1E",
+        [("Device:R", "R", "56R",
+          {"Note": "Limit sense: 0.65 V / 56 = 11.6 mA, 3x the 3.9 mA "
+                   "VDD draws."})],
+        "VDD_BOOST")
+
+    # The Schottky: lets the battery start the part, and stops the
+    # follower's 34-45 V pushing ~0.1 A back through 180 ohm into the
+    # battery rail once it runs.
+    dx, dy = 545.0, 415.0
+    sh.place("Device:D_Schottky", "D", dx, dy, "100V 20A",
+             fields={"Note": "Cathode to VDD, anode to VDD_BAT. 0.53 V at "
+                             "0.1 A and -40 C (Fig. 3) bounds its drop at "
+                             "the 3.9 mA start-up current."})
+    k = pin_xy(*PINS["Device:D_Schottky"]["1"], dx, dy, 0)
+    a = pin_xy(*PINS["Device:D_Schottky"]["2"], dx, dy, 0)
+    sh.wire(k[0], k[1], k[0] - 8.0, k[1])
+    sh.label("VDD_BOOST", k[0] - 8.0, k[1], rot=180)
+    sh.wire(a[0], a[1], a[0] + 8.0, a[1])
+    sh.label("VDD_BAT", a[0] + 8.0, a[1])
+
+
 def build():
     schlib.verify_pins()
     sh = Sheet("Injector drive: boost converter, boost rail, high sides, low sides",
@@ -1166,6 +1255,7 @@ def build():
                "pin map allocates (PTC15 / PTD19, one per ADC instance "
                "for simultaneous sampling) stay independent.")
     notes(sh)
+    vdd_follower(sh)
     return sh
 
 

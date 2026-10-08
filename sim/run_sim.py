@@ -1923,7 +1923,9 @@ def check_boost_converter():
     FSW = 150e3            # chosen -- see the duty checks below
     VOUT, VF = 100.0, 0.9
     VIN_CRANK, VIN_DUMP, VIN_2A = 6.0, 40.0, 73.3
-    RVDD = 220.0           # the series resistor -- was 47, see below
+    RVDD = 180.0           # battery-path resistor: 47, then 220, now 180
+    VF_OR = 0.53           # SS20PH102HM3 at 0.1 A, -40 C, Fig. 3 -- the
+                           # battery path's blocking diode (BOOST-SLOPE)
     QG_MAX = 25e-9         # the gate-charge ceiling the FET spec carries
     QG_TYP = 8.7e-9        # DMN15H310SK3 at 10 V, typ -- no max given
     # The clamp: Vishay BZG03C36-HM3 (BZG03C-M series, Rev. 1.0,
@@ -1961,41 +1963,45 @@ def check_boost_converter():
            "chosen to stay out of", "43 V nominal was the whole argument; "
            "the tolerance band starts at 40.0", None, ok=40.0 <= VIN_DUMP)
 
-    # IS: 220 ohm, which the chosen switch's gate charge now allows, and
-    # a 36 V zener, which the larger resistor makes safe on the dump. 39 V
-    # gave 49.4 V -- inside 52 but 1.05x, under the rail table's 1.09x.
+    # IS (BOOST-SLOPE, 8 Oct 2026): the battery path is only the START-UP
+    # feed now -- VBAT_PROT, 180 ohm, the 36 V clamp on node VDD_BAT, then
+    # a Schottky into VDD. Once the boost runs, a follower off the output
+    # holds VDD at 34.5-45 V (below), and the Schottky stops it pushing
+    # current back into the battery rail. 180, down from 220, buys back
+    # the Schottky's drop at the cranking dip.
     vk_hot = VZ_MAX * (1 + TK_MAX * 100)
     vdd_2a, iz_2a = clamp(vk_hot, ZZ, RVDD)
-    c.that("VDD at pulse 2a: 220 ohm + BZG03C36, VZ max, 125 C, ZZ bound",
-           vdd_2a, 46.62, tol=0.05, unit="V")
+    c.that("VDD_BAT at pulse 2a: 180 ohm + BZG03C36, VZ max, 125 C, ZZ "
+           "bound (reaches VDD through the Schottky)", vdd_2a, 47.51,
+           tol=0.05, unit="V")
     c.that("  ... inside the absolute maximum by", VDD_ABSMAX / vdd_2a,
-           1.115, tol=0.01, unit="x")
-    c.that("  ... zener current during the 50 us pulse", iz_2a * 1e3, 121.2,
+           1.094, tol=0.01, unit="x")
+    c.that("  ... zener current during the 50 us pulse", iz_2a * 1e3, 143.3,
            tol=0.5, unit="mA")
     c.that("  ... series resistor, peak dissipation for 50 us",
-           iz_2a ** 2 * RVDD, 3.23, tol=0.03, unit="W")
+           iz_2a ** 2 * RVDD, 3.69, tol=0.03, unit="W")
     vk_cold = VZ_MIN * (1 - TK_MIN * 65)
     i_dump = max(0.0, (VIN_DUMP - vk_cold) / RVDD)
     c.that("load dump, VZ min at -40 C: zener current for 400 ms",
-           i_dump * 1e3, 33.3, tol=0.1, unit="mA")
+           i_dump * 1e3, 40.7, tol=0.1, unit="mA")
     c.that("  ... zener dissipation for 400 ms (1.25 W is the STEADY "
            "rating at 25 C; this leans on thermal mass, not read off a "
-           "Zth curve)", i_dump * vk_cold, 1.09, tol=0.01, unit="W")
+           "Zth curve)", i_dump * vk_cold, 1.33, tol=0.01, unit="W")
 
     # The same series resistor has to not starve the part at the other
     # end of the range, which is the real constraint on its value.
-    idd = IDD_MAX + QG_TYP * FSW
-    vdd_crank = VIN_CRANK - idd * RVDD
-    c.that("VDD at the 6 V cranking dip (Qg typ at 10 V, over-states "
-           "the charge at a 5.7 V gate)", vdd_crank, 5.16, tol=0.01,
-           unit="V")
+    # Start-up at the cranking dip, through 180 ohm and the Schottky, at
+    # the frequency's +7% corner (more gate charge per second).
+    idd = IDD_MAX + QG_TYP * FSW * 1.07
+    vdd_crank = VIN_CRANK - idd * RVDD - VF_OR
+    c.that("start-up VDD at the 6 V cranking dip (Qg typ, through the "
+           "Schottky)", vdd_crank, 4.769, tol=0.01, unit="V")
     c.that("  ... above the UVLO turn-on ceiling by",
-           vdd_crank - UVLO_ON_MAX, 0.66, tol=0.01, unit="V")
-    vdd_ceiling = VIN_CRANK - (IDD_MAX + QG_MAX * FSW) * RVDD
-    c.that("  ... and at the 25 nC ceiling the FET spec allowed",
-           vdd_ceiling, 4.625, tol=0.01, unit="V")
-    c.that("  ... still above UVLO, which is why the ceiling stays",
-           vdd_ceiling - UVLO_ON_MAX, 0.125, tol=0.01, unit="V")
+           vdd_crank - UVLO_ON_MAX, 0.269, tol=0.01, unit="V")
+    vdd_2qg = VIN_CRANK - (IDD_MAX + 2 * QG_TYP * FSW * 1.07) * RVDD - VF_OR
+    c.that("  ... at twice the typical gate charge (DMN15H310SK3 gives no "
+           "maximum) -- THIN, stated", vdd_2qg - UVLO_ON_MAX, 0.017,
+           tol=0.01, unit="V")
 
     # -- duty cycle: the number that actually chose this controller --
     d_crank = 1.0 - VIN_CRANK / (VOUT + VF)
@@ -2015,28 +2021,89 @@ def check_boost_converter():
     # -- subharmonic stability: TI SLVS861F sec.7.3.3, Equation 9 ------
     # Internal ramp is fixed at fSW * VDD / 20, so the sense resistor has
     # a ceiling: RISNS(max) = VDD * L * fSW / (60 * (VOUT + VD - VIN)),
-    # and TI says use 80% or less of it. Found 22 Sep 2026 while choosing
-    # the inductor: the drawn 330 uH / 82 mOhm passes at 13.5 V and FAILS
-    # at the cranking corner, and 330 uH at a 2.2 A saturation rating is
-    # not a part that exists in SMD -- the buildable direction (smaller L)
-    # makes it worse. OPEN item BOOST-SLOPE; L401 stays unchosen.
-    def risns_max(vdd, l, vin):
-        return vdd * l * FSW / (60.0 * (VOUT + VF - vin))
+    # and TI says use 80% or less of it. Found 22 Sep 2026: 330 uH /
+    # 82 mOhm with VDD on the battery failed at the cranking corner, and
+    # 330 uH at the current it needed does not exist in SMD.
+    # BOOST-SLOPE, built 8 Oct 2026 (decisions log 2b, 8): VDD from the
+    # OUTPUT through a follower, 150 uH, 62 mOhm.
+    def risns_max(vdd, l, f, vin):
+        return vdd * l * f / (60.0 * (VOUT + VF - vin))
     L_DRAWN, RSNS_DRAWN = 330e-6, 0.082
-    r_nom = 0.8 * risns_max(13.2, L_DRAWN, 13.5)
-    c.that("BOOST-SLOPE: 80% RISNS(max) at 13.5 V, 330 uH", r_nom * 1e3,
-           99.7, tol=0.2, unit="mOhm")
-    c.that("  ... drawn 82 mOhm is inside it", RSNS_DRAWN, r_nom,
-           tol=None, ok=RSNS_DRAWN <= r_nom, unit="ohm")
-    r_crank = risns_max(5.16, L_DRAWN, VIN_CRANK)
-    c.that("  ... 100% RISNS(max) at the 6 V cranking corner (VDD 5.16 V)",
-           r_crank * 1e3, 44.9, tol=0.2, unit="mOhm")
-    c.that("  ... drawn 82 mOhm EXCEEDS it -- subharmonic while cranking "
-           "(pinned as the finding)", RSNS_DRAWN / r_crank, 1.83,
-           tol=0.02, unit="x")
-    c.that("  ... and 100 uH (a buildable part) at 13.5 V allows only",
-           0.8 * risns_max(13.2, 100e-6, 13.5) * 1e3, 30.2, tol=0.2,
-           unit="mOhm")
+    c.that("WAS: 330 uH, VDD 5.16 V on the battery: 100% RISNS(max) at "
+           "6 V", risns_max(5.16, L_DRAWN, FSW, VIN_CRANK) * 1e3, 44.9,
+           tol=0.2, unit="mOhm")
+    c.that("  ... the drawn 82 mOhm exceeded it -- subharmonic while "
+           "cranking", RSNS_DRAWN / risns_max(5.16, L_DRAWN, FSW, VIN_CRANK),
+           1.83, tol=0.02, unit="x")
+
+    # The follower is 12V_GATE's circuit with a 39 V reference: PZTA42-Q
+    # pass, base on a BZG03C39-M (37-41 V at 10 mA, ZZ 40 ohm, +0.06..0.11
+    # %/K -- Vishay 86574 Rev. 1.0) biased from the output through 2x7.5k,
+    # 2x3.3k collector resistors, and a PMBT3904-Q limiter across 56 ohm.
+    # VDD = VZ - one Vbe (0.55-0.75 V) - the 56 ohm drop.
+    RB, RC2, RLIM = 15e3, 6.6e3, 56.0
+    iz_lo = (92.7 - 41.0) / RB                 # boost at its worst droop
+    vdd_lo = (37.0 * (1 - 0.06e-2 * 65) - ZZ * (IZT - iz_lo) - 0.75
+              - idd * RLIM)
+    vdd_hi = 41.0 * (1 + 0.11e-2 * 100) - 0.55
+    c.that("VDD from the output follower, lowest (VZ min, -40 C, low "
+           "current, cold Vbe, 56 ohm drop)", vdd_lo, 34.32, tol=0.05,
+           unit="V")
+    c.that("  ... highest (VZ max, 125 C, hot Vbe)", vdd_hi, 44.96,
+           tol=0.05, unit="V")
+    c.that("  ... inside the 52 V absolute maximum by", VDD_ABSMAX / vdd_hi,
+           1.157, tol=0.005, unit="x")
+    head = 92.7 - idd * RC2 - idd * RLIM - 0.5 - vdd_hi
+    c.that("  ... still regulating at the rail's worst droop (92.7 V), "
+           "headroom", head, 21.3, tol=0.2, unit="V")
+    vce_n = 104.0 - idd * RC2 - idd * RLIM - vdd_lo
+    c.that("  ... pass transistor, normal (104 V rail, lowest VDD)",
+           vce_n * idd, 0.171, tol=0.005, unit="W")
+    c.that("  ... junction at a 105 C board (104 K/W)",
+           105.0 + vce_n * idd * 104.0, 122.8, tol=0.5, unit="C")
+    ilim_v = 0.65 / RLIM
+    c.that("  ... VDD shorted: limited to one Vbe across 56 ohm", ilim_v * 1e3,
+           11.6, tol=0.2, unit="mA")
+    p_vs = (100.0 - ilim_v * RC2 - 0.65) * ilim_v
+    c.that("  ... pass transistor into the short", p_vs, 0.26, tol=0.01,
+           unit="W")
+    c.that("  ... each 3.3k 2512 into the short (0.59 W allowed at 105 C)",
+           ilim_v ** 2 * 3.3e3, 0.445, tol=0.005, unit="W")
+
+    # L401 = Wurth 7447709151 (WE-PD 1210, AEC-Q200 G1): 150 uH +/-20%,
+    # Isat 2.7 A (10%) / 3.3 A (30%) typ, IR 2.1 A, RDC 200 mOhm max.
+    # Worst corner for the ceiling: lowest VDD, L at -20%, the oscillator
+    # at -20% (its RC returns to VDD; SLVS861F gives -20%/+7% over VDD),
+    # and the 6 V cranking input.
+    L_MIN, F_MIN = 150e-6 * 0.8, FSW * 0.8
+    RSNS = 0.062
+    ceil80 = 0.8 * risns_max(vdd_lo, L_MIN, F_MIN, VIN_CRANK)
+    c.that("IS: 80% RISNS(max), worst corner (VDD 34.3 V, 120 uH, "
+           "120 kHz, 6 V)", ceil80 * 1e3, 69.4, tol=0.2, unit="mOhm")
+    c.that("  ... 62 mOhm inside it by", ceil80 / RSNS, 1.120, tol=0.005,
+           unit="x")
+    # TI SLVS861F Eq. 49: the limit must not trip in normal running.
+    # VISNS(oc) 120-180 mV (Table 6.5); 0.5 A drive term as TI's example.
+    rip = VIN_CRANK * d_crank / (L_MIN * F_MIN)
+    ipk = 0.980 + rip / 2
+    e49 = 0.120 / (1.1 * (ipk + 0.5))
+    c.that("Eq. 49: peak inductor current at the cranking corner", ipk,
+           1.176, tol=0.005, unit="A")
+    c.that("  ... sense ceiling so the limit never trips in normal running",
+           e49 * 1e3, 65.1, tol=0.2, unit="mOhm")
+    c.that("  ... 62 mOhm inside it by", e49 / RSNS, 1.050, tol=0.005,
+           unit="x")
+    ilim_hi = 0.180 / RSNS
+    c.that("current limit, highest (180 mV)", ilim_hi, 2.903, tol=0.005,
+           unit="A")
+    c.that("  ... past L401's 10% saturation (2.7 A typ) by -- stated in "
+           "decisions log 8", ilim_hi / 2.7, 1.075, tol=0.005, unit="x")
+    c.that("  ... under its 30% saturation (3.3 A typ) by", 3.3 / ilim_hi,
+           1.137, tol=0.005, unit="x")
+    c.that("  ... start-up is the exception: until the output passes about "
+           "36 V, VDD is the battery feed and the ramp is shallow",
+           "subharmonic is possible for the first milliseconds of soft "
+           "start while cranking, not in running", None, ok=True)
 
     # -- the switch, chosen 22 Sep 2026: DMN15H310SK3 (Diodes, DPAK) ---
     # 150 V, +/-20 V Vgs, Vth 3 V max, Rds(on) 350 mOhm max at Vgs 4 V --
@@ -2045,17 +2112,20 @@ def check_boost_converter():
     # maximum. The duty above is lossless; this is the same corner with
     # the switch and the 82 mOhm sense resistor in the on-path, at 2x the
     # 25 C Rds(on) for a hot junction (assumed, not read off a curve).
-    RDS_4V, RSNS = 0.350, 0.082
+    RDS_4V, RL401 = 0.350, 0.200
     c.that("Q401 gate charge (typ) under the 25 nC ceiling by",
            QG_MAX / QG_TYP, 2.87, tol=0.02, unit="x")
     iin = VOUT * 50e-3 / (VIN_CRANK * 0.85)
     c.that("  input current at the cranking corner (50 mA out, 85%)",
            iin, 0.980, tol=0.01, unit="A")
-    d_lossy = 1.0 - (VIN_CRANK - iin * (2 * RDS_4V + RSNS)) / (VOUT + VF)
-    c.that("  duty needed with switch + sense drop, hot", d_lossy * 100,
-           94.81, tol=0.1, unit="%")
-    c.that("  ... still inside the 97.0% the part allows by",
-           (d_max - d_lossy) * 100, 2.19, tol=0.1, unit="points")
+    d_lossy = 1.0 - (VIN_CRANK - iin * (2 * RDS_4V + RSNS + RL401)) / (
+        VOUT + VF)
+    c.that("  duty needed with switch, sense and L401 drops, hot",
+           d_lossy * 100, 94.99, tol=0.1, unit="%")
+    d_max_hi = 1.0 - TOFF_MIN * FSW * 1.07
+    c.that("  ... inside what the part allows at the +7% frequency "
+           "corner by", (d_max_hi - d_lossy) * 100, 1.80, tol=0.1,
+           unit="points")
     # Why the usual "higher switching frequency is better" is backwards
     # here. A 2.2 MHz wide-input boost controller -- the class most of
     # this part's competitors sit in -- has the same order of minimum
@@ -2176,14 +2246,16 @@ def check_boost_converter():
            92.7 / vmin, 1.99, tol=0.02, unit="x")
 
     # -- what the boost now carries continuously -----------------------
-    standing = 100.0 / 22e3 + 5e-3 + 100.0 / 1.005e6
-    c.that("standing load on the boost: bleed + gate rail + divider",
-           standing * 1e3, 9.65, tol=0.05, unit="mA")
+    standing = (100.0 / 22e3 + 5e-3 + 100.0 / 1.005e6
+                + idd + (100.0 - 39.0) / 15e3)
+    c.that("standing load on the boost: bleed + gate rail + divider + "
+           "its own VDD follower and zener bias", standing * 1e3, 17.61,
+           tol=0.05, unit="mA")
     t_rec = 342e-6 / (50e-3 - standing)
     c.that("  ... so the peak-phase draw now recovers in", t_rec * 1e3,
-           8.48, tol=0.1, unit="ms")
+           10.56, tol=0.1, unit="ms")
     c.that("  ... still inside the 26.67 ms between cylinders by",
-           26.67e-3 / t_rec, 3.15, tol=0.05, unit="x")
+           26.67e-3 / t_rec, 2.53, tol=0.05, unit="x")
     return c
 
 

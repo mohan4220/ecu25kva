@@ -217,12 +217,12 @@
  "C404": {
   "footprint": "Capacitor_SMD:C_1206_3216Metric",
   "value": "1uF 100V",
-  "why": "46.6 V peak, needs >= 100 V; KEMET X7R AUTO 1206 100 V"
+  "why": "47.5 V peak, needs >= 100 V; KEMET X7R AUTO 1206 100 V"
  },
  "C405": {
   "footprint": "Capacitor_SMD:C_0603_1608Metric",
   "value": "330pF",
-  "why": "46.6 V peak, needs >= 47 V; KEMET X7R AUTO 0603 50 V"
+  "why": "47.5 V peak, needs >= 68 V; KEMET X7R AUTO 0603 200 V"
  },
  "C406": {
   "footprint": "Capacitor_SMD:C_0603_1608Metric",
@@ -641,8 +641,8 @@
  },
  "R402": {
   "footprint": "Resistor_SMD:R_1206_3216Metric",
-  "value": "82mOhm 1%",
-  "why": "shunt: 82mOhm 1%"
+  "value": "62mOhm 1%",
+  "why": "shunt: 62mOhm 1%"
  },
  "R403": {
   "footprint": "Resistor_SMD:R_0603_1608Metric",
@@ -656,13 +656,13 @@
  },
  "R405": {
   "footprint": "Resistor_SMD:R_2512_6332Metric",
-  "value": "220R 1W",
+  "value": "180R 1W",
   "why": "1 W stated in value"
  },
  "R406": {
   "footprint": "Resistor_SMD:R_0603_1608Metric",
   "value": "365k 1%",
-  "why": "46.6 V peak, 1.6 mW cont; 0603 = 75 V, 59 mW at 105 C"
+  "why": "47.5 V peak, 5.5 mW cont; 0603 = 75 V, 59 mW at 105 C"
  },
  "R407": {
   "footprint": "Resistor_SMD:R_0805_2012Metric",
@@ -778,6 +778,31 @@
   "footprint": "Resistor_SMD:R_2512_6332Metric",
   "value": "5mOhm 2W 1%",
   "why": "shunt: 5mOhm 2W 1%"
+ },
+ "R430": {
+  "footprint": "Resistor_SMD:R_1210_3225Metric",
+  "value": "7.5k",
+  "why": "34.0 V peak, 154.1 mW cont; 1210 = 200 V, 294 mW at 105 C"
+ },
+ "R431": {
+  "footprint": "Resistor_SMD:R_1210_3225Metric",
+  "value": "7.5k",
+  "why": "34.0 V peak, 154.1 mW cont; 1210 = 200 V, 294 mW at 105 C"
+ },
+ "R432": {
+  "footprint": "Resistor_SMD:R_2512_6332Metric",
+  "value": "3.3k 2512",
+  "why": "size stated in value"
+ },
+ "R433": {
+  "footprint": "Resistor_SMD:R_2512_6332Metric",
+  "value": "3.3k 2512",
+  "why": "size stated in value"
+ },
+ "R434": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "56R",
+  "why": "0.7 V peak, 0.9 mW cont; 0603 = 75 V, 59 mW at 105 C"
  },
  "R501": {
   "footprint": "Resistor_SMD:R_1206_3216Metric",
