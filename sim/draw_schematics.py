@@ -588,26 +588,31 @@ def buck_preregulator(d):
 
 
 def sensor_rail(d):
-    """Power chain stage 5 -- one PTC per sensor group."""
-    d += elm.Dot(open=True).label("5V_MAIN", "left")
+    """5V_SENSOR -- one tracker per group behind an overvoltage cut-off."""
+    d += elm.Dot(open=True).label("VBAT_PROT", "left")
     d += elm.Line().right().length(0.5)
-    d += elm.Resistor().right().label("Rsrc\n0R1")
-    d += (rail := elm.Dot())
-    d += elm.Label().at((rail.center[0], rail.center[1] + 0.55)).label("5V_SENSOR")
-    d += elm.Line().right().length(7.2)
+    d += (q := elm.Switch().right())
+    d += elm.Label().at((q.center[0], q.center[1] + 0.7)).label(
+        "Q201 + TPS48110-Q1\nopens above 40.5-42.1 V")
+    d += (vs := elm.Dot())
+    d += elm.Label().at((vs.center[0], vs.center[1] + 0.45)).label("VSNS")
+    d += elm.Capacitor(polar=True).down().at(vs.center).label("47u\nhold-up")
+    d += elm.Ground()
+    d += elm.Line().right().at(vs.center).length(7.6)
 
-    # 3.5 of pitch, because the captions are wider than the branches.
+    # 3.6 of pitch, because the captions are wider than the branches.
     for i, (name, pins) in enumerate((
             ("group A", "rail P -- pin 08"),
             ("group B", "boost + coolant -- 34"),
             ("group C", "EGR + oil -- 36"))):
-        x = rail.center[0] + 3.5 * i
-        d += elm.Line().down().at((x, rail.center[1])).length(0.4)
-        d += (f := elm.Fuse().down())
-        d += elm.Label().at((f.center[0] + 0.95, f.center[1])).label("PTC 2R")
+        x = vs.center[0] + 1.6 + 3.6 * i
+        d += elm.Line().down().at((x, vs.center[1])).length(0.4)
+        d += (u := elm.Resistor().down())
+        d += elm.Label().at((u.center[0] + 1.45, u.center[1])).label(
+            "TPS7B4253\ntracks 5V_MAIN")
         d += elm.Line().down().length(0.4)
         d += elm.Dot(open=True).label(f"{name}\n{pins}", "bottom")
-    return "5V_SENSOR distribution -- a fault stays in its own group"
+    return "5V_SENSOR -- a fault stays in its own group, and 73 V stays out"
 
 
 def mcu_pdn(d):

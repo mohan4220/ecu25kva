@@ -645,6 +645,54 @@ UCC27517A = dict(
     hw=10.16)
 
 
+# --- TPS7B4253-Q1, tracking LDO, one per sensor group ----------------
+# Source: TI SLVSCP3D (Jan 2015, rev. Nov 2025), DDA 8-pin PowerPAD SOIC,
+# Table 4-1. IN -40..45 V, OUT -1..45 V abs max, 301-520 mA limit,
+# +/-4 mV tracking, 520 mV dropout at 200 mA. On this package ADJ is
+# also the enable. The thermal pad goes to GND (pin 9 here). Land
+# pattern: TI's DDA0008J is a 2.6 x 3.2 mm mask opening on a 2.95 x
+# 4.9 mm pad, which no KiCad SOIC-8-1EP variant matches -- drawn in
+# phase 3, so no footprint is named.
+TPS7B4253 = dict(
+    name="TPS7B4253", fp="",
+    ds="https://www.ti.com/lit/ds/symlink/tps7b4253-q1.pdf",
+    mpn="TPS7B4253QDDARQ1",
+    desc="TI TPS7B4253-Q1 300 mA tracking LDO, +/-4 mV, IN -40..45 V, "
+         "OUT -1..45 V, limit 301-520 mA. AEC-Q100. DDA PowerPAD-8.",
+    keywords="tracking LDO sensor supply automotive TPS7B4253",
+    left=[("IN", "8", "power_in"), ("ADJ", "5", "input")],
+    right=[("OUT", "1", "power_out"), ("FB", "4", "input")],
+    bottom=[("GND", "3", "power_in"), ("GND", "6", "passive"),
+            ("EP", "9", "passive")],
+    top=[("NC", "2", "no_connect"), ("NC", "7", "no_connect")],
+    hw=10.16)
+
+# --- TPS48110-Q1, 100 V high-side driver used as an OV cut-off --------
+# Source: TI SLUSEE5E (Jan 2022, rev. Apr 2026), DGX 19-pin VSSOP, Table
+# 5-1 (there is no pin 16). VS/CS/ISCP abs max 100 V, SRC -30..100 V, OV
+# rising 1.16-1.20 V, OV-to-PD 2.6-4 us, 60 V/us slew limit on the
+# drain-side pins. AEC-Q100 Grade 1. No KiCad DGX-19 land pattern --
+# drawn in phase 3.
+TPS48110 = dict(
+    name="TPS48110", fp="",
+    ds="https://www.ti.com/lit/ds/symlink/tps4811-q1.pdf",
+    mpn="TPS48110AQDGXRQ1",
+    desc="TI TPS48110-Q1 100 V smart high-side driver, adjustable OV "
+         "cut-off, 4 A pull-down. AEC-Q100 Grade 1. VSSOP-19.",
+    keywords="high side driver overvoltage cutoff automotive TPS48110",
+    left=[("VS", "20", "power_in"), ("CS+", "18", "input"),
+          ("CS-", "17", "input"), ("ISCP", "19", "input"),
+          ("EN/UVLO", "1", "input"), ("OV", "2", "input"),
+          ("INP", "3", "input")],
+    right=[("PU", "15", "output"), ("PD", "14", "output"),
+           ("BST", "12", "passive"), ("SRC", "13", "passive"),
+           ("FLT_T", "4", "open_collector"), ("FLT_I", "5", "open_collector"),
+           ("IMON", "7", "output")],
+    bottom=[("GND", "6", "power_in"), ("IWRN", "8", "input"),
+            ("TMR", "9", "input"), ("DIODE", "10", "input"),
+            ("NC", "11", "no_connect")],
+    hw=12.7)
+
 # --- SN74AHCT1G125-Q1, single buffer, 3-state -------------------------
 # Source: TI SN74AHCT1G125-Q1 datasheet, SOT-23-5 (DBV). VCC 3-5.5 V; at
 # VCC 4.5-5.5 V, VIH 2 V min and VIL 0.8 V max -- TTL thresholds, so a
@@ -853,7 +901,8 @@ def main():
     icgeom["TPS3850G33"] = g
     for part in (LM5164, TLV76733, TCAN1042, OPAMP, COMPARATOR,
                  TPS40210, AUIRS2181, INA181, TLV3201, UCC27517A,
-                 AUIRS2184, MPXH6115, INA592, AHCT125, BAV199):
+                 AUIRS2184, MPXH6115, INA592, AHCT125, BAV199,
+                 TPS7B4253, TPS48110):
         g = {}
         out.append(simple_symbol(geom=g, **part))
         icgeom[part["name"]] = g

@@ -123,15 +123,20 @@ BLOCKS = {
          "useless for efficiency, which is set by switching overlap, gate charge and reverse recovery, "
          "none of which this model has."),
         ("sensor_rail", "5V_SENSOR distribution", "—",
-         "One resettable fuse per sensor group, and the same fault simulated without them.",
-         "A 5 V sensor supply shorted to engine ground is a routine fault, not an exotic one. The "
-         "question is what it does to the OTHER sensors: with per-group protection the healthy groups "
-         "keep 4.66 V, without it the whole rail collapses to 0.5 V and the ECU loses every analog "
-         "channel at once — which means it cannot tell a wiring fault from an engine failing.",
-         "The polyfuse is modelled cold, which is the worst case for the healthy groups: the instant "
-         "after the short, before the device has heated and tripped. Once tripped the healthy groups "
-         "recover further. Firmware still has to notice — a tripped fuse and a dead sensor look "
-         "identical from the ADC's side."),
+         "One tracking regulator per sensor group, behind one overvoltage cut-off, with pulse 2a "
+         "applied through the real pin-21 filter.",
+         "A shorted sensor harness is a routine fault. Each group's TPS7B4253-Q1 limits its own short "
+         "at 301–520 mA, so the other two groups keep tracking 5V_MAIN and the MCU never sees the "
+         "fault. The PTCs this replaced could not do that against a 1 A buck, and a battery short "
+         "back-fed 5V_MAIN through them. The trackers survive 45 V and the rail reaches 73 V on pulse "
+         "2a, so a TPS48110-Q1 cut-off opens above 40.5–42.1 V and stays closed through the 40 V "
+         "load dump. Its own inrush network (22 nF from gate to ground) also makes the FET a source "
+         "follower for fast edges, so the trackers' input peaks near 22 V either way. The cut-off "
+         "was chosen over an LTC4368 because it is AEC-Q100: decisions log section 7.",
+         "The controller is modelled by function: a divider, a hysteretic comparator, a 2.6–4 µs "
+         "delay, and a square-law FET with the datasheet's gate network. The trackers are datasheet "
+         "arithmetic, not a transistor model. A sensor wire shorted to battery during pulse 2a is a "
+         "double fault that this design does not cover; it is recorded."),
         ("mcu_pdn", "3V3_MCU decoupling", "—",
          "The impedance the S32K148 sees looking into its own supply, from 1 kHz to 100 MHz.",
          "The bulk capacitor here is sized by a resonance, not by charge. The first version used 10 uF "

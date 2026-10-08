@@ -5,7 +5,8 @@ Three stages, and each one's values come from a simulation block:
 
   buck        buck_preregulator.cir -- 33 uH, 47 uF/10 mOhm, 400 kHz
   3V3 LDO     constrained by the supervisor on the mcu sheet
-  5V_SENSOR   sensor_rail.cir -- one 3.0 ohm PTC per sensor group
+  5V_SENSOR   sensor_rail.cir -- a TPS7B4253-Q1 per sensor group behind
+              a TPS48110-Q1 overvoltage cut-off (decisions log 4, 7)
 
 TWO PART DECISIONS ARE TAKEN HERE, both replacing entries in research
 memo 07's BOM table that were explicitly marked as representative or
@@ -310,44 +311,35 @@ def ldo(sh):
     sh.hlabel("3V3_MCU", 290.0, oy, shape="output")
 
 
-def sensor_rail(sh):
-    """One PTC per sensor group, sized in sensor_rail.cir."""
-    ry = 300.0            # the 5V_MAIN distribution rail
-    py = 318.0            # PTC centres, hanging off it
-    sh.label("5V_MAIN", 60.0, ry, rot=180)
-    srail = Rail(sh, ry)
-    srail.to(60.0)
-    for i, grp in enumerate("ABC"):
-        fx = 110.0 + i * 60.0
-        # PTCs hang DOWN off a common rail rather than sitting IN it. In
-        # line, the rail segment carrying on to the next group ran
-        # straight through the previous PTC's body and shorted it out --
-        # the netlist put both of F1's pins on 5V_MAIN.
-        sh.place("Device:Polyfuse", "F", fx, py, "3.0R 200mA",
-                 fields={"Source": "sensor_rail.cir; bom_requirements "
-                                   "SENSOR-PTC",
-                         "Note": "R25 = 3.0 ohm. At the stacked -40 C plus "
-                                 "-30% corner it holds fault current to "
-                                 "2.88 A, under the 3.0 A ceiling the "
-                                 "polyfuse has to be the thing that clears"})
-        a = pin_xy(*PINS["Device:Polyfuse"]["1"], fx, py, 0)
-        b = pin_xy(*PINS["Device:Polyfuse"]["2"], fx, py, 0)
-        p_in, p_out = (a, b) if a[1] < b[1] else (b, a)
-        rx2, ry2 = srail.to(fx, tap=(i < 2))
-        sh.wire(rx2, ry2, p_in[0], p_in[1])
-        sh.wire(p_out[0], p_out[1], p_out[0], p_out[1] + 10.16)
-        sh.wire(p_out[0], p_out[1] + 10.16, p_out[0] + 18.0, p_out[1] + 10.16)
-        sh.hlabel(f"5V_SENSOR_{grp}", p_out[0] + 18.0, p_out[1] + 10.16,
-                  shape="output")
+def _stub(sh, pin, dx, net):
+    """A short horizontal wire off a pin, ending in a net label."""
+    sh.wire(pin[0], pin[1], pin[0] + dx, pin[1])
+    sh.label(net, pin[0] + dx, pin[1], rot=180 if dx < 0 else 0)
 
-    # ---- rail monitor, the ratiometric-correction channel ----
+
+def _down(sh, pin, net=None):
+    """A short wire down off a pin, to ground or to a label."""
+    sh.wire(pin[0], pin[1], pin[0], pin[1] + 5.08)
+    if net is None:
+        sh.gnd(pin[0], pin[1] + 5.08)
+    else:
+        sh.label(net, pin[0], pin[1] + 5.08, rot=270)
+
+
+def sensor_rail(sh):
+    """5V_SENSOR: a TPS7B4253-Q1 per group behind a TPS48110-Q1 cut-off.
+
+    Decisions log sections 4 and 7; checked in sensor_rail.cir. Replaces
+    the three PTCs (F201-F203) of SENSOR-PTC.
+    """
+    # ---- rail monitor first, so its references keep their numbers ----
     # 10k/15k from the 5 V rail gives 3.0 V at nominal and 3.08 V at the
     # rail's own high corner -- inside VREFH.
-    mx = 440.0
+    mx = 540.0
     mon_y = 300.0
-    sh.label("5V_MAIN", 400.0, mon_y, rot=180)
+    sh.label("5V_MAIN", 500.0, mon_y, rot=180)
     mrail = Rail(sh, mon_y)
-    mrail.to(400.0)
+    mrail.to(500.0)
     t1, b1 = vpart(sh, "Device:R", "R", mx, mon_y + 16.0, "10k",
                    {"Source": "5V rail monitor top -- pinmap PTC14, the "
                               "ratiometric-correction channel"},
@@ -359,6 +351,121 @@ def sensor_rail(sh):
     mx2, mmid = join_mid(sh, b1, t2)
     sh.wire(mx2, mmid, mx2 + 14.0, mmid)
     sh.hlabel("SENSOR_5V_MON", mx2 + 14.0, mmid, shape="output")
+
+    sh.text("5V_SENSOR -- TPS48110-Q1 overvoltage cut-off (opens above "
+            "40.5-42.1 V, closed through the 40 V dump) feeding one "
+            "TPS7B4253-Q1 tracker per sensor group. sensor_rail.cir.",
+            40.0, 282.0, size=1.6)
+
+    # ---- the cut-off FET: drain on VBAT_PROT, source on VSNS ----
+    qx, qy = 215.0, 318.0
+    sh.place("Device:Q_NMOS_GDS", "Q", qx, qy, "IPD90N10S4-06",
+             footprint="Package_TO_SOT_SMD:TO-252-2",
+             fields={"MPN": "IPD90N10S4-06",
+                     "Source": "sensor_rail.cir -- the board's 100 V "
+                               "N-FET, one part number fewer",
+                     "Note": "Opened by the TPS48110-Q1 for pulse 2a. Its "
+                             "gate network also makes it a source "
+                             "follower for fast edges: VSNS peaks about "
+                             "22 V while the rail clamps at 73 V."})
+    qp = PINS["Device:Q_NMOS_GDS"]
+    _stub(sh, pin_xy(*qp["1"], qx, qy, 0), -7.62, "OVC_GATE")
+    _stub(sh, pin_xy(*qp["2"], qx, qy, 0), 7.62, "VBAT_PROT")
+    _stub(sh, pin_xy(*qp["3"], qx, qy, 0), 7.62, "VSNS")
+
+    # ---- the controller ----
+    ux, uy = 120.0, 318.0
+    sh.place("ecu25kva:TPS48110", "U", ux, uy, "TPS48110",
+             fields={"MPN": "TPS48110AQDGXRQ1",
+                     "Source": "TI SLUSEE5E -- decisions log 7",
+                     "Note": "Used only for its OV cut-off. Current sense, "
+                             "remote temperature and the fault flags are "
+                             "tied off as Table 5-1 says to."})
+    P = lambda n: ic_pin("TPS48110", n, ux, uy)  # noqa: E731
+    for n in (20, 18, 17, 19):                   # VS, CS+, CS-, ISCP
+        _stub(sh, P(n), -7.62, "OVC_VS")
+    for n in (1, 3):                             # EN/UVLO, INP
+        _stub(sh, P(n), -7.62, "5V_MAIN")
+    _stub(sh, P(2), -7.62, "OVC_OV")
+    _stub(sh, P(15), 7.62, "OVC_PU")
+    _stub(sh, P(14), 7.62, "OVC_GATE")           # PD straight to the gate
+    _stub(sh, P(12), 7.62, "OVC_BST")
+    _stub(sh, P(13), 7.62, "VSNS")               # SRC
+    _stub(sh, P(7), 7.62, "GND")                 # IMON, unused
+    for n in (6, 8, 9, 10):                      # GND, IWRN, TMR, DIODE
+        _down(sh, P(n))
+
+    # ---- its passives, along the bottom ----
+    py = 360.0
+    vpart(sh, "Device:R", "R", 50.0, py, "100R",
+          {"Source": "sensor_rail.cir -- with the 22 nF, holds VS/CS to a "
+                     "few V/us against the 60 V/us limit"},
+          top_net="VBAT_PROT", bot_net="OVC_VS")
+    vpart(sh, "Device:C", "C", 62.0, py, "22nF",
+          {"Source": "SLUSEE5E -- 22 nF minimum on VS"},
+          top_net="OVC_VS", to_gnd=True)
+    vpart(sh, "Device:R", "R", 78.0, py, "340k 0.1%",
+          {"Source": "sensor_rail.cir -- OV divider top: trips 40.52-"
+                     "42.08 V against OV 1.16-1.20 V"},
+          top_net="VBAT_PROT", bot_net="OVC_OV")
+    vpart(sh, "Device:R", "R", 90.0, py, "10k 0.1%",
+          {"Source": "OV divider bottom. 0.1% because 1% would put the "
+                     "lowest trip at 39.8 V, inside the 40 V dump"},
+          top_net="OVC_OV", to_gnd=True)
+    vpart(sh, "Device:R", "R", 106.0, py, "100k",
+          {"Source": "SLUSEE5E Eq. 3, R1 -- with 22 nF, 0.16 A inrush "
+                     "into 47 uF"},
+          top_net="OVC_PU", bot_net="OVC_GATE")
+    vpart(sh, "Device:C", "C", 118.0, py, "22nF",
+          {"Source": "SLUSEE5E Figure 8-6, C1 -- gate to ground. Also why "
+                     "the FET follows rather than passes a fast edge"},
+          top_net="OVC_GATE", bot_net="OVC_C1R")
+    vpart(sh, "Device:R", "R", 130.0, py, "10R",
+          {"Source": "SLUSEE5E Figure 8-6, R2 -- damps C1"},
+          top_net="OVC_C1R", to_gnd=True)
+    vpart(sh, "Device:C", "C", 146.0, py, "1uF",
+          {"Source": "SLUSEE5E -- BST to SRC, above the FET's gate "
+                     "charge (0.1 uF minimum)"},
+          top_net="OVC_BST", bot_net="VSNS")
+    vpart(sh, "Device:C_Polarized", "C", 240.0, py, "47uF 63V",
+          {"Source": "sensor_rail.cir -- hold-up on VSNS; checked at 33 uF "
+                     "aged",
+           "Note": "Not MLCC -- chosen separately, AEC-Q200, 125 C"},
+          top_net="VSNS", to_gnd=True)
+
+    # ---- one tracker per group ----
+    for i, grp in enumerate("ABC"):
+        tx, ty = 300.0 + i * 70.0, 318.0
+        sh.place("ecu25kva:TPS7B4253", "U", tx, ty, "TPS7B4253",
+                 fields={"MPN": "TPS7B4253QDDARQ1",
+                         "Source": "TI SLVSCP3D -- decisions log 4",
+                         "Note": f"Group {grp}: tracks 5V_MAIN to +/-4 mV, "
+                                 "limits at 301-520 mA, OUT survives "
+                                 "-1..45 V"})
+        T = lambda n: ic_pin("TPS7B4253", n, tx, ty)  # noqa: E731
+        _stub(sh, T(8), -5.08, "VSNS")
+        _stub(sh, T(5), -5.08, "5V_MAIN")
+        out = f"5V_SENSOR_{grp}"
+        _stub(sh, T(1), 5.08, out)
+        _stub(sh, T(4), 5.08, out)              # FB to OUT: VOUT = VADJ
+        for n in (3, 6, 9):                     # GND, GND, thermal pad
+            _down(sh, T(n))
+        cy = 360.0
+        vpart(sh, "Device:C", "C", tx - 12.0, cy, "100nF",
+              {"Source": "SLVSCP3D -- IN capacitor, close to the pins"},
+              top_net="VSNS", to_gnd=True)
+        vpart(sh, "Device:C", "C", tx, cy, "100nF",
+              {"Source": "SLVSCP3D -- ADJ capacitor, close to the pins"},
+              top_net="5V_MAIN", to_gnd=True)
+        vpart(sh, "Device:C", "C", tx + 12.0, cy, "10uF 50V",
+              {"Source": "SLVSCP3D -- 10-500 uF on OUT. 50 V: this pin "
+                         "faces the harness, and a short to battery is "
+                         "survived at 24 V and the 40 V dump"},
+              top_net=out, to_gnd=True)
+        # the sheet pin, above the tracker where nothing else is drawn
+        sh.wire(tx + 5.0, 293.0, tx + 20.0, 293.0)
+        sh.label(out, tx + 5.0, 293.0, rot=180)
+        sh.hlabel(out, tx + 20.0, 293.0, shape="output")
 
 
 def notes(sh):
@@ -384,14 +491,11 @@ def notes(sh):
         "giving 3.267-3.333 V.",
         40, 150, size=1.6)
     sh.text(
-        "RATIOMETRIC MONITOR, a limitation worth stating: the divider taps "
-        "5V_MAIN, upstream of the PTCs. Each group's own PTC drops about "
-        "50 mA x 3.0 ohm = 150 mV,\n"
-        "which is 3% of the rail and is NOT captured by a measurement taken "
-        "before it. Correct for the regulator's drift, not for the "
-        "protection element's.\n"
-        "Moving the tap downstream would fix one group and leave the other "
-        "two wrong, so the tap stays common and the limit is recorded here.",
+        "RATIOMETRIC MONITOR: the divider taps 5V_MAIN, and every sensor "
+        "group's tracker follows 5V_MAIN to +/-4 mV (0.08%) at any load up "
+        "to 300 mA.\n"
+        "So one tap now corrects all three groups. With the PTCs it "
+        "could not: each dropped about 150 mV (3%) downstream of the tap.",
         40, 255, size=1.6)
     sh.text(
         "PGOOD_5V is brought out and left unassigned. The LM5164 asserts it "
@@ -405,7 +509,7 @@ def build():
     sh = Sheet("Rails: buck, 3V3 LDO, 5V sensor distribution", paper="A2",
                comments=[
                    "Generated by hw/gen_sheet_rails.py -- do not hand-edit until it is retired",
-                   "Buck values: buck_preregulator.cir. PTC: sensor_rail.cir + bom_requirements SENSOR-PTC",
+                   "Buck values: buck_preregulator.cir. 5V_SENSOR: sensor_rail.cir, decisions log 4 and 7",
                    "LM5164 replaces memo 07's 60 V TPS54360B-Q1 -- see the note on the page",
                    "3V3 must stay inside 3.143-3.459 V or the supervisor resets the board",
                ],

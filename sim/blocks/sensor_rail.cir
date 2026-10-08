@@ -1,234 +1,138 @@
 * ============================================================
-* 5V_SENSOR distribution -- why each group gets its own PTC
-* Power chain stage 5, spec section 6
+* 5V_SENSOR -- one tracking regulator per sensor group, behind an
+* overvoltage cut-off (decisions log sections 4 and 7)
 * ============================================================
-* The sensor supply leaves the box on harness wires, runs along an
-* engine, and ends at connectors that get washed, vibrated and
-* occasionally levered off with a screwdriver. A short from a 5 V
-* sensor supply pin to engine ground is not an exotic fault, it is
-* a Tuesday.
+* Each sensor group (A, B, C) has its own TPS7B4253-Q1 tracking LDO
+* whose ADJ pin follows 5V_MAIN to +/-4 mV (TI SLVSCP3D). A shorted
+* group limits in ITS OWN regulator (301-520 mA), so the other groups
+* and the MCU never see it. The PTCs this replaces could not do that
+* against a 1 A buck, and a battery short back-fed 5V_MAIN through them.
+* The trackers' own behaviour is datasheet arithmetic in run_sim.py.
+* This netlist is about their shared INPUT.
 *
-* The question this block answers is what that short does to the
-* OTHER sensors. If one shorted harness takes the rail down, the
-* ECU loses rail pressure, boost, oil pressure and coolant
-* temperature simultaneously -- and a controller that loses every
-* analog input at once cannot tell a wiring fault from an engine
-* falling apart.
+* The trackers' IN pin is rated 45 V, and VBAT_PROT reaches 73.3 V on
+* ISO 7637-2 pulse 2a in transient_clamp.cir. So all three sit behind
+* one TPS48110-Q1 (TI SLUSEE5E, AEC-Q100 Grade 1) switching an
+* IPD90N10S4-06 (13 mOhm modelled, twice its 25 C maximum), with hold-up
+* capacitance after it on node VSNS. The cut-off must OPEN for pulse 2a
+* and stay CLOSED through the 40 V suppressed load dump, which no
+* hold-up capacitor could bridge.
 *
-* The OEM pinout already groups sensors by ground return (pin 34
-* boost+coolant, 36 EGR+oil, 08 rail alone). This block is the
-* supply-side counterpart of that grouping: one resettable fuse
-* per group, so a fault is contained to the group that has it.
+* WHAT THIS BLOCK FOUND, 8 Oct 2026. The source here is pulse 2a exactly
+* as transient_clamp.cir applies it, but the path to VBAT_PROT is the
+* real pin-21 chain: fuse, both filter stages, TVS, reverse FET.
 *
-* Modelled as three sensor groups on one 5 V rail:
-*     Rsrc     0.1 ohm   regulator output impedance plus trace
-*     PTC      2.0 ohm   cold resistance of a 200 mA hold device
-*     group   100   ohm  roughly 50 mA of sensors per group
+*   1. The trackers' input never gets near 45 V -- about 22 V at every
+*      corner. TI's own inrush network does it: C1 (22 nF, gate to
+*      ground) holds the FET's gate where it was before the pulse, so
+*      the FET is a source follower and VSNS cannot rise past
+*      (gate - Vth), about 12.15 + 12 - 3 V here. The OV comparator then
+*      opens the FET outright once the rail passes 40.5-42.1 V. That is
+*      two independent mechanisms, either of them enough.
+*   2. Hold-up droop is not a concern. The follower lets VSNS rise
+*      before the comparator opens it, so the hold-up starts the open
+*      period above its pre-pulse level, even with all three trackers at
+*      their current limit. 47 uF, the decision's value, is enough. The
+*      corners below age it to 33 uF.
+*   3. With L1 NOT saturated, the clamp node peaks at 76.6 V, above the
+*      73.3 V transient_clamp.cir reports. That block has no filter; here
+*      L1's stored energy goes into the TVS. Every part on that node is
+*      100 V class. Pinned in run_sim.py rather than left as prose.
 *
-* Network A has the PTCs. Network B is the same rail wired as one
-* common node -- which is what you get if you skip them.
+* THE CONTROLLER is modelled as what it does. The OV pin sees the rail
+* through the divider. The comparator's rising and falling thresholds
+* are the switch's hysteresis. tPD(OV_OFF) is a pure delay on the sensed
+* voltage. The FET is a square-law model with the datasheet's gate
+* network around it: PD (4 A) pulls the gate to the source at the end of
+* the delay, and on recovery PU recharges it through the 100k / 22 nF
+* inrush network. So the FET reconnects as a source follower whose gate
+* C1 holds near where it was. An ideal instant switch there chattered,
+* and ngspice could not follow it at the all-trackers-at-limit corner.
+*
+* THE 60 V/us LIMIT on the TPS48110-Q1's drain-side pins (VS, CS+, CS-)
+* is met by feeding them through 100 ohm and the 22 nF the datasheet
+* already requires on VS: a few V/us there. The OV divider senses the
+* rail directly, so detection is not delayed.
+*
+* THREE COPIES of the chain, one per corner, each with its own source:
+*   X1  nominal     47 uF, L1 22 uH (linear), threshold mid, 3 us delay
+*   X2  top         33 uF (hold-up aged -30%), L1 saturated, HIGHEST
+*                   threshold, LONGEST delay, light load -- highest VSNS
+*   X3  droop       33 uF, L1 saturated, LOWEST threshold, SHORTEST
+*                   delay, all three trackers at their 520 mA limit --
+*                   longest open time and largest droop
+* Threshold corners are the divider (340k / 10k, 0.1%) against OV rising
+* 1.16-1.20 V and falling 1.10-1.13 V (SLUSEE5E):
+*   rising   40.52 V min   42.08 V max
+*   falling  38.38 V min   39.62 V max
 * ============================================================
+.model TVSJ D(Is=1e-12 N=1.6 Rs=0.50 BV=47.0 IBV=1e-3)
+.subckt TVSBI a b
+DA mid a TVSJ
+DB mid b TVSJ
+.ends TVSBI
 
-V5A  ra 0 DC 5
-Rsa  ra raila 0.1
-* group A -- the faulted one. 10 mOhm is a hard short to ground.
-Rpa  raila aa 2
-Rfa  aa 0 10m
-* groups B and C -- healthy, and the ones we care about
-Rpb  raila ab 2
-Rlb  ab 0 100
-Rpc  raila ac 2
-Rlc  ac 0 100
+.subckt CHAIN src prot vsns vs params: lm=22u chold=47u vtrip=41.3 vrel=39.0 tdel=3u iload=0.15
+* The comparator: a hysteretic switch on a control of K - v(sensed),
+* K = (vtrip+vrel)/2, so "pull-up enabled" ends at vtrip rising and
+* resumes at vrel falling. ONSW is the PU path, OFFSW (the complement)
+* the PD path.
+.model ONSW  SW(Ron=1 Roff=1e9 Vt=0 Vh={(vtrip-vrel)/2})
+.model OFFSW SW(Ron=2 Roff=1e9 Vt=0 Vh={(vtrip-vrel)/2})
+* IPD90N10S4-06 as a square-law FET: 13 mOhm at Vgs 12 V (twice its
+* 6.7 mOhm 25 C maximum), Vth 3 V, plus its body diode (VSNS to rail).
+.model QN NMOS(LEVEL=1 VTO=3 KP=8.5 W=1 L=1)
+.model DB D(Is=1e-12 N=1.0 Rs=10m)
+Rsrc  src pin 2
+RF101 pin f1 16m
+L1    f1 l1b {lm}
+RL1   l1b emi1 28m
+C1    emi1 c1a 4.4u
+RC1   c1a 0 2.5m
+Lf    emi1 lfb 0.47u
+RLf   lfb clmp 1.35m
+Rf    emi1 clmp 120
+C2    clmp 0 100n
+Cd    clmp cdr 1u
+Rd    cdr 0 2.2
+XD1   0 clmp TVSBI
+RQ101 clmp prot 31m
+Cbuck prot 0 4.4u
+Iboard prot 0 0.5
+Bs    s0 0 V = 2*v(prot)
+Rs0   s0 s1 50
+Tdel  s1 0 s2 0 Z0=50 TD={tdel}
+Rs2   s2 0 50
+Bctl  ctl 0 V = {(vtrip+vrel)/2} - v(s2)
+Bnot  nctl 0 V = -v(ctl)
+* gate drive, SLUSEE5E Figure 8-6: PU from BST (SRC + 12 V) through
+* R1 = 100k, C1 = 22 nF + R2 = 10 ohm to ground, PD straight to the gate
+* (the 4 A pull-down, 2 ohm here) so turn-off ignores R1 and C1
+Bbst  bst 0 V = v(vsns) + 12
+Spu   bst pu ctl 0 ONSW
+R1    pu g 100k
+C1g   g c1r 22n
+R2    c1r 0 10
+Spd   g vsns nctl 0 OFFSW
+Cgs   g vsns 5n
+M1    prot g vsns vsns QN
+DB1   vsns prot DB
+RVS   prot vs 100
+CVS   vs 0 22n
+Chold vsns 0 {chold}
+Iload vsns 0 {iload}
+.ends CHAIN
 
-* ---- network B: no per-group protection ----
-V5B  rb 0 DC 5
-Rsb  rb railb 0.1
-Rqa  railb ba 1m
-Rfb  ba 0 10m
-Rqb  railb bb 1m
-Rlb2 bb 0 100
-Rqc  railb bc 1m
-Rlc2 bc 0 100
+* ---- pulse 2a, as transient_clamp.cir ----
+Vpulse src 0 PWL(0 13.5  0.999m 13.5  1.0m 125.5  1.05m 125.5  1.0505m 13.5  3m 13.5)
 
-* ---- network C: stacked temperature-and-tolerance corner ----
-* Same topology as network A (per-group PTC protection), but Rptc is
-* the STACKED corner from the TEMPERATURE RESULT NOTE below: -40 C
-* ambient (~0.8x R25, INFERRED) AND the TOLERANCE section's own -30%
-* part-to-part spread, together: Rptc = 2.0 * 0.8 * 0.7 = 1.12 ohm.
-* This is the check the TEMPERATURE note's own finding calls for --
-* see run_sim.py's check_sensor_rail for why this is checked (not
-* just the -40 C ambient case alone, which still passes).
-.param Rptc=1.12
-V5C  rc 0 DC 5
-Rsc  rc railc 0.1
-Rxa  railc xa {Rptc}
-Rfx  xa 0 10m
-Rxb  railc xb {Rptc}
-Rlxb xb 0 100
-Rxc  railc xc {Rptc}
-Rlxc xc 0 100
-
-* ---- RESOLUTION: the specified PTC, networks D and E ----
-* Network C is a fail against a real requirement -- the polyfuse has
-* to be the thing that clears the fault, not the 5 V regulator's own
-* current limit -- so it is answered by specifying a larger device,
-* the same way can_termination answers its tempco corner by
-* specifying a tighter resistor.
-*
-* Requirement written into the BOM (docs/bom_requirements.md,
-* SENSOR-PTC): one resettable PTC per sensor group, hold current
-* >= 200 mA, R25 (initial cold resistance) 3.0 ohm nominal.
-*
-* Sizing, solved against network C's own ceiling rather than
-* guessed. The fault loop is Rsrc + Rptc + Rshort in series off the
-* 5 V rail, with the two healthy 100-ohm groups in parallel adding
-* about 50 mA:
-*     I < 3.0 A  requires  Rsrc + Rptc > 5/3 = 1.667 ohm
-*     Rsrc = 0.1, so the CORNER value of Rptc must exceed 1.557 ohm
-* The corner is R25 * 0.8 (cold, INFERRED, network C's own factor)
-* * 0.7 (-30% part spread, the TOLERANCE section's own factor) =
-* 0.56 * R25, so R25 > 2.78 ohm. 3.0 ohm is the next sensible round
-* value above that, and it is the number specified.
-*
-*     D  the specified part at its NOMINAL 3.0 ohm -- confirms the
-*        healthy-group floor and the >=0.3 A trip floor still hold
-*        once the PTC is bigger, which is the thing a larger series
-*        resistance could plausibly have broken.
-*     E  the specified part at the SAME stacked corner network C
-*        uses: 3.0 * 0.8 * 0.7 = 1.68 ohm.
-.param Rspec=3.0
-.param RspecCold=1.68
-V5D  rd 0 DC 5
-Rsd  rd raild 0.1
-Rda  raild da {Rspec}
-Rfd  da 0 10m
-Rdb  raild db {Rspec}
-Rldb db 0 100
-Rdc  raild dc {Rspec}
-Rldc dc 0 100
-
-V5E  re 0 DC 5
-Rse  re raile 0.1
-Rea  raile ea {RspecCold}
-Rfe  ea 0 10m
-Reb  raile eb {RspecCold}
-Rleb eb 0 100
-Rec  raile ec {RspecCold}
-Rlec ec 0 100
+X1 src p1 n1 s1 CHAIN lm=22u chold=47u vtrip=41.30 vrel=39.00 tdel=3u   iload=0.15
+X2 src p2 n2 s2 CHAIN lm=1n  chold=33u vtrip=42.08 vrel=39.62 tdel=4u   iload=0.15
+X3 src p3 n3 s3 CHAIN lm=1n  chold=33u vtrip=40.52 vrel=38.38 tdel=2.6u iload=1.56
 
 .control
-op
-wrdata sensor_rail.dat v(raila) v(ab) v(railb) v(bb) i(V5A) v(xb) i(V5C) v(raild) v(db) i(V5D) v(eb) i(V5E)
+tran 20n 1.4m 0.9m 20n
+wrdata sensor_rail.dat v(p1) v(n1) v(s1) v(p2) v(n2) v(s2) v(p3) v(n3) v(s3)
 .endc
 
 .end
-
-* ------------------------------------------------------------
-* RESULT NOTE -- the PTC is modelled cold, which understates it
-* ------------------------------------------------------------
-* A polyfuse is a thermal device: it sits at a low resistance
-* until the fault current heats it, then latches into a high
-* resistance until power is removed. This netlist models only the
-* COLD resistance, because that is the worst case for the healthy
-* groups -- it is the instant after the short, before the device
-* has tripped.
-*
-* So the healthy-group voltage computed here is the LOW point.
-* Once the device trips, the faulted branch goes to hundreds of
-* ohms and the healthy groups recover to nearly the full rail.
-*
-* The other half of the design, not modelled here: firmware must
-* notice. A tripped PTC and a dead sensor look identical from the
-* ADC's side, and only the tripped one comes back after a power
-* cycle. That distinction belongs in the fault manager.
-*
-* TOLERANCE -- the binding parameter is the PTC's cold resistance.
-* This netlist picks 2.0 ohm with no part number cited ("cold
-* resistance of a 200 mA hold device" -- a class description, not a
-* datasheet pull). PTC cold resistance commonly spreads +/-30-50%
-* part-to-part within a single hold-current bin, wider than a fixed
-* resistor because it depends on the thermistor material lot, not
-* just geometry. Re-ran at two corners in scratch copies, not this
-* file:
-*
-*     PTC = 2.0 ohm (nominal)   healthy group A short = 4.661 V   PASS (>4.5)
-*     PTC = 1.0 ohm (-50%)      healthy group A short = 4.496 V   FAIL
-*     PTC = 1.4 ohm (-30%)      fault current          = 3.397 A  FAIL (>3.0 A)
-*
-* Both checks flip at a plausible low-resistance corner, at
-* different PTC values -- the healthy-group floor is the more
-* sensitive of the two (fails by -30% too: at 1.4 ohm ab=4.596,
-* still passes; the healthy-group check needs roughly -45% to flip,
-* the fault-current check needs only -30%).
-*
-* THE DESIGN IS INADEQUATE at this corner in the same shape as
-* buck_preregulator.cir's inductor finding: 2.0 ohm was chosen as a
-* class-typical figure with no datasheet min/typ/max spread behind
-* it, and the healthy-group margin at nominal (4.661 V against a
-* 4.5 V floor, 3.6%) is thin enough that ordinary PTC spread already
-* erodes it. The fix is not a bigger PTC value picked to force a
-* pass -- it is picking an actual part number and checking its
-* datasheet's MINIMUM cold resistance (not typical) against both
-* checks, and if no single part clears both at its worst case,
-* either accepting a lower healthy-group floor than 4.5 V (see F8 in
-* run_sim.py's comment on that check -- 4.5 V is itself a round
-* number, not sharply derived) or adding series resistance ahead of
-* the PTC so the fault-current ceiling has margin independent of the
-* PTC's own spread. Not changed here for the same reason as
-* buck_preregulator.cir: this value may be drawn on a schematic
-* owned by a concurrently-edited file, and picking a real part
-* number is an actual design decision this simulation pass should
-* not make unilaterally.
-*
-* TEMPERATURE -- a PTC's resistance is temperature-defined by
-* construction, so this is the one block on the priority list where
-* ambient temperature was expected to move the verdict on its own,
-* before even touching part-to-part spread. ngspice's `.temp` does
-* nothing useful here -- these are plain resistors, not devices with
-* a modelled tempco -- so the corners are hand-computed off the same
-* topology, same as the TOLERANCE section above. Range used:
-* -40/+125 C, see run_sim.py's report for provenance; multipliers are
-* INFERRED from typical radial-leaded/SMD PTC resistance-temperature
-* curves (no part number chosen yet, consistent with the rest of this
-* file), not pulled from a specific datasheet:
-*
-*     -40 C  (~0.8x R25, INFERRED)   Rptc=1.6 ohm
-*         raila=4.699 V  ab=4.625 V  fault current=2.919 A
-*         Both checks still PASS (ab>4.5, ifault<3.0), but the
-*         fault-current headroom drops from 0.635 A at nominal to
-*         0.081 A -- effectively gone.
-*     +125 C
-*         Exceeds the standard ~85 C max-ambient rating most
-*         commercial PTCs are characterised to at all. There is no
-*         defensible resistance figure to extrapolate to without a
-*         specific automotive-rated (125 C) part's own curve -- so
-*         the honest finding at this corner is not a number, it is
-*         that the class of part assumed here (a generic "200 mA
-*         hold" PTC) may not have a 125 C rating in the first place.
-*         That is a part-selection question, not a simulation one.
-*
-* What flips: nothing flips outright from ambient temperature alone
-* at the -40 C end, but it removes essentially all of the margin the
-* TOLERANCE section already found thin. Stacked with that section's
-* own -30% part-to-part corner (cold ambient AND low-tolerance part
-* together: Rptc = 2.0 x 0.8 x 0.7 = 1.12 ohm), fault current is
-* 4.15 A (network C below, verified against the actual ngspice run,
-* not just this note's arithmetic) -- a clear FAIL against the 3.0 A
-* ceiling. This is the same finding as the TOLERANCE section,
-* sharpened: a real cold-climate genset (this design's stated
-* environment) will see -40 C ambient routinely, so "PTC spread alone
-* might fail" becomes "PTC spread AND a cold morning will fail"
-* unless a specific part's minimum cold-ambient, minimum-tolerance
-* resistance is checked and found to clear 3.0 A. Not fixed here, for
-* the same reason as above: it is a part-selection decision, not a
-* value to tune until the check passes.
-*
-* ENFORCED: network C above and the "stacked -40C + -30%" check in
-* run_sim.py's check_sensor_rail turn this into a checked claim
-* rather than a prose note. Shape chosen: the design is inadequate at
-* this corner (the 3.0 A ceiling is a real requirement -- something a
-* polyfuse has to trip on -- not an arbitrary number), so the check
-* FAILS and stays failing until a real PTC part is chosen with a
-* datasheet minimum that clears it, or series resistance is added
-* ahead of the PTC. Not fixed by changing Rptc here.
-* ------------------------------------------------------------

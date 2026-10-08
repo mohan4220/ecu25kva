@@ -285,7 +285,7 @@ def main():
                             r'"[^"]*"\)\s*\(footprint "([^"]*)"\)', text))
     bare = sorted(r for r, v in comps.items()
                   if re.match(r"^[RC]\d", r) and not fp_of.get(r)
-                  and v not in ("150uF", "47uF 150V"))
+                  and v not in ("150uF", "47uF 150V", "47uF 63V"))
     check("every chip resistor and capacitor is packaged -- re-run "
           "assign_passives.py after adding or re-valuing one", not bare,
           f"no footprint: {bare}")

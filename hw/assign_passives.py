@@ -58,6 +58,12 @@ BOOST = (104.0, 104.0)
 LOGIC3 = (3.6, 3.6)
 LOGIC5 = (5.5, 5.5)
 GATE12 = (13.6, 13.6)        # 12V_GATE high corner, run_sim
+# Faces the harness: a sensor supply wire shorted to battery is a single
+# fault at 24 V (jump start) or the 40 V dump. With pulse 2a on top it is
+# a double fault, recorded in decisions log 7 and not designed for.
+SENSOR_OUT = (24.0, 40.0)
+VSNS = (24.0, 45.0)          # behind the OV cut-off; the trackers' IN rating
+OVC_GATE = (36.3, 57.3)      # VSNS + 12.3 V charge pump, sensor_rail.cir
 
 NET_V = {
     "GND": (0.0, 0.0),
@@ -108,7 +114,11 @@ NET_V = {
     # sense and logic
     "/metering_egr/EGR_ISNS": (0.3, 0.3),
     "/metering_egr/ISNS_MU_SENSE": (0.3, 0.3),
-    "/3V3_MCU": LOGIC3, "/5V_MAIN": LOGIC5, "/5V_SENSOR_C": LOGIC5,
+    "/3V3_MCU": LOGIC3, "/5V_MAIN": LOGIC5, "/5V_SENSOR_A": SENSOR_OUT, "/5V_SENSOR_B": SENSOR_OUT,
+    "/5V_SENSOR_C": SENSOR_OUT,
+    "/rails/VSNS": VSNS, "/rails/OVC_VS": BAT, "/rails/OVC_OV": (0.7, 2.2),
+    "/rails/OVC_PU": OVC_GATE, "/rails/OVC_GATE": OVC_GATE,
+    "/rails/OVC_BST": OVC_GATE, "/rails/OVC_C1R": (0.1, 1.0),
     "/SENSOR_5V_MON": LOGIC5, "/rails/PGOOD_5V": LOGIC5,
     "/rails/FB_5V": LOGIC5, "/rails/BST": BAT,
     "Net-(U201-RON)": LOGIC5,
@@ -155,6 +165,9 @@ PAIR_V = {
         (45.5, 45.5, "upper half of the 47k/47k zener bias string"),
     ("/injector/BASE_12V", "/injector/BIAS_12V_MID"):
         (45.5, 45.5, "lower half of the 47k/47k zener bias string"),
+    ("/VBAT_PROT", "/rails/OVC_VS"):
+        (0.05, 61.0, "VS filter: ~0.1 mA continuous; the peak is a pulse "
+                     "2a edge across the 22 nF, microseconds"),
     ("/power_input/VBAT_CLAMPED", "/power_input/VBAT_EMI1"):
         (0.2, 1.0, "ferrite damper Rf, across Lf: filter AC only"),
     ("/12V_GATE", "/injector/Q1E_12V"):
@@ -180,7 +193,7 @@ R_FP = {s: f"Resistor_SMD:R_{s}_{m}Metric" for s, m in [
     ("2512", "6332")]}
 C_FP = {s: f"Capacitor_SMD:C_{s}_{m}Metric" for s, m in [
     ("0402", "1005"), ("0603", "1608"), ("0805", "2012"),
-    ("1206", "3216"), ("1210", "3225"), ("1812", "4532")]}
+    ("1206", "3216"), ("1210", "3225"), ("1812", "4532"), ("2220", "5750")]}
 
 # What exists: KEMET C1023 X7R AUTO (AEC-Q200), "Table 1 -- Capacitance
 # Range/Selection Waterfall", retrieved 22 Sep 2026 and parsed by x
@@ -188,11 +201,16 @@ C_FP = {s: f"Capacitor_SMD:C_{s}_{m}Metric" for s, m in [
 # compresses the data columns and mis-assigns them). capacitance ->
 # [(case, rated V)]. A (value, rating) pair absent here stops the script.
 KEMET = json.load(open(os.path.join(HW, "lib", "kemet_x7r_auto.json")))
-C_CASES = ["0603", "0805", "1206", "1210", "1812"]   # smallest first
+# 2220 last, and only because 10 uF at 50 V exists in nothing smaller:
+# the sensor-output capacitors face the harness. A 2220 MLCC cracks under
+# board flex more readily than anything below it -- buy it with KEMET's
+# flexible termination, and keep it off the board's edges and fixings.
+C_CASES = ["0603", "0805", "1206", "1210", "1812", "2220"]   # smallest first
 C_FLOOR = 25.0          # <=1 uF: never below 25 V, for DC-bias headroom
 SPECIAL_C = {           # not MLCC -- chosen separately
     "150uF": "polymer, PDN-BULK ESR band -- chosen separately",
     "47uF 150V": "aluminium electrolytic -- chosen separately",
+    "47uF 63V": "sensor hold-up, electrolytic or polymer -- chosen separately",
 }
 
 

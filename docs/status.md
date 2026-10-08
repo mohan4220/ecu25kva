@@ -779,6 +779,19 @@ from the simulated waveforms: 16 % of melting on pulse 1, against a
 20 % rule of thumb whose pulse-cycling data is still open. 317 of 333
 components now have footprints.
 
+**SENSOR-PTC built, 8 October 2026.** The three PTCs (F201–F203) are
+gone. Each sensor group now has a TPS7B4253-Q1 tracker following
+5V_MAIN, all behind one TPS48110-Q1 overvoltage cut-off. The
+controller was chosen over the LTC4368 for AEC-Q100: decisions log §7,
+asked and explained in plain terms. `sensor_rail.cir` was rewritten
+with pulse 2a through the real pin-21 filter. The trackers' input peaks
+at 22.3 V (limit 45 V), because the controller's own gate network makes
+the FET a source follower. The block also found that the clamp node
+reaches 76.6 V with an unsaturated filter inductor, against 73.3 V in
+`transient_clamp.cir`; that is now a check. The result is 353
+components, 335 with footprints, and 225 passives packaged. Open: the
+47 µF hold-up part, and two land patterns.
+
 ---
 
 ## 8. Work at the machine

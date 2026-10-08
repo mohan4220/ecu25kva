@@ -196,7 +196,20 @@ transient step — not a round convention. Checked by `mcu_pdn.cir`.
 
 ### `SENSOR-PTC` — 5 V sensor rail, one per sensor group
 
-> **Superseded (decisions log §4, §7).** The PTCs are being replaced by
+> **Superseded and built, 8 October 2026 (decisions log §4, §7).**
+> `sensor_rail.cir` checks it: VSNS peaks at 22.3 V on pulse 2a against
+> the trackers' 45 V. The OV window is 40.52–42.08 V with 0.1 %
+> resistors; 1 % would put the bottom at 39.8 V, inside the 40 V dump.
+> Inrush is 0.16 A into 47 µF. Cranking headroom is 0.46 V. The
+> controller's VS and CS pins see 4.9 V/µs through 100 Ω + 22 nF,
+> against their 60 V/µs limit. Still open: the 47 µF / 63 V hold-up
+> part (C211, chosen separately), and land patterns for the
+> TPS48110-Q1 (DGX-19) and the TPS7B4253-Q1 (TI's DDA0008J pad matches
+> no KiCad variant). The 10 µF 50 V output capacitors are 2220, the
+> only case KEMET makes at 50 V; they face the harness, so buy them
+> with flexible termination.
+>
+> The PTCs are replaced by
 > one **TPS7B4253-Q1** tracking regulator per group (TI SLVSCP3D, rev.
 > Nov 2025), following 5V_MAIN to ±4 mV and limiting at 301–520 mA.
 > The three sit behind one **TPS48110-Q1** overvoltage cut-off (TI
@@ -480,6 +493,8 @@ not constraints.
 | Pin 21 filter inductor L101 | **7447709220** | Würth WE-PD 1210, 22 µH ±20%, IR 5.3 A, Isat 6.5 A typ, RDC 28 mΩ max, SRF 10 MHz typ, 120 V, AEC-Q200 Grade 1, −40 to +125 °C. Datasheet rev 003.001 (2024-05-08). |
 | Pin 21 second stage L102 | **744314047** | Würth WE-HCI 7050, 0.47 µH ±20%, IR 18 A, Isat 9 A typ, RDC 1.35 mΩ, SRF 235 MHz typ, AEC-Q200 Grade 1, −40 to +150 °C. Datasheet rev 004.001 (2025-02-06). |
 | Pin 21 fuse F101 | **0437005.WRA** | Littelfuse 437A, 1206 fast-acting, 5 A, 63 V DC, 50 A interrupting, melting I²t 2.30 A²s, 15.9 mΩ, AEC-Q200. Datasheet revised 09/08/21. 79 % re-rating at 105 °C read off its curve. |
+| Sensor trackers, ×3 | **TPS7B4253QDDARQ1** | TI TPS7B4253-Q1, SLVSCP3D (rev. Nov 2025): tracks ADJ to ±4 mV, 300 mA, limit 301–520 mA, dropout 520 mV max at 200 mA, IN −40…45 V, OUT −1…45 V. AEC-Q100. DDA PowerPAD-8; land pattern to draw. |
+| Sensor-supply OV cut-off | **TPS48110AQDGXRQ1** | TI TPS4811-Q1, SLUSEE5E (rev. Apr 2026): 100 V abs max, OV 1.16–1.20 V rising, 2.6–4 µs to gate off, 4 A pull-down, 60 V/µs limit on drain-side pins. AEC-Q100 Grade 1. DGX VSSOP-19; land pattern to draw. Chosen over LTC4368 (not AEC-Q100): decisions log §7. |
 | Reverse-battery FETs, pins 04/06 | **SQM120P10-10m1L** ×2 | −100 V P-channel, ±20 V Vgs, 10.1 mΩ max at −10 V, 20.5 mΩ at 175 °C, 15.0 mΩ at −4.5 V, RthJA 40 °C/W. AEC-Q101, TO-263. Vishay doc 76943 Rev. A, retrieved 8 Oct 2026. `POWER-PATH`. |
 | 100 V N-channel | **IPD90N10S4-06** ×8 | Negative clamp, metering, four EGR, two injector battery switches (60 V class needed; one part number instead of two). 6.7 mΩ max at 10 V, ±20 V Vgs, AEC-Q101, TO-252. The logic-level sibling `-S4L-06` was rejected for its ±16 V Vgs: every one of these gates is driven from 12V_GATE. |
 | Injector 150 V FETs | **SQM85N15-19** ×5 | Two boost-side high sides, three low sides. 19 mΩ max at 10 V — the model's 20 mΩ. ±20 V Vgs, AEC-Q101, TO-263. Qg 120 nC max sets the bootstrap droop: 126 mV. |

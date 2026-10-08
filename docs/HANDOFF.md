@@ -36,7 +36,7 @@ the short one.
 git clone https://github.com/mohan4220/ecu25kva.git
 cd ecu25kva
 python3 -m venv .venv                 # .venv is git-ignored
-.venv/bin/pip install numpy markdown matplotlib pypdf
+.venv/bin/pip install numpy markdown matplotlib pypdf schemdraw
 ```
 
 System packages (not pip):
@@ -99,7 +99,7 @@ Verify the whole project in one go:
 set -o pipefail
 .venv/bin/python sim/run_sim.py | tail -3        # expect 25/25 blocks pass
 .venv/bin/python hw/check_netlist.py | tail -6   # expect "schematic connectivity OK", 2 open items
-.venv/bin/python hw/assign_passives.py           # expect 208 packaged, 0 unresolved
+.venv/bin/python hw/assign_passives.py           # expect 225 packaged, 0 unresolved
 .venv/bin/python docs/build_pdf.py | tail -1     # rebuilds docs/pdf/ECU-Bible.pdf
 ```
 
@@ -122,8 +122,8 @@ started, and no firmware exists.
 |---|---|
 | Simulation blocks | **25 of 25 pass** |
 | Netlist connectivity | **passes**, with 2 named open items |
-| Footprints | **317 of 333** components |
-| Chip R and C packaged | **208 of 208** |
+| Footprints | **335 of 353** components |
+| Chip R and C packaged | **225 of 225** |
 
 **Verified part numbers** are in `docs/bom_requirements.md` under
 "Chosen parts" — every one against a datasheet that was actually
@@ -142,7 +142,7 @@ for each.
 
 ## 4. What is open, in the order I would do it
 
-### 4.1 Three approved redesigns: one built, two to go
+### 4.1 Three approved redesigns: two built, one to go
 
 1. **POWER-PATH — built 8 October 2026.** Pin 04 now feeds `VBAT_INJ`
    and pin 06 feeds `VBAT_EGR`, each through a TVS, an
@@ -158,7 +158,11 @@ for each.
    reverse FET was sized for 5 A and whose filter never stated a DC
    current. Blocks: L101, L102, F101. See `docs/bom_requirements.md`
    § POWER-PATH.
-2. **SENSOR-PTC → trackers** — one TPS7B4253-Q1 per sensor group, ADJ
+2. **SENSOR-PTC — built 8 October 2026.** The cut-off is a TPS48110-Q1
+   (chosen over the LTC4368 for AEC-Q100, decisions log §7).
+   `sensor_rail.cir` is rewritten and the trackers' input peaks at
+   22.3 V. Open: the 47 µF hold-up part (C211) and two land patterns.
+   The original item read: one TPS7B4253-Q1 per sensor group, ADJ
    tracking 5V_MAIN, behind a 100 V-class overvoltage cut-off (an
    LTC4368-class controller was the candidate; **its datasheet was not
    retrieved yet — do that first**) with a 47 µF hold-up capacitor. The
@@ -179,6 +183,8 @@ for each.
 - **C401** — 47 µF, 150 V class injector reservoir (electrolytic; needs
   a ripple-current and ESR-at-−40 °C check, since it delivers the
   injection pulse).
+- **C211** — 47 µF, 63 V sensor hold-up on VSNS (electrolytic or
+  polymer, AEC-Q200, 125 °C). `sensor_rail.cir` checks it down to 33 µF.
 - **C313** — 150 µF polymer bulk, specified as an **ESR band** of
   20–50 mΩ across −40/+125 °C, not a ceiling. See `PDN-BULK`.
 - **The trip-loop clamp** — the LOWV-CLAMP residual. It is the one input
@@ -203,14 +209,14 @@ for each.
   (five failed retrievals) — both need a distributor or FAE, not
   another search.
 
-### 4.4 The 16 components still without a footprint
+### 4.4 The 18 components still without a footprint
 
 | Parts | Why |
 |---|---|
 | D408–D414 (VS-16EDH02HM3 ×7), L201, J1001 | chosen, but no KiCad 7 land pattern — must be drawn |
 | L401 | blocked on BOOST-SLOPE |
-| F201–F203 | blocked on the sensor-supply redesign |
-| C313, C401 | not yet chosen |
+| U203 (TPS48110-Q1, DGX-19), U204–U206 (TPS7B4253-Q1, DDA-8) | chosen, but no matching KiCad land pattern — must be drawn |
+| C211, C313, C401 | not yet chosen |
 | D806 | the trip-loop clamp, the LOWV-CLAMP residual |
 
 `hw/gen_footprints.py` is where a drawn land pattern goes. It derives

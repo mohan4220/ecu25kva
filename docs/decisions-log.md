@@ -182,8 +182,8 @@ instead disconnects for the 50 µs pulse, while a 47 µF capacitor holds
 the sensors up (0.16 V of droop), and stays connected through the 40 V
 dump.
 
-**Status: in progress.** The cut-off controller was chosen on 8
-October: the **TPS48110-Q1**, see §7.
+**Status: built 8 October 2026.** The cut-off controller is the
+**TPS48110-Q1** (see §7). `sensor_rail.cir` was rewritten around it.
 
 ## 5. How the POWER-PATH feeds are built (8 October)
 
@@ -387,6 +387,20 @@ convenience.
   `sensor_rail` rewrite pins it.
 - **The switch transistor** is the board's existing 100 V N-FET,
   IPD90N10S4-06, so there is one part number fewer to buy.
+
+**What the simulation then showed.** Pulse 2a was applied through the
+real pin-21 filter. The trackers' input peaks at about **22 V**, nowhere
+near 45 V, at every corner. TI's own inrush network does most of that:
+the 22 nF from gate to ground holds the FET's gate, so the FET can only
+follow the surge up to its gate voltage. The OV comparator then opens
+it fully once the rail passes 40.5–42.1 V, and that timing turned out
+not to be critical. The 60 V/µs slew limit is met by feeding the
+controller's supply pins through 100 Ω and 22 nF, which gives 4.9 V/µs.
+The 47 µF hold-up is enough even aged to 33 µF with all three trackers
+at their limit. One thing it showed about the rest of the board: with
+the filter inductor not saturated, the clamp node reaches **76.6 V**,
+not the 73.3 V `transient_clamp.cir` reports. Every part there is
+100 V class, and the figure is now a check.
 
 ### A limit this design does not remove
 

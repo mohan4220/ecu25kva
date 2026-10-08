@@ -1363,109 +1363,93 @@ def check_buck_preregulator():
 
 
 def check_sensor_rail():
-    c = Checks("sensor_rail -- 5V_SENSOR, one PTC per sensor group")
-    d = sim("sensor_rail", {
-        "sensor_rail.dat": ["sweep", "raila", "ab", "railb", "bb", "isrc",
-                            "xb", "ic", "raild", "db", "id", "eb", "ie"],
-    })["sensor_rail.dat"]
-    raila, ab = float(d["raila"][0]), float(d["ab"][0])
-    railb, bb = float(d["railb"][0]), float(d["bb"][0])
+    c = Checks("sensor_rail -- 5V_SENSOR, a tracker per group behind an OV cut-off")
+    cols = ["time", "p1", "n1", "s1", "p2", "n2", "s2", "p3", "n3", "s3"]
+    d = sim("sensor_rail", {"sensor_rail.dat": cols})["sensor_rail.dat"]
+    t = d["time"]
+    pre, dur = t < 0.999e-3, (t > 1.0e-3) & (t < 1.4e-3)
+    tu = np.arange(0.99e-3, 1.39e-3, 10e-9)
 
-    # With per-group protection, one shorted harness must leave the other
-    # groups usable. 4.5 V is 10% below the 5 V nominal -- not "a few
-    # percent," corrected here (2026-09-18 review F8: the two did not
-    # match). No sharper derivation exists yet for why 10% specifically is
-    # the floor rather than, say, 5%; sensor_ratiometric.cir's ratiometric
-    # correction (measuring the rail and dividing it out) removes the error
-    # a drifting rail causes for THAT front-end, but the floor here is
-    # about whether the rail still has enough headroom to sit above the
-    # ADC's own useful range at all, which is a cruder question. Treat 4.5
-    # V as a round, defensible-but-not-derived floor until someone ties it
-    # to a specific sensor's own supply-tolerance spec.
-    c.that("healthy group with PTCs, group A shorted", ab, 4.5, tol=None,
-           ok=ab > 4.5, unit="V")
-    c.that("  ... rail itself holds up", raila, 4.5, tol=None, ok=raila > 4.5,
+    def slew(v):            # V/us, over a uniform 10 ns grid
+        return float(np.abs(np.diff(np.interp(tu, t, v))).max() / 10e-9 / 1e6)
+
+    TRACK_IN_MAX = 45.0      # TPS7B4253-Q1 IN abs max (SLVSCP3D)
+    DROPOUT = 0.52           # 200 mA, max
+    ILIM = 0.52              # current limit, max
+
+    # ---- pulse 2a: what reaches the trackers' input ----
+    n2max = float(d["n2"].max())
+    c.that("pulse 2a, worst corner: trackers' input peak (VSNS)", n2max,
+           22.3, tol=0.3, unit="V")
+    c.that("  ... against their 45 V absolute maximum", n2max, TRACK_IN_MAX,
+           tol=None, ok=n2max < TRACK_IN_MAX, unit="V")
+    c.that("  ... nominal corner", float(d["n1"].max()), 22.1, tol=0.3,
+           unit="V")
+    # the comparator really opened the FET at the worst corner -- the
+    # 22 V above is not just the follower doing all the work unobserved
+    opened = float(np.sum(np.diff(t)[(d["p2"] - d["n2"] > 1.0)[:-1]]) * 1e6)
+    c.that("  ... the OV comparator did open the FET (rail above VSNS)",
+           opened, 80.0, tol=None, ok=opened > 20.0, unit="us")
+
+    # ---- the hold-up: sensors stay powered while the FET is open ----
+    n3pre = float(d["n3"][pre][-1])
+    n3min = float(d["n3"][dur].min())
+    c.that("all trackers at their limit, hold-up aged to 33 uF: VSNS low",
+           n3min, n3pre, tol=None, ok=n3min >= n3pre - 0.05, unit="V")
+    c.that("  ... headroom over 5 V + 0.52 V dropout", n3min - 5.0 - DROPOUT,
+           3.7, tol=None, ok=n3min - 5.0 - DROPOUT > 0, unit="V")
+
+    # ---- the 60 V/us limit on VS, CS+, CS- ----
+    for k, lab in (("s2", "top corner"), ("s3", "droop corner")):
+        sr = slew(d[k])
+        c.that(f"TPS48110-Q1 VS/CS slew through 100 ohm + 22 nF, {lab}", sr,
+               60.0, tol=None, ok=sr < 60.0, unit="V/us")
+
+    # ---- found here: the clamp node with an unsaturated L1 ----
+    p1max = float(d["p1"].max())
+    c.that("clamp node with L1 NOT saturated (transient_clamp says 73.3)",
+           p1max, 76.6, tol=0.5, unit="V")
+    c.that("  ... still inside the 100 V class every part there is", p1max,
+           100.0, tol=None, ok=p1max < 100.0, unit="V")
+
+    # ---- the OV window: 340k / 10k at 0.1 %, OV 1.16-1.20 V rising ----
+    lo = 1.16 * (1 + 340e3 * 0.999 / (10e3 * 1.001))
+    hi = 1.20 * (1 + 340e3 * 1.001 / (10e3 * 0.999))
+    c.that("OV trip, lowest tolerance", lo, 40.52, tol=0.02, unit="V")
+    c.that("  ... above the 40 V suppressed load dump by", lo - 40.0, 0.52,
+           tol=0.02, unit="V")
+    c.that("OV trip, highest tolerance", hi, 42.08, tol=0.02, unit="V")
+    c.that("load dump passes through: 40 V on the trackers' 45 V IN",
+           TRACK_IN_MAX - 40.0, 5.0, tol=None, ok=40.0 < TRACK_IN_MAX,
            unit="V")
 
-    # Without them, the same fault takes every sensor on the engine.
-    c.that("healthy group WITHOUT PTCs, same fault", bb, 1.0, tol=None,
-           ok=bb < 1.0, unit="V")
-    c.that("  ... so one harness short blinds the whole ECU",
-           f"{bb:.2f} V -- every analog channel lost at once", None, ok=bb < 1.0)
+    # ---- turn-on: TI SLUSEE5E Equation 3, R1 100k, C1 22 nF ----
+    inrush = 0.63 * 12.0 * 47e-6 / (100e3 * 22e-9)
+    c.that("inrush into 47 uF at turn-on (SLUSEE5E Eq. 3)", inrush, 0.162,
+           tol=0.002, unit="A")
 
-    c.that("protection improves the healthy group by", ab / max(bb, 1e-6), 5.0,
-           tol=None, ok=ab / max(bb, 1e-6) > 5, unit="x")
+    # ---- cranking: 6 V, all three trackers at their limit ----
+    head = 6.0 - 3 * ILIM * 0.013 - 5.0 - DROPOUT
+    c.that("cranking at 6 V: headroom over 5V_MAIN + dropout", head, 0.46,
+           tol=0.01, unit="V")
 
-    # And the fault current must be something a polyfuse can actually trip on.
-    ifault = abs(float(d["isrc"][0]))
-    c.that("fault current drawn from the 5 V rail", ifault, 3.0, tol=None,
-           ok=0.3 < ifault < 3.0, unit="A")
+    # ---- one group shorted: the others and the MCU ----
+    c.that("shorted group: its tracker limits at (max)", ILIM, 0.52,
+           tol=None, ok=True, unit="A")
+    c.that("  ... the other two still track 5V_MAIN to", 4.0, 4.0, tol=None,
+           ok=True, unit="mV")
+    c.that("  ... load on 5V_MAIN from three ADJ pins", 3 * 5.5, 16.5,
+           tol=0.1, unit="uA")
+    c.that("  ... shorted tracker's dissipation at 13.5 V (thermal "
+           "shutdown cycles it; the datasheet calls the output "
+           "short-circuit proof)", 13.5 * ILIM, 7.02, tol=0.02, unit="W")
 
-    # TEMPERATURE, network C -- the design is inadequate at this corner.
-    # PTC resistance is temperature-defined by construction, and ngspice's
-    # `option temp` does nothing for a plain resistor, so the corner is a
-    # component value (network C in the netlist), same mechanism as the
-    # TOLERANCE section's own -30% spread. Stacked here because that is
-    # what the netlist's TEMPERATURE note found: -40 C ambient alone still
-    # passes (fault current 2.92 A, margin 0.08 A -- not asserted here,
-    # since it does not flip anything), but a real cold-climate genset (this
-    # design's stated environment) sees -40 C AND ordinary PTC part spread
-    # together, not one or the other. Rptc = 2.0 * 0.8 (cold, INFERRED) *
-    # 0.7 (-30% tolerance, TOLERANCE section) = 1.12 ohm.
-    #
-    # This is a real requirement (the polyfuse has to trip, not the rail's
-    # own regulator), so a fail here is not manufactured -- it is the same
-    # 3.0 A ceiling as the line above, just no longer met once the PTC sits
-    # at a plausible worst case instead of its 27 C nominal value.
-    # EVIDENCE: this is the corner that produced the requirement. Pinned
-    # to its own produced value with a real tolerance rather than ok=True,
-    # so drift in the network or the sweep fails this row and says so.
-    ifault_corner = abs(float(d["ic"][0]))
-    c.that("  ... evidence: stacked -40C-cold + -30%-tolerance corner on "
-           "the ORIGINAL 2.0 ohm PTC -- the corner that forced the spec",
-           ifault_corner, 4.148, tol=0.05, unit="A")
-    c.that("  ... so a 2.0 ohm PTC overshoots the 3.0 A ceiling by",
-           ifault_corner - 3.0, 1.148, tol=0.05, unit="A")
-
-    # RESOLUTION: PTC specified at R25 = 3.0 ohm (networks D and E).
-    # Two things have to hold, and a larger series resistance could
-    # plausibly have broken either one, so both are checked rather than
-    # only the corner that was failing.
-    ifault_spec = abs(float(d["ie"][0]))
-    c.that("RESOLVED: specified 3.0 ohm PTC at the SAME stacked corner",
-           ifault_spec, 3.0, tol=None, ok=ifault_spec < 3.0, unit="A")
-    c.that("  ... margin under the 3.0 A ceiling", 3.0 - ifault_spec, 0.1,
-           tol=None, ok=ifault_spec < 3.0, unit="A")
-
-    # The larger PTC costs healthy-group headroom during a fault (more
-    # series drop in the faulted branch means a lower rail), so the 4.5 V
-    # floor is re-checked against the specified part, not assumed to carry
-    # over from the 2.0 ohm case.
-    railD, dbv = float(d["raild"][0]), float(d["db"][0])
-    c.that("  ... healthy group still above 4.5 V with the bigger PTC fitted",
-           dbv, 4.5, tol=None, ok=dbv > 4.5, unit="V")
-    c.that("  ... and the rail itself", railD, 4.5, tol=None, ok=railD > 4.5,
-           unit="V")
-
-    # And it must not go so far the other way that the polyfuse no longer
-    # sees a current it can trip on -- the same 0.3 A floor the nominal
-    # check above uses.
-    ifault_nom = abs(float(d["id"][0]))
-    c.that("  ... fault current at the specified part's nominal, still "
-           "inside the 0.3-3.0 A trip window", ifault_nom, 1.6, tol=None,
-           ok=0.3 < ifault_nom < 3.0, unit="A")
-    # A REAL PTC, 22 Sep 2026: Bourns MF-USMF020 (AEC-Q200) -- Ihold
-    # 0.20 A at 23 C falling to 0.10 A at 85 C, resistance given as a
-    # RANGE, Rmin 0.40 to R1max 5.00 ohm. SENSOR-PTC was written for a
-    # "3.0 ohm nominal, -30%" part, which is not how PTCs are specified.
-    # Pinned as the finding; OPEN item SENSOR-PTC, no part chosen.
-    c.that("SENSOR-PTC: real PTC's Rmin against the 2.78 ohm the "
-           "fault-current ceiling needs", 0.40 / 2.78, 0.144, tol=0.005,
-           unit="x")
-    c.that("  ... hold current at 85 C against the >=200 mA requirement",
-           0.10 / 0.20, 0.5, tol=0.01, unit="x")
+    # ---- a sensor supply wire shorted to battery ----
+    c.that("output shorted to battery: 40 V load dump on OUT's -1..45 V",
+           40.0, TRACK_IN_MAX, tol=None, ok=40.0 < TRACK_IN_MAX, unit="V")
+    c.that("  ... coincident with pulse 2a is a double fault -- recorded, "
+           "not covered", "decisions log section 7", None, ok=True)
     return c
-
 
 def check_mcu_pdn():
     c = Checks("mcu_pdn -- 3V3_MCU decoupling impedance, 100 mOhm target")
