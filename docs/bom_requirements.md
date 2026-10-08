@@ -478,6 +478,30 @@ have sized this part.
 
 ---
 
+### `FEED-EMI` — a filter on each high-current feed
+
+Each of VBAT_INJ (pin 04) and VBAT_EGR (pin 06) gets the same filter
+(decisions log §10, `feed_emi.cir`):
+- the existing 2 × 2.2 µF ceramics on the FET side;
+- a **10 µH** inductor, Coilcraft XAL1510-103 (L103, L104);
+- on the load side, **two 82 µF / 80 V HXC** bulk cans;
+- **two dampers**, each an HXC in series with **0.68 Ω 1206**.
+
+| Check | Result |
+|---|---|
+| Class 5, worst band, 25 kHz chopping/PWM | INJ 17.7 dB under (12.2 aged), EGR 9.3 dB under |
+| As drawn before | INJ 33 dB over, EGR 48 dB over |
+| Filter output impedance peak, aged | 0.64 Ω, against −0.94 Ω of constant-power load at 9 V: 1.47× |
+| Pulse 2a across the inductor | 48.7 V, against its 55 V rating |
+| Pulse 2a at the loads | 28.7 V (VBAT_PROT: 73.3 V) |
+| EGR stall ripple per bulk can | 1.6 A, against 1.68 A at 25 kHz: 1.05× at the 125 °C rating |
+
+**Firmware requirement:** the injector hold chopping and the EGR PWM
+run at **≤ 25 kHz**. At 50 kHz the EGR feed is 1 dB over.
+
+**Not covered:** common mode, which needs a layout, as for
+`emi_filter`. The limits are research memo 06's secondary sources.
+
 ## Chosen parts
 
 These are the entries that have moved from "a class" to "a part number",
@@ -526,6 +550,8 @@ not constraints.
 | 12V_GATE pass / limit | **PZTA42-Q**, **PMBT3904-Q** | See `GATE-RAIL`. PMBT3904-Q is SOT-23 B-E-C, so it uses the `Q_NPN_BEC` symbol. |
 | 3V3_MCU bulk (C313) | **T599D157M006ATE025** + 22 mΩ 1 % (R306) | KEMET polymer tantalum, 150 µF, 6.3 V (5.4 V at 125 °C), 25 mΩ max, −55/+150 °C, AEC-Q200, 7343-31. The resistor is `PDN-BULK`'s ESR floor; see decisions log §9. |
 | Sensor hold-up (C211) | **HHXC630ARA470MHA0G** | Chemi-Con HXC hybrid polymer, 47 µF 63 V, 8 × 10 mm SMD, 40 mΩ max, Z(−55)/Z(20) ≤ 2 at 100 kHz, 4000 h at 125 °C, AEC-Q200. 1.58× over the 40 V load dump; 26.3 µF tolerance-and-aged corner in `sensor_rail.cir`. |
+| Feed filter inductors (L103, L104) | **XAL1510-103MED** ×2 | Coilcraft XAL1510, 10 µH, 9.0 mΩ max, Isat 26.3 A, Irms 16 A (20 °C rise), SRF 10.1 MHz, 55 V across the winding, AEC-Q200 Grade 1, 165 °C part. Doc 947. Stock KiCad footprint. See `FEED-EMI`. |
+| Feed filter bulk and dampers (C111–C118) | **HHXC800ARA820MJC5G** ×8 | The boost reservoir's part, reused; with R110–R113, 0.68 Ω 1206. See `FEED-EMI`. |
 | Boost reservoir (C401, C420) | **HHXC800ARA820MJC5G** ×2, in series | Chemi-Con HXC hybrid polymer, 82 µF 80 V, 10 × 12.5 mm SMD, 28 mΩ max, cold ratio ≤ 2, 2.1 A rms at 125 °C, AEC-Q200. 41 µF / 160 V stack, balanced by the 2 × 11 kΩ bleed. Chosen over one 160 V wet can because no part above 100 V publishes a cold ESR (decisions log §9). |
 
 ### `PASSIVE-PACKAGES` — 188 resistors and capacitors, sized by what is across them
@@ -627,9 +653,9 @@ own loads, and that VBAT_PROT no longer reaches either power stage.
     Lf is 0.47 µH, not the 0.5 µH it was modelled at. The gates are
     still the unvalidated placeholders `emi_filter` already flags.
 - **Conducted emissions from the EGR PWM and the injector chopping**
-  no longer pass through the pin-21 filter. They were never modelled
-  through it either, but the new rails have only 4.4 µF of ceramic
-  each. A CISPR 25 check of these two rails is open.
+  no longer pass through the pin-21 filter. **Closed 8 October 2026,
+  see `FEED-EMI`:** as drawn the feeds were 33 and 48 dB over Class 5,
+  and each now has its own filter.
 - Anything placed on VBAT_INJ or VBAT_EGR has to tolerate about
   −0.5 V on pulse 1. The Schottky holds the rail there, and there is no
   active clamp on these rails. The present loads are switch and bridge

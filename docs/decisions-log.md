@@ -631,6 +631,106 @@ All of it is executable arithmetic in `run_sim.py` under
 
 ---
 
+## 10. A filter on each new supply feed (8 October)
+
+POWER-PATH (§2a, §5) moved the injector and EGR currents onto connector
+pins 04 and 06. That was right for current and heat, but it took the
+board's two noisiest loads away from pin 21's EMI filter. Each new feed
+had only its reverse FET and 4.4–8.8 µF of ceramic capacitors. The
+question was whether that is enough to meet the radio-interference
+limit this project designs to. The limit is CISPR 25 Class 5, the
+strictest automotive class (research memo 06), the same target pin 21's
+filter is held to.
+
+### What makes the noise
+
+Both loads switch large currents on and off many thousands of times a
+second, straight from the battery wire:
+
+- **Injector hold.** After the 100 V opening pulse, each injector is held
+  open at about 10 A by switching the battery on and off ("chopping").
+- **EGR valve motor.** Driven by PWM: full battery on and off, up to 6.4 A
+  at stall.
+- **Boost converter input.** A smaller, smoother 150 kHz ripple.
+
+Each on-off edge sends a spray of harmonics down the harness. A radio
+receiver near the wiring would hear it, and the standard limits how
+much is allowed.
+
+### What the model found
+
+New block `feed_emi.cir` reproduces CISPR 25's measurement: the
+standard 5 µH / 50 Ω test network (LISN), 200 mm of harness, then the
+board. `run_sim.py` adds up each load's harmonics against the Class 5
+limits, band by band, with the peak and average detectors.
+
+| | Worst point against Class 5 |
+|---|---|
+| VBAT_INJ as drawn | **33 dB over** |
+| VBAT_EGR as drawn | **48 dB over** |
+| VBAT_INJ with the filter | 17.7 dB under (12.2 dB under with aged capacitors) |
+| VBAT_EGR with the filter | 9.3 dB under |
+
+48 dB is about 250 times too much voltage. No layout trick closes a
+gap that size; it needs a filter.
+
+### The filter, per feed
+
+- **Coilcraft XAL1510-103**, 10 µH, rated 16 A for a 20 °C rise.
+  Between the reverse FET and the loads.
+- **Two 82 µF / 80 V hybrid capacitors** (the same Chemi-Con HXC part as
+  C401) on the load side. These supply the chopping current, so the
+  inductor only carries the average.
+- **Two dampers:** another HXC each, in series with a 0.68 Ω resistor.
+- The existing 2 × 2.2 µF ceramics now sit on the connector side, which
+  makes it a two-capacitor filter.
+
+Both feeds get the identical circuit: one parts list, one layout block.
+
+**Why the dampers.** An inductor and capacitor together form a resonant
+circuit, here near 3 kHz. Two of the loads on the injector feed, the
+boost converter and the hold-current loop, try to draw *constant power*.
+To the filter that looks like a negative resistance: about 0.94 Ω at a
+9 V cranking dip with a hot injector coil. If the filter's own impedance
+peak is higher than that, the supply can oscillate. Undamped it peaks at
+1.24 Ω. With the dampers it peaks at 0.64 Ω, even with end-of-life
+capacitors, a margin of 1.47×. The damping is a plain resistor, not a
+wet capacitor's internal resistance, because that rises about 8× at
+−40 °C (§9), exactly when cranking makes it matter.
+
+**Why this inductor.** The Würth 10 µH alternative saturates at 8.8 A
+typical and is rated only to 75 °C ambient. The Coilcraft part saturates
+at 26 A and is rated to 165 °C. Its one limit is 55 V across the
+winding. The model puts ISO pulse 2a through the filter: at most 48.7 V
+across it, 1.12× inside. In return the filter swallows most of pulse 2a,
+so the feed's loads see at most 28.7 V, where VBAT_PROT sees 73.3 V.
+
+### A requirement this puts on the firmware
+
+The hold chopping and the EGR PWM frequencies have not been chosen; they
+are firmware. Harmonic strength in the radio bands grows with switching
+frequency, so the filter was sized at **25 kHz**. At 50 kHz the EGR feed
+would be 1 dB over. **Both must stay at or below 25 kHz.** That is
+above hearing, which is the usual reason for choosing about 20 kHz
+anyway.
+
+### What it costs, and what would change it
+
+Two inductors (15 × 16 mm), eight hybrid capacitors (10 × 12.5 mm) and
+four resistors: 14 parts, roughly US$15–20 a board. No question was put
+to the owner. Without the filter the board fails Class 5 by 33–48 dB,
+and the only alternative is a looser emissions class. That is the
+owner's call. A stationary genset has no car radio, so a lower class may
+be defensible, but it is not this log's decision to make. If the owner
+relaxes the class, these filters can shrink.
+
+**Limits of the model.** Like `emi_filter.cir`, it covers differential
+mode only. Common-mode noise, both wires moving together against the
+chassis, needs a layout to model. The 100 ns switching edges and the
+in-phase sum of harmonics are deliberate worst cases.
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a

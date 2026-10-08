@@ -71,6 +71,9 @@ NET_V = {
     "/VBAT_PROT": BAT, "/power_input/VBAT_CLAMPED": BAT,
     "/power_input/VBAT_REV_GATE": BAT, "/V_BAT_1R": HARNESS,
     "/VBAT_INJ": BAT, "/VBAT_EGR": BAT,
+    "/power_input/VBAT_INJ_IN": BAT, "/power_input/VBAT_EGR_IN": BAT,
+    "/power_input/VBAT_INJ_D1": BAT, "/power_input/VBAT_INJ_D2": BAT,
+    "/power_input/VBAT_EGR_D1": BAT, "/power_input/VBAT_EGR_D2": BAT,
     "/power_input/VBAT_INJ_GATE": BAT, "/power_input/VBAT_EGR_GATE": BAT,
     "/V_BAT_2R": HARNESS, "/TRIP_LOOP": HARNESS,
     "/IN_AUDIO_ABORT_H": HARNESS, "/IN_OVERRIDE_SS_H": HARNESS,
@@ -185,6 +188,18 @@ PAIR_V = {
         (0.22, 0.65, "56 ohm limit sense: 3.9 mA, one Vbe at the limit"),
     ("/12V_GATE", "/injector/Q1E_12V"):
         (0.28, 0.65, "56 ohm limit sense: 5 mA, one Vbe at the limit"),
+    ("/VBAT_EGR", "/power_input/VBAT_EGR_D1"):
+        (0.2, 10.0, "feed_emi damper: ripple only; ~10 V for tens of us "
+                    "while pulse 2a charges the damper can"),
+    ("/VBAT_EGR", "/power_input/VBAT_EGR_D2"):
+        (0.2, 10.0, "feed_emi damper: ripple only; ~10 V for tens of us "
+                    "while pulse 2a charges the damper can"),
+    ("/VBAT_INJ", "/power_input/VBAT_INJ_D1"):
+        (0.2, 10.0, "feed_emi damper: ripple only; ~10 V for tens of us "
+                    "while pulse 2a charges the damper can"),
+    ("/VBAT_INJ", "/power_input/VBAT_INJ_D2"):
+        (0.2, 10.0, "feed_emi damper: ripple only; ~10 V for tens of us "
+                    "while pulse 2a charges the damper can"),
     ("/CAN1_H", "/can/CAN1_SPLIT"): (1.0, 40.0, "half the 2 V dominant"),
     ("/CAN1_L", "/can/CAN1_SPLIT"): (1.0, 40.0, "half the 2 V dominant"),
     ("/CAN2_H", "/can/CAN2_SPLIT"): (1.0, 40.0, "half the 2 V dominant"),

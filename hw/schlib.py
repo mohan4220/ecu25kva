@@ -258,6 +258,11 @@ CHOSEN = {
         "HHXC630ARA470MHA0G", "Capacitor_SMD:CP_Elec_8x10",
         "Chemi-Con HXC hybrid polymer, 47 uF, 63 V, 8 x 10 mm, 40 mOhm "
         "max, Z(-55)/Z(20) <= 2 at 100 kHz, 4000 h at 125 C, AEC-Q200"),
+    ("Device:L", "10uH 16A"): (
+        "XAL1510-103MED", "Inductor_SMD:L_Coilcraft_XAL1510-103",
+        "Coilcraft XAL1510-103, 10 uH, 9.0 mOhm max, Isat 26.3 A, Irms "
+        "16 A (20 C rise), SRF 10.1 MHz, 55 V operating, AEC-Q200 Grade 1, "
+        "165 C part. Doc 947. Feed filters, decisions log 10"),
     ("Device:C_Polarized", "82uF 80V"): (
         "HHXC800ARA820MJC5G", "Capacitor_SMD:CP_Elec_10x12.5",
         "Chemi-Con HXC hybrid polymer, 82 uF, 80 V, 10 x 12.5 mm, 28 mOhm "

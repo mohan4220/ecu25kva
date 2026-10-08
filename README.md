@@ -65,7 +65,7 @@ Page rules live in [`docs/print.css`](docs/print.css).
 ```
 
 Each check is a claim about the circuit, so a red line means the **design** is
-wrong, not the simulator. All 25 blocks currently pass (on ngspice 42 — see
+wrong, not the simulator. All 26 blocks currently pass (on ngspice 42 — see
 `docs/HANDOFF.md` §2).
 
 The netlists are plain SPICE — they also open directly in KiCad's built-in

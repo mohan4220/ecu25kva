@@ -544,6 +544,26 @@
   "value": "47k",
   "why": "73.3 V peak, 12.3 mW cont; 0805 = 150 V, 74 mW at 105 C"
  },
+ "R110": {
+  "footprint": "Resistor_SMD:R_1206_3216Metric",
+  "value": "0R68 1206",
+  "why": "size stated in value"
+ },
+ "R111": {
+  "footprint": "Resistor_SMD:R_1206_3216Metric",
+  "value": "0R68 1206",
+  "why": "size stated in value"
+ },
+ "R112": {
+  "footprint": "Resistor_SMD:R_1206_3216Metric",
+  "value": "0R68 1206",
+  "why": "size stated in value"
+ },
+ "R113": {
+  "footprint": "Resistor_SMD:R_1206_3216Metric",
+  "value": "0R68 1206",
+  "why": "size stated in value"
+ },
  "R201": {
   "footprint": "Resistor_SMD:R_0805_2012Metric",
   "value": "75k",

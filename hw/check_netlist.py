@@ -263,13 +263,19 @@ def main():
     pins_of = dict(named)
     for rail, load_sheet in (("/VBAT_INJ", "injector"),
                              ("/VBAT_EGR", "metering_egr")):
+        # Since 8 Oct 2026 the FET drives {rail}_IN, and a filter
+        # inductor joins it to the rail (feed_emi.cir).
         pins = pins_of.get(rail, [])
-        fet = [r for r, _ in pins if comps.get(r) == "SQM120P10-10m1L"
+        raw = pins_of.get("/power_input" + rail + "_IN", [])
+        fet = [r for r, _ in raw if comps.get(r) == "SQM120P10-10m1L"
                and sheet_of.get(r) == "power_input"]
+        coil = [r for r, _ in pins if comps.get(r) == "XAL1510-103MED"
+                and r in {q for q, _ in raw}]
         loads = [r for r, _ in pins if sheet_of.get(r) == load_sheet]
-        check(f"{rail} runs from its own reverse FET to the {load_sheet} "
-              f"sheet ({len(loads)} load pins)", len(fet) == 1 and loads,
-              f"FET {fet}, loads {loads}")
+        check(f"{rail} runs from its own reverse FET, through its filter "
+              f"inductor, to the {load_sheet} sheet ({len(loads)} load "
+              "pins)", len(fet) == 1 and len(coil) == 1 and loads,
+              f"FET {fet}, inductor {coil}, loads {loads}")
     prot = pins_of.get("/VBAT_PROT", [])
     egr_on_prot = [r for r, _ in prot if sheet_of.get(r) == "metering_egr"
                    and comps.get(r) == "IPD90N10S4-06"]

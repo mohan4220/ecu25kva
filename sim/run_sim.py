@@ -1558,6 +1558,123 @@ def check_mcu_pdn():
     return c
 
 
+# CISPR 25 Class 5, voltage method (research memo 06, secondary sources):
+# band, low, high, peak dBuV, average dBuV.
+CISPR25_C5 = [("LW", .15e6, .30e6, 70, 50), ("MW", .53e6, 1.8e6, 54, 34),
+              ("SW", 5.9e6, 6.2e6, 53, 33), ("CB", 26e6, 28e6, 44, 24),
+              ("VHF-L", 30e6, 54e6, 44, 24), ("VHF-H/FM", 68e6, 108e6, 38, 18)]
+
+
+def harmonics(i, f0, d, tr=0.0, tri=False, fmax=110e6):
+    """Harmonic amplitudes of a periodic load current. A trapezoid of
+    height i, duty d, edges tr; or (tri) a triangle of i peak-to-peak
+    whose rising part is fraction d of the period."""
+    n = np.arange(1, int(fmax / f0) + 1)
+    if tri:
+        c = i * np.abs(np.sin(np.pi * n * d)) / (np.pi ** 2 * n ** 2 * d * (1 - d))
+    else:
+        c = 2 * i * d * np.abs(np.sinc(n * d)) * np.abs(np.sinc(n * f0 * tr))
+    return n * f0, c
+
+
+def cispr_margin(freq, zt, sources):
+    """Worst dB OVER the Class 5 limit, (peak, average), across all
+    bands. sources: (f, amplitude, duty seen by the average detector).
+    Harmonics inside one receiver bandwidth (9 kHz to 30 MHz, 120 kHz
+    above) are added in phase -- the worst case."""
+    worst_pk = worst_av = -999.0
+    for _, lo, hi, pk, av in CISPR25_C5:
+        rbw = 9e3 if hi <= 30e6 else 120e3
+        for g in np.arange(lo, hi, rbw / 2):
+            for f, c, duty in sources:
+                m = np.abs(f - g) <= rbw / 2
+                if not m.any():
+                    continue
+                v = float((np.interp(f[m], freq, zt) * c[m]).sum()) / np.sqrt(2)
+                db = 20 * np.log10(v / 1e-6)
+                worst_pk = max(worst_pk, db - pk)
+                worst_av = max(worst_av, db + 20 * np.log10(duty) - av)
+    return worst_pk, worst_av
+
+
+def check_feed_emi():
+    c = Checks("feed_emi -- VBAT_INJ / VBAT_EGR conducted emissions, Class 5")
+    res = sim("feed_emi", {
+        "feed_emi.dat": ["frequency", "rxa", "rxb", "rxc", "rxd", "rxe",
+                         "nc", "nd", "nage"],
+        "feed_emi_2a.dat": ["time", "acr", "np"]})
+    d = res["feed_emi.dat"]
+    f = d["frequency"]
+
+    # The load currents. Hold: 10 A chopped at duty (I R + Vf)/(Vbat + Vf)
+    # = 0.41, on for 3 ms of every 26.67 ms (the average detector sees
+    # 11%). Boost input: 0.52 A p-p triangle at 160 kHz (150 kHz +7%),
+    # duty 0.87. EGR: 6.4 A stall, PWM at 50% duty, continuous. Edges
+    # 100 ns. The chopping and PWM frequencies are NOT chosen yet -- they
+    # are firmware -- so the filter is sized at 25 kHz and that becomes
+    # the requirement (decisions log section 10).
+    F_CHOP = 25e3
+
+    def inj(f0):
+        return [(*harmonics(10.0, f0, 0.41, 100e-9), 0.11),
+                (*harmonics(0.52, 160e3, 0.87, tri=True), 1.0)]
+
+    def egr(f0):
+        return [(*harmonics(6.4, f0, 0.5, 100e-9), 1.0)]
+
+    pk, av = cispr_margin(f, d["rxa"], inj(F_CHOP))
+    c.that("unfiltered VBAT_INJ: worst over the Class 5 average limit",
+           av, 33.1, tol=1.0, unit="dB")
+    pk, av = cispr_margin(f, d["rxb"], egr(F_CHOP))
+    c.that("unfiltered VBAT_EGR: worst over the Class 5 average limit",
+           av, 48.4, tol=1.0, unit="dB")
+    c.that("  ... so the feeds need a filter of their own",
+           "pin 21's filter no longer carries these currents", None,
+           ok=av > 0)
+
+    for label, col, src in (("VBAT_INJ", "rxc", inj), ("VBAT_EGR", "rxd", egr),
+                            ("VBAT_INJ, HXC at end of life", "rxe", inj)):
+        pk, av = cispr_margin(f, d[col], src(F_CHOP))
+        worst = max(pk, av)
+        c.that(f"filtered {label}: worst margin under Class 5 (25 kHz)",
+               -worst, 6.0, tol=None, ok=worst < -6.0, unit="dB")
+    pk, av = cispr_margin(f, d["rxd"], egr(50e3))
+    c.that("  ... the EGR feed at 50 kHz PWM, for comparison (negative = over)",
+           -max(pk, av), -1.1, tol=0.5, unit="dB")
+    c.that("  ... so chopping and PWM stay at or below 25 kHz",
+           "a firmware requirement this filter depends on", None, ok=True)
+
+    # Stability. A power-regulating load looks like -V^2/P. On VBAT_INJ:
+    # hold at 10 A in a hot coil (0.69 ohm, 69 W) plus the boost at its
+    # current limit while cranking (6 V x 2.9 A), at a 9 V battery.
+    lo = f < 1e5
+    zpk = max(float(d["nc"][lo].max()), float(d["nage"][lo].max()))
+    r_neg = 9.0 ** 2 / (10.0 ** 2 * 0.69 + 6.0 * 2.9)
+    c.that("injector filter output impedance, peak (fresh or aged)", zpk,
+           0.64, tol=0.03, unit="ohm")
+    c.that("  ... under the loads' negative resistance at 9 V by",
+           r_neg / zpk, 1.47, tol=None, ok=r_neg / zpk > 1.2, unit="x")
+
+    # Pulse 2a through the filter, HXC aged so the bulk rises furthest.
+    p = res["feed_emi_2a.dat"]
+    acr = float(np.abs(p["acr"]).max())
+    c.that("pulse 2a: most voltage across the XAL1510", acr, 55.0,
+           tol=None, ok=acr < 55.0, unit="V")
+    c.that("  ... against its 55 V operating voltage by", 55.0 / acr, 1.12,
+           tol=0.03, unit="x")
+    c.that("  ... and the bulk peaks at (VBAT_PROT reaches 73.3 V)",
+           float(p["np"].max()), 28.7, tol=1.0, unit="V")
+
+    # Ripple and DC. The EGR at stall puts 6.4 A x sqrt(D(1-D)) into the
+    # two bulk cans; HXC's 2.1 A at 100 kHz is 0.8x at 20-30 kHz.
+    i_cap = 6.4 * 0.5 / 2
+    c.that("EGR stall ripple per bulk HXC, against 1.68 A at 25 kHz",
+           1.68 / i_cap, 1.05, tol=0.01, unit="x")
+    c.that("XAL1510 at 6.4 A continuous: rise (16 A gives 20 C)",
+           20 * (6.4 / 16) ** 2, 3.2, tol=0.1, unit="C")
+    return c
+
+
 def check_emi_filter():
     c = Checks("emi_filter -- CISPR 25 conducted, differential mode")
     d = sim("emi_filter", {"emi_filter.dat": ["frequency", "out", "ref", "outt"]})["emi_filter.dat"]
@@ -2846,6 +2963,7 @@ CHECKS = {
     "emi_filter": check_emi_filter,
     "reverse_battery": check_reverse_battery,
     "power_path": check_power_path,
+    "feed_emi": check_feed_emi,
     "buck_preregulator": check_buck_preregulator,
     "sensor_rail": check_sensor_rail,
     "mcu_pdn": check_mcu_pdn,

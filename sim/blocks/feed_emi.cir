@@ -1,0 +1,127 @@
+* ============================================================
+* VBAT_INJ / VBAT_EGR input filters -- CISPR 25 conducted emissions
+* POWER-PATH's two feeds, pins 04 and 06
+* ============================================================
+* POWER-PATH moved the injector and EGR supply off pin 21, so the
+* noisiest currents on the board no longer pass through emi_filter.cir.
+* Each feed had only its reverse FET and 4.4-8.8 uF of ceramic. This
+* block measures what reaches the harness, and sizes the filter that
+* stops it.
+*
+* THE MEASUREMENT is CISPR 25's voltage method: a 5 uH / 50 ohm LISN
+* (supply side 1 uF, battery 10 mOhm; 0.1 uF + 50 ohm receiver port on
+* the DUT side), 200 mm of harness (0.2 uH), then the board. Each case
+* injects 1 A AC at the load node, so v(rx*) is the transfer impedance
+* from load current to receiver volts, and v(n*) is the filter's output
+* impedance as the load sees it. run_sim.py multiplies the first by each
+* source's harmonics and scores them against the Class 5 limits.
+*
+* THE BOARD, per feed: TVS (1 nF), P-FET (20.5 mOhm hot), then
+*   unfiltered  the ceramics on the load node -- as drawn before
+*   filtered    2 x 2.2 uF on the FET side, Coilcraft XAL1510-103
+*               (10 uH, 9 mOhm max, SRF 10.1 MHz -> 25 pF), then on the
+*               load side 2 x Chemi-Con HXC 82 uF 80 V (28 mOhm max,
+*               3 nH) and two dampers, each an HXC in series with
+*               0.68 ohm.
+*               The injector feed also has C402/C403, the boost input
+*               ceramics, on the load side.
+* "aged" is the filtered injector feed at HXC end of life: C -20% then
+* -30% (45.9 uF), ESR x2.
+*
+* WHY THE DAMPER. 10 uH against ~170 uF rings near 3 kHz with Q about
+* 5. Two loads on VBAT_INJ regulate power -- the boost converter and the
+* hold-current loop -- so they look like a NEGATIVE resistance V^2/P,
+* about 0.94 ohm at 9 V cranking with a hot coil. An undamped filter
+* peaks at 1.24 ohm: Middlebrook's condition fails. One damper (0.47
+* ohm) was enough fresh, 0.61 ohm, but not at HXC end of life, 0.95.
+* Swept 2-4 bulk cans, 1-2 dampers, 0.33-0.68 ohm: two dampers at
+* 0.68 ohm give 0.42 fresh and 0.64 aged, for the same four cans as
+* three bulk plus one damper (0.87 aged). The damping is a resistor
+* and not a wet capacitor's ESR because a
+* wet electrolytic's ESR rises 8x at -40 C (Chemi-Con MHB), which is
+* exactly when the damping is needed at cranking.
+* ============================================================
+.subckt LISN dut rx
+L1 dut s 5u
+C1 s 0 1u
+Rb s 0 10m
+C2 dut rx 0.1u
+Rrx rx 0 50
+.ends LISN
+.subckt FRONT rx f
+XL p rx LISN
+Lh p h 0.2u
+Rh h c 20m
+Ct c 0 1n
+Rq c f 20.5m
+.ends FRONT
+.subckt CER n
+C n a 2.2u
+R a b 5m
+L b 0 1n
+.ends CER
+.subckt HXC n params: c=82u esr=28m
+C n a {c}
+R a b {esr}
+L b 0 3n
+.ends HXC
+.subckt FILT f n params: c=82u esr=28m
+XC1 f CER
+XC2 f CER
+Lf f a 10u
+Rf a n 9m
+Cp f n 25p
+XB1 n HXC c={c} esr={esr}
+XB2 n HXC c={c} esr={esr}
+Rd1 n d1 0.68
+XD1 d1 HXC c={c} esr={esr}
+Rd2 n d2 0.68
+XD2 d2 HXC c={c} esr={esr}
+.ends FILT
+
+* ---- unfiltered, as drawn before this block ----
+XFa rxa na FRONT
+Rza na na2 1u
+XA1 na2 CER
+XA2 na2 CER
+XA3 na2 CER
+XA4 na2 CER
+Ia 0 na2 AC 1
+XFb rxb nb FRONT
+XB1 nb CER
+XB2 nb CER
+Ib 0 nb AC 1
+* ---- filtered: injector (with C402/C403), EGR, injector aged ----
+XFc rxc fc FRONT
+XFLc fc nc FILT
+XC402 nc CER
+XC403 nc CER
+Ic 0 nc AC 1
+XFd rxd fd FRONT
+XFLd fd nd FILT
+Id 0 nd AC 1
+XFe rxe fage FRONT
+XFLe fage nage FILT c=45.9u esr=56m
+XE402 nage CER
+XE403 nage CER
+Ie 0 nage AC 1
+
+* ---- ISO 7637-2 pulse 2a into a filtered feed, as transient_clamp.cir
+* applies it (112 V, 2 ohm, 50 us), bulk aged so it rises furthest ----
+.model TVSJ D(Is=1e-12 N=1.6 Rs=0.50 BV=47.0 IBV=1e-3)
+Vp src 0 PWL(0 13.5  0.999m 13.5  1.0m 125.5  1.05m 125.5  1.0505m 13.5  3m 13.5)
+Rsrc src pin 2
+DTa tm pin TVSJ
+DTb tm 0 TVSJ
+Rq2 pin fp 20.5m
+XFLp fp np FILT c=45.9u esr=56m
+Ip np 0 1
+Bacr acr 0 V = v(fp) - v(np)
+
+.control
+ac dec 100 100 200meg
+wrdata feed_emi.dat vm(rxa) vm(rxb) vm(rxc) vm(rxd) vm(rxe) vm(nc) vm(nd) vm(nage)
+tran 0.1u 2.5m 0.9m 0.1u
+wrdata feed_emi_2a.dat v(acr) v(np)
+.endc
+.end

@@ -97,9 +97,9 @@ Verify the whole project in one go:
 
 ```bash
 set -o pipefail
-.venv/bin/python sim/run_sim.py | tail -3        # expect 25/25 blocks pass
+.venv/bin/python sim/run_sim.py | tail -3        # expect 26/26 blocks pass
 .venv/bin/python hw/check_netlist.py | tail -6   # expect "schematic connectivity OK", 2 open items
-.venv/bin/python hw/assign_passives.py           # expect 232 packaged, 0 unresolved
+.venv/bin/python hw/assign_passives.py           # expect 236 packaged, 0 unresolved
 .venv/bin/python docs/build_pdf.py | tail -1     # rebuilds docs/pdf/ECU-Bible.pdf
 ```
 
@@ -120,10 +120,10 @@ started, and no firmware exists.
 
 | Gate | State |
 |---|---|
-| Simulation blocks | **25 of 25 pass** |
+| Simulation blocks | **26 of 26 pass** |
 | Netlist connectivity | **passes**, with 2 named open items |
-| Footprints | **363 of 365** components |
-| Chip R and C packaged | **232 of 232** |
+| Footprints | **377 of 379** components |
+| Chip R and C packaged | **236 of 236** |
 
 **Verified part numbers** are in `docs/bom_requirements.md` under
 "Chosen parts" — every one against a datasheet that was actually
@@ -149,8 +149,10 @@ for each.
    SQM120P10-10m1L reverse P-FET and a Schottky (`power_path.cir`, and
    the netlist gate checks the split). Pin 21's L101, L102 and F101
    are chosen for its new 2.95 A bound (`docs/bom_requirements.md`
-   § POWER-PATH, with the thin margins stated). Left over: the two new
-   rails' conducted emissions, and F101's pulse-cycling data. The original item read: move
+   § POWER-PATH, with the thin margins stated). Left over: F101's pulse-cycling data. The two new rails' conducted
+   emissions were closed 8 October with a filter on each feed (decisions
+   log §10). It puts a firmware limit on hold chopping and EGR PWM:
+   ≤ 25 kHz. The original item read: move
    the injector and EGR supply onto connector
    pins 04/06 (10 A fused each in the loom) with their own protection,
    leaving pin 21 feeding the electronics through the EMI filter and

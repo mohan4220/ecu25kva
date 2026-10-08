@@ -306,8 +306,62 @@ def power_feed(sh, ry, pin_net, rail_net, title, load_note):
         vshunt("Device:C", "C", cx, "2.2uF 100V",
                {"Note": "Rail bulk at the feed. 100 V class: the rail "
                         "reaches 73.3 V on pulse 2a."}, 0)
-    out.to(220.0)
-    sh.hlabel(rail_net, 220.0, ry, shape="output")
+    out.to(205.0)
+    sh.label(rail_net + "_IN", 205.0, ry)
+
+
+def feed_filter(sh, ry, rail_net):
+    """The feed's conducted-emissions filter: 10 uH, two bulk cans and two
+    R-C dampers (sim/blocks/feed_emi.cir; decisions log 10). Placed after
+    every other part on the sheet so their references keep their numbers.
+    """
+    x0 = 225.0
+    sh.label(rail_net + "_IN", x0, ry)
+    sh.place("Device:L", "L", x0 + 15.0, ry, "10uH 16A", rot=90,
+             fields={"Source": "feed_emi.cir Lf",
+                     "Note": "Unfiltered, this feed is 33-48 dB over CISPR "
+                             "25 Class 5. Rated 55 V across the winding; "
+                             "pulse 2a puts 48.7 V across it."})
+    la = pin_xy(*PINS["Device:L"]["1"], x0 + 15.0, ry, 90)
+    lb = pin_xy(*PINS["Device:L"]["2"], x0 + 15.0, ry, 90)
+    ll, lr = (la, lb) if la[0] < lb[0] else (lb, la)
+    sh.wire(x0, ry, ll[0], ll[1])
+    out = Rail(sh, ry)
+    out.to(lr[0])
+
+    def shunt(libid, prefix, x, y, value, fields, top_net=None):
+        sh.place(libid, prefix, x, y, value, fields=fields)
+        a = pin_xy(*PINS[libid]["1"], x, y, 0)
+        b = pin_xy(*PINS[libid]["2"], x, y, 0)
+        return (a, b) if a[1] < b[1] else (b, a)
+
+    hxc = {"Source": "feed_emi.cir HXC",
+           "Note": "Bulk: takes the chopping and PWM ripple so the inductor "
+                   "carries DC. 1.05x on ripple at EGR stall, 25 kHz."}
+    for x in (x0 + 35.0, x0 + 55.0):
+        out.to(x, tap=True)
+        t, bo = shunt("Device:C_Polarized", "C", x, ry + 20.0, "82uF 80V", hxc)
+        sh.wire(x, ry, t[0], t[1])
+        _gnd_below(sh, bo[0], bo[1])
+    for i, x in enumerate((x0 + 75.0, x0 + 95.0)):
+        out.to(x, tap=True)
+        mid = f"{rail_net}_D{i + 1}"
+        t, bo = shunt("Device:R", "R", x, ry + 10.0, "0R68 1206",
+                      {"Source": "feed_emi.cir Rd",
+                       "Note": "Damper. Holds the filter's output impedance "
+                               "to 0.64 ohm aged, under the hold loop's and "
+                               "boost's -0.94 ohm at 9 V. A resistor, not a "
+                               "wet capacitor's ESR, which rises 8x cold."})
+        sh.wire(x, ry, t[0], t[1])
+        sh.wire(bo[0], bo[1], bo[0], bo[1] + 3.0)
+        sh.label(mid, bo[0], bo[1] + 3.0)
+        ct, cb = shunt("Device:C_Polarized", "C", x, ry + 24.0, "82uF 80V",
+                       {"Source": "feed_emi.cir damper", "Note":
+                        "Damper capacitor, in series with the 0.68 ohm above"})
+        sh.wire(ct[0], ct[1], ct[0], bo[1] + 3.0)
+        _gnd_below(sh, cb[0], cb[1])
+    out.to(x0 + 115.0)
+    sh.hlabel(rail_net, x0 + 115.0, ry, shape="output")
 
 
 def build():
@@ -559,6 +613,9 @@ def build():
                "PIN 06 -> VBAT_EGR: the EGR H-bridge. 10 A loom fuse.",
                "EGR: 6.4 A stall, continuous -- Tj 139 C at a 105 C board, "
                "155 C while cranking.")
+    # ---- their conducted-emissions filters, after everything else ----
+    feed_filter(sh, 300.0, "VBAT_INJ")
+    feed_filter(sh, 360.0, "VBAT_EGR")
 
     # ---- the note that makes the decisions visible ----
     sh.text(

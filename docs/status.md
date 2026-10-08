@@ -47,6 +47,7 @@ every claim it makes about itself holds. These are design verification, not layo
 | Block | What it covers | Status |
 |---|---|---|
 | `emi_filter` | Two-stage LC, CISPR 25 conducted, differential mode | Passing |
+| `feed_emi` | VBAT_INJ / VBAT_EGR feed filters, CISPR 25 Class 5 against modelled load harmonics | Passing |
 | `reverse_battery` | Ideal-diode P-FET vs series Schottky | Passing |
 | `transient_clamp` | ISO 7637-2 pulse 2a, +112 V / 2 Ω / 50 µs | Passing |
 | `load_dump` | ISO 7637-2 pulse 5b, 40 V / 0.5 Ω / 400 ms | **FAILS — deliberately** |
@@ -830,6 +831,19 @@ All four parse and plot in kicad-cli. They are written in KiCad 7
 format, because the installed KiCad 10 library is newer than the project
 files. 363 of 365 components now have a footprint. The two left are
 J1001, which needs the Bosch drawing, and D806, the trip-loop clamp.
+
+**A filter on each new supply feed, 8 October 2026** (decisions log
+§10). New block `feed_emi.cir` measures conducted emissions the way
+CISPR 25 does, through a 5 µH / 50 Ω LISN. As drawn, the injector feed
+was 33 dB over Class 5 and the EGR feed 48 dB over, because POWER-PATH
+had taken both off pin 21's filter. Each feed now has a Coilcraft
+XAL1510 10 µH inductor, two 82 µF HXC bulk cans and two R-C dampers
+(0.68 Ω + HXC). Margins are 17.7 dB (injector) and 9.3 dB (EGR) under
+the limit. The dampers keep the filter stable against the constant-power
+loads, 1.47× with aged capacitors. The filter also cuts pulse 2a at the
+loads to 28.7 V. It sets a firmware requirement: hold chopping and EGR
+PWM at or below 25 kHz. The result is 379 components, 377 with
+footprints, 236 passives packaged, and 26 of 26 blocks passing.
 
 ---
 
