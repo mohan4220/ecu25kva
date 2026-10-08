@@ -678,8 +678,8 @@ kill-clamp at every gate of both, built discretely.**
 The decision was forced by one confirmed number. The two integrated injector-driver ICs
 that fit this design's channel count and current class both cap their boost rail **below
 the 100 V already chosen**: MC33816's `VBOOST` absolute maximum is **72 V** (NXP
-datasheet Rev 10.0), and L9781's tank voltage is reported at 80 V — snippet only, its
-datasheet having failed retrieval across two independent sourcing passes.
+datasheet Rev 10.0), and L9781's tank voltage is up to 80 V (ST data brief DB3720,
+supplied by the owner 8 Oct 2026, after the datasheet failed retrieval five times).
 
 Adopting either would force the boost rail down and re-derive three already-passing
 blocks. Memo 12 re-did that arithmetic: at 72 V the peak-phase ramp stretches from
@@ -704,10 +704,10 @@ differently.
 **What would change this:** a retrieved L9781 datasheet showing a tank voltage at or
 above 100 V, or a decision to accept a ≤72 V rail on other grounds.
 
-**Two sourcing items escalated and unresolved:** MC33816AE carries a distributor
-last-time-buy date of 06/08/2027, and the L9781 datasheet has now failed retrieval five
-times across two sessions. Both need a human with distributor or FAE access rather than
-another automated fetch.
+**One sourcing item escalated and unresolved:** MC33816AE carries a distributor
+last-time-buy date of 06/08/2027, which needs a human with distributor access. The
+L9781 item is closed: the owner supplied ST's data brief on 8 Oct 2026, confirming the
+80 V tank ceiling.
 
 ### CAN
 

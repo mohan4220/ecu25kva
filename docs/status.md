@@ -249,10 +249,10 @@ contact-type confirmation, which gates nothing
 
 | Decision | Blocks | Why it cannot wait |
 |---|---|---|
-| ~~Integrated driver IC vs discrete FETs~~ | — | **DECIDED 19 Sep 2026, memo 12.** Discrete FETs, keeping the 100 V rail. MC33816 caps at 72 V, L9781 at a reported 80 V, and both are pre-drivers that need external FETs anyway |
+| ~~Integrated driver IC vs discrete FETs~~ | — | **DECIDED 19 Sep 2026, memo 12.** Discrete FETs, keeping the 100 V rail. MC33816 caps at 72 V, L9781 at 80 V (ST data brief, 8 Oct), and both are pre-drivers that need external FETs anyway |
 | ~~Passive pulldown vs active clamp~~ | — | **DECIDED 19 Sep 2026, memo 12.** Active clamp, built discretely, at every gate. The integrated route relocates this problem rather than removing it |
 | **MC33816 last-time-buy 06/08/2027** | Fallback path only | Needs a distributor conversation, not another search |
-| **L9781 datasheet unretrievable** | Confirming the decision's runner-up | Five failed fetches across two sessions. Needs FAE or distributor access |
+| ~~L9781 datasheet unretrievable~~ | — | **CLOSED 8 Oct 2026.** The owner supplied ST's data brief DB3720: `VTank` up to 80 V, a pre-driver for 11 external FETs. The runner-up is confirmed out against the 100 V rail (memo 12 §2.4) |
 | **Ideal-diode controller for Q1** | `power_input` sheet, `reverse_battery`, `negative_pulses` | Its turn-off time is load-bearing and unsourced. `VBAT_REV_GATE` is undriven on the sheet until a part is chosen |
 | **Negative-clamp comparator for Q2** | `power_input` sheet, `negative_pulses` | Its propagation delay is the last unmodelled term in the negative-pulse chain. `NCLAMP_GATE` is undriven until a part is chosen |
 | **Air-intake shutoff** | Nothing electrical | Owners' decision. Nothing in this design can stop an oil-fuelled runaway |
@@ -900,8 +900,8 @@ drawn without a datasheet.
 ### Needs a person, not an agent
 
 - **MC33816AE last-time-buy 06/08/2027** — a distributor conversation, not another search.
-- **L9781 datasheet** — five failed retrievals across three sessions. Needs FAE or
-  distributor access.
+- ~~**L9781 datasheet**~~ — closed 8 Oct 2026. The owner supplied ST's data brief,
+  which confirms the 80 V tank ceiling.
 
 ### At the machine
 

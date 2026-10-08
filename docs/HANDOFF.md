@@ -209,9 +209,10 @@ C401 + C420 are two HXC 82 µF 80 V cans in series, balanced by the
   (spec §7 deviation 1 reversed), so this is the board's own header.
 - **U16, the alternator rectifier** — still decides which ISO 7637-2
   pulse applies, and would change the transient design if answered.
-- **MC33816AE last-time-buy 06/08/2027**, and the **L9781 datasheet**
-  (five failed retrievals) — both need a distributor or FAE, not
-  another search.
+- **MC33816AE last-time-buy 06/08/2027** — needs a distributor, not
+  another search. It only matters for the fallback path. (The L9781
+  item is closed: the owner supplied ST's data brief on 8 October,
+  confirming its 80 V tank ceiling.)
 
 ### 4.4 The 2 components still without a footprint
 

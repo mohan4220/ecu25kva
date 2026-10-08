@@ -25,9 +25,9 @@ The two purpose-built integrated injector-driver ICs close enough to fit this de
 channel count and current class — **NXP MC33816** and **ST L9781** — both cap their
 boost-rail voltage **below** the 100 V this project already chose and already built three
 passing simulation blocks around: MC33816's `VBOOST` absolute maximum is **72 V**
-(CONFIRMED, NXP datasheet Rev 10.0), L9781's `VTank` is reported at **up to 80 V**
-(SNIPPET only — its datasheet could not be retrieved in two independent sourcing passes,
-this one and memo 10's). Neither integrated part eliminates the external power MOSFETs,
+(CONFIRMED, NXP datasheet Rev 10.0), L9781's `VTank` is **up to 80 V**
+(CONFIRMED 8 Oct 2026 from ST's data brief DB3720, supplied by the owner after the
+datasheet failed retrieval five times — see §2.4). Neither integrated part eliminates the external power MOSFETs,
 the external boost inductor/diode, or the external current-sense shunt — both are
 **pre-drivers**, not integrated power stages, so choosing either does not remove the
 discrete-FET selection and thermal-design work this decision is nominally about; it only
@@ -197,8 +197,22 @@ found this is a variable-force-solenoid pre-driver (0–1.2 A, 50 V absolute max
 order of magnitude below this injector's current/voltage class. That finding stands and
 is not repeated here.
 
-### 2.4 ST L9781 (and L9782) — **SNIPPET only, not retrieved in full.** Consistent
-negative result across two independent sourcing passes.
+### 2.4 ST L9781 (and L9782) — **data brief retrieved 8 Oct 2026; full datasheet not.**
+
+> **Update, 8 October 2026.** The owner supplied the ST data brief DB3720 Rev 1 (Sept 2018), supplied by the owner on 8 Oct 2026. It confirms the
+> snippet-level claims below from the maker's own document:
+> - the DC/DC controller generates `VTank` **up to 80 V**, so 20 V short of this
+>   design's 100 V rail;
+> - it is a **pre-driver** for **11 external N-channel MOSFETs**, controlling up to
+>   **5 inductive loads** (two banks of two, plus one extra peak-and-hold channel);
+> - peak and hold are run by **internal configurable finite state machines** set
+>   over a 32-bit SPI;
+> - it is AEC-Q100, in an LQFP64 (10 × 10 mm) package.
+>
+> A data brief has no absolute-maximum or electrical tables, but the deciding number
+> no longer rests on a snippet. The 19 September decision (discrete FETs, keep the
+> 100 V rail) stands, and the open sourcing item is closed. The full datasheet would
+> matter only if the rail were ever lowered to 80 V or below.
 
 Two direct-fetch attempts this session — `st.com/resource/en/data_brief/l9781.pdf` and
 an `alldatasheet.com` mirror — both failed (60-second timeout on the ST data brief;
