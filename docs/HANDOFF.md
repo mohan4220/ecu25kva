@@ -209,8 +209,9 @@ C401 + C420 are two HXC 82 µF 80 V cans in series, balanced by the
 - **The Bosch 94-way land pattern** — needs a distributor drawing for
   1 928 405 192 / 194, code C. The board carries the OEM connector
   (spec §7 deviation 1 reversed), so this is the board's own header.
-- **U16, the alternator rectifier** — still decides which ISO 7637-2
-  pulse applies, and would change the transient design if answered.
+- ~~**U16, the alternator rectifier**~~ — closed 9 October by the owner.
+  The board is designed for the suppressed (clamped, about 40 V) load
+  dump, as most modern alternators are.
 - **MC33816AE last-time-buy 06/08/2027** — needs a distributor, not
   another search. It only matters for the fallback path. (The L9781
   item is closed: the owner supplied ST's data brief on 8 October,

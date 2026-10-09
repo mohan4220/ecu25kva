@@ -62,8 +62,8 @@ absorbs 46 J at 116 W under pulse 5b — roughly 100× both its single-pulse ene
 and its continuous dissipation rating. The failure is the deliverable: it says the part
 selection is wrong, not that the simulation is. The fix is a higher standoff voltage so
 the TVS stays off during a normal clamped load dump, rather than a larger part to absorb
-it. **Blocked on U16** — whether the alternator is suppressed at all decides which pulse
-applies.
+it. ~~Blocked on U16~~ — closed 9 Oct 2026: the owner chose to design for the
+suppressed (clamped) load dump, so pulse 5b applies.
 
 ### 1.2 Sensor front-ends — 7 blocks
 
@@ -864,7 +864,7 @@ whoever is at the machine.
 | Trace who switches the heater feed | **U14** | Whether a heater output is in scope — **can make the board bigger** |
 | Follow the throttle's 6-pin cable to where it ends | **U8** | Whether a throttle driver exists at all — **can make the board bigger** |
 | Injector part number from the body | **U5** | The boost rail's 100 V target and the 18 A threshold, both currently a family envelope |
-| Alternator rectifier part number, or a scope during a live disconnect under load | **U16** | The whole input-protection topology, and `load_dump`'s failure |
+| ~~Alternator rectifier part number~~ | ~~U16~~ | Closed 9 Oct 2026: designed for the suppressed load dump, no field check needed |
 | Resistance across the charge-air element, cold | **U2** | The `ntc_frontend` populate choice |
 | Crank VR output while cranking, cold *(supervised)* | — | Confirms the ±198 mV hysteresis window against the real sensor, not a 2 V estimate |
 | Contact pitch and row spacing, with calipers | — | Confirms which Bosch family drawing is the right one for the board-side footprint |
@@ -919,9 +919,9 @@ drawn without a datasheet.
 
 ### At the machine
 
-See §8. **U16 (the alternator rectifier) no longer gates the input-protection topology** —
-that closed when the TVS standoff and the active clamp were specified — but it still
-decides which ISO 7637-2 pulse applies, and it is the first thing to settle.
+See §8. **U16 (the alternator rectifier) is closed** (9 Oct 2026): the owner chose to
+design for the suppressed, clamped load dump rather than match this machine's
+alternator.
 
 ### The pattern worth carrying forward
 
