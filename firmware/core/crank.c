@@ -1,0 +1,94 @@
+#include <string.h>
+#include "crank.h"
+
+#define EDGES (CRANK_TEETH - 2)      /* 58 real teeth: edges 0..57 */
+
+void crank_reset(crank_t *c) { memset(c, 0, sizeof *c); }
+
+static void lose(crank_t *c, uint8_t why)
+{
+    if (c->synced)
+        c->fault = why;
+    c->synced = c->phased = 0;
+}
+
+void crank_edge(crank_t *c, uint32_t t_us)
+{
+    if (!c->have) {
+        c->have = 1;
+        c->last_us = t_us;
+        return;
+    }
+    uint32_t period = t_us - c->last_us;
+    int gap = c->prev_period && period > c->prev_period + c->prev_period / 2;
+
+    c->per[c->head] = period;
+    c->deg[c->head] = gap ? 18 : 6;
+    c->head = (c->head + 1) % CRANK_WIN;
+    if (c->nper < CRANK_WIN)
+        c->nper++;
+
+    if (gap) {
+        int in_place = c->gap_seen && c->count == EDGES - 1;
+        if (!in_place)
+            lose(c, CRANK_F_GAP);
+        else if (!c->synced)
+            c->synced = 1;
+        c->gap_seen = 1;
+        c->count = 0;
+        if (c->cam_pending) {
+            c->rev = 0;
+            c->cam_pending = 0;
+            c->phased = c->synced;
+        } else {
+            c->rev ^= 1;
+        }
+    } else if (++c->count >= EDGES) {         /* the gap should have come */
+        lose(c, CRANK_F_GAP);
+        c->gap_seen = 0;
+    }
+    c->last_us = t_us;
+    c->prev_period = period;
+}
+
+void crank_cam(crank_t *c, uint32_t t_us)
+{
+    (void)t_us;
+    c->cam_pending = 1;
+}
+
+void crank_poll(crank_t *c, uint32_t t_us)
+{
+    if (c->synced && t_us - c->last_us > CRANK_TIMEOUT_US)
+        lose(c, CRANK_F_TIMEOUT);
+}
+
+int crank_synced(const crank_t *c) { return c->synced; }
+int crank_phased(const crank_t *c) { return c->phased; }
+uint8_t crank_fault(const crank_t *c) { return c->fault; }
+uint32_t crank_last_us(const crank_t *c) { return c->last_us; }
+
+float crank_rpm(const crank_t *c)
+{
+    if (c->nper < CRANK_WIN)
+        return 0;
+    uint32_t us = 0, deg = 0;
+    for (int i = 0; i < CRANK_WIN; i++) {
+        us += c->per[i];
+        deg += c->deg[i];
+    }
+    return (float)deg / (float)us * 1e6f / 6.0f;
+}
+
+float crank_angle(const crank_t *c) { return c->rev * 360.0f + c->count * 6.0f; }
+
+float crank_next_angle(const crank_t *c)
+{
+    return crank_angle(c) + (c->count == EDGES - 1 ? 18.0f : 6.0f);
+}
+
+float crank_us_per_deg(const crank_t *c)
+{
+    float rpm = crank_rpm(c);
+    return rpm > 0 ? 1e6f / (rpm * 6.0f) : 0;
+}

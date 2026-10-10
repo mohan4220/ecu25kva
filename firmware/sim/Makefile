@@ -1,7 +1,7 @@
 # Builds the portable core for the PC: a shared library for the Python
 # simulator and the C unit tests.
 CORE   := ../core
-SRC    := $(CORE)/ecu.c
+SRC    := $(wildcard $(CORE)/*.c)
 HDR    := $(wildcard $(CORE)/*.h)
 CFLAGS := -std=c99 -Wall -Wextra -Werror -O2 -I$(CORE)
 EXT    := $(if $(filter Darwin,$(shell uname)),dylib,so)
