@@ -5,6 +5,9 @@
 #include "ecu.h"
 #include "crank.h"
 #include "sensors.h"
+#include "govern.h"
+#include "rail.h"
+#include "inject.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; \
@@ -160,6 +163,76 @@ static void test_sens_5v_short(void)
     }
 }
 
+static void test_gov(void)
+{
+    gov_t g; gov_reset(&g, 10);
+    for (int i = 0; i < 1000; i++) gov_step(&g, 1400, 0, 0.001f);
+    CHECK(g.fuel == FUEL_MAX_MG);
+    for (int i = 0; i < 1000; i++) gov_step(&g, 1600, 0, 0.001f);
+    CHECK(g.fuel == 0.0f);
+    CHECK(g.integ >= 0.0f);
+    CHECK(fabsf(gov_setpoint(34, 1) - 1440.0f) <= 0.1f);
+    CHECK(gov_setpoint(34, 0) == 1500.0f);
+}
+
+static void test_rail(void)
+{
+    rail_t r; rail_reset(&r);
+    float d0 = rail_step(&r, 1100, 0.001f), d = d0;
+    for (int i = 0; i < 1000; i++) {
+        d = rail_step(&r, 1100, 0.001f);
+        CHECK(d >= 0.0f && d <= 1.0f);
+    }
+    CHECK(d > d0);
+    for (int i = 0; i < 2000; i++) d = rail_step(&r, 500, 0.001f);
+    CHECK(d == 0.0f);
+}
+
+static void test_inject_dur(void)
+{
+    float want = 300.0f + 34.0f / (0.0009f * sqrtf(1000.0f));
+    CHECK(fabsf((float)inject_dur_us(34, 1000) - want) <= 2.0f);
+    CHECK(inject_dur_us(10, 0) == inject_dur_us(10, 100));
+    CHECK(inject_dur_us(0, 1000) == 0);
+}
+
+/* Spin to phase, then run 2 cycles calling inject_edge on every edge. */
+static void test_inject_once_per_cycle(void)
+{
+    crank_t c; crank_reset(&c);
+    ecu_inj inj[ECU_NCYL]; memset(inj, 0, sizeof inj);
+    uint32_t t = 0, t84 = 0; int tooth = 0, checked = 0;
+    spin(&c, 1500, 116, &t, &tooth);
+    while (tooth != 0) spin(&c, 1500, 1, &t, &tooth);
+    CHECK(crank_phased(&c));
+    for (int i = 0; i < 232; i++) {
+        inject_edge(&c, 20, 1000, inj);
+        if (tooth == 14 && !checked) {         /* edge at 84 deg, SOI 85 */
+            t84 = t;
+            CHECK(fabsf((float)(inj[0].start_us - t84) - 1e6f / 9000.0f) <= 5.0f);
+            checked = 1;
+        }
+        spin(&c, 1500, 1, &t, &tooth);
+    }
+    CHECK(checked);
+    for (int k = 0; k < ECU_NCYL; k++)
+        CHECK(inj[k].seq == 2);
+}
+
+static void test_inject_soi_in_gap(void)
+{
+    crank_t c; crank_reset(&c);
+    uint32_t t = 0; int tooth = 0, due = 0;
+    spin(&c, 1500, 116, &t, &tooth);
+    while (tooth != 0) spin(&c, 1500, 1, &t, &tooth);
+    for (int i = 0; i < 232; i++) {
+        due += inject_due(&c, 350.0f);
+        due += inject_due(&c, 2.0f) * 100;    /* across the 720 wrap */
+        spin(&c, 1500, 1, &t, &tooth);
+    }
+    CHECK(due == 2 + 200);
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -183,6 +256,11 @@ int main(void)
     test_sens_open();
     test_sens_low();
     test_sens_5v_short();
+    test_gov();
+    test_rail();
+    test_inject_dur();
+    test_inject_once_per_cycle();
+    test_inject_soi_in_gap();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }
