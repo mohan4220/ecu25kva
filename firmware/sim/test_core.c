@@ -8,6 +8,7 @@
 #include "govern.h"
 #include "rail.h"
 #include "inject.h"
+#include "safety.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; \
@@ -233,6 +234,29 @@ static void test_inject_soi_in_gap(void)
     CHECK(due == 2 + 200);
 }
 
+static void test_safety(void)
+{
+    CHECK(safety_check(1651, CRANK_F_NONE, 1, 1) == TRIP_OVERSPEED);
+    CHECK(safety_check(1649, CRANK_F_NONE, 1, 1) == TRIP_NONE);
+    CHECK(safety_check(1500, CRANK_F_GAP, 1, 0) == TRIP_NONE);
+    CHECK(safety_check(1500, CRANK_F_GAP, 1, 1) == TRIP_SYNC);
+    CHECK(safety_check(1500, CRANK_F_NONE, 0, 1) == TRIP_IGN);
+    CHECK(safety_check(1700, CRANK_F_NONE, 0, 1) == TRIP_OVERSPEED);
+}
+
+static void test_faults(void)
+{
+    faults_t t; memset(&t, 0, sizeof t);
+    faults_set(&t, 110, 3);
+    faults_set(&t, 110, 3);
+    CHECK(t.n == 1);
+    for (uint32_t i = 0; i < 9; i++) faults_set(&t, 200 + i, 4);
+    CHECK(t.n == 8);
+    faults_clear(&t, 110, 3);
+    CHECK(t.n == 7);
+    for (int i = 0; i < t.n; i++) CHECK(t.f[i].spn == 200u + i && t.f[i].fmi == 4);
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -261,6 +285,8 @@ int main(void)
     test_inject_dur();
     test_inject_once_per_cycle();
     test_inject_soi_in_gap();
+    test_safety();
+    test_faults();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }
