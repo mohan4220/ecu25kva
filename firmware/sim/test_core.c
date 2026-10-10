@@ -4,6 +4,7 @@
 #include <math.h>
 #include "ecu.h"
 #include "crank.h"
+#include "sensors.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; \
@@ -109,6 +110,56 @@ static void test_crank_wrap(void)
     CHECK(crank_fault(&c) == CRANK_F_NONE);
 }
 
+static void all_volts(float v[S_N], float x) { for (int i = 0; i < S_N; i++) v[i] = x; }
+
+static void test_sens_convert(void)
+{
+    CHECK(fabsf(sens_convert(S_CLT, 2.5f) - 20.1f) <= 0.5f);
+    CHECK(fabsf(sens_convert(S_OIL, 2.5f) - 500.0f) <= 0.5f);
+    CHECK(fabsf(sens_convert(S_RAIL, 4.5f) - 1800.0f) <= 0.5f);
+    CHECK(fabsf(sens_convert(S_BOOST, 0.5f) - 50.0f) <= 0.5f);
+    CHECK(fabsf(sens_convert(S_EGR, 2.5f) - 50.0f) <= 0.5f);
+}
+
+static void test_sens_ratiometric(void)
+{
+    sens_t a, b; float v[S_N];
+    sens_reset(&a); sens_reset(&b);
+    all_volts(v, 2.25f); sens_step_1ms(&a, v, 4.5f);
+    all_volts(v, 2.5f);  sens_step_1ms(&b, v, 5.0f);
+    CHECK(fabsf(a.val[S_RAIL] - b.val[S_RAIL]) < 0.01f);
+}
+
+static void test_sens_open(void)
+{
+    sens_t s; float v[S_N];
+    sens_reset(&s); all_volts(v, 2.5f); v[S_CLT] = 4.95f;
+    for (int i = 0; i < 99; i++) sens_step_1ms(&s, v, 5.0f);
+    CHECK(s.fmi[S_CLT] == 0);
+    sens_step_1ms(&s, v, 5.0f);
+    CHECK(s.fmi[S_CLT] == 3);
+    CHECK(s.val[S_CLT] == 90.0f);
+}
+
+static void test_sens_low(void)
+{
+    sens_t s; float v[S_N];
+    sens_reset(&s); all_volts(v, 2.5f); v[S_OIL] = 0.1f;
+    for (int i = 0; i < 100; i++) sens_step_1ms(&s, v, 5.0f);
+    CHECK(s.fmi[S_OIL] == 4);
+}
+
+static void test_sens_5v_short(void)
+{
+    sens_t s; float v[S_N];
+    sens_reset(&s); all_volts(v, 2.5f);
+    for (int i = 0; i < 200; i++) sens_step_1ms(&s, v, 0.0f);
+    for (int i = 0; i < S_N; i++) {
+        CHECK(isfinite(s.val[i]));
+        CHECK(s.fmi[i] == 0);
+    }
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -127,6 +178,11 @@ int main(void)
     test_crank_bad_gap();
     test_crank_timeout();
     test_crank_wrap();
+    test_sens_convert();
+    test_sens_ratiometric();
+    test_sens_open();
+    test_sens_low();
+    test_sens_5v_short();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }
