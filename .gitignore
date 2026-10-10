@@ -14,3 +14,4 @@ hw/*-backups/
 hw/*.kicad_prl
 hw/fp-info-cache
 hw/*.bak
+firmware/sim/build/
