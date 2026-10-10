@@ -320,6 +320,188 @@ static void test_dm1_spn_high(void)
     CHECK(f[0].data[2] == 0x00 && f[0].data[3] == 0xF0 && f[0].data[4] == (0xE0 | 5));
 }
 
+/* ---- whole-ECU tests through the four entry points ---- */
+
+static uint32_t tick_t;
+
+static void ecu_up(ecu_io *io)
+{
+    memset(io, 0, sizeof *io);
+    ecu_init(io);
+    io->ignition = 1;
+    io->v_clt = io->v_oil = io->v_rail = io->v_boost = io->v_egr = 2.5f;
+    io->v_5v = 5.0f;
+    tick_t = 0;
+}
+
+static void ticks(ecu_io *io, int n, int drain)
+{
+    for (int i = 0; i < n; i++) {
+        tick_t += 1000;
+        ecu_tick_1ms(io, tick_t);
+        if (drain) io->can_n = 0;
+    }
+}
+
+/* Edges at `rpm`, with 1 ms ticks interleaved when with_ticks. */
+static void ecu_spin(ecu_io *io, float rpm, int edges, uint32_t *t, int *tooth, int with_ticks)
+{
+    for (int i = 0; i < edges; i++) {
+        int cam = next_edge(rpm, t, tooth);
+        while (with_ticks && tick_t + 1000 <= *t) {
+            tick_t += 1000;
+            ecu_tick_1ms(io, tick_t);
+            io->can_n = 0;
+        }
+        if (cam) ecu_cam_edge(io, *t - 10);
+        ecu_crank_edge(io, *t);
+    }
+}
+
+static void ecu_running(ecu_io *io, uint32_t *t, int *tooth)
+{
+    ecu_up(io);
+    *t = 0; *tooth = 0;
+    ecu_spin(io, 300, 174, t, tooth, 1);
+    ecu_spin(io, 1500, 116, t, tooth, 1);
+}
+
+/* Tick until the next DM1 and report whether its first DTC is `spn`
+ * (0 = the empty "no fault" DTC). */
+static int dm1_first_spn(ecu_io *io, uint32_t spn)
+{
+    for (int i = 0; i < 1000; i++) {
+        tick_t += 1000;
+        ecu_tick_1ms(io, tick_t);
+        for (int k = 0; k < io->can_n; k++) {
+            ecu_can *f = &io->can[k];
+            if (f->id == 0x18FECAEAu) {
+                uint32_t got = f->data[2] | f->data[3] << 8 | (uint32_t)(f->data[4] & 0xE0) << 11;
+                io->can_n = 0;
+                return got == spn;
+            }
+        }
+        io->can_n = 0;
+    }
+    return 0;
+}
+
+static void test_ecu_start(void)
+{
+    ecu_io io; uint32_t t = 0; int tooth = 0;
+    ecu_up(&io);
+    ticks(&io, 1, 1);
+    CHECK(io.state == ECU_WAIT);
+    ecu_spin(&io, 300, 174, &t, &tooth, 1);
+    CHECK(io.state == ECU_CRANK);
+    CHECK(io.synced);
+    CHECK(io.inj[0].seq + io.inj[1].seq + io.inj[2].seq > 0);
+    ecu_spin(&io, 600, 116, &t, &tooth, 1);
+    CHECK(io.state == ECU_RUN);
+}
+
+static void test_ecu_overspeed_edge(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    CHECK(io.state == ECU_RUN);
+    float rpm = 1500; int tripped = 0;
+    while (rpm < 1700 && !tripped) {
+        ecu_spin(&io, rpm, 1, &t, &tooth, 0);
+        if (io.rpm > OVERSPEED_RPM) {
+            CHECK(io.state == ECU_SHUTDOWN);
+            tripped = 1;
+        } else {
+            CHECK(io.state == ECU_RUN);
+        }
+        rpm += 1;
+    }
+    CHECK(tripped);
+    uint32_t seq[ECU_NCYL];
+    for (int k = 0; k < ECU_NCYL; k++) { CHECK(io.inj[k].dur_us == 0); seq[k] = io.inj[k].seq; }
+    ecu_spin(&io, 1700, 116, &t, &tooth, 0);
+    for (int k = 0; k < ECU_NCYL; k++) CHECK(io.inj[k].seq == seq[k]);
+    tick_t = t;
+    CHECK(dm1_first_spn(&io, SPN_SPEED));
+}
+
+static void test_ecu_ignition(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    tick_t = t;
+    io.ignition = 0;
+    ticks(&io, 1, 1);
+    CHECK(io.state == ECU_SHUTDOWN);
+    CHECK(io.fault_n == 0);
+    CHECK(dm1_first_spn(&io, 0));
+    io.ignition = 1;
+    ticks(&io, 1, 1);
+    CHECK(io.state == ECU_WAIT);
+}
+
+static void test_ecu_crank_loss(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    tick_t = t;
+    ticks(&io, 49, 1);
+    CHECK(io.state == ECU_RUN);
+    ticks(&io, 2, 1);
+    CHECK(io.state == ECU_SHUTDOWN);
+    CHECK(dm1_first_spn(&io, SPN_POS));
+}
+
+static void test_ecu_wdg(void)
+{
+    ecu_io io; ecu_up(&io);
+    uint8_t last = io.wdg; int since = 0, bad = 0, changes = 0;
+    for (int i = 0; i < 100; i++) {
+        ticks(&io, 1, 1);
+        since++;
+        if (io.wdg != last) { bad += since != 5; since = 0; changes++; last = io.wdg; }
+    }
+    CHECK(changes == 20);
+    CHECK(bad == 0);
+}
+
+static void test_ecu_can_rates(void)
+{
+    ecu_io io; ecu_up(&io);
+    int eec1 = 0, et1 = 0, efl = 0, dm1 = 0;
+    for (int i = 0; i < 1000; i++) {
+        ticks(&io, 1, 0);
+        for (int k = 0; k < io.can_n; k++) {
+            uint32_t pgn = io.can[k].id >> 8 & 0xFFFF;
+            eec1 += pgn == 0xF004; et1 += pgn == 0xFEEE; efl += pgn == 0xFEEF; dm1 += pgn == 0xFECA;
+        }
+        io.can_n = 0;
+    }
+    CHECK(eec1 == 50 && et1 == 1 && efl == 2 && dm1 == 1);
+    CHECK(io.can_drops == 0);
+}
+
+static void test_ecu_can_overflow(void)
+{
+    ecu_io io; ecu_up(&io);
+    ticks(&io, 1000, 0);
+    CHECK(io.can_n == ECU_CANQ);
+    CHECK(io.can_drops > 0);
+}
+
+static void test_ecu_sensor_fault_clears(void)
+{
+    ecu_io io; ecu_up(&io);
+    io.v_oil = 0.1f;  ticks(&io, 101, 1);
+    CHECK(io.fault_n == 1);
+    io.v_oil = 2.5f;  ticks(&io, 101, 1);
+    CHECK(io.fault_n == 0);
+    io.v_clt = 4.95f; ticks(&io, 101, 1);
+    CHECK(io.fault_n == 1);
+    io.v_clt = 2.5f;  ticks(&io, 101, 1);
+    CHECK(io.fault_n == 0);
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -356,6 +538,14 @@ int main(void)
     test_dm1_single();
     test_dm1_bam();
     test_dm1_spn_high();
+    test_ecu_start();
+    test_ecu_overspeed_edge();
+    test_ecu_ignition();
+    test_ecu_crank_loss();
+    test_ecu_wdg();
+    test_ecu_can_rates();
+    test_ecu_can_overflow();
+    test_ecu_sensor_fault_clears();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }
