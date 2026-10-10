@@ -18,7 +18,7 @@ typedef struct {
     uint32_t per[CRANK_WIN];         /* last periods, us */
     uint8_t deg[CRANK_WIN];          /* their widths, deg (18 for the gap) */
     uint8_t nper, head;
-    uint8_t have, count, gap_seen, synced, phased, rev, cam_pending, fault;
+    uint8_t have, count, gap_seen, synced, phased, rev, cam_pending, fault, prev_gap;
 } crank_t;
 
 void  crank_reset(crank_t *c);

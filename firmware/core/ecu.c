@@ -39,7 +39,7 @@ static void reset_all(ecu_io *io)
 {
     crank_reset(&crank);
     sens_reset(&sens);
-    gov_reset(&gov, 0);
+    gov_reset(&gov, 0, 0);
     rail_reset(&rail);
     memset(&faults, 0, sizeof faults);
     ign_was_low = 0;
@@ -99,7 +99,7 @@ void ecu_crank_edge(ecu_io *io, uint32_t t_us)
 
     if (io->state == ECU_CRANK && crank_phased(&crank) && rpm >= RUN_RPM) {
         io->state = ECU_RUN;
-        gov_reset(&gov, FUEL_START_MG);
+        gov_reset(&gov, FUEL_START_MG, rpm);
     }
     if ((io->state == ECU_CRANK || io->state == ECU_RUN) && crank_phased(&crank)) {
         float fuel = io->state == ECU_RUN ? gov.fuel : FUEL_START_MG;

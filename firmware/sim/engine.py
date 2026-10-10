@@ -61,11 +61,13 @@ class Engine:
         return self.omega / RPM
 
     def command(self, cyl, start_us, dur_us, seq):
-        """Latch a new command; dur 0 on the same seq cancels one not yet started."""
-        if seq != self.seq[cyl]:
-            self.seq[cyl] = seq
-            self.cmd[cyl] = (start_us, dur_us) if dur_us else None
-        elif dur_us == 0 and self.cmd[cyl] and self._now < self.cmd[cyl][0]:
+        """Act on a new seq: latch a command, or (dur 0) cancel one not yet started."""
+        if seq == self.seq[cyl]:
+            return
+        self.seq[cyl] = seq
+        if dur_us:
+            self.cmd[cyl] = (start_us, dur_us)
+        elif self.cmd[cyl] and self._now < self.cmd[cyl][0]:
             self.cmd[cyl] = None
 
     _now = 0

@@ -20,6 +20,11 @@ void crank_edge(crank_t *c, uint32_t t_us)
         return;
     }
     uint32_t period = t_us - c->last_us;
+    /* A real tooth cannot arrive in under half the previous tooth's time
+     * (per 6 deg): that is noise, and counting it would read as overspeed. */
+    uint32_t tooth_prev = c->prev_gap ? c->prev_period / 3 : c->prev_period;
+    if (period < tooth_prev / 2)
+        return;     /* ponytail: glitches dropped silently; count them if a DTC is wanted */
     int gap = c->prev_period && period > c->prev_period + c->prev_period / 2;
 
     c->per[c->head] = period;
@@ -37,9 +42,12 @@ void crank_edge(crank_t *c, uint32_t t_us)
         c->gap_seen = 1;
         c->count = 0;
         if (c->cam_pending) {
+            /* the cam belongs in rev 1; seen in rev 0 while phased, either
+             * it or the phase is wrong: stop injecting until a cam agrees */
+            int agrees = !c->phased || c->rev == 1;
             c->rev = 0;
             c->cam_pending = 0;
-            c->phased = c->synced;
+            c->phased = (uint8_t)(c->synced && agrees);
         } else {
             c->rev ^= 1;
         }
@@ -49,6 +57,7 @@ void crank_edge(crank_t *c, uint32_t t_us)
     }
     c->last_us = t_us;
     c->prev_period = period;
+    c->prev_gap = (uint8_t)gap;
 }
 
 void crank_cam(crank_t *c, uint32_t t_us)
@@ -59,7 +68,8 @@ void crank_cam(crank_t *c, uint32_t t_us)
 
 void crank_poll(crank_t *c, uint32_t t_us)
 {
-    if (c->synced && t_us - c->last_us > CRANK_TIMEOUT_US)
+    /* signed: a poll timestamped just before the last edge is not a timeout */
+    if (c->synced && (int32_t)(t_us - c->last_us) > (int32_t)CRANK_TIMEOUT_US)
         lose(c, CRANK_F_TIMEOUT);
 }
 

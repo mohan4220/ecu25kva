@@ -3,6 +3,7 @@
 
 const uint32_t sens_spn[S_N] = { 110, 100, 157, 102, 27 };
 const float sens_default[S_N] = { 90.0f, 300.0f, 1000.0f, 100.0f, 0.0f };
+const float sens_v_lo[S_N] = { 0.1f, 0.2f, 0.2f, 0.2f, 0.2f };
 
 /* 0.5-4.5 V linear spans (assumed): oil, rail, boost, EGR */
 static const float span_lo[S_N] = { 0, 0, 0, 50.0f, 0 };
@@ -36,7 +37,7 @@ void sens_step_1ms(sens_t *s, const float v[S_N], float v_5v)
         v_5v = 5.0f;
     for (int i = 0; i < S_N; i++) {
         float vr = v[i] * 5.0f / v_5v;
-        uint8_t now = vr > SENS_V_HI ? 3 : vr < SENS_V_LO ? 4 : 0;
+        uint8_t now = !(vr <= SENS_V_HI) ? 3 : vr < sens_v_lo[i] ? 4 : 0;   /* NaN reads high */
         /* bad_ms counts time spent disagreeing with the latched state */
         if ((now != 0) != (s->fmi[i] != 0)) {
             if (++s->bad_ms[i] >= SENS_FAULT_MS) {
@@ -48,6 +49,11 @@ void sens_step_1ms(sens_t *s, const float v[S_N], float v_5v)
             if (now)
                 s->fmi[i] = now;
         }
-        s->val[i] = s->fmi[i] ? sens_default[i] : sens_convert(i, vr);
+        /* while a reading is out of range, hold the last good value: the
+         * debounce delays the fault code, never lets a bad value through */
+        if (s->fmi[i])
+            s->val[i] = sens_default[i];
+        else if (!now)
+            s->val[i] = sens_convert(i, vr);
     }
 }

@@ -11,10 +11,12 @@
 #define INJ_DEAD_US 300.0f           /* assumed */
 #define INJ_K 0.0009f                /* assumed: mg/us per sqrt(bar) */
 #define INJ_RAIL_MIN 100.0f          /* floor for the flow law */
+#define INJ_LEAD_DEG 1.0f            /* schedule at least this far ahead: >= 100 us at 1650 rpm */
 #define FUEL_START_MG 30.0f          /* calibration: fixed fuel while cranking */
 
 uint32_t inject_dur_us(float fuel_mg, float rail_bar);
 int  inject_due(const crank_t *c, float soi_deg);
+int  inject_cyl(const crank_t *c, float soi_deg, float fuel_mg, float rail_bar, ecu_inj *out);
 void inject_edge(const crank_t *c, float fuel_mg, float rail_bar, ecu_inj out[ECU_NCYL]);
 void inject_cancel(ecu_inj out[ECU_NCYL]);
 

@@ -167,7 +167,7 @@ static void test_sens_5v_short(void)
 
 static void test_gov(void)
 {
-    gov_t g; gov_reset(&g, 10);
+    gov_t g; gov_reset(&g, 10, 1500);
     for (int i = 0; i < 1000; i++) gov_step(&g, 1400, 0, 0.001f);
     CHECK(g.fuel == FUEL_MAX_MG);
     for (int i = 0; i < 1000; i++) gov_step(&g, 1600, 0, 0.001f);
@@ -363,6 +363,8 @@ static void ecu_running(ecu_io *io, uint32_t *t, int *tooth)
     ecu_up(io);
     *t = 0; *tooth = 0;
     ecu_spin(io, 300, 174, t, tooth, 1);
+    for (float rpm = 300; rpm < 1500; rpm *= 1.02f)    /* a real engine ramps */
+        ecu_spin(io, rpm, 1, t, tooth, 1);
     ecu_spin(io, 1500, 116, t, tooth, 1);
 }
 
@@ -502,6 +504,108 @@ static void test_ecu_sensor_fault_clears(void)
     CHECK(io.fault_n == 0);
 }
 
+/* ---- SME review findings (C = critical, I = important) ---- */
+
+static void test_inject_cancel_visible(void)          /* C1 */
+{
+    ecu_inj inj[ECU_NCYL] = { { 100, 1500, 4 }, { 0, 0, 2 }, { 0, 0, 0 } };
+    inject_cancel(inj);
+    CHECK(inj[0].dur_us == 0 && inj[0].seq == 5);      /* a live command: seq moves */
+    CHECK(inj[1].seq == 2 && inj[2].seq == 0);         /* nothing pending: unchanged */
+    inject_cancel(inj);
+    CHECK(inj[0].seq == 5);
+}
+
+static void test_crank_poll_before_last(void)         /* C2 */
+{
+    crank_t c; crank_reset(&c);
+    uint32_t t = 0; int tooth = 0;
+    spin(&c, 1500, 150, &t, &tooth);
+    crank_poll(&c, t - 5);
+    CHECK(crank_fault(&c) == CRANK_F_NONE && crank_synced(&c));
+}
+
+static void test_crank_stray_cam(void)                /* I1 */
+{
+    crank_t c; crank_reset(&c);
+    uint32_t t = 0; int tooth = 0;
+    spin(&c, 600, 116, &t, &tooth);
+    while (tooth != 20) spin(&c, 600, 1, &t, &tooth);  /* rev 0, edge 20 */
+    CHECK(crank_phased(&c));
+    crank_cam(&c, t + 5);                              /* noise */
+    while (tooth != 58) spin(&c, 600, 1, &t, &tooth);  /* past the next gap */
+    CHECK(!crank_phased(&c));
+    while (tooth != 0) spin(&c, 600, 1, &t, &tooth);   /* real cam, then gap */
+    CHECK(crank_phased(&c) && crank_angle(&c) == 0.0f);
+}
+
+static void test_sens_hold_while_bad(void)            /* I2 */
+{
+    sens_t s; float v[S_N];
+    sens_reset(&s); all_volts(v, 2.5f);
+    for (int i = 0; i < 10; i++) sens_step_1ms(&s, v, 5.0f);
+    v[S_CLT] = 5.1f; v[S_RAIL] = 0.0f;
+    for (int i = 0; i < 50; i++) sens_step_1ms(&s, v, 5.0f);
+    CHECK(fabsf(s.val[S_CLT] - 20.1f) <= 0.5f);
+    CHECK(fabsf(s.val[S_RAIL] - 900.0f) <= 0.5f);
+}
+
+static void test_crank_glitch(void)                   /* I3 */
+{
+    crank_t c; crank_reset(&c);
+    uint32_t t = 0; int tooth = 0;
+    spin(&c, 1500, 150, &t, &tooth);
+    while (tooth % 58 != 30) spin(&c, 1500, 1, &t, &tooth);
+    crank_edge(&c, t + 200);                           /* 30 % into a 667 us tooth */
+    CHECK(near(crank_rpm(&c), 1500, 0.005f));
+    for (int i = 0; i < 70; i++) {
+        spin(&c, 1500, 1, &t, &tooth);
+        CHECK(near(crank_rpm(&c), 1500, 0.005f));
+    }
+    CHECK(crank_fault(&c) == CRANK_F_NONE);
+}
+
+static void test_gov_ramp(void)                       /* I4 */
+{
+    gov_t g; gov_reset(&g, 30, 400);
+    CHECK(fabsf(gov_step(&g, 400, 0, 0.001f) - 30.0f) <= 1.0f);   /* bumpless */
+    for (int i = 1; i < 1000; i++) gov_step(&g, 400, 0, 0.001f);
+    CHECK(fabsf(g.set - (400 + GOV_RAMP_RPM_S)) <= 2.0f);
+}
+
+static void test_ecu_rpm_decays(void)                 /* I5 */
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    tick_t = t;
+    io.ignition = 0;
+    ticks(&io, 60, 1);
+    CHECK(io.rpm == 0.0f);
+}
+
+static void test_sens_clt_hot_not_short(void)         /* I6 */
+{
+    sens_t s; float v[S_N];
+    sens_reset(&s); all_volts(v, 2.5f); v[S_CLT] = 0.15f;
+    for (int i = 0; i < 200; i++) sens_step_1ms(&s, v, 5.0f);
+    CHECK(s.fmi[S_CLT] == 0 && s.val[S_CLT] > 125.0f);
+}
+
+static void test_inject_lead(void)                    /* I7 */
+{
+    crank_t c; crank_reset(&c);
+    ecu_inj inj = { 0, 0, 0 };
+    uint32_t t = 0; int tooth = 0;
+    spin(&c, 1500, 116, &t, &tooth);
+    while (tooth != 0) spin(&c, 1500, 1, &t, &tooth);
+    for (int i = 0; i < 116; i++) {
+        if (inject_cyl(&c, 84.0f, 20, 1000, &inj))    /* SOI exactly on edge 14 */
+            CHECK(inj.start_us - crank_last_us(&c) >= 100);
+        spin(&c, 1500, 1, &t, &tooth);
+    }
+    CHECK(inj.seq == 1);
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -546,6 +650,15 @@ int main(void)
     test_ecu_can_rates();
     test_ecu_can_overflow();
     test_ecu_sensor_fault_clears();
+    test_inject_cancel_visible();
+    test_crank_poll_before_last();
+    test_crank_stray_cam();
+    test_sens_hold_while_bad();
+    test_crank_glitch();
+    test_gov_ramp();
+    test_ecu_rpm_decays();
+    test_sens_clt_hot_not_short();
+    test_inject_lead();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }

@@ -15,7 +15,9 @@ typedef enum { ECU_OFF, ECU_WAIT, ECU_CRANK, ECU_RUN, ECU_SHUTDOWN } ecu_state;
 typedef struct { uint32_t id; uint8_t len; uint8_t data[8]; } ecu_can;
 
 /* One injection command per cylinder, as a timer output-compare runs it.
- * seq increments on every new command; dur_us 0 means cancelled. */
+ * seq increments on every change, including a cancel (dur_us 0): a
+ * consumer that watches seq alone sees everything. A cancel stops a
+ * command not yet started; one already open runs to its end. */
 typedef struct { uint32_t start_us, dur_us, seq; } ecu_inj;
 
 typedef struct {

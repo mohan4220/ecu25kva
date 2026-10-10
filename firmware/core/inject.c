@@ -18,23 +18,34 @@ int inject_due(const crank_t *c, float soi_deg)
     return soi_deg < crank_next_angle(c);
 }
 
+/* Schedule one cylinder from the edge before SOI - lead, so the start time
+ * is never in the past by the time a timer compare is loaded. */
+int inject_cyl(const crank_t *c, float soi_deg, float fuel_mg, float rail_bar, ecu_inj *out)
+{
+    float early = soi_deg - INJ_LEAD_DEG;
+    if (!inject_due(c, early < 0 ? early + 720.0f : early))
+        return 0;
+    float ahead = soi_deg - crank_angle(c);
+    if (ahead < 0)
+        ahead += 720.0f;
+    out->start_us = crank_last_us(c) + (uint32_t)(ahead * crank_us_per_deg(c) + 0.5f);
+    out->dur_us = inject_dur_us(fuel_mg, rail_bar);
+    out->seq++;
+    return 1;
+}
+
 void inject_edge(const crank_t *c, float fuel_mg, float rail_bar, ecu_inj out[ECU_NCYL])
 {
-    for (int k = 0; k < ECU_NCYL; k++) {
-        float soi = fmodf(CRANK_TDC1_DEG + 240.0f * k - INJ_SOI_BTDC + 720.0f, 720.0f);
-        if (!inject_due(c, soi))
-            continue;
-        float ahead = soi - crank_angle(c);
-        if (ahead < 0)
-            ahead += 720.0f;
-        out[k].start_us = crank_last_us(c) + (uint32_t)(ahead * crank_us_per_deg(c) + 0.5f);
-        out[k].dur_us = inject_dur_us(fuel_mg, rail_bar);
-        out[k].seq++;
-    }
+    for (int k = 0; k < ECU_NCYL; k++)
+        inject_cyl(c, fmodf(CRANK_TDC1_DEG + 240.0f * k - INJ_SOI_BTDC + 720.0f, 720.0f),
+                   fuel_mg, rail_bar, &out[k]);
 }
 
 void inject_cancel(ecu_inj out[ECU_NCYL])
 {
     for (int k = 0; k < ECU_NCYL; k++)
-        out[k].dur_us = 0;
+        if (out[k].dur_us) {
+            out[k].dur_us = 0;
+            out[k].seq++;            /* a cancel is a new command too */
+        }
 }

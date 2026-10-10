@@ -8,7 +8,7 @@
 
 enum { S_CLT, S_OIL, S_RAIL, S_BOOST, S_EGR, S_N };
 
-#define SENS_V_LO 0.2f              /* below: FMI 4 */
+extern const float sens_v_lo[S_N];  /* below: FMI 4 (CLT lower: 0.2 V is still a real 129 degC) */
 #define SENS_V_HI 4.8f              /* above: FMI 3 */
 #define SENS_FAULT_MS 100           /* out of range this long to set, in range to clear */
 
