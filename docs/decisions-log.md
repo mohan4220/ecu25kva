@@ -731,6 +731,156 @@ in-phase sum of harmonics are deliberate worst cases.
 
 ---
 
+## 11. Firmware on the PC first (10–11 October)
+
+The hardware was complete to schematic, but no firmware existed. A
+competing team already runs firmware on their board, with an Arduino
+faking the engine signals. The question was how to catch up without
+waiting for our own PCB.
+
+### The choice
+
+The control software is written as **plain C that touches no hardware**
+(`firmware/core/`). It runs on the PC against a **simulated engine**
+(`firmware/sim/engine.py`). The same C files later run unchanged on an NXP
+S32K148 evaluation board, and after that on our own board. Every control
+and safety function is proven first on the PC, where a mistake costs
+nothing.
+
+All the firmware sees is one table of numbers (`ecu_io` in `ecu.h`). The
+inputs are sensor voltages and switch states. The outputs are injection
+commands, the metering-valve duty, the watchdog pin and the CAN messages.
+The firmware has four entry points: start up, a crank tooth arrived, a
+cam pulse arrived, and one millisecond passed. The simulator fills the
+table and reads it back, and the S32K148 port will do the same from its
+pins. Injection is given as **"start at time T, for D microseconds"** per
+cylinder, which is what the chip's timer executes. That keeps the
+simulator's time step coarse without making the fuel amounts coarse.
+
+### What the firmware does
+
+- **Reads the crank wheel.** A 60-2 wheel has 58 teeth and a gap where
+  two are missing. The gap shows up as a tooth period more than 1.5×
+  the one before. Two gaps 58 teeth apart mean "synchronised". The cam
+  pulse, once per two revolutions, says which revolution has cylinder 1
+  firing.
+- **Injects** once per cylinder per cycle, 5° before top dead centre. It
+  schedules at least 1° ahead, so the start time is never already past.
+- **Governs speed.** It holds 1500 rpm, or falls 4 % from no load to
+  full load when the droop switch is closed. On reaching 400 rpm the
+  setpoint **ramps up at 500 rpm/s** rather than jumping, explained below.
+- **Holds rail pressure** at 1000 bar by driving the metering valve,
+  which is normally open: more duty, less fuel flow.
+- **Checks every sensor.** One that stays out of range for 100 ms raises
+  a fault code. From the first moment it goes out of range, its last good
+  value is held.
+- **Shuts down and latches.** Above 1650 rpm (checked on every tooth),
+  on loss of the crank signal, or on ignition off. It stays shut down
+  until the ignition is cycled. The trip cancels any injection not yet
+  started.
+- **Talks J1939 to the DSE4522:**
+  - engine speed every 20 ms
+  - coolant temperature every 1 s
+  - oil pressure every 500 ms
+  - active fault codes every 1 s
+
+### What the simulator proved
+
+Eleven scenarios, run with one command
+(`.venv/bin/python firmware/sim/run_sil.py`), all pass in 36 s:
+
+| # | Scenario | Result |
+|---|---|---|
+| 1 | Start | synchronised in 116 teeth; 1500 rpm by 5 s; peak 1534 rpm |
+| 2 | 0 → 20 kW load step | dips to 1449 rpm, back within ±15 rpm |
+| 3 | 20 → 0 kW load rejection | peaks at 1547 rpm, well under the 1650 trip |
+| 4 | Droop switch | speed falls 3.8 % (want 4 ± 1 %) |
+| 5 | Runaway (stuck injector) | trips at 1650.6 rpm; no new injection after |
+| 6 | Crank signal lost | shuts down 50 ms later, fault SPN 636 |
+| 7 | Ignition off | shuts down with no fault code |
+| 8 | Coolant sensor unplugged | fault SPN 110 FMI 3 after 1.0 s; engine keeps running |
+| 9 | CAN timing and content | every message on time to the ms; speed within 0.1 % |
+| 10 | Rail pressure | within 1.6 % of 1000 bar at full load |
+| 11 | Watchdog | WDI falls every 10 ms |
+
+There are also 42 unit tests on the separate pieces (`make -C
+firmware/sim test`).
+
+### What an expert review caught
+
+Halfway through, a separate reviewer acting as a diesel-ECU firmware
+specialist read the code. Every finding was reproduced as a failing test
+before it was fixed. The ones worth knowing:
+
+- **The start nearly tripped overspeed.** On reaching 400 rpm the speed
+  loop asked for 1500 at once, fuel hit its limit, and the engine peaked
+  at 1647 rpm, 3 rpm short of the trip. The ramping setpoint brought the
+  peak down to 1534.
+- **A crank-sensor noise spike read as overspeed.** One extra edge in
+  mid-tooth made the speed read 1700 rpm. An edge arriving in less than
+  half a tooth's time is now ignored, because no engine accelerates that
+  fast.
+- **A cancelled injection could still fire.** The cancel did not change
+  the sequence number a timer driver watches. Now it does.
+- **A hot engine looked like a shorted sensor.** With the placeholder
+  coolant sensor, 0.2 V is a real 129 °C. That would have been flagged
+  as a short and replaced by a harmless 90 °C. The coolant short
+  threshold is now 0.1 V.
+- **A stray cam pulse shifted everything by a revolution.** The engine
+  would have injected on the wrong stroke. A cam pulse in the wrong
+  revolution now stops injection until the next one agrees.
+- Smaller fixes:
+  - a timestamp 1 µs out of order read as signal loss
+  - an out-of-range sensor's raw value was used during the 100 ms debounce
+
+### Choices made while building
+
+- **Signal-loss timeout of 50 ms, not 100.** The scenario requires
+  shutdown within 100 ms. At 400 rpm the longest normal gap between
+  edges is 7.5 ms.
+- **Watchdog kicked every 10 ms.** This settles the open item on the MCU
+  sheet. The TPS3850's window (its SET0/SET1 straps and CWD capacitor) has
+  to accept a 5–20 ms kick period. That is well inside the 26.67 ms
+  cylinder interval the spec requires.
+- **Tuned gains.** These are placeholders until real engine tests:
+  - speed: 0.5 mg/rpm proportional, 2.0 mg/(rpm·s) integral
+  - rail: 0.002 duty/bar proportional, 0.01 duty/(bar·s) integral
+
+  The gentler of the two passing sets was kept. A real engine has delays
+  this model lacks.
+- **A stray cam pulse or a noise edge** does not stop the engine. A
+  single spike should not shut down a genset.
+
+### What is assumed, and how to change it
+
+Each assumption is a single named constant in a header, marked
+`assumed` or `calibration`:
+- the 60-2 wheel and cylinder 1 TDC at 90° after the gap
+  (`CRANK_TDC1_DEG`)
+- firing order 1-2-3
+- start of injection, 5° before TDC
+- the injector flow law
+- fuel at full load, 34 mg (sets the droop)
+- every sensor's volts-to-units table (`sensors.c`)
+
+The engine model's constants are guesses for a 3-cylinder genset diesel,
+also marked. When the real engine's figures arrive, each is a one-line
+change, and the scenarios say at once whether the control still holds.
+
+### Out of scope, and next
+
+Not done yet:
+- injector current regulation (that lives in the driver chip)
+- pilot and post injections
+- real calibration maps
+- EGR control
+
+The next step is the S32K148 evaluation board with an Arduino generating
+the engine signals: the competitor's setup, but with control logic that
+is already proven.
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a

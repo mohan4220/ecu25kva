@@ -115,8 +115,9 @@ the sheets again so the footprints land.
 
 **Phase 2 (schematic capture) is complete and checked.** Ten
 hierarchical sheets, root wired, project netlist verified. Phase 3
-(part selection) is most of the way through; phase 4 (PCB) has not
-started, and no firmware exists.
+(part selection) is most of the way through; the PCB has not started.
+The firmware core runs on the PC against a simulated engine, with all 11
+scenarios passing (`firmware/`, decisions log §11).
 
 | Gate | State |
 |---|---|
@@ -237,7 +238,9 @@ TI's optional thermal vias under the DDA pad are left to layout.
 
 ### 4.5 Then
 
-Firmware skeleton (phase 4) and PCB layout (phase 5). Layout should not
+Firmware on the S32K148 evaluation board, with an Arduino generating
+the engine signals (the core is already proven on the PC, §11 of the
+decisions log), and PCB layout (phase 5). Layout should not
 start before POWER-PATH is settled, since it changes which copper
 carries 18 A.
 

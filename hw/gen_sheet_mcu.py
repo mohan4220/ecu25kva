@@ -244,7 +244,7 @@ def supervisor(sh):
          "TPS3850 datasheet -- watchdog upper boundary, Equation 6"),
         ("SET0", "Device:R", "0R", 50.8,
          "TPS3850 sec.6.6 -- window ratio strap. OPEN: the ratio depends "
-         "on a firmware loop period that does not exist yet, phase 4"),
+         "on the firmware kick period: 10 ms, window 5-20 ms (decisions log 11)"),
         ("SET1", "Device:R", "0R", 63.5,
          "TPS3850 sec.6.6 -- window ratio strap. OPEN: see SET0"),
     ]
@@ -462,9 +462,9 @@ def notes(sh):
         "spans 3.234-3.366 V, leaving ~90 mV each end.\n"
         "That is this choice's constraint on the rails sheet.\n"
         "\n"
-        "OPEN: SET0/SET1 strap the watchdog window ratio, and the right "
-        "ratio depends on a firmware loop period that does not exist yet "
-        "(phase 4). Link resistors, not hard wires.",
+        "OPEN: SET0/SET1 strap the watchdog window ratio. Firmware now kicks "
+        "WDI every 10 ms (decisions log 11), so the window must accept "
+        "5-20 ms; strap values vs the TPS3850 tables still to check. Link resistors.",
         40, 155, size=1.6)
 
 

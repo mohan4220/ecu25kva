@@ -31,7 +31,7 @@ copper, copper moves 0.39 %/°C, and no better resistor exists to buy. It needed
 current control, which put a 50 mΩ shunt and a sense amplifier on ECU pin 88's return —
 new schematic content, not a BOM line. See §1.7.
 
-**Schematic capture has started; no PCB exists and no firmware has been written.** The
+**Schematic capture has started; no PCB exists. Firmware runs on the PC against a simulated engine (11 October).** The
 KiCad project is in `hw/`, with all ten hierarchical sheets created and the first —
 `power_input` — drawn and netlist-checked. See §7.
 
@@ -270,7 +270,7 @@ contact-type confirmation, which gates nothing
 | 1.5 | Block-level simulation | **Done — 25 blocks, 25 passing** (power_path added 8 Oct 2026) |
 | **2** | **KiCad hierarchical schematic capture** | **Complete — 196 components, 113 multi-pin nets, 18 named open ends** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
-| 4 | Firmware skeleton | Not started |
+| 4 | Firmware skeleton | **Core done on the PC — 11/11 engine scenarios, 42 unit tests** (decisions log §11). Next: S32K148 dev kit |
 
 ### Phase 2 — what exists
 
@@ -844,6 +844,18 @@ loads, 1.47× with aged capacitors. The filter also cuts pulse 2a at the
 loads to 28.7 V. It sets a firmware requirement: hold chopping and EGR
 PWM at or below 25 kHz. The result is 379 components, 377 with
 footprints, 236 passives packaged, and 26 of 26 blocks passing.
+
+**Firmware, proven on the PC, 11 October 2026** (decisions log §11).
+`firmware/core/` is portable C. It covers crank/cam decoding, injection
+timing, the speed governor with droop, rail pressure, sensor faults,
+latched shutdown and J1939 to the DSE4522. `firmware/sim/` runs it against
+a Python model of the engine, generator and rail. All eleven spec
+scenarios pass (`.venv/bin/python firmware/sim/run_sil.py`, 36 s), and so
+do 42 unit tests (`make -C firmware/sim test`). A mid-build expert review
+found 2 critical and 7 important defects, among them a start that peaked
+3 rpm under the overspeed trip. All nine are fixed, each with a test that
+failed first. The watchdog kick period is now fixed at 10 ms, so the
+TPS3850 window straps (SET0/SET1, CWD) can be chosen to accept 5–20 ms.
 
 ---
 

@@ -78,6 +78,17 @@ If `.venv` is missing, rebuild it:
 python3 -m venv .venv && .venv/bin/pip install PySpice numpy schemdraw markdown pypdf
 ```
 
+## Running the firmware on the PC
+
+```bash
+make -C firmware/sim test                    # unit tests of the C core
+.venv/bin/python firmware/sim/run_sil.py     # the 11 engine scenarios
+.venv/bin/python firmware/sim/run_sil.py runaway   # scenarios matching "runaway"
+```
+
+The C core in `firmware/core/` touches no hardware. The simulator drives it
+with a model of the engine, generator and fuel rail. See decisions log §11.
+
 ## Where the project stands
 
 Phase 1 is complete: twelve research memos, **25 verified circuit blocks**
