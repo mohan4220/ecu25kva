@@ -9,6 +9,7 @@
 
 #define ECU_NCYL 3
 #define ECU_CANQ 16
+#define IGN_OFF_MS 500               /* ignition low this long, engine stopped, clears SHUTDOWN */
 
 typedef enum { ECU_OFF, ECU_WAIT, ECU_CRANK, ECU_RUN, ECU_SHUTDOWN } ecu_state;
 

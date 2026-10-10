@@ -180,14 +180,14 @@ static void test_gov(void)
 static void test_rail(void)
 {
     rail_t r; rail_reset(&r);
-    float d0 = rail_step(&r, 1100, 0.001f), d = d0;
+    float d0 = rail_step(&r, 900, 0.001f), d = d0;
     for (int i = 0; i < 1000; i++) {
-        d = rail_step(&r, 1100, 0.001f);
+        d = rail_step(&r, 900, 0.001f);
         CHECK(d >= 0.0f && d <= 1.0f);
     }
-    CHECK(d > d0);
-    for (int i = 0; i < 2000; i++) d = rail_step(&r, 500, 0.001f);
-    CHECK(d == 0.0f);
+    CHECK(METER_NC ? d > d0 : d < d0);        /* low pressure: open the valve further */
+    for (int i = 0; i < 2000; i++) d = rail_step(&r, 1500, 0.001f);
+    CHECK(d == METER_CLOSED);                 /* high pressure: valve shut */
 }
 
 static void test_inject_dur(void)
@@ -437,6 +437,58 @@ static void test_ecu_ignition(void)
     CHECK(io.state == ECU_SHUTDOWN);
     CHECK(io.fault_n == 0);
     CHECK(dm1_first_spn(&io, 0));
+    ticks(&io, IGN_OFF_MS, 1);
+    io.ignition = 1;
+    ticks(&io, 1, 1);
+    CHECK(io.state == ECU_WAIT);
+}
+
+static void test_ecu_shutdown_valve_closed(void)      /* final review C1 */
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    tick_t = t;
+    io.ignition = 0;
+    ticks(&io, 1, 1);
+    CHECK(io.state == ECU_SHUTDOWN && io.meter_duty == METER_CLOSED);
+}
+
+static void test_ecu_tick_before_edge(void)           /* final review I1 */
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    float fuel = io.fuel_mg;
+    ecu_tick_1ms(&io, t - 5);                 /* tick stamped just before the last edge */
+    CHECK(io.rpm > 1400.0f);
+    CHECK(fabsf(io.fuel_mg - fuel) < 2.0f);
+}
+
+static void test_crank_after_pause(void)              /* final review I2 */
+{
+    crank_t c; crank_reset(&c);
+    crank_edge(&c, 1000);                     /* stray edge while waiting */
+    crank_edge(&c, 2000);
+    uint32_t t = 30000000; int tooth = 0, n = 0;
+    while (!crank_synced(&c) && n < 300) { spin(&c, 150, 1, &t, &tooth); n++; }
+    CHECK(n <= 118);
+}
+
+static void test_ecu_ignition_dip_keeps_latch(void)   /* final review I3 */
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    io.ignition = 0;
+    ecu_spin(&io, 1400, 2, &t, &tooth, 1);     /* still turning */
+    io.ignition = 1;
+    ecu_spin(&io, 1400, 116, &t, &tooth, 1);
+    CHECK(io.state == ECU_SHUTDOWN);
+    uint32_t seq0 = io.inj[0].seq;
+    ecu_spin(&io, 1400, 116, &t, &tooth, 1);
+    CHECK(io.inj[0].seq == seq0);
+    /* stopped, and the ignition held off long enough: the latch clears */
+    io.ignition = 0;
+    tick_t = t;
+    ticks(&io, IGN_OFF_MS + 60, 1);
     io.ignition = 1;
     ticks(&io, 1, 1);
     CHECK(io.state == ECU_WAIT);
@@ -659,6 +711,10 @@ int main(void)
     test_ecu_rpm_decays();
     test_sens_clt_hot_not_short();
     test_inject_lead();
+    test_ecu_shutdown_valve_closed();
+    test_ecu_tick_before_edge();
+    test_crank_after_pause();
+    test_ecu_ignition_dip_keeps_latch();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }

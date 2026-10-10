@@ -20,7 +20,7 @@ static gov_t gov;
 static rail_t rail;
 static faults_t faults;
 static uint32_t ms;
-static uint8_t ign_was_low;
+static uint16_t ign_low_ms;          /* ignition low with the engine stopped */
 static ecu_can bam[6];               /* TP.DT packets still to send */
 static uint8_t bam_n, bam_i;
 static uint32_t bam_next;
@@ -42,10 +42,10 @@ static void reset_all(ecu_io *io)
     gov_reset(&gov, 0, 0);
     rail_reset(&rail);
     memset(&faults, 0, sizeof faults);
-    ign_was_low = 0;
+    ign_low_ms = 0;
     bam_n = bam_i = 0;
     inject_cancel(io->inj);
-    io->meter_duty = 0;
+    io->meter_duty = METER_CLOSED;
     io->state = ECU_OFF;
     io->fault_n = io->synced = 0;
     io->rpm = io->fuel_mg = 0;
@@ -71,7 +71,7 @@ static void trip(ecu_io *io, int why)
         faults_set(&faults, SPN_POS, 2);
     io->state = ECU_SHUTDOWN;
     inject_cancel(io->inj);
-    io->meter_duty = 0;
+    io->meter_duty = METER_CLOSED;
 }
 
 static void check(ecu_io *io, float rpm)
@@ -169,11 +169,21 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     if (ms % WDG_TOGGLE_MS == 0)
         io->wdg ^= 1;
 
+    /* rpm decays to 0 once edges stop, rather than holding the last value.
+     * Signed: an edge interrupt may stamp a time just after this tick's. */
+    float rpm = crank.have && (int32_t)(t_us - crank_last_us(&crank)) <= (int32_t)CRANK_TIMEOUT_US
+                    ? crank_rpm(&crank) : 0;
+
     if (io->state == ECU_SHUTDOWN) {
-        if (!io->ignition)
-            ign_was_low = 1;
-        else if (ign_was_low)
-            reset_all(io);              /* the ignition cycle that clears the latch */
+        /* the latch clears only on a real ignition cycle: low for IGN_OFF_MS
+         * with the engine stopped, then high. A contact bounce does nothing. */
+        if (io->ignition) {
+            if (ign_low_ms >= IGN_OFF_MS)
+                reset_all(io);
+            ign_low_ms = 0;
+        } else {
+            ign_low_ms = rpm == 0 ? (uint16_t)(ign_low_ms + (ign_low_ms < IGN_OFF_MS)) : 0;
+        }
     }
     if (io->state == ECU_OFF) {
         if (!io->ignition)
@@ -186,8 +196,6 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     sens_step_1ms(&sens, v, io->v_5v);
     mirror_sensor_faults();
 
-    /* rpm decays to 0 once edges stop, rather than holding the last value */
-    float rpm = crank.have && t_us - crank_last_us(&crank) <= CRANK_TIMEOUT_US ? crank_rpm(&crank) : 0;
     io->rpm = rpm;
     check(io, rpm);
 
@@ -196,7 +204,7 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     if (io->state == ECU_CRANK || io->state == ECU_RUN)
         io->meter_duty = sens.fmi[S_RAIL] ? RAIL_DUTY_LIMP : rail_step(&rail, sens.val[S_RAIL], 0.001f);
     else
-        io->meter_duty = 0;
+        io->meter_duty = METER_CLOSED;
 
     send_can(io);
 

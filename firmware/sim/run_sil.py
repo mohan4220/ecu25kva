@@ -53,6 +53,7 @@ class Sim:
         self.states = []             # (t_us, new state, ecu rpm)
         self.edges = 0
         self.sync_edge = None
+        self.over_edge = None        # (t_us, state) at the first edge the ECU read > 1650 rpm
         self.seq_log = []            # (t_us, cyl, seq)
         self._sent = [0] * NCYL
         self._state = self.io.state
@@ -87,6 +88,8 @@ class Sim:
                     self.edges += 1
                     if self.sync_edge is None and self.io.synced:
                         self.sync_edge = self.edges
+                    if self.over_edge is None and self.io.rpm > 1650:
+                        self.over_edge = (te, self.io.state)
                 self._after(te)
             self.eng.duty = self.io.meter_duty
             self.t += 20
@@ -180,12 +183,19 @@ def runaway():
     sim = Sim().start(6.0)
     sim.eng.stuck_fuel_mg = 80
     sim.run(7.0)
-    tr = sim.trip(6.0)
+    tr, over = sim.trip(6.0), sim.over_edge
     c.that("tripped", "yes" if tr else "no", 0, ok=tr is not None)
-    if tr:
-        c.that("ECU rpm at the trip edge", tr[1], 1655, tol=5, unit="rpm")
-        late = [s for s in sim.seq_log if s[0] >= tr[0]]
-        c.that("new injection commands after trip", len(late), 0, ok=not late)
+    c.that("ECU read > 1650 rpm on some edge", "yes" if over else "no", 0, ok=over is not None)
+    if tr and over:
+        # on that very edge, not at the next 1 ms tick
+        c.that("SHUTDOWN on the first edge above 1650", over[1], SHUTDOWN, ok=over[1] == SHUTDOWN)
+        late = [s for s in sim.seq_log if s[0] >= over[0]]
+        c.that("injection commands from that edge on", len(late), 0, ok=not late)
+        c.that("pending commands cancelled", sum(i.dur_us for i in sim.io.inj), 0,
+               ok=all(i.dur_us == 0 for i in sim.io.inj))
+        at = [p for t, r, st, p, *_ in sim.trace if t >= tr[0]]
+        c.that("rail after trip never above rail at trip, bar", max(at) - at[0], 0,
+               ok=max(at) <= at[0], unit="bar")
         got = [d for t, d in sim.dm1_after(tr[0]) if (190, 0) in d]
         c.that("DM1 carries SPN 190 FMI 0", "yes" if got else "no", 0, ok=bool(got))
     return c

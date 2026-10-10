@@ -770,7 +770,8 @@ simulator's time step coarse without making the fuel amounts coarse.
   full load when the droop switch is closed. On reaching 400 rpm the
   setpoint **ramps up at 500 rpm/s** rather than jumping, explained below.
 - **Holds rail pressure** at 1000 bar by driving the metering valve,
-  which is normally open: more duty, less fuel flow.
+  treated as normally closed: more duty, more fuel flow. See the final
+  review below.
 - **Checks every sensor.** One that stays out of range for 100 ms raises
   a fault code. From the first moment it goes out of range, its last good
   value is held.
@@ -803,7 +804,7 @@ Eleven scenarios, run with one command
 | 10 | Rail pressure | within 1.6 % of 1000 bar at full load |
 | 11 | Watchdog | WDI falls every 10 ms |
 
-There are also 42 unit tests on the separate pieces (`make -C
+There are also 46 unit tests on the separate pieces (`make -C
 firmware/sim test`).
 
 ### What an expert review caught
@@ -832,6 +833,38 @@ before it was fixed. The ones worth knowing:
 - Smaller fixes:
   - a timestamp 1 µs out of order read as signal loss
   - an out-of-range sensor's raw value was used during the 100 ms debounce
+
+### What the final review caught
+
+After all ten steps, a second reviewer read the whole branch. Again,
+each finding became a failing test before it was fixed.
+
+- **The metering valve's polarity contradicted the safety design.** This
+  firmware spec had assumed a normally-open valve. The parent spec's trip
+  module stops fuel by *cutting the valve's supply*, and that only works
+  if the valve is **normally closed**: unpowered, no fuel. With a
+  normally-open valve, cutting its supply opens it fully. The runaway
+  run showed the rail climbing to 1695 bar after the trip. The firmware
+  now assumes normally closed, to agree with the parent spec. Polarity is
+  a single constant (`METER_NC`), and shutdown always commands the closed
+  position. **The real valve still has to be identified.** If it is
+  normally open, the constant flips *and* the trip module's contacts must
+  move to the injector supply.
+- **A stray edge before cranking blinded the decoder for 30 s.** The
+  noise filter compared every tooth with a stale 30-second "period". After
+  any pause longer than 50 ms, the decoder now starts afresh.
+- **A 1 ms ignition flicker cleared a latched trip** while the engine was
+  still turning, and the ECU restarted it. The latch now clears only after
+  the ignition has been off for 500 ms with the engine stopped.
+- **The speed reading could drop to 0 for one tick** if a tooth arrived
+  just after the tick read the clock. That doubled the fuel demand for a
+  moment. The time comparison is now signed, as it already was in the
+  decoder.
+- **Scenario 5 could not tell an edge-checked trip from a late one.**
+  With the per-edge overspeed check deleted, it still passed. It now
+  checks that the ECU is shut down on the very edge it first reads above
+  1650 rpm, and that rail pressure falls after the trip. With the check
+  deleted, the scenario now fails.
 
 ### Choices made while building
 

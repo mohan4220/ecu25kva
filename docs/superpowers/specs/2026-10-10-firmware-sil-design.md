@@ -121,9 +121,12 @@ the integrator.
 
 PI on rail pressure error drives the metering-unit duty. Setpoint a
 placeholder constant (1000 bar). The metering unit is treated as
-**normally open** (inlet metering): more duty, less flow. Duty is zero
-in SHUTDOWN — the engine stops because injection stops, and the trip
-module removes the metering unit's supply independently (spec §3).
+**normally closed**: more duty, more flow. That is what the parent spec's
+trip design assumes (§3 item 5: removing the unit's supply stops fuel).
+*Corrected 11 Oct 2026; this spec first said normally open, which would
+make the trip module open the valve fully.* The real valve is not yet
+identified. Polarity is one constant (`METER_NC`), and SHUTDOWN always
+commands the closed position (`METER_CLOSED`).
 
 ### 4.6 Safety (highest priority)
 

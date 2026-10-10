@@ -20,6 +20,14 @@ void crank_edge(crank_t *c, uint32_t t_us)
         return;
     }
     uint32_t period = t_us - c->last_us;
+    if (period > CRANK_TIMEOUT_US) {
+        /* after a pause, the old period is no reference: start afresh, or
+         * the glitch filter below would reject real teeth for seconds */
+        lose(c, CRANK_F_TIMEOUT);
+        c->prev_period = c->nper = c->head = c->gap_seen = c->count = c->prev_gap = 0;
+        c->last_us = t_us;
+        return;
+    }
     /* A real tooth cannot arrive in under half the previous tooth's time
      * (per 6 deg): that is noise, and counting it would read as overspeed. */
     uint32_t tooth_prev = c->prev_gap ? c->prev_period / 3 : c->prev_period;

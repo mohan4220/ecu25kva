@@ -19,6 +19,7 @@ CAM_DEG = 660.0                      # cam edge cycle angle
 
 BAR_PER_CM3 = 750.0                  # bulk modulus / rail+pump volume
 PUMP = 4.0 / 1500                    # cm3/s per rpm, metering fully open
+METER_NC = True                      # = firmware METER_NC: normally closed, duty 1 = full flow
 LEAK = 1e-4                          # cm3/s per bar
 RELIEF = 1800.0
 CM3_PER_MG = 0.0012
@@ -126,7 +127,8 @@ class Engine:
         self.theta = new % 720
 
         # rail
-        q = PUMP * rpm * (1 - self.duty) - q_inj * CM3_PER_MG / dt - LEAK * self.rail_bar
+        opening = self.duty if METER_NC else 1 - self.duty
+        q = PUMP * rpm * opening - q_inj * CM3_PER_MG / dt - LEAK * self.rail_bar
         self.rail_bar = min(RELIEF, max(0.0, self.rail_bar + BAR_PER_CM3 * q * dt))
 
         # coolant towards a load-dependent temperature, tau 60 s
@@ -190,6 +192,7 @@ def _self_check():
 
     # rail fills while cranking with the metering valve open and no fuel
     e = Engine()
+    e.duty = 1.0 if METER_NC else 0.0
     p0 = e.rail_bar
     for i in range(50_000):
         e.omega = 150 * RPM
