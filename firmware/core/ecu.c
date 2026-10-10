@@ -9,6 +9,7 @@
 #include "inject.h"
 #include "safety.h"
 #include "j1939.h"
+#include "nvm.h"
 
 #define RUN_RPM 400.0f               /* CRANK -> RUN once phased and above this */
 #define WDG_TOGGLE_MS 5              /* WDI falling edge every 10 ms */
@@ -19,6 +20,8 @@ static sens_t sens;
 static gov_t gov;
 static rail_t rail;
 static faults_t faults;
+static nvm_image img;                /* live: the tick updates it */
+static nvm_image out;                /* sealed copy the host writes */
 static uint32_t ms;
 static uint16_t ign_low_ms;          /* ignition low with the engine stopped */
 static ecu_can bam[6];               /* TP.DT packets still to send */
@@ -226,3 +229,20 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
 }
 
 size_t ecu_io_size(void) { return sizeof(ecu_io); }
+
+void ecu_nvm_load(ecu_io *io, const void *slot_a, const void *slot_b, uint32_t len)
+{
+    (void)io;
+    int pick = nvm_pick(slot_a, slot_b, len);
+    if (pick < 0)
+        nvm_fresh(&img);
+    else
+        memcpy(&img, pick ? slot_b : slot_a, sizeof img);
+    out = img;
+}
+
+const void *ecu_nvm_image(uint32_t *len)
+{
+    *len = sizeof out;
+    return &out;
+}

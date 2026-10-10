@@ -10,6 +10,7 @@
 #include "inject.h"
 #include "safety.h"
 #include "j1939.h"
+#include "nvm.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; \
@@ -708,6 +709,49 @@ static void test_ecu_bam_not_split(void)              /* M5 */
     CHECK(dt == 0);
 }
 
+/* ---- persistent image ---- */
+
+static nvm_image na, nb;
+
+static void test_nvm_size(void) { CHECK(sizeof(nvm_image) <= 4096); }
+
+static void test_crc32(void) { CHECK(nvm_crc32("123456789", 9) == 0xCBF43926u); }
+
+static void test_nvm_pick(void)
+{
+    nvm_fresh(&na); nvm_seal(&na);
+    nb = na;        nvm_seal(&nb);
+    CHECK(na.h.seq == 1 && nb.h.seq == 2);
+    CHECK(nvm_pick(&na, &nb, sizeof na) == 1);
+    CHECK(nvm_pick(&nb, &na, sizeof na) == 0);
+    ((uint8_t *)&nb)[1000] ^= 1;
+    CHECK(nvm_pick(&na, &nb, sizeof na) == 0);
+    memset(&na, 0, sizeof na); memset(&nb, 0, sizeof nb);
+    CHECK(nvm_pick(&na, &nb, sizeof na) == -1);
+    nvm_fresh(&na); nvm_seal(&na);
+    CHECK(nvm_pick(&na, &na, sizeof na - 1) == -1);   /* wrong length */
+}
+
+static void test_nvm_old_version(void)
+{
+    nvm_fresh(&na);
+    na.h.version = 0;
+    nvm_seal(&na);                            /* CRC correct for the old layout */
+    CHECK(!nvm_valid(&na, sizeof na));
+}
+
+static void test_ecu_nvm_load(void)
+{
+    ecu_io io; ecu_up(&io);
+    nvm_fresh(&na); na.c.starts = 7; nvm_seal(&na);
+    memset(&nb, 0, sizeof nb);
+    ecu_nvm_load(&io, &nb, &na, sizeof na);
+    uint32_t len = 0;
+    const nvm_image *img = ecu_nvm_image(&len);
+    CHECK(len == sizeof(nvm_image));
+    CHECK(img->c.starts == 7);                /* blank slot A ignored, slot B taken */
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -768,6 +812,11 @@ int main(void)
     test_ecu_lost_tooth();
     test_ecu_ms_wrap();
     test_ecu_bam_not_split();
+    test_nvm_size();
+    test_crc32();
+    test_nvm_pick();
+    test_nvm_old_version();
+    test_ecu_nvm_load();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }

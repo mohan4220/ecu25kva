@@ -19,12 +19,14 @@ class IO(C.Structure):
     _fields_ = [
         *[(n, C.c_float) for n in ("v_clt", "v_oil", "v_rail", "v_boost", "v_egr", "v_5v")],
         ("ignition", C.c_uint8), ("droop_sw", C.c_uint8),
+        ("v_bat", C.c_float), ("reset_cause", C.c_uint8),
         ("inj", Inj * NCYL),
         ("meter_duty", C.c_float),
         ("wdg", C.c_uint8),
         ("can", Can * CANQ),
         ("can_n", C.c_uint8),
         ("can_drops", C.c_uint16),
+        ("nvm_save", C.c_uint8), ("nvm_slot", C.c_uint8),
         ("state", C.c_uint8), ("fault_n", C.c_uint8), ("synced", C.c_uint8),
         *[(n, C.c_float) for n in ("rpm", "fuel_mg", "rail_bar", "clt_c", "oil_kpa")],
     ]
@@ -38,6 +40,7 @@ class Ecu:
         ext = "dylib" if sys.platform == "darwin" else "so"
         self.lib = C.CDLL(str(HERE / "build" / f"libecu.{ext}"))
         self.lib.ecu_io_size.restype = C.c_size_t
+        self.lib.ecu_nvm_image.restype = C.c_void_p
         if C.sizeof(IO) != self.lib.ecu_io_size():
             raise RuntimeError("ecu.py IO layout does not match ecu.h")
         self.io = IO()
@@ -55,6 +58,16 @@ class Ecu:
     def tick(self, t_us):
         self.lib.ecu_tick_1ms(self._p, C.c_uint32(t_us & 0xFFFFFFFF))
 
+    def nvm_image(self):
+        n = C.c_uint32()
+        p = self.lib.ecu_nvm_image(C.byref(n))
+        return C.string_at(p, n.value)
+
+    def nvm_load(self, a, b):
+        n = len(self.nvm_image())
+        a, b = (bytes(x[:n]).ljust(n, b"\0") for x in (a, b))
+        self.lib.ecu_nvm_load(self._p, a, b, C.c_uint32(n))
+
     def drain_can(self):
         out = [(f.id, bytes(f.data[:f.len])) for f in self.io.can[:self.io.can_n]]
         self.io.can_n = 0
@@ -65,4 +78,7 @@ if __name__ == "__main__":
     e = Ecu()
     e.init()
     assert e.io.state == OFF
+    e.nvm_load(b"", b"")
+    img = e.nvm_image()
+    assert img[:2] == b"\x25\xec", img[:4]
     print("ecu.py ok")

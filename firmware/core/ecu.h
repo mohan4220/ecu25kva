@@ -26,6 +26,8 @@ typedef struct {
     /* inputs (host writes) */
     float v_clt, v_oil, v_rail, v_boost, v_egr, v_5v;
     uint8_t ignition, droop_sw;
+    float v_bat;                 /* battery volts, for fault snapshots */
+    uint8_t reset_cause;         /* set before ecu_nvm_load: 0 power-on, 1 watchdog, 2 other */
     /* outputs (host reads) */
     ecu_inj inj[ECU_NCYL];
     float meter_duty;            /* 0..1, normally open: more duty, less flow */
@@ -33,6 +35,7 @@ typedef struct {
     ecu_can can[ECU_CANQ];
     uint8_t can_n;               /* host reads can[0..can_n), then sets can_n = 0 */
     uint16_t can_drops;
+    uint8_t nvm_save, nvm_slot;  /* write ecu_nvm_image() to slot nvm_slot, then clear nvm_save */
     /* status */
     uint8_t state, fault_n, synced;
     float rpm, fuel_mg, rail_bar, clt_c, oil_kpa;
@@ -43,5 +46,9 @@ void ecu_crank_edge(ecu_io *io, uint32_t t_us);   /* falling edge of a tooth */
 void ecu_cam_edge(ecu_io *io, uint32_t t_us);
 void ecu_tick_1ms(ecu_io *io, uint32_t t_us);      /* slow loops, CAN, safety */
 size_t ecu_io_size(void);
+
+/* Persistence. Load after ecu_init with both slots (either may be blank). */
+void ecu_nvm_load(ecu_io *io, const void *slot_a, const void *slot_b, uint32_t len);
+const void *ecu_nvm_image(uint32_t *len);
 
 #endif
