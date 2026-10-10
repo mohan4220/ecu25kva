@@ -23,14 +23,16 @@ static uint32_t ms;
 static uint16_t ign_low_ms;          /* ignition low with the engine stopped */
 static ecu_can bam[6];               /* TP.DT packets still to send */
 static uint8_t bam_n, bam_i;
-static uint32_t bam_next;
+static uint8_t bam_wait;             /* ms to the next TP.DT */
 
-static void queue(ecu_io *io, const ecu_can *f)
+static int queue(ecu_io *io, const ecu_can *f)
 {
-    if (io->can_n < ECU_CANQ)
+    if (io->can_n < ECU_CANQ) {
         io->can[io->can_n++] = *f;
-    else
-        io->can_drops++;
+        return 1;
+    }
+    io->can_drops++;
+    return 0;
 }
 
 /* Back to OFF with every module fresh. Injection seq numbers survive so
@@ -87,7 +89,13 @@ void ecu_crank_edge(ecu_io *io, uint32_t t_us)
         return;
     if (io->state == ECU_WAIT)
         io->state = ECU_CRANK;
+    uint8_t fault_before = crank_fault(&crank);
     crank_edge(&crank, t_us);
+    /* a fault raised by this very edge (a lost or extra tooth) also skews
+     * this edge's rpm: diagnose it as the sensor, not as overspeed */
+    int fresh = !fault_before && crank_fault(&crank) && io->state == ECU_RUN;
+    if (fresh)
+        trip(io, TRIP_SYNC);
     if (crank_fault(&crank) && io->state == ECU_CRANK) {
         crank_reset(&crank);            /* not yet running: just resync */
         crank_edge(&crank, t_us);
@@ -95,7 +103,8 @@ void ecu_crank_edge(ecu_io *io, uint32_t t_us)
     float rpm = crank_rpm(&crank);
     io->rpm = rpm;
     io->synced = (uint8_t)crank_synced(&crank);
-    check(io, rpm);
+    if (!fresh)                         /* this edge's rpm is not to be trusted */
+        check(io, rpm);
 
     if (io->state == ECU_CRANK && crank_phased(&crank) && rpm >= RUN_RPM) {
         io->state = ECU_RUN;
@@ -148,24 +157,24 @@ static void send_can(ecu_io *io)
         queue(io, &f);
         ecu_can out[7];
         int n = j1939_dm1(out, 7, &faults, lamps());
-        if (n > 0)
-            queue(io, &out[0]);
-        if (n > 1) {
+        int sent = n > 0 && queue(io, &out[0]);
+        if (n > 1 && sent) {            /* no TP.CM, no TP.DT: never half a message */
             memcpy(bam, &out[1], (size_t)(n - 1) * sizeof bam[0]);
             bam_n = (uint8_t)(n - 1);
             bam_i = 0;
-            bam_next = ms + BAM_GAP_MS;
+            bam_wait = BAM_GAP_MS;
         }
     }
-    if (bam_i < bam_n && ms == bam_next) {
+    if (bam_i < bam_n && --bam_wait == 0) {
         queue(io, &bam[bam_i++]);
-        bam_next += BAM_GAP_MS;
+        bam_wait = BAM_GAP_MS;
     }
 }
 
 void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
 {
-    ms++;
+    if (++ms >= ECU_MS_WRAP)
+        ms = 0;
     if (ms % WDG_TOGGLE_MS == 0)
         io->wdg ^= 1;
 

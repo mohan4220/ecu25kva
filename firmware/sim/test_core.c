@@ -658,6 +658,56 @@ static void test_inject_lead(void)                    /* I7 */
     CHECK(inj.seq == 1);
 }
 
+/* ---- production field fixes ---- */
+
+static void test_ecu_lost_tooth(void)                 /* M1 */
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    while (tooth % 58 != 20) ecu_spin(&io, 1500, 1, &t, &tooth, 1);
+    next_edge(1500, &t, &tooth);              /* this tooth goes missing */
+    ecu_spin(&io, 1500, 1, &t, &tooth, 0);
+    CHECK(io.state == ECU_SHUTDOWN);
+    tick_t = t;
+    CHECK(dm1_first_spn(&io, SPN_POS));
+}
+
+static void test_ecu_ms_wrap(void)                    /* M2 */
+{
+    ecu_io io; ecu_up(&io);
+    ticks(&io, ECU_MS_WRAP - 100, 1);
+    int last_eec1 = -1, last_dm1 = -1, bad = 0, seen = 0;
+    for (int i = 0; i < 2000; i++) {
+        ticks(&io, 1, 0);
+        for (int k = 0; k < io.can_n; k++) {
+            uint32_t pgn = io.can[k].id >> 8 & 0xFFFF;
+            if (pgn == 0xF004) { if (last_eec1 >= 0) bad += i - last_eec1 != 20; last_eec1 = i; seen++; }
+            if (pgn == 0xFECA) { if (last_dm1 >= 0) bad += i - last_dm1 != 1000; last_dm1 = i; }
+        }
+        io.can_n = 0;
+    }
+    CHECK(seen >= 99 && last_dm1 >= 0);
+    CHECK(bad == 0);
+}
+
+static void test_ecu_bam_not_split(void)              /* M5 */
+{
+    ecu_io io; ecu_up(&io);
+    io.v_clt = 4.95f; io.v_oil = 0.1f; io.v_boost = 4.95f;
+    ticks(&io, 150, 1);
+    CHECK(io.fault_n == 3);
+    ticks(&io, 850, 0);                       /* queue full when DM1 (a BAM) is due */
+    CHECK(io.can_drops > 0);
+    io.can_n = 0;
+    int dt = 0;
+    for (int i = 0; i < 300; i++) {
+        ticks(&io, 1, 0);
+        for (int k = 0; k < io.can_n; k++) dt += (io.can[k].id >> 16 & 0xFF) == 0xEB;
+        io.can_n = 0;
+    }
+    CHECK(dt == 0);
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -715,6 +765,9 @@ int main(void)
     test_ecu_tick_before_edge();
     test_crank_after_pause();
     test_ecu_ignition_dip_keeps_latch();
+    test_ecu_lost_tooth();
+    test_ecu_ms_wrap();
+    test_ecu_bam_not_split();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }

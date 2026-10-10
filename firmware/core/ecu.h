@@ -9,6 +9,7 @@
 
 #define ECU_NCYL 3
 #define ECU_CANQ 16
+#define ECU_MS_WRAP 3600000u         /* the ms counter wraps hourly; every period divides it */
 #define IGN_OFF_MS 500               /* ignition low this long, engine stopped, clears SHUTDOWN */
 
 typedef enum { ECU_OFF, ECU_WAIT, ECU_CRANK, ECU_RUN, ECU_SHUTDOWN } ecu_state;

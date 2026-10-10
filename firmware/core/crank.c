@@ -10,6 +10,7 @@ static void lose(crank_t *c, uint8_t why)
     if (c->synced)
         c->fault = why;
     c->synced = c->phased = 0;
+    c->nper = 0;                     /* the window holds the bad edge: rpm restarts fresh */
 }
 
 void crank_edge(crank_t *c, uint32_t t_us)
