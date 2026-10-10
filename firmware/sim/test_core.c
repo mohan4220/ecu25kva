@@ -9,6 +9,7 @@
 #include "rail.h"
 #include "inject.h"
 #include "safety.h"
+#include "j1939.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; \
@@ -257,6 +258,68 @@ static void test_faults(void)
     for (int i = 0; i < t.n; i++) CHECK(t.f[i].spn == 200u + i && t.f[i].fmi == 4);
 }
 
+static void test_j1939_id(void)
+{
+    CHECK(j1939_id(3, 61444, 234) == 0x0CF004EAu);
+}
+
+static void test_eec1(void)
+{
+    ecu_can f; j1939_eec1(&f, 1500);
+    CHECK(f.id == 0x0CF004EAu && f.len == 8);
+    CHECK(f.data[3] == 0xE0 && f.data[4] == 0x2E);
+    CHECK(f.data[0] == 0xFF && f.data[7] == 0xFF);
+}
+
+static void test_et1(void)
+{
+    ecu_can f;
+    j1939_et1(&f, 90, 1);
+    CHECK(f.id == 0x18FEEEEAu && f.data[0] == 130);
+    j1939_et1(&f, 90, 0);
+    CHECK(f.data[0] == 0xFF);
+    j1939_eflp1(&f, 400, 1);
+    CHECK(f.id == 0x18FEEFEAu && f.data[3] == 100 && f.data[7] == 0xFF);
+}
+
+static void test_dm1_single(void)
+{
+    faults_t t; memset(&t, 0, sizeof t);
+    ecu_can f[4];
+    CHECK(j1939_dm1(f, 4, &t, 0) == 1);
+    CHECK(f[0].id == 0x18FECAEAu && f[0].data[2] == 0 && f[0].data[5] == 0 && f[0].data[6] == 0xFF);
+    faults_set(&t, 110, 3);
+    CHECK(j1939_dm1(f, 4, &t, LAMP_AMBER) == 1);
+    CHECK(f[0].len == 8 && f[0].data[0] == LAMP_AMBER && f[0].data[1] == 0xFF);
+    CHECK(f[0].data[2] == 0x6E && f[0].data[3] == 0x00 && f[0].data[4] == 0x03 && f[0].data[5] == 0x01);
+}
+
+static void test_dm1_bam(void)
+{
+    faults_t t; memset(&t, 0, sizeof t);
+    ecu_can f[4];
+    faults_set(&t, 110, 3); faults_set(&t, 100, 4); faults_set(&t, 190, 0);
+    CHECK(j1939_dm1(f, 4, &t, LAMP_RED) == 3);
+    CHECK(f[0].id == j1939_id(7, 0xECFF, 234));
+    CHECK(f[0].data[0] == 32 && f[0].data[1] == 14 && f[0].data[2] == 0 && f[0].data[3] == 2);
+    CHECK(f[0].data[5] == 0xCA && f[0].data[6] == 0xFE && f[0].data[7] == 0x00);
+    CHECK(f[1].id == j1939_id(7, 0xEBFF, 234) && f[1].data[0] == 1 && f[2].data[0] == 2);
+    CHECK(f[1].data[1] == LAMP_RED && f[1].data[3] == 0x6E);
+    CHECK(j1939_dm1(f, 2, &t, 0) == 0);       /* would not fit */
+    faults_set(&t, 102, 4);                   /* 18 bytes: 3 packets, last one padded */
+    CHECK(j1939_dm1(f, 4, &t, 0) == 4);
+    CHECK(f[3].data[0] == 3 && f[3].data[4] == 0x01 && f[3].data[5] == 0xFF && f[3].data[7] == 0xFF);
+}
+
+static void test_dm1_spn_high(void)
+{
+    faults_t t; memset(&t, 0, sizeof t);
+    ecu_can f[1];
+    faults_set(&t, 520192, 5);
+    j1939_dm1(f, 1, &t, 0);
+    CHECK(f[0].data[2] == 0x00 && f[0].data[3] == 0xF0 && f[0].data[4] == (0xE0 | 5));
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -287,6 +350,12 @@ int main(void)
     test_inject_soi_in_gap();
     test_safety();
     test_faults();
+    test_j1939_id();
+    test_eec1();
+    test_et1();
+    test_dm1_single();
+    test_dm1_bam();
+    test_dm1_spn_high();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }
