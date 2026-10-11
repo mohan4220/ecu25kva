@@ -1045,6 +1045,18 @@ static void test_ecu_dm2_waits_for_bam(void)
     CHECK(dm1_cm >= 0 && dm2_cm > dm1_last_dt && dm1_last_dt > dm1_cm);
 }
 
+static void test_ecu_load_marks_inactive(void)
+{
+    ecu_io io; ecu_up(&io);
+    nvm_fresh(&na);
+    log_snap z = { 0 };
+    log_dtc_set(&na, SPN_SPEED, 0, 1, &z);    /* saved while active */
+    nvm_seal(&na);
+    ecu_nvm_load(&io, &na, NULL, sizeof na);
+    const nvm_dtc *d = log_dtc_find(live(), SPN_SPEED, 0);
+    CHECK(d && !(d->status & DTC_ACTIVE));    /* nothing is active until detected again */
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -1129,6 +1141,7 @@ int main(void)
     test_dm4_layout();
     test_ecu_dm3_request();
     test_ecu_dm2_waits_for_bam();
+    test_ecu_load_marks_inactive();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }

@@ -351,6 +351,7 @@ void ecu_nvm_load(ecu_io *io, const void *slot_a, const void *slot_b, uint32_t l
         event(io, EV_NVM_RESET, 0);
     } else {
         memcpy(&img, pick ? slot_b : slot_a, sizeof img);
+        log_dtc_all_inactive(&img);     /* after power-up nothing is active until seen again */
     }
     if (io->reset_cause == 1)
         img.c.wdg_resets++;

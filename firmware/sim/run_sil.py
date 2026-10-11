@@ -8,6 +8,7 @@ Each scenario is a claim from the spec (section 7) that must hold.
 """
 import pathlib
 import statistics
+import struct
 import subprocess
 import sys
 
@@ -22,6 +23,39 @@ from run_sim import Checks, PASS, FAIL  # noqa: E402
 
 S = 1_000_000                        # us per second
 EEC1, ET1, EFLP1, DM1 = 0xF004, 0xFEEE, 0xFEEF, 0xFECA
+
+
+IMAGE_LEN = 3036                     # sizeof(nvm_image); decode() checks it
+TRIP_OVERSPEED, TRIP_SYNC = 1, 2
+EV_SHUTDOWN = 6
+
+
+def decode(img):
+    """The persistent image (firmware/core/nvm.h) as a dict."""
+    assert len(img) == IMAGE_LEN, f"image is {len(img)} bytes: nvm.h and decode() disagree"
+    magic, version, seq, length, crc = struct.unpack_from("<HHIII", img, 0)
+    c = struct.unpack_from("<III4H5I", img, 16)
+    counters = dict(ecu_s=c[0], engine_s=c[1], starts=c[2], trips_overspeed=c[3],
+                    trips_sync=c[4], wdg_resets=c[6])
+    dtcs = []
+    for i in range(16):
+        spn, fmi, status, oc, vbat, first, last, rpm, rail, load, fuel, clt, oil = \
+            struct.unpack_from("<IBBBBIIHHBBBB", img, 64 + 24 * i)
+        if status & 2:
+            dtcs.append(dict(spn=spn, fmi=fmi, active=bool(status & 1), oc=oc, rpm=rpm))
+    ev_head, ev_n, rec_next = struct.unpack_from("<BBB", img, 64 + 384 + 768)
+    events = []
+    for k in range(ev_n):                      # newest first
+        t, code, _, arg, rpm, _ = struct.unpack_from("<IBBHHH", img, 448 + 12 * ((ev_head - 1 - k) % 64))
+        events.append(dict(t=t, code=code, arg=arg, rpm=rpm))
+    recs = []
+    for r in range(2):
+        base = 64 + 384 + 768 + 4 + 908 * r
+        t, reason, n_pre, n_post = struct.unpack_from("<IBBB", img, base)
+        samples = [struct.unpack_from("<HBBH", img, base + 8 + 6 * i) for i in range(n_pre + n_post)]
+        recs.append(dict(t=t, reason=reason, n_pre=n_pre, n_post=n_post, rpm=[x[0] for x in samples],
+                         state=[x[2] for x in samples]))
+    return dict(seq=seq, counters=counters, dtcs=dtcs, events=events, recs=recs)
 
 
 def pgn(can_id):
@@ -58,6 +92,8 @@ class Sim:
         self._sent = [0] * NCYL
         self.slots = [b"", b""]      # the two NVM slots, as the host's flash
         self.saves = 0
+        self.tear_next = False       # the next save is cut by a power loss halfway
+        self.torn = False
         self.ecu.nvm_load(*self.slots)
         self._state = self.io.state
         self._volts()
@@ -101,7 +137,12 @@ class Sim:
                 self.ecu.tick(self.next_ms)
                 self.ecu.background()
                 if self.io.nvm_save:
-                    self.slots[self.io.nvm_slot] = self.ecu.nvm_image()
+                    img = self.ecu.nvm_image()
+                    if self.tear_next:
+                        # the rest of the slot stays erased flash (0xFF)
+                        img = img[:len(img) // 2] + b"\xff" * (len(img) - len(img) // 2)
+                        self.tear_next, self.torn = False, True
+                    self.slots[self.io.nvm_slot] = img
                     self.io.nvm_save = 0
                     self.saves += 1
                 for cid, data in self.ecu.drain_can():
@@ -122,6 +163,28 @@ class Sim:
             if sim.io.state == RUN:
                 sim.eng.starter = False
         return self.run(settle_s, release)
+
+    def power_cycle(self):
+        """Power off and on: a fresh ECU that reloads the two slots."""
+        self.ecu.init()
+        self.io.ignition = 1
+        self.io.droop_sw = 0
+        self.io.reset_cause = 0
+        self._volts()
+        self.ecu.nvm_load(*self.slots)
+        self._sent = [0] * NCYL
+        self.eng.seq = [0] * NCYL
+        self.eng.cmd = [None] * NCYL
+        self._state = self.io.state
+        return decode(self.ecu.nvm_image())
+
+    def request(self, pgn_):
+        """A global J1939 request from a tool at address 3."""
+        self.ecu.can_rx(0x18EAFF03, pgn_.to_bytes(3, "little"))
+
+    def newest_slot(self):
+        imgs = [decode(x) for x in self.slots if len(x) == IMAGE_LEN]
+        return max(imgs, key=lambda d: d["seq"])
 
     def mean_rpm(self, t0_s, t1_s):
         return statistics.mean(r for t, r, *_ in self.trace if t0_s * S <= t < t1_s * S)
@@ -297,9 +360,88 @@ def watchdog():
     return c
 
 
+def history_after_power_cycle():
+    c = Checks("12 runaway, then power cycle: the history survives")
+    sim = Sim().start(6.0)
+    sim.eng.stuck_fuel_mg = 80
+    sim.run(9.0)
+    img = sim.power_cycle()
+    d = next((x for x in img["dtcs"] if (x["spn"], x["fmi"]) == (190, 0)), None)
+    c.that("DTC 190/0 stored", "yes" if d else "no", 0, ok=d is not None)
+    if d:
+        c.that("  previously active after power-up", "yes" if not d["active"] else "active", 0,
+               ok=not d["active"])
+        c.that("  occurrence count", d["oc"], 1, tol=0)
+        c.that("  freeze-frame rpm", d["rpm"], 1650, ok=d["rpm"] >= 1650, unit="rpm")
+    shut = [e for e in img["events"] if e["code"] == EV_SHUTDOWN and e["arg"] == TRIP_OVERSPEED]
+    c.that("event log has SHUTDOWN (overspeed)", "yes" if shut else "no", 0, ok=bool(shut))
+    rec = next((r for r in img["recs"] if r["reason"] == TRIP_OVERSPEED), None)
+    c.that("trip recording kept", "yes" if rec else "no", 0, ok=rec is not None)
+    if rec:
+        last = rec["rpm"][rec["n_pre"] - 1]
+        c.that("  last sample before the trip, rpm", last, 1650, ok=last >= 1620, unit="rpm")
+        c.that("  after-trip samples", rec["n_post"], 50, tol=0)
+    c.that("starts counted", img["counters"]["starts"], 1, ok=img["counters"]["starts"] >= 1)
+    return c
+
+
+def torn_save():
+    c = Checks("13 power lost halfway through a save")
+    sim = Sim().start(3.0)
+    before = sim.newest_slot()
+    sim.tear_next = True
+    sim.io.ignition = 0                       # stopping asks for a save, 10 s after the start's
+    sim.run(16.0)
+    c.that("a save was torn", "yes" if sim.torn else "no", 0, ok=sim.torn)
+    img = sim.power_cycle()
+    c.that("reload took the previous image, seq", img["seq"], before["seq"], tol=0)
+    c.that("starts as in that image", img["counters"]["starts"], before["counters"]["starts"], tol=0)
+    return c
+
+
+def dm2_dm3_over_can():
+    c = Checks("14 stored faults read and cleared over CAN")
+    sim = Sim().start(6.0)
+    sim.eng.clt_open = True                   # 110/3: raised, then cleared -> stored
+    sim.run(7.5)
+    sim.eng.clt_open = False
+    sim.run(8.0)
+    sim.request(0xFECB)
+    sim.run(8.1)
+    dm2 = [dtcs(d) for t, p, d in sim.can if p == 0xFECB and t > 8 * S]
+    c.that("DM2 returns 110/3", str(dm2[:1]), 0, ok=bool(dm2) and (110, 3) in dm2[0])
+    sim.eng.v_override["v_oil"] = 0.1         # 100/4: active through the clear
+    sim.run(9.0)
+    sim.request(0xFECC)
+    sim.run(9.1)
+    sim.request(0xFECB)
+    sim.run(11.2)
+    dm2 = [dtcs(d) for t, p, d in sim.can if p == 0xFECB and t > 9.1 * S]
+    dm1 = [d for t, d in sim.dm1_after(10 * S)]
+    c.that("DM2 after DM3 is empty", str(dm2[:1]), 0, ok=bool(dm2) and dm2[0] == [])
+    c.that("active fault 100/4 still on DM1", str(dm1[-1:]), 0, ok=bool(dm1) and (100, 4) in dm1[-1])
+    return c
+
+
+def lost_tooth():
+    c = Checks("15 one lost crank tooth at 1500 rpm")
+    sim = Sim().start(6.0)
+    sim.eng.drop_edge_once = True
+    sim.run(8.0)
+    tr = sim.trip(6.0)
+    c.that("SHUTDOWN", "yes" if tr else "no", 0, ok=tr is not None)
+    stored = {(d["spn"], d["fmi"]) for d in sim.newest_slot()["dtcs"]}
+    c.that("stored as crank sensor (636)", "yes" if (636, 2) in stored else "no", 0, ok=(636, 2) in stored)
+    c.that("not stored as overspeed (190)", "no" if (190, 0) not in stored else "yes", 0,
+           ok=(190, 0) not in stored)
+    return c
+
+
 SCENARIOS = {f.__name__: f for f in (start, load_step, load_reject, droop, runaway,
                                      crank_loss, ignition_off, sensor_open,
-                                     can_content, rail, watchdog)}
+                                     can_content, rail, watchdog,
+                                     history_after_power_cycle, torn_save,
+                                     dm2_dm3_over_can, lost_tooth)}
 
 
 def main():

@@ -52,6 +52,8 @@ class Engine:
         self.clt_open = False
         self.stuck_fuel_mg = None
         self.crank_lost = False
+        self.drop_edge_once = False  # the next crank edge goes missing
+        self.v_override = {}         # sensor faults: {"v_oil": 0.1} forces a reading
         self.net_torque = 0.0
         self.fuel = [0.0] * NCYL     # mg delivered for each cylinder's coming stroke
         self.cmd = [None] * NCYL     # (start_us, dur_us) not yet finished
@@ -112,7 +114,10 @@ class Engine:
             while n * 6 <= new:
                 a = n * 6
                 if (a % 360) / 6 < 58 and not self.crank_lost:
-                    crank.append(t_us + round((a - old) / span * dt_us))
+                    if self.drop_edge_once:
+                        self.drop_edge_once = False
+                    else:
+                        crank.append(t_us + round((a - old) / span * dt_us))
                 n += 1
             c = math.floor((old - CAM_DEG) / 720) + 1
             if CAM_DEG + 720 * c <= new:
@@ -145,6 +150,7 @@ class Engine:
             "v_boost": _lin(100 + 100 * load, 50, 400),
             "v_egr": _lin(0, 0, 100),
             "v_5v": 5.0,
+            **self.v_override,
         }
 
 
