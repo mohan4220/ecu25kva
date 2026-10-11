@@ -26,6 +26,7 @@ static nvm_image out;                /* sealed copy the host writes */
 static uint32_t bg_ms;               /* ms at the last ecu_background */
 static uint8_t save_req, save_now, saved_once, ign_prev;
 static uint32_t last_save_s;
+static rec_t rec;
 static uint32_t ms;
 static uint16_t ign_low_ms;          /* ignition low with the engine stopped */
 static ecu_can bam[6];               /* TP.DT packets still to send */
@@ -106,6 +107,7 @@ void ecu_init(ecu_io *io)
     io->nvm_save = io->nvm_slot = 0;
     ms = bg_ms = 0;
     save_req = save_now = saved_once = ign_prev = 0;
+    rec_reset(&rec);
     reset_all(io);
 }
 
@@ -123,6 +125,8 @@ static void trip(ecu_io *io, int why)
             img.c.trips_overspeed++;
         else if (why == TRIP_SYNC)
             img.c.trips_sync++;
+        if (why == TRIP_OVERSPEED || why == TRIP_SYNC)   /* not normal stops: they would */
+            rec_trigger(&rec, &img, img.c.ecu_s, (uint8_t)why);  /* overwrite real trips */
         save_req = 1;
     }
     io->state = ECU_SHUTDOWN;
@@ -283,6 +287,13 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
         io->meter_duty = METER_CLOSED;
 
     send_can(io);
+
+    if (ms % 20 == 0) {
+        rec_sample x = { (uint16_t)(io->rpm + 0.5f), (uint8_t)(io->fuel_mg / 0.25f + 0.5f),
+                         io->state, (uint16_t)(sens.val[S_RAIL] + 0.5f) };
+        if (rec_push(&rec, &img, x))
+            save_now = 1;               /* a finished trip recording saves at once */
+    }
 
     io->fuel_mg = io->state == ECU_RUN ? gov.fuel : io->state == ECU_CRANK ? FUEL_START_MG : 0;
     io->rail_bar = sens.val[S_RAIL];

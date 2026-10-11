@@ -125,3 +125,41 @@ int log_dm3_clear(nvm_image *m)
         }
     return n;
 }
+
+void rec_reset(rec_t *r)
+{
+    memset(r, 0, sizeof *r);
+    r->slot = -1;
+}
+
+int rec_push(rec_t *r, nvm_image *m, rec_sample s)
+{
+    int done = 0;
+    if (r->slot >= 0) {
+        rec_trip *t = &m->rec[r->slot];
+        t->s[t->n_pre + t->n_post++] = s;
+        if (--r->post_left == 0) {
+            r->slot = -1;
+            done = 1;
+        }
+    }
+    r->ring[r->head] = s;
+    r->head = (uint8_t)((r->head + 1) % REC_PRE);
+    if (r->n < REC_PRE)
+        r->n++;
+    return done;
+}
+
+void rec_trigger(rec_t *r, nvm_image *m, uint32_t t_s, uint8_t reason)
+{
+    r->slot = (int8_t)m->rec_next;
+    m->rec_next ^= 1;
+    rec_trip *t = &m->rec[r->slot];
+    memset(t, 0, sizeof *t);
+    t->t_s = t_s;
+    t->reason = reason;
+    t->n_pre = r->n;
+    for (int i = 0; i < r->n; i++)        /* oldest first */
+        t->s[i] = r->ring[(r->head - r->n + i + REC_PRE) % REC_PRE];
+    r->post_left = REC_POST;
+}

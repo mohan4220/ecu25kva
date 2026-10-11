@@ -24,4 +24,16 @@ void log_dtc_all_inactive(nvm_image *m);
 int  log_dm3_clear(nvm_image *m);
 const nvm_dtc *log_dtc_find(const nvm_image *m, uint32_t spn, uint8_t fmi);
 
+/* Trip recorder: a RAM ring always recording; a trip copies the last
+ * REC_PRE samples into the older image slot and adds REC_POST more. */
+typedef struct {
+    rec_sample ring[REC_PRE];
+    uint8_t head, n, post_left;
+    int8_t slot;                     /* image slot being filled, -1 none */
+} rec_t;
+
+void rec_reset(rec_t *r);
+int  rec_push(rec_t *r, nvm_image *m, rec_sample s);   /* 1 = a recording just completed */
+void rec_trigger(rec_t *r, nvm_image *m, uint32_t t_s, uint8_t reason);
+
 #endif

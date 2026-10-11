@@ -914,6 +914,53 @@ static void test_ecu_history_survives_ignition_cycle(void)
     CHECK(live()->c.trips_overspeed == 1);
 }
 
+/* ---- trip recorder ---- */
+
+static rec_sample smp(int i) { rec_sample x = { (uint16_t)i, 0, 0, 0 }; return x; }
+
+static void test_rec_pre_post(void)
+{
+    rec_t r; rec_reset(&r); nvm_fresh(&na);
+    for (int i = 0; i < 300; i++) CHECK(rec_push(&r, &na, smp(i)) == 0);
+    rec_trigger(&r, &na, 42, TRIP_OVERSPEED);
+    int done = 0;
+    for (int i = 300; i < 360; i++) done += rec_push(&r, &na, smp(i));
+    CHECK(done == 1);
+    const rec_trip *t = &na.rec[0];
+    CHECK(t->t_s == 42 && t->reason == TRIP_OVERSPEED);
+    CHECK(t->n_pre == 100 && t->s[0].rpm == 200 && t->s[99].rpm == 299);
+    CHECK(t->n_post == 50 && t->s[149].rpm == 349);
+}
+
+static void test_rec_two_slots(void)
+{
+    rec_t r; rec_reset(&r); nvm_fresh(&na);
+    int used[3];
+    for (int k = 0; k < 3; k++) {
+        used[k] = na.rec_next;
+        rec_trigger(&r, &na, (uint32_t)k, TRIP_SYNC);
+        for (int i = 0; i < REC_POST; i++) rec_push(&r, &na, smp(i));
+    }
+    CHECK(used[0] == 0 && used[1] == 1 && used[2] == 0);
+    CHECK(na.rec[0].t_s == 2 && na.rec[1].t_s == 1);
+}
+
+static void test_ecu_trip_saves_now(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);             /* the start's save opened the 10 s gap */
+    seals = 0;
+    for (float rpm = 1500; rpm < 1700 && io.state == ECU_RUN; rpm += 1)
+        ecu_spin(&io, rpm, 1, &t, &tooth, 0);
+    CHECK(io.state == ECU_SHUTDOWN);
+    tick_t = t;
+    ticks(&io, 1100, 1);
+    CHECK(seals >= 1);
+    uint32_t len;
+    const nvm_image *o = ecu_nvm_image(&len);
+    CHECK(o->rec[0].reason == TRIP_OVERSPEED && o->rec[0].n_post == REC_POST);
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -989,6 +1036,9 @@ int main(void)
     test_dtc_full();
     test_dm3_clear();
     test_ecu_history_survives_ignition_cycle();
+    test_rec_pre_post();
+    test_rec_two_slots();
+    test_ecu_trip_saves_now();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }
