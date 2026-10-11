@@ -854,6 +854,66 @@ static void test_ecu_storage_dead(void)
     CHECK(live()->ev_n > n0);
 }
 
+/* ---- DTC memory ---- */
+
+static void test_dtc_first_and_count(void)
+{
+    nvm_fresh(&na);
+    log_snap s1 = { 1000, 0.5f, 17, 1000, 85, 400, 24.0f, ECU_RUN };
+    log_snap s2 = s1; s2.rpm = 2000;
+    CHECK(log_dtc_set(&na, 110, 3, 5, &s1) == 1);
+    CHECK(log_dtc_set(&na, 110, 3, 9, &s2) == 0);
+    const nvm_dtc *d = log_dtc_find(&na, 110, 3);
+    CHECK(d && d->oc == 2 && d->rpm == 1000 && d->first_s == 5 && d->last_s == 9);
+    CHECK(d && d->load_pct == 50 && d->fuel_q == 68 && d->clt_p40 == 125 && d->oil_q == 100 && d->vbat_q == 120);
+    CHECK(d && (d->status & 1) && (d->status >> 4) == ECU_RUN);
+    log_dtc_inactive(&na, 110, 3);
+    d = log_dtc_find(&na, 110, 3);
+    CHECK(d && !(d->status & 1));
+}
+
+static void test_dtc_full(void)
+{
+    nvm_fresh(&na);
+    log_snap z = { 0 };
+    for (uint32_t i = 1; i <= NVM_DTCS; i++) {
+        log_dtc_set(&na, 500 + i, 4, i, &z);
+        log_dtc_inactive(&na, 500 + i, 4);
+    }
+    CHECK(log_dtc_set(&na, 999, 3, 100, &z) == 1);
+    CHECK(log_dtc_find(&na, 501, 4) == NULL);          /* oldest last_s replaced */
+    CHECK(log_dtc_find(&na, 502, 4) && log_dtc_find(&na, 999, 3));
+}
+
+static void test_dm3_clear(void)
+{
+    nvm_fresh(&na);
+    log_snap z = { 0 };
+    log_dtc_set(&na, 1, 3, 1, &z); log_dtc_inactive(&na, 1, 3);
+    log_dtc_set(&na, 2, 3, 1, &z); log_dtc_inactive(&na, 2, 3);
+    log_dtc_set(&na, 3, 3, 1, &z);
+    CHECK(log_dm3_clear(&na) == 2);
+    CHECK(!log_dtc_find(&na, 1, 3) && !log_dtc_find(&na, 2, 3) && log_dtc_find(&na, 3, 3));
+}
+
+static void test_ecu_history_survives_ignition_cycle(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    for (float rpm = 1500; rpm < 1700 && io.state == ECU_RUN; rpm += 1)
+        ecu_spin(&io, rpm, 1, &t, &tooth, 0);
+    CHECK(io.state == ECU_SHUTDOWN);
+    tick_t = t;
+    io.ignition = 0;
+    ticks(&io, IGN_OFF_MS + 100, 1);          /* engine stopped, ignition held off */
+    io.ignition = 1;
+    ticks(&io, 1, 1);
+    CHECK(io.state == ECU_WAIT);
+    const nvm_dtc *d = log_dtc_find(live(), SPN_SPEED, 0);
+    CHECK(d && !(d->status & 1) && d->oc == 1 && d->rpm >= 1650);
+    CHECK(live()->c.trips_overspeed == 1);
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -925,6 +985,10 @@ int main(void)
     test_ecu_hour();
     test_ecu_save_rate();
     test_ecu_storage_dead();
+    test_dtc_first_and_count();
+    test_dtc_full();
+    test_dm3_clear();
+    test_ecu_history_survives_ignition_cycle();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }

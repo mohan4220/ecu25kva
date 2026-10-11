@@ -37,6 +37,37 @@ static void event(ecu_io *io, uint8_t code, uint16_t arg)
     log_event(&img, img.c.ecu_s, code, arg, (uint16_t)io->rpm);
 }
 
+static int fault_active(uint32_t spn, uint8_t fmi)
+{
+    for (int i = 0; i < faults.n; i++)
+        if (faults.f[i].spn == spn && faults.f[i].fmi == fmi)
+            return 1;
+    return 0;
+}
+
+/* Every fault goes through these two: the active table (DM1) and the
+ * stored history (DTC memory) never disagree. */
+static void fault_raise(ecu_io *io, uint32_t spn, uint8_t fmi)
+{
+    if (fault_active(spn, fmi))
+        return;
+    faults_set(&faults, spn, fmi);
+    log_snap s = { io->rpm, io->fuel_mg / FUEL_RATED_MG, io->fuel_mg, sens.val[S_RAIL],
+                   sens.val[S_CLT], sens.val[S_OIL], io->v_bat, io->state };
+    if (log_dtc_set(&img, spn, fmi, img.c.ecu_s, &s))
+        save_req = 1;
+    event(io, EV_DTC_SET, (uint16_t)spn);
+}
+
+static void fault_drop(ecu_io *io, uint32_t spn, uint8_t fmi)
+{
+    if (!fault_active(spn, fmi))
+        return;
+    faults_clear(&faults, spn, fmi);
+    log_dtc_inactive(&img, spn, fmi);
+    event(io, EV_DTC_CLEAR, (uint16_t)spn);
+}
+
 static int queue(ecu_io *io, const ecu_can *f)
 {
     if (io->can_n < ECU_CANQ) {
@@ -56,6 +87,7 @@ static void reset_all(ecu_io *io)
     gov_reset(&gov, 0, 0);
     rail_reset(&rail);
     memset(&faults, 0, sizeof faults);
+    log_dtc_all_inactive(&img);         /* the latch clears; the history stays */
     ign_low_ms = 0;
     bam_n = bam_i = 0;
     inject_cancel(io->inj);
@@ -82,9 +114,9 @@ void ecu_init(ecu_io *io)
 static void trip(ecu_io *io, int why)
 {
     if (why == TRIP_OVERSPEED)
-        faults_set(&faults, SPN_SPEED, 0);
+        fault_raise(io, SPN_SPEED, 0);
     else if (why == TRIP_SYNC)
-        faults_set(&faults, SPN_POS, 2);
+        fault_raise(io, SPN_POS, 2);
     if (io->state != ECU_SHUTDOWN) {     /* count and log the transition, once */
         event(io, EV_SHUTDOWN, (uint16_t)why);
         if (why == TRIP_OVERSPEED)
@@ -149,14 +181,14 @@ void ecu_cam_edge(ecu_io *io, uint32_t t_us)
         crank_cam(&crank, t_us);
 }
 
-static void mirror_sensor_faults(void)
+static void mirror_sensor_faults(ecu_io *io)
 {
     for (int i = 0; i < S_N; i++) {
         for (uint8_t fmi = 3; fmi <= 4; fmi++)
             if (sens.fmi[i] != fmi)
-                faults_clear(&faults, sens_spn[i], fmi);
+                fault_drop(io, sens_spn[i], fmi);
         if (sens.fmi[i])
-            faults_set(&faults, sens_spn[i], sens.fmi[i]);
+            fault_raise(io, sens_spn[i], sens.fmi[i]);
     }
 }
 
@@ -238,7 +270,7 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     crank_poll(&crank, t_us);
     const float v[S_N] = { io->v_clt, io->v_oil, io->v_rail, io->v_boost, io->v_egr };
     sens_step_1ms(&sens, v, io->v_5v);
-    mirror_sensor_faults();
+    mirror_sensor_faults(io);
 
     io->rpm = rpm;
     check(io, rpm);
