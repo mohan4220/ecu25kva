@@ -267,8 +267,8 @@ contact-type confirmation, which gates nothing
 |---|---|---|
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
-| 1.5 | Block-level simulation | **Done — 25 blocks, 25 passing** (power_path added 8 Oct 2026) |
-| **2** | **KiCad hierarchical schematic capture** | **Complete — 196 components, 113 multi-pin nets, 18 named open ends** |
+| 1.5 | Block-level simulation | **Done — 26 blocks, 26 passing** (feed_emi added 8 Oct 2026) |
+| **2** | **KiCad hierarchical schematic capture** | **Complete — 379 components, 377 with footprints; connectivity OK with 2 named open items (power-ground pin, trip-loop pin)** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
 | 4 | Firmware skeleton | **Core done on the PC, with production logging — 15/15 engine scenarios, 78 unit tests** (decisions log §11, §12). Next: S32K148 dev kit |
 
