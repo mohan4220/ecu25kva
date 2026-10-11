@@ -83,6 +83,8 @@ BOOK = [
      "What the schematic has to buy, and the simulation block that says so"),
     ("04c-decisions", "decisions-log.md", "Design Decisions",
      "Every fork put to the owner: the question, the options, the choice, the reason"),
+    ("04d-firmware", "firmware.md", "Firmware Guide",
+     "How the engine-control software works: timing, safety, CAN, logs, knobs, tests, port"),
     ("05-engine", "research/01-engine-identity.md", "Memo 01 -- Engine Identity",
      "Which engine this actually is, established from five hardware constraints"),
     ("06-gcu", "research/02-kg640c-gcu.md", "Memo 02 -- KG640C Controller",
