@@ -56,6 +56,9 @@ class Sim:
         self.over_edge = None        # (t_us, state) at the first edge the ECU read > 1650 rpm
         self.seq_log = []            # (t_us, cyl, seq)
         self._sent = [0] * NCYL
+        self.slots = [b"", b""]      # the two NVM slots, as the host's flash
+        self.saves = 0
+        self.ecu.nvm_load(*self.slots)
         self._state = self.io.state
         self._volts()
 
@@ -96,6 +99,11 @@ class Sim:
             if self.t >= self.next_ms:
                 self._volts()
                 self.ecu.tick(self.next_ms)
+                self.ecu.background()
+                if self.io.nvm_save:
+                    self.slots[self.io.nvm_slot] = self.ecu.nvm_image()
+                    self.io.nvm_save = 0
+                    self.saves += 1
                 for cid, data in self.ecu.drain_can():
                     self.can.append((self.next_ms, pgn(cid), data))
                 self._after(self.next_ms)
@@ -282,6 +290,8 @@ def watchdog():
     sim.run(13.0)
     falls = [t for (t, *_, w), (t0, *_, w0) in zip(sim.trace[1:], sim.trace) if w0 and not w]
     per = [(b - a) / 1000 for a, b in zip(falls, falls[1:])]
+    tail = (sim.trace[-1][0] - falls[-1]) / 1000      # kicks that stop are a failure too
+    c.that("time since the last WDI fall at the end, ms", tail, 20, ok=tail <= 20, unit="ms")
     c.that("shortest WDI period, ms", min(per), 5, ok=min(per) >= 5, unit="ms")
     c.that("longest WDI period, ms", max(per), 20, ok=max(per) <= 20, unit="ms")
     return c

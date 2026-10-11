@@ -68,6 +68,9 @@ class Ecu:
         a, b = (bytes(x[:n]).ljust(n, b"\0") for x in (a, b))
         self.lib.ecu_nvm_load(self._p, a, b, C.c_uint32(n))
 
+    def background(self):
+        self.lib.ecu_background(self._p)
+
     def drain_can(self):
         out = [(f.id, bytes(f.data[:f.len])) for f in self.io.can[:self.io.can_n]]
         self.io.can_n = 0

@@ -10,6 +10,8 @@
 #define ECU_NCYL 3
 #define ECU_CANQ 16
 #define ECU_MS_WRAP 3600000u         /* the ms counter wraps hourly; every period divides it */
+#define ECU_BG_MS 50                 /* WDI stops if ecu_background has not run this long */
+#define SAVE_GAP_S 10                /* at most one save per 10 s, except a trip */
 #define IGN_OFF_MS 500               /* ignition low this long, engine stopped, clears SHUTDOWN */
 
 typedef enum { ECU_OFF, ECU_WAIT, ECU_CRANK, ECU_RUN, ECU_SHUTDOWN } ecu_state;
@@ -50,5 +52,10 @@ size_t ecu_io_size(void);
 /* Persistence. Load after ecu_init with both slots (either may be blank). */
 void ecu_nvm_load(ecu_io *io, const void *slot_a, const void *slot_b, uint32_t len);
 const void *ecu_nvm_image(uint32_t *len);
+const void *ecu_nvm_live(void);      /* the live image, for diagnostics and tests */
+
+/* Main loop, as often as it likes: saves, and the watchdog check-in.
+ * Never call it from an interrupt; it is the only place a save is asked for. */
+void ecu_background(ecu_io *io);
 
 #endif

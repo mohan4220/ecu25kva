@@ -10,6 +10,7 @@
 #include "safety.h"
 #include "j1939.h"
 #include "nvm.h"
+#include "log.h"
 
 #define RUN_RPM 400.0f               /* CRANK -> RUN once phased and above this */
 #define WDG_TOGGLE_MS 5              /* WDI falling edge every 10 ms */
@@ -22,11 +23,19 @@ static rail_t rail;
 static faults_t faults;
 static nvm_image img;                /* live: the tick updates it */
 static nvm_image out;                /* sealed copy the host writes */
+static uint32_t bg_ms;               /* ms at the last ecu_background */
+static uint8_t save_req, save_now, saved_once, ign_prev;
+static uint32_t last_save_s;
 static uint32_t ms;
 static uint16_t ign_low_ms;          /* ignition low with the engine stopped */
 static ecu_can bam[6];               /* TP.DT packets still to send */
 static uint8_t bam_n, bam_i;
 static uint8_t bam_wait;             /* ms to the next TP.DT */
+
+static void event(ecu_io *io, uint8_t code, uint16_t arg)
+{
+    log_event(&img, img.c.ecu_s, code, arg, (uint16_t)io->rpm);
+}
 
 static int queue(ecu_io *io, const ecu_can *f)
 {
@@ -62,7 +71,9 @@ void ecu_init(ecu_io *io)
     io->wdg = 0;
     io->can_n = 0;
     io->can_drops = 0;
-    ms = 0;
+    io->nvm_save = io->nvm_slot = 0;
+    ms = bg_ms = 0;
+    save_req = save_now = saved_once = ign_prev = 0;
     reset_all(io);
 }
 
@@ -74,6 +85,14 @@ static void trip(ecu_io *io, int why)
         faults_set(&faults, SPN_SPEED, 0);
     else if (why == TRIP_SYNC)
         faults_set(&faults, SPN_POS, 2);
+    if (io->state != ECU_SHUTDOWN) {     /* count and log the transition, once */
+        event(io, EV_SHUTDOWN, (uint16_t)why);
+        if (why == TRIP_OVERSPEED)
+            img.c.trips_overspeed++;
+        else if (why == TRIP_SYNC)
+            img.c.trips_sync++;
+        save_req = 1;
+    }
     io->state = ECU_SHUTDOWN;
     inject_cancel(io->inj);
     io->meter_duty = METER_CLOSED;
@@ -90,8 +109,10 @@ void ecu_crank_edge(ecu_io *io, uint32_t t_us)
 {
     if (io->state == ECU_OFF)
         return;
-    if (io->state == ECU_WAIT)
+    if (io->state == ECU_WAIT) {
         io->state = ECU_CRANK;
+        event(io, EV_CRANK, 0);
+    }
     uint8_t fault_before = crank_fault(&crank);
     crank_edge(&crank, t_us);
     /* a fault raised by this very edge (a lost or extra tooth) also skews
@@ -112,6 +133,9 @@ void ecu_crank_edge(ecu_io *io, uint32_t t_us)
     if (io->state == ECU_CRANK && crank_phased(&crank) && rpm >= RUN_RPM) {
         io->state = ECU_RUN;
         gov_reset(&gov, FUEL_START_MG, rpm);
+        img.c.starts++;
+        event(io, EV_RUN, 0);
+        save_req = 1;
     }
     if ((io->state == ECU_CRANK || io->state == ECU_RUN) && crank_phased(&crank)) {
         float fuel = io->state == ECU_RUN ? gov.fuel : FUEL_START_MG;
@@ -178,8 +202,15 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
 {
     if (++ms >= ECU_MS_WRAP)
         ms = 0;
-    if (ms % WDG_TOGGLE_MS == 0)
+    /* kick only while the main loop is alive: a hung loop under live
+     * interrupts must stop the kicks so the supervisor resets the MCU */
+    if (ms % WDG_TOGGLE_MS == 0 && (ms + ECU_MS_WRAP - bg_ms) % ECU_MS_WRAP < ECU_BG_MS)
         io->wdg ^= 1;
+    if (ms % 1000 == 0 && log_second(&img, io->state == ECU_RUN, io->fuel_mg / FUEL_RATED_MG))
+        save_req = 1;
+    if (ign_prev && !io->ignition)
+        event(io, EV_IGN_OFF, 0);
+    ign_prev = io->ignition;
 
     /* rpm decays to 0 once edges stop, rather than holding the last value.
      * Signed: an edge interrupt may stamp a time just after this tick's. */
@@ -201,6 +232,7 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
         if (!io->ignition)
             return;
         io->state = ECU_WAIT;
+        event(io, EV_IGN_ON, 0);
     }
 
     crank_poll(&crank, t_us);
@@ -232,13 +264,39 @@ size_t ecu_io_size(void) { return sizeof(ecu_io); }
 
 void ecu_nvm_load(ecu_io *io, const void *slot_a, const void *slot_b, uint32_t len)
 {
-    (void)io;
     int pick = nvm_pick(slot_a, slot_b, len);
-    if (pick < 0)
+    if (pick < 0) {
         nvm_fresh(&img);
-    else
+        event(io, EV_NVM_RESET, 0);
+    } else {
         memcpy(&img, pick ? slot_b : slot_a, sizeof img);
+    }
+    if (io->reset_cause == 1)
+        img.c.wdg_resets++;
+    event(io, EV_POWER_ON, io->reset_cause);
     out = img;
+}
+
+const void *ecu_nvm_live(void) { return &img; }
+
+void ecu_background(ecu_io *io)
+{
+    bg_ms = ms;
+    if (io->nvm_save)                   /* the host has not finished the last write */
+        return;
+    /* strict: whole seconds, so ">" is what guarantees at least SAVE_GAP_S */
+    int due = save_now || (save_req && (!saved_once || img.c.ecu_s - last_save_s > SAVE_GAP_S));
+    if (!due)
+        return;
+    /* ponytail: on the S32K148 this copy needs the tick masked; on the PC nothing preempts it */
+    out = img;
+    nvm_seal(&out);
+    img.h.seq = out.h.seq;
+    io->nvm_slot = (uint8_t)(out.h.seq & 1);
+    io->nvm_save = 1;
+    save_req = save_now = 0;
+    saved_once = 1;
+    last_save_s = img.c.ecu_s;
 }
 
 const void *ecu_nvm_image(uint32_t *len)

@@ -11,6 +11,7 @@
 #include "safety.h"
 #include "j1939.h"
 #include "nvm.h"
+#include "log.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; \
@@ -324,6 +325,15 @@ static void test_dm1_spn_high(void)
 /* ---- whole-ECU tests through the four entry points ---- */
 
 static uint32_t tick_t;
+static int host_dead;                /* storage that never completes a write */
+static int seals;                    /* saves the host has been asked for */
+
+static void host_tick(ecu_io *io)
+{
+    ecu_tick_1ms(io, tick_t);
+    ecu_background(io);
+    if (io->nvm_save && !host_dead) { seals++; io->nvm_save = 0; }
+}
 
 static void ecu_up(ecu_io *io)
 {
@@ -332,14 +342,18 @@ static void ecu_up(ecu_io *io)
     io->ignition = 1;
     io->v_clt = io->v_oil = io->v_rail = io->v_boost = io->v_egr = 2.5f;
     io->v_5v = 5.0f;
+    io->v_bat = 24.0f;
+    ecu_nvm_load(io, NULL, NULL, 0);
     tick_t = 0;
+    host_dead = 0;
+    seals = 0;
 }
 
 static void ticks(ecu_io *io, int n, int drain)
 {
     for (int i = 0; i < n; i++) {
         tick_t += 1000;
-        ecu_tick_1ms(io, tick_t);
+        host_tick(io);
         if (drain) io->can_n = 0;
     }
 }
@@ -351,7 +365,7 @@ static void ecu_spin(ecu_io *io, float rpm, int edges, uint32_t *t, int *tooth, 
         int cam = next_edge(rpm, t, tooth);
         while (with_ticks && tick_t + 1000 <= *t) {
             tick_t += 1000;
-            ecu_tick_1ms(io, tick_t);
+            host_tick(io);
             io->can_n = 0;
         }
         if (cam) ecu_cam_edge(io, *t - 10);
@@ -375,7 +389,7 @@ static int dm1_first_spn(ecu_io *io, uint32_t spn)
 {
     for (int i = 0; i < 1000; i++) {
         tick_t += 1000;
-        ecu_tick_1ms(io, tick_t);
+        host_tick(io);
         for (int k = 0; k < io->can_n; k++) {
             ecu_can *f = &io->can[k];
             if (f->id == 0x18FECAEAu) {
@@ -752,6 +766,94 @@ static void test_ecu_nvm_load(void)
     CHECK(img->c.starts == 7);                /* blank slot A ignored, slot B taken */
 }
 
+/* ---- events, counters, saves, watchdog ---- */
+
+static const nvm_image *live(void) { return ecu_nvm_live(); }
+
+static void test_log_ring(void)
+{
+    nvm_fresh(&na);
+    for (int i = 1; i <= 70; i++) log_event(&na, (uint32_t)i, EV_CRANK, (uint16_t)i, 0);
+    CHECK(na.ev_n == 64);
+    CHECK(log_event_at(&na, 0)->arg == 70);
+    CHECK(log_event_at(&na, 63)->arg == 7);
+    CHECK(log_event_at(&na, 64) == NULL);
+}
+
+static void test_ecu_wdg_needs_background(void)
+{
+    ecu_io io; ecu_up(&io);
+    ticks(&io, 100, 1);                       /* healthy: WDI toggling */
+    uint8_t last = io.wdg; int late_changes = 0, changes = 0;
+    for (int i = 0; i < 100; i++) {           /* main loop hung, interrupts alive */
+        tick_t += 1000;
+        ecu_tick_1ms(&io, tick_t);
+        if (io.wdg != last) { changes++; if (i >= 50) late_changes++; last = io.wdg; }
+    }
+    CHECK(late_changes == 0);
+    CHECK(changes <= 10);
+    int back = 0;
+    for (int i = 0; i < 20; i++) { ticks(&io, 1, 1); back += io.wdg != last; last = io.wdg; }
+    CHECK(back == 4);                         /* kicks resume with the loop */
+}
+
+static void test_ecu_power_on_event(void)
+{
+    ecu_io io; ecu_up(&io);
+    io.reset_cause = 1;
+    ecu_nvm_load(&io, NULL, NULL, 0);
+    const nvm_event *e = log_event_at(live(), 0);
+    CHECK(e && e->code == EV_POWER_ON && e->arg == 1);
+    CHECK(log_event_at(live(), 1)->code == EV_NVM_RESET);
+    CHECK(live()->c.wdg_resets == 1);
+}
+
+static void test_ecu_hour(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    CHECK(io.state == ECU_RUN && seals >= 1);  /* the start was saved */
+    uint32_t e0 = live()->c.engine_s;
+    seals = 0;
+    ecu_spin(&io, 1500, (int)(3600.0 * 1500 / 60 * 58), &t, &tooth, 1);
+    CHECK(live()->c.engine_s - e0 >= 3599 && live()->c.engine_s - e0 <= 3601);
+    CHECK(seals == 1);
+    CHECK(live()->c.band_s[0] >= 3599);       /* no load: lowest band */
+}
+
+static void test_ecu_save_rate(void)
+{
+    ecu_io io; ecu_up(&io);
+    ticks(&io, 100, 1);
+    int when[8], n = 0;
+    for (int ms = 0; ms < 15000; ms++) {
+        int phase = ms % 600;
+        if (ms < 2400) io.ignition = phase < 100 ? 1 : 0;   /* off: SHUTDOWN every 0.6 s */
+        else io.ignition = 0;
+        int before = seals;
+        ticks(&io, 1, 1);
+        if (seals != before && n < 8) when[n++] = ms;
+    }
+    CHECK(n == 2);
+    CHECK(n == 2 && when[1] - when[0] >= 10000);
+}
+
+static void test_ecu_storage_dead(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    host_dead = 1;
+    uint8_t n0 = live()->ev_n;
+    io.ignition = 0;
+    ecu_spin(&io, 1500, 2000, &t, &tooth, 1);
+    io.ignition = 1;
+    tick_t = t;
+    ticks(&io, 20000, 1);
+    CHECK(io.state == ECU_SHUTDOWN);
+    CHECK(io.nvm_save == 1);
+    CHECK(live()->ev_n > n0);
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -817,6 +919,12 @@ int main(void)
     test_nvm_pick();
     test_nvm_old_version();
     test_ecu_nvm_load();
+    test_log_ring();
+    test_ecu_wdg_needs_background();
+    test_ecu_power_on_event();
+    test_ecu_hour();
+    test_ecu_save_rate();
+    test_ecu_storage_dead();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }
