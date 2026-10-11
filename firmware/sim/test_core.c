@@ -1057,6 +1057,83 @@ static void test_ecu_load_marks_inactive(void)
     CHECK(d && !(d->status & DTC_ACTIVE));    /* nothing is active until detected again */
 }
 
+/* ---- final review: production logging ---- */
+
+static void test_ecu_flapping_sensor_keeps_log(void)   /* I1 */
+{
+    ecu_io io; ecu_up(&io);
+    ticks(&io, 10, 1);
+    uint8_t head0 = live()->ev_head, n0 = live()->ev_n;
+    for (int k = 0; k < 66; k++) {            /* a loose connector, 3.3 Hz for 20 s */
+        io.v_oil = 0.1f; ticks(&io, 150, 1);
+        io.v_oil = 2.5f; ticks(&io, 150, 1);
+    }
+    for (int k = 0; k < 100; k++) {           /* a bouncing ignition contact */
+        io.ignition = 0; ticks(&io, 1, 1);
+        io.ignition = 1; ticks(&io, 1, 1);
+    }
+    int added = (live()->ev_head - head0 + NVM_EVENTS) % NVM_EVENTS;
+    CHECK(n0 + added <= NVM_EVENTS && added <= 4);
+}
+
+static void test_ecu_dm1_not_starved(void)            /* I2 */
+{
+    ecu_io io; ecu_up(&io);
+    io.v_oil = 0.1f; io.v_boost = 4.95f; ticks(&io, 150, 1);
+    io.v_oil = 2.5f; io.v_boost = 2.5f;  ticks(&io, 150, 1);   /* two stored */
+    io.v_clt = 4.95f; io.v_egr = 0.1f; io.v_rail = 4.95f;      /* three active: DM1 is a BAM */
+    ticks(&io, 200, 1);
+    int dm1 = 0;
+    for (int i = 0; i < 20000; i++) {
+        if (i % 300 == 0) {                   /* a tool polling freeze frames */
+            ecu_can r = { 0x18EAEA01u, 3, { 0xCD, 0xFE, 0x00 } };
+            ecu_can_rx(&io, &r);
+        }
+        ticks(&io, 1, 0);
+        for (int k = 0; k < io.can_n; k++)
+            dm1 += (io.can[k].id >> 16 & 0xFF) == 0xEC && io.can[k].data[5] == 0xCA;
+        io.can_n = 0;
+    }
+    CHECK(dm1 >= 18);
+}
+
+static void test_ecu_wdg_reset_saved(void)            /* I3 */
+{
+    ecu_io io; ecu_up(&io);
+    io.reset_cause = 1;
+    ecu_nvm_load(&io, NULL, NULL, 0);
+    seals = 0;
+    ticks(&io, 12000, 1);                     /* waiting, never cranked */
+    uint32_t len;
+    const nvm_image *o = ecu_nvm_image(&len);
+    CHECK(seals >= 1 && o->c.wdg_resets == 1);
+}
+
+static void test_ecu_bam_dt_not_dropped(void)         /* review M2, graded Important */
+{
+    ecu_io io; ecu_up(&io);
+    io.v_clt = 4.95f; io.v_egr = 0.1f; io.v_rail = 4.95f;
+    ticks(&io, 150, 1);
+    while (1) {                               /* to the DM1 TP.CM */
+        ticks(&io, 1, 0);
+        int cm = 0;
+        for (int k = 0; k < io.can_n; k++) cm |= (io.can[k].id >> 16 & 0xFF) == 0xEC;
+        if (cm) break;
+        io.can_n = 0;
+    }
+    io.can_n = ECU_CANQ;                      /* queue full when the first TP.DT is due */
+    ticks(&io, 60, 0);
+    io.can_n = 0;
+    int seq[8], n = 0;
+    for (int i = 0; i < 300; i++) {
+        ticks(&io, 1, 0);
+        for (int k = 0; k < io.can_n; k++)
+            if ((io.can[k].id >> 16 & 0xFF) == 0xEB && n < 8) seq[n++] = io.can[k].data[0];
+        io.can_n = 0;
+    }
+    CHECK(n == 2 && seq[0] == 1 && seq[1] == 2);
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -1142,6 +1219,10 @@ int main(void)
     test_ecu_dm3_request();
     test_ecu_dm2_waits_for_bam();
     test_ecu_load_marks_inactive();
+    test_ecu_flapping_sensor_keeps_log();
+    test_ecu_dm1_not_starved();
+    test_ecu_wdg_reset_saved();
+    test_ecu_bam_dt_not_dropped();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }

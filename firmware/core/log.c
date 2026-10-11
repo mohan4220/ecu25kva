@@ -80,8 +80,9 @@ int log_dtc_set(nvm_image *m, uint32_t spn, uint8_t fmi, uint32_t t_s, const log
         if (d->oc < DTC_OC_MAX)
             d->oc++;
         d->last_s = t_s;
-        d->status |= DTC_ACTIVE;
-        return 0;
+        int first_this_cycle = !(d->status & DTC_SET_LOGGED);
+        d->status |= DTC_ACTIVE | DTC_SET_LOGGED;
+        return first_this_cycle ? 2 : 0;
     }
     d = slot_for_new(m);
     if (!d)
@@ -89,7 +90,7 @@ int log_dtc_set(nvm_image *m, uint32_t spn, uint8_t fmi, uint32_t t_s, const log
     memset(d, 0, sizeof *d);
     d->spn = spn;
     d->fmi = fmi;
-    d->status = (uint8_t)(DTC_USED | DTC_ACTIVE | (s->state & 0x0F) << 4);
+    d->status = (uint8_t)(DTC_USED | DTC_ACTIVE | DTC_SET_LOGGED | (s->state & 0x0F) << 4);
     d->oc = 1;
     d->first_s = d->last_s = t_s;
     d->rpm = q16(s->rpm);
@@ -102,17 +103,20 @@ int log_dtc_set(nvm_image *m, uint32_t spn, uint8_t fmi, uint32_t t_s, const log
     return 1;
 }
 
-void log_dtc_inactive(nvm_image *m, uint32_t spn, uint8_t fmi)
+int log_dtc_inactive(nvm_image *m, uint32_t spn, uint8_t fmi)
 {
     nvm_dtc *d = find(m, spn, fmi);
-    if (d)
-        d->status &= (uint8_t)~DTC_ACTIVE;
+    if (!d)
+        return 0;
+    int first_this_cycle = !(d->status & DTC_CLR_LOGGED);
+    d->status = (uint8_t)((d->status & ~DTC_ACTIVE) | DTC_CLR_LOGGED);
+    return first_this_cycle;
 }
 
 void log_dtc_all_inactive(nvm_image *m)
 {
     for (int i = 0; i < NVM_DTCS; i++)
-        m->dtc[i].status &= (uint8_t)~DTC_ACTIVE;
+        m->dtc[i].status &= (uint8_t)~(DTC_ACTIVE | DTC_SET_LOGGED | DTC_CLR_LOGGED);
 }
 
 int log_dm3_clear(nvm_image *m)

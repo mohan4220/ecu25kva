@@ -1021,9 +1021,29 @@ the next power-up logs a watchdog reset.
   yet, stopped pulsing after 50 ms, and scenario 11 still passed. It now
   also checks that the pulses continue to the end.
 
+### What the final review caught
+
+A fresh reviewer, acting as an off-highway ECU firmware specialist, found
+no critical defects. It did find four that would hurt in months of field
+running. Each now has a test that failed first:
+- **A loose sensor connector flooded the event log.** Every flicker logged
+  "fault set" and "fault cleared", and in 10 s that pushed the overspeed
+  record out. Each fault's set and clear is now logged once per ignition
+  cycle, and ignition-off only after 500 ms off, so a bouncing contact
+  logs nothing.
+- **A service tool reading fault snapshots could silence the DSE's fault
+  list.** Long multi-frame messages queue one at a time, and the tool's
+  requests always won. The active fault list (DM1) now goes first.
+- **A watchdog reset was never saved on its own.** If the operator
+  power-cycled before anything else triggered a save, the evidence of the
+  hang was lost. A watchdog-reset boot now requests a save, still under
+  the 10 s limit, so a boot loop can't wear the flash.
+- **A packet of a long message could be dropped** if the CAN queue was
+  full at that moment. It is now retried 1 ms later.
+
 ### Proof
 
-- **74 unit tests.**
+- **78 unit tests.**
 - **15 scenarios.** The four new ones:
 
 | # | Scenario | Result |

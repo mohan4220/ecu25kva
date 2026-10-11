@@ -24,14 +24,15 @@ static faults_t faults;
 static nvm_image img;                /* live: the tick updates it */
 static nvm_image out;                /* sealed copy the host writes */
 static uint32_t bg_ms;               /* ms at the last ecu_background */
-static uint8_t save_req, save_now, saved_once, ign_prev;
+static uint8_t save_req, save_now, saved_once;
+static uint16_t ign_off_ms;          /* ignition low this long: a real ignition-off */
 static uint32_t last_save_s;
 static rec_t rec;
 static uint32_t ms;
 static uint16_t ign_low_ms;          /* ignition low with the engine stopped */
 static ecu_can bam[J1939_BAM_MAX];   /* TP.DT packets still to send */
 static ecu_can tx[J1939_BAM_MAX];    /* scratch for building a response */
-static uint8_t pend_dm2, pend_dm4, pend_hours;
+static uint8_t pend_dm1, pend_dm2, pend_dm4, pend_hours;
 static uint8_t bam_n, bam_i;
 static uint8_t bam_wait;             /* ms to the next TP.DT */
 
@@ -57,9 +58,11 @@ static void fault_raise(ecu_io *io, uint32_t spn, uint8_t fmi)
     faults_set(&faults, spn, fmi);
     log_snap s = { io->rpm, io->fuel_mg / FUEL_RATED_MG, io->fuel_mg, sens.val[S_RAIL],
                    sens.val[S_CLT], sens.val[S_OIL], io->v_bat, io->state };
-    if (log_dtc_set(&img, spn, fmi, img.c.ecu_s, &s))
+    int r = log_dtc_set(&img, spn, fmi, img.c.ecu_s, &s);
+    if (r == 1)
         save_req = 1;
-    event(io, EV_DTC_SET, (uint16_t)spn);
+    if (r)
+        event(io, EV_DTC_SET, (uint16_t)spn);
 }
 
 static void fault_drop(ecu_io *io, uint32_t spn, uint8_t fmi)
@@ -67,8 +70,8 @@ static void fault_drop(ecu_io *io, uint32_t spn, uint8_t fmi)
     if (!fault_active(spn, fmi))
         return;
     faults_clear(&faults, spn, fmi);
-    log_dtc_inactive(&img, spn, fmi);
-    event(io, EV_DTC_CLEAR, (uint16_t)spn);
+    if (log_dtc_inactive(&img, spn, fmi))
+        event(io, EV_DTC_CLEAR, (uint16_t)spn);
 }
 
 static int queue(ecu_io *io, const ecu_can *f)
@@ -93,7 +96,7 @@ static void reset_all(ecu_io *io)
     log_dtc_all_inactive(&img);         /* the latch clears; the history stays */
     ign_low_ms = 0;
     bam_n = bam_i = 0;
-    pend_dm2 = pend_dm4 = pend_hours = 0;
+    pend_dm1 = pend_dm2 = pend_dm4 = pend_hours = 0;
     inject_cancel(io->inj);
     io->meter_duty = METER_CLOSED;
     io->state = ECU_OFF;
@@ -109,7 +112,8 @@ void ecu_init(ecu_io *io)
     io->can_drops = 0;
     io->nvm_save = io->nvm_slot = 0;
     ms = bg_ms = 0;
-    save_req = save_now = saved_once = ign_prev = 0;
+    save_req = save_now = saved_once = 0;
+    ign_off_ms = 0;
     rec_reset(&rec);
     reset_all(io);
 }
@@ -240,20 +244,27 @@ static void send_can(ecu_io *io)
     if (ms % 1000 == 0) {
         j1939_et1(&f, sens.val[S_CLT], !sens.fmi[S_CLT]);
         queue(io, &f);
-        send_tp(io, tx, j1939_dm1(tx, J1939_BAM_MAX, &faults, lamps()));
+        pend_dm1 = 1;
     }
     if (ms % 10000 == 0 || pend_hours) {   /* HOURS: on request, and every 10 s (U4) */
         j1939_hours(&f, img.c.engine_s);
         queue(io, &f);
         pend_hours = 0;
     }
-    if (pend_dm2 && send_tp(io, tx, j1939_dm2(tx, J1939_BAM_MAX, &img)))
+    /* DM1 first: a tool polling DM2/DM4 must never starve the controller of faults */
+    if (pend_dm1 && send_tp(io, tx, j1939_dm1(tx, J1939_BAM_MAX, &faults, lamps())))
+        pend_dm1 = 0;
+    if (!pend_dm1 && pend_dm2 && send_tp(io, tx, j1939_dm2(tx, J1939_BAM_MAX, &img)))
         pend_dm2 = 0;
-    if (pend_dm4 && send_tp(io, tx, j1939_dm4(tx, J1939_BAM_MAX, &img)))
+    if (!pend_dm1 && pend_dm4 && send_tp(io, tx, j1939_dm4(tx, J1939_BAM_MAX, &img)))
         pend_dm4 = 0;
     if (bam_i < bam_n && --bam_wait == 0) {
-        queue(io, &bam[bam_i++]);
-        bam_wait = BAM_GAP_MS;
+        if (queue(io, &bam[bam_i])) {   /* a full queue retries next ms: no packet lost */
+            bam_i++;
+            bam_wait = BAM_GAP_MS;
+        } else {
+            bam_wait = 1;
+        }
     }
 }
 
@@ -282,9 +293,11 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
         io->wdg ^= 1;
     if (ms % 1000 == 0 && log_second(&img, io->state == ECU_RUN, io->fuel_mg / FUEL_RATED_MG))
         save_req = 1;
-    if (ign_prev && !io->ignition)
+    /* debounced: a bouncing contact must not flood the event log */
+    if (io->ignition)
+        ign_off_ms = 0;
+    else if (ign_off_ms < IGN_OFF_MS && ++ign_off_ms == IGN_OFF_MS)
         event(io, EV_IGN_OFF, 0);
-    ign_prev = io->ignition;
 
     /* rpm decays to 0 once edges stop, rather than holding the last value.
      * Signed: an edge interrupt may stamp a time just after this tick's. */
@@ -353,8 +366,13 @@ void ecu_nvm_load(ecu_io *io, const void *slot_a, const void *slot_b, uint32_t l
         memcpy(&img, pick ? slot_b : slot_a, sizeof img);
         log_dtc_all_inactive(&img);     /* after power-up nothing is active until seen again */
     }
-    if (io->reset_cause == 1)
+    if (io->reset_cause == 1) {
+        /* a hang is the evidence most worth keeping: save it, but through
+         * the rate limit, so a boot loop cannot wear the flash out */
         img.c.wdg_resets++;
+        save_req = saved_once = 1;
+        last_save_s = img.c.ecu_s;
+    }
     event(io, EV_POWER_ON, io->reset_cause);
     out = img;
 }
