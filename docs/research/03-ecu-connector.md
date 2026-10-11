@@ -130,3 +130,51 @@ One site visit, done right, resolves which of the three buyable candidates is co
 - https://bosch-connectors.com/ (PS Connectors) — fetched directly; page returned only navigation/legal boilerplate, no usable technical content (**negative result**, recorded rather than omitted).
 - Searches returning negative or inconclusive results (recorded per the global instruction): `Bosch EDC17 94 pin connector India price Delhi distributor OR Amazon.in OR IndiaMART` (no India-specific listing found); `Bosch MD1 MDG1 154 pin ECU connector ampseal delphi GT94 comparison` (no direct technical comparison found); `TE Connectivity AMPSEAL 90 way OR Delphi GT150 150 pin connector Mouser India price` (distribution channel confirmed, exact India pricing not obtained).
 - Prior-session scratchpad files reviewed for reusable material (`/tmp/claude-1000/.../scratchpad/`): `drivven.txt` (Drivven DI Driver Module manual — relevant to Task 4, not this task), `bpc960.txt` (Bliss Powercom BPC960 genset-controller manual — a different controller, not the KG640C or the engine ECU, not used in this memo), `apalrd.txt` (generic common-rail-diesel-control-system slide deck — not connector-specific, not used). None of these contained ECU-connector-family evidence directly usable here; reviewed to avoid duplicate fetching, not cited as sources for any claim above.
+
+---
+
+## Addendum, 11 October 2026: online search for the J1001 header drawing
+
+The board needs the **PCB-side header** (J1001) that mates with the harness
+connector photographed on the machine (Bosch `1 928 405 192` / `194`, code C).
+A web search found the family, but **no public drawing of the header**:
+
+- **Harness side, confirmed buyable.** Bosch **1 928 405 063** is
+  "Connector, 94-Way, Code C, Black". Chief Enterprises, an authorised
+  Bosch connector distributor in Germany, stocks 593 of them at €18.26
+  each, falling to €6.50 per 108.
+
+  The same family has these accessories:
+  - 1 928 405 069 (cover, exit right)
+  - 1 928 405 071 (cover, exit left)
+  - 1 928 405 074 (secondary lock)
+  - 1 928 405 067 (retaining plate)
+
+  Our 192 / 194 numbers are not listed anywhere online. They are most
+  likely variants of this family. **Not yet confirmed.**
+- **Board side, a family match but no drawing.** TE Connectivity
+  **936524-2** is an "ECU series" right-angle, through-hole, 2.5 mm pitch,
+  2-row shrouded header with 154 contacts: a 60-way engine module plus a
+  **94-way vehicle module**, in a silicone-sealed housing, rated −40 to
+  130 °C. RS lists it (stock numbers 719-9696 and 161-4043, including RS
+  India). TE's own page marks it **"restricted product, no documentation
+  available"**: it is built for Bosch, and its drawing is not public.
+- **No standalone 94-way header was found** with a published drawing.
+  Aftermarket "EDC17 94-pin PC board socket" listings exist, cross-referenced
+  to VAG 7L0906385A. They come from eBay sellers, with no drawing.
+
+**Ways to close J1001**, cheapest first:
+1. **Ask Chief Enterprises (or Bosch Connectors) for the PCB header that
+   mates with 1 928 405 063, code C, and its drawing.** An authorised
+   distributor can request a customer drawing, sometimes under NDA.
+2. **Buy one TE 936524-2 from RS and measure it.** Its 94-way vehicle
+   module is very likely the same header, and the pin grid, pitch, row
+   spacing and mounting pegs can be measured to make a land pattern. The
+   risk is that it is the combined 154-way part, so the single-94 outline
+   and pegs may differ.
+3. **Measure a scrap ECU board.** A dead ECU of this type from a repair
+   shop has the real header soldered on, so the footprint can be read
+   straight off the PCB.
+
+Until one of these is done, J1001 stays without a footprint. Layout can
+start everywhere else.

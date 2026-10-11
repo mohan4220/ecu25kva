@@ -223,7 +223,7 @@ C401 + C420 are two HXC 82 µF 80 V cans in series, balanced by the
 
 | Parts | Why |
 |---|---|
-| J1001 | the Bosch 94-way header: needs the distributor drawing (§4.3) |
+| J1001 | the Bosch 94-way header: no public drawing. The harness mate is Bosch 1 928 405 063 (code C); the likely header is TE 936524-2 (154 = 60 + 94, 2.5 mm, restricted by TE). Ask the distributor, or buy and measure (memo 03 addendum) |
 | D806 | the trip-loop clamp, the LOWV-CLAMP residual |
 
 `hw/gen_footprints.py` holds the project footprints. It derives two from
