@@ -914,6 +914,136 @@ is already proven.
 
 ---
 
+## 12. Logs a production ECU keeps (11 October)
+
+This ECU goes into a production genset that runs for months at a time.
+Until now, everything the firmware knew disappeared at power-off. A
+technician arriving at a stopped set would have found nothing.
+
+### Four records
+
+All four live in one **persistent image** of about 3 KB. That fits the
+S32K148's 4 KB emulated EEPROM.
+
+- **Fault memory.** Up to 16 faults, kept after they clear. Each has an
+  occurrence count, the first and last time it was seen, and a
+  **snapshot taken the first time**:
+  - speed
+  - load
+  - fuel
+  - rail pressure
+  - coolant
+  - oil
+  - battery
+  - state
+
+  It answers "what was the engine doing when this happened?"
+- **Event log.** The last 64 of:
+  - power-ups and their cause (a watchdog reset is a firmware hang
+    caught in the field)
+  - ignition on and off
+  - crank, run and shutdown, with the reason
+  - faults set and cleared
+  - stored-fault clears
+- **Counters.**
+  - ECU powered time and engine hours
+  - starts
+  - trips by cause
+  - watchdog resets
+  - time at each quarter of rated load
+- **Trip recorder.** For the last two overspeed or crank-signal trips:
+  speed, fuel, rail pressure and state every 20 ms, from 2 s before to
+  1 s after. Normal ignition-off stops are not recorded, or the daily
+  stop would overwrite the last real trip.
+
+### Surviving power loss and flash wear
+
+- **Two copies.** The host keeps two copies of the image and writes them
+  alternately. Each copy carries a sequence number and a CRC-32, and at
+  power-up the newest good copy wins. A power cut in the middle of a
+  write loses that one save, never the history.
+- **Sealed copy for the host.** The image the host writes is a sealed
+  copy, so the 1 ms tick can keep updating the live one during the write.
+- **Saves only from the main loop.** A save happens on:
+  - a fault's first occurrence
+  - every trip (1 s after it, once the recording is complete)
+  - entering shutdown
+  - each start
+  - every hour of running
+
+  The rate is capped at one save per 10 s, except a trip.
+- **Wear.** That is about 30 saves a day, roughly 110 000 per copy over 20
+  years. The S32K148's storage has to be chosen for that, in the
+  dev-kit spec.
+
+### Reading it
+
+Over J1939, which the DSE4522 and standard service tools understand:
+- **stored faults (DM2)**
+- **clear stored faults (DM3)**
+- **fault snapshots (DM4)**
+- **engine hours**: on request, and broadcast every 10 s until we know
+  whether the DSE asks for them (U4)
+
+The event log and trip recorder need a laptop service tool over CAN
+(UDS), which belongs in the dev-kit spec. Until then, the simulator reads
+them straight from the image.
+
+### The watchdog needs the main loop now
+
+Until now the 1 ms tick pulsed the watchdog on every pass. A main loop
+hung while interrupts still ran would have kept the watchdog happy
+forever, which is exactly the failure a window watchdog exists to catch.
+The tick now pulses only if the main loop has checked in within 50 ms.
+If the loop hangs, the pulses stop, the TPS3850 resets the processor, and
+the next power-up logs a watchdog reset.
+
+### Three more fixes for long running
+
+- **The millisecond counter wraps every hour by design.** It used to wrap
+  after 49.7 days, which would have broken message timing once in the
+  field.
+- **A lost crank tooth is logged as a crank-sensor fault.** It used to be
+  logged as overspeed, because the missing tooth makes that edge's speed
+  read high. The decoder also drops its speed history on any fault, so
+  one bad edge can't raise a second, false overspeed.
+- **A fault message too long for one CAN frame is sent whole or not at
+  all.** It is never half-sent.
+
+### What the tests caught while building
+
+- **Faults read "active" after power-up.** A fault saved while active
+  still read "active" after a power cycle. Load now marks every stored
+  fault as previously active, because nothing is active until it is seen
+  again.
+- **Scenario 11 couldn't see the watchdog stop.** With the watchdog newly
+  tied to the main loop, the simulator, which didn't run the main loop
+  yet, stopped pulsing after 50 ms, and scenario 11 still passed. It now
+  also checks that the pulses continue to the end.
+
+### Proof
+
+- **74 unit tests.**
+- **15 scenarios.** The four new ones:
+
+| # | Scenario | Result |
+|---|---|---|
+| 12 | Runaway, then power cycle | overspeed fault stored with its snapshot (1650 rpm), shutdown event logged, trip recording kept (last sample before the trip 1633 rpm, 50 after) |
+| 13 | Power cut halfway through a save | reload takes the previous save; nothing else lost |
+| 14 | Stored faults over CAN | DM2 returns the stored fault; DM3 clears it and leaves an active one alone |
+| 15 | One lost crank tooth at 1500 rpm | shutdown, stored as crank sensor (636), not overspeed |
+
+### Still open (dev-kit spec)
+
+- **Storage choice.** Pick storage for about 110 000 writes per copy.
+- **Laptop service tool.** It reads the event log and trip recorder over
+  UDS.
+- **DM3 acknowledgement.** Whether the DSE expects one (U4).
+- **Interrupt masking.** Mask the tick during the sealed-copy step on the
+  real chip.
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a

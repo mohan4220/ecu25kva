@@ -270,7 +270,7 @@ contact-type confirmation, which gates nothing
 | 1.5 | Block-level simulation | **Done — 25 blocks, 25 passing** (power_path added 8 Oct 2026) |
 | **2** | **KiCad hierarchical schematic capture** | **Complete — 196 components, 113 multi-pin nets, 18 named open ends** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
-| 4 | Firmware skeleton | **Core done on the PC — 11/11 engine scenarios, 46 unit tests** (decisions log §11). Next: S32K148 dev kit |
+| 4 | Firmware skeleton | **Core done on the PC, with production logging — 15/15 engine scenarios, 74 unit tests** (decisions log §11, §12). Next: S32K148 dev kit |
 
 ### Phase 2 — what exists
 
@@ -860,6 +860,16 @@ A final review found that the firmware spec had assumed a normally-open
 metering valve, which contradicts the trip module's design. The firmware
 now assumes normally closed. **The real valve must be identified**: if it
 is normally open, the trip module's contacts have to move.
+
+**Production logging, 11 October 2026** (decisions log §12). Fault memory
+with snapshots, a 64-entry event log, lifetime counters (engine hours,
+starts, trips, watchdog resets, time at load) and a trip recorder now
+survive power-off. They live in a 3 KB image saved to two alternating
+copies with CRC-32. DM2, DM3, DM4 and engine hours are read out over
+J1939. The watchdog now pulses only while the main loop is alive. The
+ms counter wraps hourly, a lost tooth logs as a crank fault, and a
+too-long fault message is never half-sent. There are now 15 scenarios
+and 74 unit tests, all passing.
 
 ---
 

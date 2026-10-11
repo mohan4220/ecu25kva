@@ -116,8 +116,9 @@ the sheets again so the footprints land.
 **Phase 2 (schematic capture) is complete and checked.** Ten
 hierarchical sheets, root wired, project netlist verified. Phase 3
 (part selection) is most of the way through; the PCB has not started.
-The firmware core runs on the PC against a simulated engine, with all 11
-scenarios passing (`firmware/`, decisions log §11).
+The firmware core runs on the PC against a simulated engine, with
+production logging (fault memory, events, counters, trip recorder) and
+all 15 scenarios passing (`firmware/`, decisions log §11–12).
 
 | Gate | State |
 |---|---|
