@@ -961,6 +961,90 @@ static void test_ecu_trip_saves_now(void)
     CHECK(o->rec[0].reason == TRIP_OVERSPEED && o->rec[0].n_post == REC_POST);
 }
 
+/* ---- J1939 readout ---- */
+
+static void test_request_parse(void)
+{
+    ecu_can f = { 0x18EAEA01u, 3, { 0xCB, 0xFE, 0x00 } };
+    CHECK(j1939_request_pgn(&f, 234) == 65227);
+    f.id = 0x18EAFF01u;
+    CHECK(j1939_request_pgn(&f, 234) == 65227);
+    f.id = 0x18EA0001u;                       /* addressed to node 0 */
+    CHECK(j1939_request_pgn(&f, 234) == 0);
+    f.id = 0x18FEEE01u;                       /* not a request */
+    CHECK(j1939_request_pgn(&f, 234) == 0);
+}
+
+static void test_hours(void)
+{
+    ecu_can f; j1939_hours(&f, 3600);
+    CHECK(f.id == 0x18FEE5EAu);
+    CHECK(f.data[0] == 20 && f.data[1] == 0 && f.data[2] == 0 && f.data[3] == 0);
+    CHECK(f.data[4] == 0xFF && f.data[7] == 0xFF);
+}
+
+static void test_dm2_empty(void)
+{
+    nvm_fresh(&na);
+    ecu_can f[4];
+    CHECK(j1939_dm2(f, 4, &na) == 1);
+    CHECK((f[0].id >> 8 & 0xFFFF) == 0xFECB);
+    CHECK(f[0].data[2] == 0 && f[0].data[3] == 0 && f[0].data[4] == 0 && f[0].data[5] == 0);
+}
+
+static void test_dm4_layout(void)
+{
+    nvm_fresh(&na);
+    log_snap s1 = { 1652, 0.8f, 30, 1030, 85, 400, 24.0f, ECU_RUN };
+    log_dtc_set(&na, SPN_SPEED, 0, 7, &s1);
+    static ecu_can f[48];
+    CHECK(j1939_dm4(f, 48, &na) == 4);        /* 18 bytes: TP.CM + 3 TP.DT */
+    CHECK(f[0].data[1] == 18 && f[0].data[5] == 0xCD && f[0].data[6] == 0xFE);
+    CHECK(f[1].data[1] == 17);                /* freeze frame length */
+    CHECK(f[1].data[2] == 190 && f[1].data[5] == 1);   /* SPN low byte, occurrence count */
+    CHECK(f[2].data[1] == 0xA0 && f[2].data[2] == 0x33);   /* 1652 / 0.125 = 13216 */
+    CHECK(f[2].data[3] == 80 && f[2].data[4] == 125);      /* load %, coolant + 40 */
+}
+
+static void test_ecu_dm3_request(void)
+{
+    ecu_io io; ecu_up(&io);
+    io.v_oil = 0.1f;  ticks(&io, 150, 1);
+    io.v_oil = 2.5f;  ticks(&io, 150, 1);     /* 100/4 now previously active */
+    io.v_clt = 4.95f; ticks(&io, 150, 1);     /* 110/3 active */
+    ecu_can r = { 0x18EAFF01u, 3, { 0xCC, 0xFE, 0x00 } };
+    ecu_can_rx(&io, &r);
+    CHECK(log_dtc_find(live(), 100, 4) == NULL);
+    CHECK(log_dtc_find(live(), 110, 3) != NULL);
+    CHECK(log_event_at(live(), 0)->code == EV_DM3_CLEAR);
+}
+
+static void test_ecu_dm2_waits_for_bam(void)
+{
+    ecu_io io; ecu_up(&io);
+    io.v_oil = 0.1f; io.v_boost = 4.95f; ticks(&io, 150, 1);
+    io.v_oil = 2.5f; io.v_boost = 2.5f;  ticks(&io, 150, 1);   /* two stored: DM2 is a BAM */
+    io.v_clt = 4.95f; io.v_egr = 0.1f; io.v_rail = 4.95f;      /* three active: DM1 is a BAM */
+    int dm1_cm = -1, dm1_last_dt = -1, dm2_cm = -1, dt_seen = 0, asked = 0;
+    for (int i = 0; i < 3000 && dm2_cm < 0; i++) {
+        ticks(&io, 1, 0);
+        for (int k = 0; k < io.can_n; k++) {
+            ecu_can *f = &io.can[k];
+            int pf = f->id >> 16 & 0xFF;
+            if (pf == 0xEC && f->data[5] == 0xCA && dm1_cm < 0) dm1_cm = i;
+            if (pf == 0xEC && f->data[5] == 0xCB) dm2_cm = i;
+            if (pf == 0xEB && dm1_cm >= 0 && dm2_cm < 0 && ++dt_seen <= 2) dm1_last_dt = i;
+        }
+        io.can_n = 0;
+        if (dm1_cm >= 0 && !asked) {
+            ecu_can r = { 0x18EAEA01u, 3, { 0xCB, 0xFE, 0x00 } };
+            ecu_can_rx(&io, &r);
+            asked = 1;
+        }
+    }
+    CHECK(dm1_cm >= 0 && dm2_cm > dm1_last_dt && dm1_last_dt > dm1_cm);
+}
+
 static void test_io_size(void)
 {
     ecu_io io;
@@ -1039,6 +1123,12 @@ int main(void)
     test_rec_pre_post();
     test_rec_two_slots();
     test_ecu_trip_saves_now();
+    test_request_parse();
+    test_hours();
+    test_dm2_empty();
+    test_dm4_layout();
+    test_ecu_dm3_request();
+    test_ecu_dm2_waits_for_bam();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }

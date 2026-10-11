@@ -58,4 +58,7 @@ const void *ecu_nvm_live(void);      /* the live image, for diagnostics and test
  * Never call it from an interrupt; it is the only place a save is asked for. */
 void ecu_background(ecu_io *io);
 
+/* A received CAN frame: J1939 requests for DM2, DM3, DM4 and HOURS. */
+void ecu_can_rx(ecu_io *io, const ecu_can *f);
+
 #endif

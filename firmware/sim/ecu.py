@@ -68,6 +68,10 @@ class Ecu:
         a, b = (bytes(x[:n]).ljust(n, b"\0") for x in (a, b))
         self.lib.ecu_nvm_load(self._p, a, b, C.c_uint32(n))
 
+    def can_rx(self, can_id, data):
+        f = Can(can_id, len(data), (C.c_uint8 * 8)(*data))
+        self.lib.ecu_can_rx(self._p, C.byref(f))
+
     def background(self):
         self.lib.ecu_background(self._p)
 

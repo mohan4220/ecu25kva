@@ -29,7 +29,9 @@ static uint32_t last_save_s;
 static rec_t rec;
 static uint32_t ms;
 static uint16_t ign_low_ms;          /* ignition low with the engine stopped */
-static ecu_can bam[6];               /* TP.DT packets still to send */
+static ecu_can bam[J1939_BAM_MAX];   /* TP.DT packets still to send */
+static ecu_can tx[J1939_BAM_MAX];    /* scratch for building a response */
+static uint8_t pend_dm2, pend_dm4, pend_hours;
 static uint8_t bam_n, bam_i;
 static uint8_t bam_wait;             /* ms to the next TP.DT */
 
@@ -91,6 +93,7 @@ static void reset_all(ecu_io *io)
     log_dtc_all_inactive(&img);         /* the latch clears; the history stays */
     ign_low_ms = 0;
     bam_n = bam_i = 0;
+    pend_dm2 = pend_dm4 = pend_hours = 0;
     inject_cancel(io->inj);
     io->meter_duty = METER_CLOSED;
     io->state = ECU_OFF;
@@ -204,6 +207,25 @@ static uint8_t lamps(void)
     return l;
 }
 
+/* Send frames built by j1939_tp: a single frame at once; a BAM's TP.CM
+ * now and its TP.DT packets BAM_GAP_MS apart. One BAM at a time
+ * (J1939-21); returns 0 if one is already in flight. */
+static int send_tp(ecu_io *io, const ecu_can *f, int n)
+{
+    if (n <= 0)
+        return 1;
+    if (n > 1 && bam_i < bam_n)
+        return 0;
+    int sent = queue(io, &f[0]);
+    if (n > 1 && sent) {                /* no TP.CM, no TP.DT: never half a message */
+        memcpy(bam, &f[1], (size_t)(n - 1) * sizeof bam[0]);
+        bam_n = (uint8_t)(n - 1);
+        bam_i = 0;
+        bam_wait = BAM_GAP_MS;
+    }
+    return 1;
+}
+
 static void send_can(ecu_io *io)
 {
     ecu_can f;
@@ -218,19 +240,35 @@ static void send_can(ecu_io *io)
     if (ms % 1000 == 0) {
         j1939_et1(&f, sens.val[S_CLT], !sens.fmi[S_CLT]);
         queue(io, &f);
-        ecu_can out[7];
-        int n = j1939_dm1(out, 7, &faults, lamps());
-        int sent = n > 0 && queue(io, &out[0]);
-        if (n > 1 && sent) {            /* no TP.CM, no TP.DT: never half a message */
-            memcpy(bam, &out[1], (size_t)(n - 1) * sizeof bam[0]);
-            bam_n = (uint8_t)(n - 1);
-            bam_i = 0;
-            bam_wait = BAM_GAP_MS;
-        }
+        send_tp(io, tx, j1939_dm1(tx, J1939_BAM_MAX, &faults, lamps()));
     }
+    if (ms % 10000 == 0 || pend_hours) {   /* HOURS: on request, and every 10 s (U4) */
+        j1939_hours(&f, img.c.engine_s);
+        queue(io, &f);
+        pend_hours = 0;
+    }
+    if (pend_dm2 && send_tp(io, tx, j1939_dm2(tx, J1939_BAM_MAX, &img)))
+        pend_dm2 = 0;
+    if (pend_dm4 && send_tp(io, tx, j1939_dm4(tx, J1939_BAM_MAX, &img)))
+        pend_dm4 = 0;
     if (bam_i < bam_n && --bam_wait == 0) {
         queue(io, &bam[bam_i++]);
         bam_wait = BAM_GAP_MS;
+    }
+}
+
+void ecu_can_rx(ecu_io *io, const ecu_can *f)
+{
+    switch (j1939_request_pgn(f, J1939_SA)) {
+    case PGN_DM2: pend_dm2 = 1; break;
+    case PGN_DM4: pend_dm4 = 1; break;
+    case PGN_HOURS: pend_hours = 1; break;
+    case PGN_DM3:
+        /* ponytail: no J1939-21 ACK; add one if U4 shows the DSE waits for it */
+        event(io, EV_DM3_CLEAR, (uint16_t)log_dm3_clear(&img));
+        save_req = 1;
+        break;
+    default: break;
     }
 }
 
