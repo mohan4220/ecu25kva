@@ -724,6 +724,11 @@ owner's call. A stationary genset has no car radio, so a lower class may
 be defensible, but it is not this log's decision to make. If the owner
 relaxes the class, these filters can shrink.
 
+**Decided 12 October 2026: the owner keeps CISPR 25 Class 5.** The
+filters stay as designed. The PCB layout is held to Class 5 practice
+too: tight switching loops, an unbroken ground plane, and filters
+placed at the connector. The layout guide carries this.
+
 **Limits of the model.** Like `emi_filter.cir`, it covers differential
 mode only. Common-mode noise, both wires moving together against the
 chassis, needs a layout to model. The 100 ns switching edges and the
