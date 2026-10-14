@@ -26,6 +26,18 @@ def test_classes():
             assert c["track_width"] == pr.width_mm(c["amps"], 0.070), name
 
 
+def test_gnd_class():
+    # Ground sits beside every fine-pitch pin: it keeps the default
+    # clearance (a 100 V neighbour still gets 0.6 from its own class).
+    assert pr.ASSIGN["GND"] == "GND"
+    assert pr.CLASSES["GND"]["clearance"] == pr.CLASSES["Default"]["clearance"]
+
+
+def test_land_pattern_rule():
+    # Pads of one footprint are the maker's spacing, not ours to route.
+    assert "A.Parent == B.Parent" in pr.DRU and "min 0mm" in pr.DRU
+
+
 def test_classify_unclassified():
     _, unclassified, _ = pr.classify({"/X", "/NEW_PWR"}, {"/NEW_PWR"})
     assert "/NEW_PWR" in unclassified

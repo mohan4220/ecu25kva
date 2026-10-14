@@ -68,10 +68,11 @@ def derive(name, lib, fp, padmap):
 # outline, pads, and whether pad 1 gets a silkscreen marker. A pad is
 # (number, x, y, w, h, layers); layers "cu" is copper with paste and
 # mask, "cu-only" copper alone (its mask and paste are separate "" pads,
-# for a solder-mask-defined thermal pad).
+# for a solder-mask-defined thermal pad), "tht-<drill>" a plated hole.
+# An optional fifth entry is a note printed on silkscreen and fab.
 CU = '"F.Cu" "F.Paste" "F.Mask"'
 LAYERS = {"cu": CU, "cu-only": '"F.Cu"', "mask": '"F.Mask"',
-          "paste": '"F.Paste"'}
+          "paste": '"F.Paste"', "tht": '"*.Cu" "*.Mask"'}
 
 
 def gullwing(n_side, pitch, span, w, h, skip=()):
@@ -87,7 +88,30 @@ def gullwing(n_side, pitch, span, w, h, skip=()):
     return pads
 
 
+def bosch94_placeholder():
+    """J1001 as read off the old ECU's connector face (field evidence
+    2026-10-13 sec. 2): pins 1-6 large, two staggered rows of three at
+    one end; pins 7-94 in four rows of 22 either side of a central rib.
+    Pitch, row spacing and drills are ASSUMED (2.5 mm); measure first."""
+    x0 = -36.0
+    pads = []
+    for i in range(6):                  # 1, 3, 5 top row; 2, 4, 6 bottom
+        pads.append((str(i + 1), x0 + 2.5 * i, -3.75 if i % 2 == 0 else 3.75,
+                     2.8, 5.0, "tht-1.6"))
+    for row, y in enumerate((-6.25, -3.75, 3.75, 6.25)):
+        for i in range(22):
+            pads.append((str(7 + 22 * row + i), x0 + 20 + 2.5 * i, y,
+                         1.6, 1.6, "tht-1.0"))
+    return pads
+
+
 DRAWN = {
+    # The harness header. Only the pin NUMBERS are known to be right.
+    "Bosch_94_PLACEHOLDER": (
+        "PLACEHOLDER for the 94-way Bosch header (mates 1 928 405 063): "
+        "6 large + 4 x 22, geometry assumed. DO NOT FABRICATE",
+        (76.0, 16.0), bosch94_placeholder(), False,
+        "PLACEHOLDER - DO NOT FABRICATE"),
     # TI SLVSCP3D p.25, DDA0008J: 8 x 1.55 x 0.6 at 1.27, rows 5.4 apart;
     # thermal pad 2.95 x 4.9 copper, 2.6 x 3.2 solder-mask-defined
     # opening and stencil (0.125 mm). TI's optional thermal vias are
@@ -134,7 +158,7 @@ def r2(v):
     return round(v + 0.0, 3)
 
 
-def draw(name, descr, body, pads, pin1):
+def draw(name, descr, body, pads, pin1, note=None):
     bw, bh, by = (body + (0.0,))[:3]
     # Courtyard: 0.25 mm round everything, IPC-7351 nominal.
     xs = [abs(x) + w / 2 for _, x, _, w, _, _ in pads] + [bw / 2]
@@ -142,7 +166,9 @@ def draw(name, descr, body, pads, pin1):
     cx, cy = r2(max(xs) + 0.25), r2(max(ys) + 0.25)
     out = [f'(footprint "{name}" (version 20221018) (generator pcbnew)',
            '  (layer "F.Cu")', f'  (descr "{descr}")',
-           f'  (tags "{name}")', '  (attr smd)',
+           f'  (tags "{name}")',
+           '  (attr through_hole)' if any(p[5].startswith("tht")
+                                          for p in pads) else '  (attr smd)',
            f'  (fp_text reference "REF**" (at 0 {r2(-cy - 1)}) '
            '(layer "F.SilkS")\n    (effects (font (size 1 1) '
            '(thickness 0.15))))',
@@ -150,6 +176,10 @@ def draw(name, descr, body, pads, pin1):
            '\n    (effects (font (size 1 1) (thickness 0.15))))',
            '  (fp_text user "${REFERENCE}" (at 0 0) (layer "F.Fab")\n'
            '    (effects (font (size 0.8 0.8) (thickness 0.12))))']
+    for layer in (("F.SilkS", "F.Fab") if note else ()):
+        out.append(f'  (fp_text user "{note}" (at 0 {r2(cy + 2.5)}) '
+                   f'(layer "{layer}")\n    (effects (font (size 1.5 1.5) '
+                   '(thickness 0.25))))')
 
     def rect(x1, y1, x2, y2, layer, wd):
         out.append(f'  (fp_rect (start {r2(x1)} {r2(y1)}) (end {r2(x2)} '
@@ -172,6 +202,11 @@ def draw(name, descr, body, pads, pin1):
         _, x1, y1, w1, _, _ = pads[0]
         line(x1 - w1 / 2, y1 - 0.6, x1 + w1 / 2, y1 - 0.6)
     for num, x, y, w, h, lay in pads:
+        if lay.startswith("tht"):
+            out.append(f'  (pad "{num}" thru_hole oval (at {r2(x)} {r2(y)}) '
+                       f'(size {r2(w)} {r2(h)}) (drill {lay[4:]}) '
+                       f'(layers {LAYERS["tht"]}))')
+            continue
         shape = ("rect" if lay != "cu" else "roundrect")
         # Corner radius 25% of the short side, capped at 0.25 mm
         # (IPC-7351C) so a large tab is not rounded off.
@@ -198,5 +233,5 @@ if __name__ == "__main__":
             continue
         n = derive(name, lib, fp, padmap)
         print(f"{name}: from {lib}:{fp}, {n} pads, renumbered {padmap}")
-    for name, (descr, body, pads, pin1) in DRAWN.items():
-        print(f"{name}: drawn, {draw(name, descr, body, pads, pin1)} pads")
+    for name, spec in DRAWN.items():
+        print(f"{name}: drawn, {draw(name, *spec)} pads")

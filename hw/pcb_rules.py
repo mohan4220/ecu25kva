@@ -9,11 +9,17 @@ housing is measured, edit those two tables and re-run gen_pcb.py.
 """
 import os
 import re
+import shutil
 import subprocess
 import xml.etree.ElementTree as ET
 
 HW = os.path.dirname(os.path.abspath(__file__))
 ROOT_SCH = os.path.join(HW, "ecu25kva.kicad_sch")
+KICAD_CLI = shutil.which("kicad-cli") or \
+    "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"
+FOOTPRINT_DIR = os.environ.get(
+    "KICAD_FOOTPRINT_DIR",
+    "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints")
 
 # ------------------------------------------------------------ stack-up
 # 4 layers, 1.6 mm FR-4, Tg >= 170 C (engine bay). L2 is solid ground.
@@ -55,8 +61,11 @@ def _cls(clearance, amps=None, width=None, via=(0.6, 0.3), **kw):
 
 
 CLASSES = {
-    # Injector supply and its ground return: 18 A peak-phase current.
+    # Injector supply: 18 A peak-phase current.
     "PWR_HI": _cls(0.6, amps=18, via=(0.8, 0.4)),
+    # Ground carries the same 18 A back (mostly in the L2 plane), but sits
+    # beside every fine-pitch pin, so it keeps the default clearance.
+    "GND": _cls(0.15, amps=18, via=(0.8, 0.4)),
     # EGR bridge, metering valve, fused logic supply, regulator trunks.
     "PWR": _cls(0.3, amps=6.4, via=(0.8, 0.4)),
     # The boost rail and everything the injector current crosses at up
@@ -75,7 +84,8 @@ CLASSES = {
 _NETS = {
     "PWR_HI": """/V_BAT_1R /power_input/VBAT_INJ_IN /VBAT_INJ
         Net-(D408-K) Net-(D410-K) /injector/ISNS_INJ_A_SENSE
-        /injector/ISNS_INJ_B_SENSE GND""",
+        /injector/ISNS_INJ_B_SENSE""",
+    "GND": "GND",
     "PWR": """/VBAT_IN Net-(F101-Pad2) /power_input/VBAT_EMI1
         /power_input/VBAT_CLAMPED /VBAT_PROT /V_BAT_2R
         /power_input/VBAT_EGR_IN /VBAT_EGR /EGR_HIGH_59 /EGR_LOW_81
@@ -106,6 +116,17 @@ _NETS = {
 }
 # Exact full net names only: "/VBAT_INJ" never matches "/x/VBAT_INJ".
 ASSIGN = {n: c for c, names in _NETS.items() for n in names.split()}
+
+
+# Custom DRC rules, written next to the board as ecu25kva.kicad_dru.
+# Pad-to-pad spacing inside one footprint is the maker's land pattern
+# (a 0.5 mm-pitch IC cannot meet a 0.3 mm net-class clearance); the
+# classes govern the copper the router adds. KiCad 10 needs the units.
+DRU = """(version 1)
+(rule "land pattern"
+  (condition "A.Type == 'Pad' && B.Type == 'Pad' && A.Parent == B.Parent")
+  (constraint clearance (min 0mm)))
+"""
 
 
 def classify(net_names, power_nets):
@@ -166,7 +187,7 @@ def overlap(a, b):
 # ------------------------------------------------------------ netlist
 def export_netlist(tmpdir):
     path = os.path.join(tmpdir, "ecu25kva.xml")
-    r = subprocess.run(["kicad-cli", "sch", "export", "netlist", "--format",
+    r = subprocess.run([KICAD_CLI, "sch", "export", "netlist", "--format",
                         "kicadxml", "-o", path, ROOT_SCH],
                        capture_output=True, text=True)
     if r.returncode != 0:
