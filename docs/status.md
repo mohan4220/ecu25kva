@@ -270,7 +270,7 @@ contact-type confirmation, which gates nothing
 | 1.5 | Block-level simulation | **Done — 26 blocks, 26 passing** (feed_emi added 8 Oct 2026) |
 | **2** | **KiCad hierarchical schematic capture** | **Complete — 379 components, 377 with footprints; connectivity OK with 2 named open items (power-ground pin, trip-loop pin)** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
-| 4 | Firmware skeleton | **Core done on the PC, with production logging — 15/15 engine scenarios, 78 unit tests** (decisions log §11, §12). Next: S32K148 dev kit |
+| 4 | Firmware skeleton | **Core done on the PC, with production logging — 15/15 engine scenarios, 79 unit tests** (decisions log §11, §12). Next: S32K148 dev kit |
 
 ### Phase 2 — what exists
 
@@ -878,7 +878,7 @@ and 78 unit tests, all passing.
 - **Photos of the old ECU**: Bosch `0 281 021 133`, type `MD1CS162`, KOEL `T4.435.01.0`. Its connector face shows **6 large pins (1–6) and 4 rows of 22**, so the J1001 placeholder is corrected. A second, unidentified ECU is also recorded.
 - **An engine-off CAN trace.** It holds only UDS diagnostics (0x7E0/0x7E8), so **U4 stays open**. Its ECU names itself `KOEL_TC_82.5KVA` / `4R1190ETA4G1`, a 4-cylinder 82.5 kVA set, not ours; logged as **U17**.
 
-The September DSE record also shows that the DSE shuts down only on the DM1 **Protect** lamp, which our firmware never sets. A one-line fix is proposed, awaiting the owner.
+The September DSE record also shows that the DSE shuts down only on the DM1 **Protect** lamp, which our firmware never sets. Fixed on 14 October with the owner's go-ahead: a shutdown fault (overspeed, crank loss) now sets **red and Protect** in DM1; a sensor fault sets amber only. Decisions log §12, addendum.
 
 ---
 

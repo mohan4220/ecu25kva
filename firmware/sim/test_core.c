@@ -384,7 +384,8 @@ static void ecu_running(ecu_io *io, uint32_t *t, int *tooth)
 }
 
 /* Tick until the next DM1 and report whether its first DTC is `spn`
- * (0 = the empty "no fault" DTC). */
+ * (0 = the empty "no fault" DTC). Its lamp byte is left in dm1_lamps. */
+static uint8_t dm1_lamps;
 static int dm1_first_spn(ecu_io *io, uint32_t spn)
 {
     for (int i = 0; i < 1000; i++) {
@@ -394,6 +395,7 @@ static int dm1_first_spn(ecu_io *io, uint32_t spn)
             ecu_can *f = &io->can[k];
             if (f->id == 0x18FECAEAu) {
                 uint32_t got = f->data[2] | f->data[3] << 8 | (uint32_t)(f->data[4] & 0xE0) << 11;
+                dm1_lamps = f->data[0];
                 io->can_n = 0;
                 return got == spn;
             }
@@ -440,6 +442,7 @@ static void test_ecu_overspeed_edge(void)
     for (int k = 0; k < ECU_NCYL; k++) CHECK(io.inj[k].seq == seq[k]);
     tick_t = t;
     CHECK(dm1_first_spn(&io, SPN_SPEED));
+    CHECK(dm1_lamps == (LAMP_RED | LAMP_PROTECT));   /* the DSE shuts down on Protect */
 }
 
 static void test_ecu_ignition(void)
@@ -519,6 +522,15 @@ static void test_ecu_crank_loss(void)
     ticks(&io, 2, 1);
     CHECK(io.state == ECU_SHUTDOWN);
     CHECK(dm1_first_spn(&io, SPN_POS));
+    CHECK(dm1_lamps == (LAMP_RED | LAMP_PROTECT));
+}
+
+static void test_ecu_sensor_lamp(void)
+{
+    ecu_io io; ecu_up(&io);
+    io.v_clt = 4.95f; ticks(&io, 150, 1);
+    CHECK(dm1_first_spn(&io, 110));
+    CHECK(dm1_lamps == LAMP_AMBER);           /* a sensor fault is a warning, never Protect */
 }
 
 static void test_ecu_wdg(void)
@@ -1174,6 +1186,7 @@ int main(void)
     test_ecu_overspeed_edge();
     test_ecu_ignition();
     test_ecu_crank_loss();
+    test_ecu_sensor_lamp();
     test_ecu_wdg();
     test_ecu_can_rates();
     test_ecu_can_overflow();

@@ -1067,6 +1067,26 @@ running. Each now has a test that failed first:
 - **Interrupt masking.** Mask the tick during the sealed-copy step on the
   real chip.
 
+### Addendum, 14 October: the Protect lamp
+
+**The problem:** the DSE4522's configuration (`field-evidence-2026-09-18.md`)
+treats the DM1 **red stop** lamp as a *warning* and shuts down only on the
+**ECU Protect** lamp. Our firmware set red on its shutdown faults but never
+Protect. So after our ECU cut the fuel for overspeed, the DSE would have
+seen only the speed falling and shut down on *under-speed* (1310 rpm),
+logging the wrong reason.
+
+**Chosen:** a shutdown fault (overspeed, SPN 190; crank signal lost,
+SPN 636) now sets **red and Protect** (DM1 byte 1 = 0x11). A sensor fault
+sets amber only (0x04), so a bad sensor never stops the set through the
+DSE.
+
+**Proof:** three unit tests (79 in all): overspeed and crank loss each send
+0x11; an open coolant sensor sends 0x04. All 15 scenarios still pass.
+
+**Still to confirm on the machine:** that the DSE logs "ECU Protect"
+rather than under-speed when our ECU trips. That's a commissioning check.
+
 ---
 
 ## Where these came from

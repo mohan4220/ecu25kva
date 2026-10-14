@@ -207,7 +207,9 @@ static uint8_t lamps(void)
 {
     uint8_t l = 0;
     for (int i = 0; i < faults.n; i++)
-        l |= (faults.f[i].spn == SPN_SPEED || faults.f[i].spn == SPN_POS) ? LAMP_RED : LAMP_AMBER;
+        l |= (faults.f[i].spn == SPN_SPEED || faults.f[i].spn == SPN_POS)
+             ? LAMP_RED | LAMP_PROTECT        /* shutdown: the DSE stops only on Protect */
+             : LAMP_AMBER;
     return l;
 }
 

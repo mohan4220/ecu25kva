@@ -57,7 +57,7 @@ nothing inside the core changes.
 | `core/j1939.c` | Every CAN frame the ECU sends, and request parsing |
 | `core/nvm.c` | The persistent image: layout, checksum, choosing between the two copies |
 | `core/log.c` | Writes into the image: events, counters, fault memory, trip recorder |
-| `sim/test_core.c` | 78 unit tests of the C code |
+| `sim/test_core.c` | 79 unit tests of the C code |
 | `sim/ecu.py` | Python wrapper around the compiled core |
 | `sim/engine.py` | The engine model |
 | `sim/run_sil.py` | The 15 scenarios |
@@ -252,7 +252,7 @@ reads outside 4.5–5.5 V, 5.0 V is used instead.
 | EEC1 | 61444 | 20 ms | Engine speed (0.125 rpm/bit) |
 | EFL/P1 | 65263 | 500 ms | Oil pressure |
 | ET1 | 65262 | 1 s | Coolant temperature |
-| DM1 | 65226 | 1 s | Active faults and lamps (red = shutdown fault, amber = sensor fault) |
+| DM1 | 65226 | 1 s | Active faults and lamps: red + Protect = shutdown fault, amber = sensor fault. The DSE shuts down on Protect and treats red as a warning, so a shutdown fault must set both |
 | HOURS | 65253 | 10 s | Engine hours (0.05 h/bit) |
 
 **Sent on request** (a J1939 request addressed to 234 or to everyone):
@@ -362,7 +362,7 @@ scenarios, and they say at once whether the control still holds.
 ## 13. How it is tested
 
 ```
-make -C firmware/sim test                       # 78 unit tests, about 1 s
+make -C firmware/sim test                       # 79 unit tests, about 1 s
 .venv/bin/python firmware/sim/run_sil.py        # 15 scenarios, about 2-3 min
 .venv/bin/python firmware/sim/run_sil.py rail   # scenarios whose name contains "rail"
 ```
