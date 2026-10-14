@@ -1119,7 +1119,7 @@ since the new ECU must fit somewhere on the engine, where does it go?
 |---|---|---|
 | Stack-up | 4 layers, 1.6 mm, Tg ≥ 170 °C; 2 oz outer, 1 oz inner; L2 a solid ground plane | Engine bay; high current on the outer layers; the plane is never cut |
 | Track widths | Computed from current by IPC-2221, for a 20 °C rise. Never typed | The spec named IPC-2152; IPC-2221 has a formula and comes out wider, so it errs safe. 18 A → 5.35 mm, 6.4 A → 1.3 mm on 2 oz |
-| Clearances | IPC-2221B, external, uncoated: 0.6 mm for anything from 31 V up (boost voltage, the ~40 V EGR gates); 0.2 mm for CAN and analogue; 0.15 mm for logic and low-voltage power on fine-pitch pins. Battery power at 0.3 mm is a **judgement**, not a table row: the table gives 0.1 mm up to 30 V | Safe even before conformal coating |
+| Clearances | IPC-2221B, external, uncoated: 0.6 mm for anything from 31 V up (boost voltage; the EGR gates, which reach 52 V on a load dump); 0.2 mm for CAN and analogue; 0.15 mm for logic and low-voltage power on fine-pitch pins. Battery power at 0.3 mm is a **judgement**, not a table row: the table gives 0.1 mm up to 30 V | Safe even before conformal coating |
 | Net classes | Ten: PWR_HI, RTN, PWR_LOOM, PWR, PWR_LV, HV100, HV100_SIG, CAN, ANALOG, Default | See below for the ones that differ from the plan |
 | The EGR feed (pin 6) | Sized for its 10 A loom fuse, not the 6.4 A load: 135 % of rating (a blade fuse may carry that for up to 30 minutes, ISO 8820-3) = 13.5 A → 3.6 mm | Nothing on the board limits that feed below the loom fuse |
 | Unclassified power nets | The check fails if any net touching a power part (power FET, power diode, inductor, fuse, milliohm shunt) has no class | A new power net can't silently get a thin trace |

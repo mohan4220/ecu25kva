@@ -57,7 +57,7 @@ def test_loom_fused_feeds():
 
 
 def test_egr_high_side_at_40v():
-    # VBAT + 12 V: IPC-2221B B2 asks 0.6 mm from 31 V.
+    # VBAT + 12 V reaches 52 V on a load dump: IPC-2221B B2 asks 0.6 mm from 31 V.
     for n in ("/metering_egr/EGR_AH_G", "/metering_egr/EGR_BH_G",
               "/metering_egr/EGR_A_VB", "/metering_egr/EGR_B_VB"):
         assert pr.CLASSES[pr.ASSIGN.get(n, "Default")]["clearance"] == 0.6, n

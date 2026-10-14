@@ -47,9 +47,9 @@ def width_mm(amps, copper_mm, external=True):
 
 # ------------------------------------------------------------ classes
 # Clearances: IPC-2221B table 6-1, external uncoated (B2): 0.1 mm up to
-# 30 V, 0.6 mm from 31 to 150 V. The 100 V nets and the ~40 V gate nets
+# 30 V, 0.6 mm from 31 to 150 V. The 100 V nets and the EGR gate nets (up to 52 V)
 # take 0.6. The battery power nets at 0.3 mm are a JUDGEMENT, not a table
-# row: 24 V nominal sits in the 0.1 mm row, and 0.3 adds margin for the
+# row: the 12 V system (24 V jump start) sits in the 0.1 mm row, and 0.3 adds margin for the
 # clamped transients. Low-voltage power on fine-pitch pins gets 0.15.
 
 # The 10 A loom fuse on pins 4 and 6 (decisions log 5) is the only
@@ -85,7 +85,7 @@ CLASSES = {
     "HV100": _cls(0.6, amps=18, via=(0.8, 0.4)),
     # Small nets that sit at boost-rail voltage: high-side gates and
     # bootstraps, divider midpoints, the PZTA42 collectors; and the EGR
-    # high-side gates and bootstraps at VBAT + 12 V (~40 V).
+    # high-side gates and bootstraps at VBAT + 12 V (~27 V running, 52 V on a load dump).
     "HV100_SIG": _cls(0.6, width=0.2),
     # 250 kbit/s CAN: width and gap are set from the fab's stack-up for
     # 120 ohm differential; these are the starting values.

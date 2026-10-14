@@ -889,6 +889,19 @@ The September DSE record also shows that the DSE shuts down only on the DM1 **Pr
 
 The outline, holes, cooling band and J1001 are **placeholders**; the inspection brief's new Group 6 asks for the measurements. **The parts don't fit one side of the spec's 160 × 120 mm guess**, so the placeholder is 180 × 130 mm. If the old board is smaller, parts go on both sides. The routing guide is `docs/layout-guide.md`.
 
+**The old ECU's own measurements, engine running, 14 October 2026** (`refs/field-evidence-2026-10-14.md`). This is a 35-minute calibration recording (XCP, MDF 3.0) from a 3-cylinder engine at 1500 rpm on a 12 V system, with no faults stored. It is not a CAN bus trace, so **U4 stays open**. It contradicts five firmware assumptions:
+- **The metering valve behaves as normally open.** Current falls as pressure rises, and rises to stop the engine. Firmware assumes normally closed. This is a safety change: the trip-module contacts have to move. Confirm with the valve's part number.
+- **Injection timing** is 11.5–15° before TDC. Firmware uses 5°.
+- **Rail pressure** follows load, 827–1057 bar. Firmware uses a fixed 1000 bar.
+- **Injector constants:** dead time about 330 µs and flow constant about 0.0020. Firmware uses 300 µs and 0.0009, so it would hold each injector open about twice as long as needed.
+- **The governor is isochronous,** with no droop. Firmware applies 4 %.
+
+Two more readings:
+- The OEM governor dips **9.8 %** on a load step, at G2's limit. Our simulation is likely optimistic.
+- The intake-air-temperature input reads 0 mV, so no sensor is fitted (U2).
+
+The firmware changes are proposed, not made.
+
 ---
 
 ## 8. Work at the machine

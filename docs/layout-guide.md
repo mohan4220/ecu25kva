@@ -62,14 +62,14 @@
 | `RTN` | ground, and the injector shunt tops (~0 V, on fine-pitch amplifier pins) | 18 A | 5.35 mm (pour) | 0.15 mm |
 | `PWR_LOOM` | pin 6 → VBAT_EGR → EGR bridge and its shunt. Protected only by the 10 A loom fuse, so sized for 135 % of it (ISO 8820-3) | 13.5 A | 3.6 mm | 0.3 mm |
 | `HV100` | boost rail, bank nodes (pins 3, 5), low-side drains (pins 73, 29, 7), boost switch node | 18 A, up to ~116 V | 5.35 mm | 0.6 mm |
-| `HV100_SIG` | injector high-side gates and bootstraps, divider midpoints, PZTA42 collectors, VDD_REF; the EGR high-side gates and bootstraps (VBAT + 12 V, ~40 V) | small, 31–116 V | 0.2 mm | 0.6 mm |
+| `HV100_SIG` | injector high-side gates and bootstraps, divider midpoints, PZTA42 collectors, VDD_REF; the EGR high-side gates and bootstraps (VBAT + 12 V: ~27 V running, 52 V on a 40 V load dump) | small, 31–116 V | 0.2 mm | 0.6 mm |
 | `PWR` | pin 21 path behind the 5 A fuse F101, VBAT_PROT, metering valve, buck switch node, 12V_GATE | 6.4 A | 1.3 mm | 0.3 mm |
 | `PWR_LV` | 3V3_MCU, 5V_MAIN, the boost controller's VDD and current sense: low voltage on 0.5 mm-pitch pins | 6.4 A | 1.3 mm | 0.15 mm |
 | `CAN` | CAN1/CAN2 H and L | — | 0.2 mm, gap 0.25 (set from the fab's stack-up) | 0.2 mm |
 | `ANALOG` | sensor inputs, clamps, ADC nets, VR pair | — | 0.25 mm | 0.2 mm |
 | `Default` | logic | — | 0.2 mm | 0.15 mm |
 
-**The 0.3 mm on battery power is a judgement, not a table row.** IPC-2221B B2 gives 0.1 mm up to 30 V and 0.6 mm from 31 V; 0.3 mm adds margin over the 24 V nominal for clamped transients.
+**The 0.3 mm on battery power is a judgement, not a table row.** IPC-2221B B2 gives 0.1 mm up to 30 V and 0.6 mm from 31 V; 0.3 mm adds margin over the 12 V system (24 V jump start) for clamped transients.
 
 **Peak versus average:** the 18 A is the injector peak phase, which is short. The class width is the conservative default. Where a pad forces you to neck down, keep the neck short and add copper on the other outer layer.
 
