@@ -1182,7 +1182,7 @@ trusts the DRC.
 | Droop | 4 % only with the droop switch closed | unchanged | the old ECU runs isochronous, and so does ours with the switch open |
 
 **What it costs, and what is still open:**
-- **The trip module must move.** With a normally-open valve, cutting the valve's supply gives *full* flow, so the trip removes no fuel. The trip has to cut the injector and boost supply instead. That is a **schematic change, not yet made**: the firmware now matches the valve, the hardware doesn't yet.
+- **The trip module must move.** With a normally-open valve, cutting the valve's supply gives *full* flow, so the trip removes no fuel. The trip has to cut the injector and boost supply instead. This is an **external wiring change, not the PCB**: the trip goes in series with the injector feed, pin 04. It is written up in spec §3 item 6 (14 Oct), with the field survey in inspection brief Group 7. If the module's own contact can't carry the 10 A feed, it switches a run relay that is energised to run. Not yet wired.
 - **The valve's part number** is the last confirmation. If it turned out normally closed, `METER_NC` goes back to 1; both polarities are tested.
 - **The tables cover 6.5–26.5 mg at 1500 rpm.** Above that, and at other speeds (cranking, the run-up), they hold their end values. Those parts need the real engine.
 - **The old ECU dips 9.8 % on a load step,** at G2's limit. Our model shows 3.4 % on a bigger step, so it is probably optimistic. Commissioning has to measure it.

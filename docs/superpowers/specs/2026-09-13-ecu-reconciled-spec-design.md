@@ -238,7 +238,12 @@ section.
    no longer a precaution against an unverified relay — it is the only shutdown path on
    this machine that does not run through the ECU being protected against.
 
-5. **The trip module must break the fuel metering unit's supply directly.** This follows
+5. ~~**The trip module must break the fuel metering unit's supply directly.**~~
+   **SUPERSEDED 14 Oct 2026: see item 6.** The valve turned out normally open, and then
+   breaking its supply *opens* it. The original text is kept below because the reasoning
+   about the GCU relay chain still holds; only the contact's position changes.
+
+   This follows
    from U12 and is now a requirement, not a preference. A trip module that signals the
    same GCU relay chain inherits exactly the defect U12 just exposed. Its contacts have
    to sit in series with the metering unit's own battery feed — the one through fuse
@@ -247,21 +252,62 @@ section.
    contact-output devices and can be wired this way; the costing survives, the wiring
    assumption behind it does not.
 
+6. **CORRECTED 14 Oct 2026: the trip module must break the injector supply, ECU pin 04.**
+   The old ECU's own recording (`refs/field-evidence-2026-10-14.md` §3a; decisions log
+   §14) shows a **normally-open** metering valve: its current falls as rail pressure rises,
+   and rises to 1684 mA to stop the engine. With such a valve, removing its supply
+   gives *full* flow. Item 5's arrangement would leave the pump delivering to the rail,
+   with the rail limited only by its relief valve, and **would not stop a runaway at all**.
+
+   On this board, **all injector energy enters on pin 04** (`V_BAT_1R` → `VBAT_INJ`):
+   - it feeds the boost converter that charges the 100 V reservoir
+   - it feeds the two battery high sides that carry the hold current
+
+   Nothing else powers an injector. So the trip module's contacts go **in series with the
+   pin 04 feed, after its 10 A loom fuse**. When it trips:
+   - **Hold current stops at once,** because the battery path is gone.
+   - **The boost reservoir runs down within a few injections.** It is 41 µF and loses
+     about 8.3 V per peak phase (`gen_sheet_injector.py`, from `boost_converter.cir`),
+     so roughly a dozen peak phases empty it from 100 V. That is about 0.3 s at
+     1500 rpm, and it is an estimate from those two numbers, not a simulation.
+   - **Pin 21 (logic), pin 06 (EGR) and the metering valve's own feed are untouched.** The
+     ECU stays alive to log the trip and report it over CAN.
+
+   **The contact carries real current.** The pin 04 feed is 10.98 A peak and 3.8 A RMS,
+   behind a 10 A loom fuse (`gen_sheet_power_input.py`). If the module's own contact
+   isn't rated for that, it drives a **run relay** instead:
+   - a 12 V automotive relay with a normally-open contact rated ≥ 30 A, and coil
+     suppression
+   - its coil is fed through the module's "healthy" contact, so the relay is **energised to
+     run**
+   - then a trip, a module power loss, or a broken coil wire all stop the engine
+
+   **What the ECU sees:** pin 04's voltage is already measured on the harness side
+   (`V_BAT_1R_SNS`, ADC). Pin 04 dropping while pin 21 stays up *is* a trip, so the
+   firmware can recognise and report one without a new input. Whether that makes the
+   supervised `TRIP_LOOP` input unnecessary is **open**, for the owner. The loop also
+   reports a cut wire to the module, which the voltage alone doesn't.
+
 The owners may of course revisit item 3 with evidence. What they should not do is
 inherit the previous revision's conclusion, because the fact it was built on turned out
 to describe a controller that is not on this machine.
 
 ### What this ECU must do about the trip module
 
-Item 5 puts the trip module's contacts in series with the fuel metering unit's battery
-feed. That interface is the module's, not ours — but it constrains this design in three
-ways, and none of them has been designed against yet.
+Item 6 puts the trip module's contacts in series with the injector feed, pin 04 (item 5,
+the metering unit's feed, is superseded). That interface is the module's, not ours, but
+it constrains this design in three ways.
 
-**We must not be able to defeat it.** The trip module removes the metering unit's
-supply. Our low-side driver on pin 88 sinks current from that supply, so when the module
-trips, our output has nothing to switch. That is the property that makes the arrangement
-work, and it must survive the detail: no path from any ECU output may re-energise the
-metering unit around an open trip contact. Any such path would be a wiring error that
+**We must not be able to defeat it.** The trip module removes pin 04. Nothing on this
+board may power the injector stage from anywhere else: not pin 21's `VBAT_PROT`, not pin
+06's `VBAT_EGR`, and not through a diode-OR or a protection part's leakage path. Today
+the schematic has none. `VBAT_INJ` is fed only from `V_BAT_1R` through Q103. The boost
+controller's own supply (`VDD_BAT` from `VBAT_PROT` through R405) and the high-side
+bootstraps (from `12V_GATE`) come from pin 21. They carry milliamps of control current,
+not injector current. With pin 04 open they keep the drivers alive but give them nothing
+to switch. That
+property must survive every revision. **Any path around the trip contact silently
+restores the failure the module exists to remove.** Any such path would be a wiring error that
 silently restores the failure mode the module exists to remove.
 
 **We should sense its state, and treat it as an input rather than a surprise.** A trip
@@ -578,6 +624,11 @@ with nothing downstream able to remove its power either.
    gate**, so the safe state is enforced independently of GPIO configuration. A plain
    timeout watchdog is defeated by a stuck loop that still kicks it; the window is what
    closes that.
+
+**With the normally-open valve (14 Oct 2026),** the kill still stops the engine. It also
+holds the metering driver's gate off, which leaves the valve fully *open*, but the same kill
+holds every injector gate off, so nothing is injected and rail pressure goes to the relief
+valve. The safe state is "no injection", not "no rail pressure".
 
 This is the ECU's own fail-safe and it is **separate from the standalone trip module**
 of §3. The trip module removes fuel authority from outside the board; this keeps the

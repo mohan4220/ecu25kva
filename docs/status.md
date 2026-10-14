@@ -900,7 +900,7 @@ Two more readings:
 - The OEM governor dips **9.8 %** on a load step, at G2's limit. Our simulation is likely optimistic.
 - The intake-air-temperature input reads 0 mV, so no sensor is fitted (U2).
 
-**Applied the same day with the owner's go-ahead** (decisions log §14): normally-open valve, measured injector law, and timing and rail tables. 80 unit tests and 15/15 scenarios pass. **Still open: the trip module has to move to the injector supply** (a schematic change).
+**Applied the same day with the owner's go-ahead** (decisions log §14): normally-open valve, measured injector law, and timing and rail tables. 80 unit tests and 15/15 scenarios pass. **Still open: the trip module has to cut the injector feed, pin 04**, not the valve. That is written up in spec §3 item 6, with the field survey in brief Group 7. It is external wiring, and not yet done.
 
 ---
 

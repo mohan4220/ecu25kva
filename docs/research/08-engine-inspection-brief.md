@@ -462,6 +462,38 @@ measurement each.
 
 ---
 
+## Group 7 — The overspeed trip and the injector feed, added 14 October 2026
+
+**Why.** The old ECU's recording shows the fuel metering valve is **normally open**: cut its power and it lets *more* fuel through. The plan had been to fit an overspeed trip module that stops the engine by cutting the valve's power. **That would not stop a runaway.** The trip now has to cut the **injector supply**, which is ECU **pin 04** (spec §3 item 6). These items gather what the wiring needs. **Nothing is rewired in this group.**
+
+> Engine **off**, ignition **off**, for everything here. Items 7.2 and 7.3 are looking and photographing only. Don't pull fuses or cut wires.
+
+- [ ] **7.1 Confirm the valve.** This is the most important item. Photograph the label on the **fuel metering valve**: the small 2-pin electrical unit on the high-pressure pump, with its connector going to ECU pin 88. We need the number on it (Bosch numbers start `0 928 400 …`). That number settles "normally open" for certain.
+- [ ] **7.2 Find pin 04's fuse.** Follow the wire from ECU pin 04 back towards the battery. Find its **10 A fuse**, then photograph:
+  - the fuse box with its label
+  - the fuse's position
+  - the wire colour on both sides of the fuse
+- [ ] **7.3 Is there a trip module already?** Look for any small speed-switch box with its own magnetic pickup on the flywheel housing. Brand names to look for: GAC, Murphy. If there is one, photograph:
+  - the box and its label
+  - its terminals
+  - where its output wires go
+
+  If there isn't one, say so. That is the expected answer.
+- [ ] **7.4 Room for a relay.** Near the pin 04 fuse, is there space and a mounting point for one standard automotive relay (about 30 × 30 × 25 mm) with its socket? Take a photo with a ruler.
+
+**What the finished wiring will look like** (for reference only, not to be done now):
+
+    battery + ── 10 A loom fuse ── [run relay: normally-open contact, ≥ 30 A] ── ECU pin 04
+                                          │ coil, 12 V
+    ignition-switched + ── trip module "healthy" contact ── coil ── ground
+
+The relay is held **closed while the engine may run**. Any of these stops the injectors:
+- an overspeed trip
+- the module losing power
+- a broken coil wire
+
+Pin 21 (ECU logic), pin 06 (EGR) and the metering valve's own feed are **not** touched.
+
 ## What this closes
 
 | # | Unknown | Closed by |
@@ -487,6 +519,8 @@ measurement each.
 | — | **Board outline, holes, contact areas** | **6.1, 6.2 — placeholders on the PCB until measured** |
 | — | **J1001 header geometry** | **6.3 — the footprint; no board is ordered without it** |
 | — | Battery-ground pins (again) | 6.4 — continuity on the open unit |
+| — | **Metering valve part number (normally open?)** | **7.1 — decides the trip wiring; firmware already assumes normally open** |
+| — | Pin 04 feed and its fuse; existing trip module | 7.2, 7.3, 7.4 — what the trip wiring needs |
 
 Ten register entries touched, two (U2, U11) closeable outright on the spot, one
 (U12) resolves the live safety-argument branch either way, the rest narrowed with a
