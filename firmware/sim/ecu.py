@@ -41,6 +41,8 @@ class Ecu:
         self.lib = C.CDLL(str(HERE / "build" / f"libecu.{ext}"))
         self.lib.ecu_io_size.restype = C.c_size_t
         self.lib.ecu_nvm_image.restype = C.c_void_p
+        self.lib.rail_set_bar.restype = C.c_float
+        self.lib.rail_set_bar.argtypes = [C.c_float]
         if C.sizeof(IO) != self.lib.ecu_io_size():
             raise RuntimeError("ecu.py IO layout does not match ecu.h")
         self.io = IO()
@@ -71,6 +73,10 @@ class Ecu:
     def can_rx(self, can_id, data):
         f = Can(can_id, len(data), (C.c_uint8 * 8)(*data))
         self.lib.ecu_can_rx(self._p, C.byref(f))
+
+    def rail_set_bar(self, fuel_mg):
+        """The firmware's rail-pressure setpoint for this fuel."""
+        return self.lib.rail_set_bar(fuel_mg)
 
     def background(self):
         self.lib.ecu_background(self._p)

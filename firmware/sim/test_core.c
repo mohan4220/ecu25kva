@@ -182,20 +182,42 @@ static void test_gov(void)
 static void test_rail(void)
 {
     rail_t r; rail_reset(&r);
-    float d0 = rail_step(&r, 900, 0.001f), d = d0;
+    float d = 0;
+    for (int i = 0; i < 500; i++)              /* high first: move off the end stop */
+        d = rail_step(&r, 1000, 1100, 0.001f);
+    float d0 = d;
     for (int i = 0; i < 1000; i++) {
-        d = rail_step(&r, 900, 0.001f);
+        d = rail_step(&r, 1000, 900, 0.001f);
         CHECK(d >= 0.0f && d <= 1.0f);
     }
     CHECK(METER_NC ? d > d0 : d < d0);        /* low pressure: open the valve further */
-    for (int i = 0; i < 2000; i++) d = rail_step(&r, 1500, 0.001f);
+    for (int i = 0; i < 2000; i++) d = rail_step(&r, 1000, 1500, 0.001f);
     CHECK(d == METER_CLOSED);                 /* high pressure: valve shut */
+    /* The old ECU's recording: current falls as pressure rises, and rises
+     * to stop the engine. A normally-open valve: full duty closes it. */
+    CHECK(METER_NC == 0 && METER_CLOSED == 1.0f);
+}
+
+/* Rail setpoint and start of injection follow fuel, as the old ECU's
+ * own tables do at 1500 rpm (field evidence 2026-10-14). */
+static void test_cal_tables(void)
+{
+    CHECK(fabsf(rail_set_bar(6.5f) - 827.0f) <= 1.0f);
+    CHECK(fabsf(rail_set_bar(12.0f) - 994.0f) <= 1.0f);
+    CHECK(fabsf(rail_set_bar(0.0f) - 827.0f) <= 1.0f);   /* held below the data */
+    CHECK(fabsf(rail_set_bar(45.0f) - 1171.0f) <= 1.0f); /* and above it */
+    CHECK(rail_set_bar(9.0f) > rail_set_bar(8.5f) && rail_set_bar(9.0f) < rail_set_bar(9.5f));
+    CHECK(fabsf(inject_soi_btdc(6.5f) - 11.5f) <= 0.05f);
+    CHECK(fabsf(inject_soi_btdc(17.0f) - 15.9f) <= 0.05f);
+    CHECK(fabsf(inject_soi_btdc(45.0f) - 14.2f) <= 0.05f);
 }
 
 static void test_inject_dur(void)
 {
-    float want = 300.0f + 34.0f / (0.0009f * sqrtf(1000.0f));
-    CHECK(fabsf((float)inject_dur_us(34, 1000) - want) <= 2.0f);
+    /* measured on the old ECU: energising time at fuel and rail pressure */
+    CHECK(fabsf((float)inject_dur_us(11.4f, 941) - 513.5f) <= 6.0f);
+    CHECK(fabsf((float)inject_dur_us(15.2f, 1039) - 567.1f) <= 6.0f);
+    CHECK(fabsf((float)inject_dur_us(6.7f, 827) - 446.7f) <= 6.0f);
     CHECK(inject_dur_us(10, 0) == inject_dur_us(10, 100));
     CHECK(inject_dur_us(0, 1000) == 0);
 }
@@ -211,9 +233,10 @@ static void test_inject_once_per_cycle(void)
     CHECK(crank_phased(&c));
     for (int i = 0; i < 232; i++) {
         inject_edge(&c, 20, 1000, inj);
-        if (tooth == 14 && !checked) {         /* edge at 84 deg, SOI 85 */
+        if (tooth == 12 && !checked) {         /* edge at 72 deg, SOI 90 - table(20 mg) */
             t84 = t;
-            CHECK(fabsf((float)(inj[0].start_us - t84) - 1e6f / 9000.0f) <= 5.0f);
+            float ahead = 90.0f - inject_soi_btdc(20) - 72.0f;
+            CHECK(fabsf((float)(inj[0].start_us - t84) - ahead * 1e6f / 9000.0f) <= 5.0f);
             checked = 1;
         }
         spin(&c, 1500, 1, &t, &tooth);
@@ -1172,6 +1195,7 @@ int main(void)
     test_gov();
     test_rail();
     test_inject_dur();
+    test_cal_tables();
     test_inject_once_per_cycle();
     test_inject_soi_in_gap();
     test_safety();

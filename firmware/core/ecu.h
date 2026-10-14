@@ -32,7 +32,7 @@ typedef struct {
     uint8_t reset_cause;         /* set before ecu_nvm_load: 0 power-on, 1 watchdog, 2 other */
     /* outputs (host reads) */
     ecu_inj inj[ECU_NCYL];
-    float meter_duty;            /* 0..1, normally open: more duty, less flow */
+    float meter_duty;            /* 0..1; normally open (METER_NC 0): more duty, less flow */
     uint8_t wdg;                 /* WDI pin level */
     ecu_can can[ECU_CANQ];
     uint8_t can_n;               /* host reads can[0..can_n), then sets can_n = 0 */

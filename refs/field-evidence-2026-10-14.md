@@ -132,7 +132,7 @@ Our firmware: `GOV_DROOP 0.04`, "assumed: droop switch closed". The droop switch
 - No faults.
 - Light/part-load data only.
 
-**Proposed firmware calibration changes** (awaiting the owner's go-ahead):
+**Firmware calibration changes, applied 14 Oct with the owner's go-ahead** (decisions log §14; the fit used 20,473 steady samples, giving 323 µs and K = 0.00191):
 
 | Item | Today | From this recording |
 |---|---|---|

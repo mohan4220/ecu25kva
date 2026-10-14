@@ -270,7 +270,7 @@ contact-type confirmation, which gates nothing
 | 1.5 | Block-level simulation | **Done — 26 blocks, 26 passing** (feed_emi added 8 Oct 2026) |
 | **2** | **KiCad hierarchical schematic capture** | **Complete — 379 components, 377 with footprints; connectivity OK with 2 named open items (power-ground pin, trip-loop pin)** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | **Prepared for hand routing (14 Oct)**: board with all 379 parts placed by block, classes and rules set, DRC clean, 499 connections to route (decisions log §13). Housing and J1001 are placeholders until measured (brief Group 6) |
-| 4 | Firmware skeleton | **Core done on the PC, with production logging — 15/15 engine scenarios, 79 unit tests** (decisions log §11, §12). Next: S32K148 dev kit |
+| 4 | Firmware skeleton | **Core done on the PC, with production logging — 15/15 engine scenarios, 80 unit tests; calibrated from the old ECU's recording (§14)** (decisions log §11, §12). Next: S32K148 dev kit |
 
 ### Phase 2 — what exists
 
@@ -900,7 +900,7 @@ Two more readings:
 - The OEM governor dips **9.8 %** on a load step, at G2's limit. Our simulation is likely optimistic.
 - The intake-air-temperature input reads 0 mV, so no sensor is fitted (U2).
 
-The firmware changes are proposed, not made.
+**Applied the same day with the owner's go-ahead** (decisions log §14): normally-open valve, measured injector law, and timing and rail tables. 80 unit tests and 15/15 scenarios pass. **Still open: the trip module has to move to the injector supply** (a schematic change).
 
 ---
 

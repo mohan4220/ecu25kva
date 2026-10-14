@@ -57,7 +57,7 @@ nothing inside the core changes.
 | `core/j1939.c` | Every CAN frame the ECU sends, and request parsing |
 | `core/nvm.c` | The persistent image: layout, checksum, choosing between the two copies |
 | `core/log.c` | Writes into the image: events, counters, fault memory, trip recorder |
-| `sim/test_core.c` | 79 unit tests of the C code |
+| `sim/test_core.c` | 80 unit tests of the C code |
 | `sim/ecu.py` | Python wrapper around the compiled core |
 | `sim/engine.py` | The engine model |
 | `sim/run_sil.py` | The 15 scenarios |
@@ -137,9 +137,10 @@ every 0.67 ms.
    injection that hasn't started. If this tooth itself raised a sync
    fault (a lost tooth reads as a speed jump), it is diagnosed as a crank
    sensor fault, not overspeed.
-6. **Injection.** Each cylinder starts injecting **5° before top dead
-   centre** (cylinder 1's TDC is 90° after the gap; cylinders 2 and 3
-   follow at 240° and 480°). The command is written on the last tooth
+6. **Injection.** Each cylinder starts injecting **11.5–16° before top
+   dead centre**, from a table on fuel copied from the old ECU (11.5° at
+   6.5 mg, 15.9° at 17 mg, 14.2° from 26.5 mg up). Cylinder 1's TDC is
+   90° after the gap; cylinders 2 and 3 follow at 240° and 480°. The command is written on the last tooth
    at least **1° before** that angle, so the start time is never already
    past. The start time is extrapolated from the current tooth speed.
 
@@ -205,18 +206,22 @@ flicker while the engine still turns does nothing.
   a 3.4 % dip (1500 to 1449 rpm) on a full 20 kW step.
 
 **Rail pressure** (`rail.c`):
-- PI drives the metering valve to hold **1000 bar**.
-- The valve is assumed **normally closed**: no power, no fuel; more
-  duty, more flow. This matches the trip module, which stops fuel by
-  cutting the valve's supply. **The real valve is not yet identified.**
-  If it turns out to be normally open, `METER_NC` flips *and* the trip
-  module's wiring has to move.
+- PI drives the metering valve to a **setpoint that follows fuel**:
+  827 bar at 6.5 mg rising to 1171 bar at 26.5 mg, from the old ECU's
+  own table at 1500 rpm (held flat beyond the data).
+- The valve is **normally open** (`METER_NC 0`): no power, full flow;
+  more duty, less flow; full duty stops it. The old ECU's recording
+  shows exactly this (decisions log §14). The valve's part number is the
+  final confirmation. Because losing the drive now means full flow, **the
+  trip module has to act on the injector supply**, not the valve's: a
+  hardware change, still open.
 - In SHUTDOWN the valve is commanded closed.
-- If the rail sensor fails, the duty is fixed at 0.3 so the engine keeps
-  running.
+- If the rail sensor fails, the valve is held at a fixed 30 % opening
+  (duty 0.7 for a normally-open valve), so the engine keeps running.
 
-**Injection duration** (`inject.c`): duration = 300 µs dead time + fuel
-÷ (0.0009 × √rail pressure). Rail pressure is floored at 100 bar, so a
+**Injection duration** (`inject.c`): duration = 323 µs dead time + fuel
+÷ (0.00191 × √rail pressure). Both constants are fitted to the old ECU's
+own energising times (20 473 samples, within ±6 µs). Rail pressure is floored at 100 bar, so a
 failed or zero reading can't produce an enormous pulse.
 
 ## 8. Sensors
@@ -344,12 +349,12 @@ re-tuned on the engine.
 | `GOV_RAMP_RPM_S` | govern.h | 500 rpm/s | calibration |
 | `FUEL_MAX_MG`, `FUEL_RATED_MG` | govern.h | 45, 34 mg | assumed |
 | `FUEL_START_MG` | inject.h | 30 mg | calibration |
-| `INJ_SOI_BTDC` | inject.h | 5° | calibration |
-| `INJ_DEAD_US`, `INJ_K` | inject.h | 300 µs, 0.0009 | assumed (injector data) |
-| `METER_NC` | rail.h | 1 (normally closed) | **assumed: identify the valve** |
-| `RAIL_SET_BAR` | rail.h | 1000 bar | placeholder (real maps vary it with speed and load) |
+| SOI table `SOI_Q`/`SOI_D` | inject.c | 11.5–16° BTDC on fuel | measured (old ECU, 1500 rpm) |
+| `INJ_DEAD_US`, `INJ_K` | inject.h | 323 µs, 0.00191 | measured (old ECU) |
+| `METER_NC` | rail.h | 0 (normally open) | measured behaviour; confirm with the part number |
+| Rail table `RAIL_Q`/`RAIL_P` | rail.c | 827–1171 bar on fuel | measured (old ECU, 1500 rpm) |
 | `RAIL_KP`, `RAIL_KI` | rail.h | 0.002, 0.01 | calibration |
-| `RAIL_DUTY_LIMP` | rail.h | 0.3 | calibration |
+| `RAIL_OPEN_LIMP` | rail.h | 30 % opening | calibration |
 | Sensor tables | sensors.c | §8 | assumed until each front-end is measured |
 | `RUN_RPM` | ecu.c | 400 | design |
 | `IGN_OFF_MS` | ecu.h | 500 ms | design |
@@ -362,7 +367,7 @@ scenarios, and they say at once whether the control still holds.
 ## 13. How it is tested
 
 ```
-make -C firmware/sim test                       # 79 unit tests, about 1 s
+make -C firmware/sim test                       # 80 unit tests, about 1 s
 .venv/bin/python firmware/sim/run_sil.py        # 15 scenarios, about 2-3 min
 .venv/bin/python firmware/sim/run_sil.py rail   # scenarios whose name contains "rail"
 ```
@@ -378,7 +383,7 @@ make -C firmware/sim test                       # 79 unit tests, about 1 s
 | 7 | Ignition off | shutdown with no fault code |
 | 8 | Coolant sensor unplugged | fault within 1.2 s; engine keeps running |
 | 9 | CAN timing and content | every message on time; speed within 0.5 % |
-| 10 | Rail pressure | within 5 % of 1000 bar |
+| 10 | Rail pressure | within 5 % of the setpoint for the fuel delivered |
 | 11 | Watchdog | pulses every 10 ms, right to the end of the run |
 | 12 | Runaway, then power cycle | fault, snapshot, event and trip recording all survive |
 | 13 | Power cut mid-save | the previous save loads |
@@ -420,16 +425,17 @@ The core needs nothing else. The platform layer must:
 ## 15. Known limits and open items
 
 **Needs the machine or a supplier:**
-- the real metering valve
-- crank wheel and firing order
+- the metering valve's part number (behaviour already measured: normally open)
+- crank wheel (firing order 1-2-3 is confirmed)
 - the sensor tables
-- injector flow data
 
 **Needs the real engine:**
-- governor and rail tuning
-- start fuel
-- injection timing maps
-- pilot and post injections
+- governor and rail tuning; the old ECU dips 9.8 % on a load step, so
+  our simulated 3.4 % is likely optimistic
+- start fuel, and timing and rail pressure while cranking (the recording
+  starts with the engine already running)
+- timing and rail tables above 26.5 mg, and at speeds other than 1500 rpm
+- pilot and post injections (the old ECU uses none in this mode)
 
 **Needs U4** (the DSE's exact expectations):
 - the exact J1939 message set

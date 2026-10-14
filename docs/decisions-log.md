@@ -1165,6 +1165,32 @@ trusts the DRC.
 
 ---
 
+## 14. Calibrate from the old ECU's own recording (14 October)
+
+**The evidence:** a 35-minute XCP recording of the original Bosch ECU on a running 3-cylinder engine at 1500 rpm (`refs/field-evidence-2026-10-14.md`).
+
+**Asked:** should the firmware take its numbers from it? **Owner:** yes, "we need it to work right."
+
+**What changed:**
+
+| Item | Before | Now | From |
+|---|---|---|---|
+| Metering valve | normally closed (`METER_NC 1`) | **normally open** (`METER_NC 0`): full duty stops flow | current falls as pressure rises; it rises to stop the engine |
+| Injector law | 300 µs + q / (0.0009 √p) | **323 µs + q / (0.00191 √p)** | fitted to 20,473 samples, within ±6 µs |
+| Start of injection | 5° BTDC fixed | **table on fuel**: 11.5° at 6.5 mg → 15.9° at 17 mg → 14.2° from 26.5 mg | the old ECU's own values, median per mg |
+| Rail pressure | 1000 bar fixed | **table on fuel**: 827 → 1171 bar | the same |
+| Droop | 4 % only with the droop switch closed | unchanged | the old ECU runs isochronous, and so does ours with the switch open |
+
+**What it costs, and what is still open:**
+- **The trip module must move.** With a normally-open valve, cutting the valve's supply gives *full* flow, so the trip removes no fuel. The trip has to cut the injector and boost supply instead. That is a **schematic change, not yet made**: the firmware now matches the valve, the hardware doesn't yet.
+- **The valve's part number** is the last confirmation. If it turned out normally closed, `METER_NC` goes back to 1; both polarities are tested.
+- **The tables cover 6.5–26.5 mg at 1500 rpm.** Above that, and at other speeds (cranking, the run-up), they hold their end values. Those parts need the real engine.
+- **The old ECU dips 9.8 % on a load step,** at G2's limit. Our model shows 3.4 % on a bigger step, so it is probably optimistic. Commissioning has to measure it.
+
+**Proof:** 80 unit tests, and 15/15 scenarios. The engine model now uses the measured injector and valve too. Scenario 10 checks rail pressure against the firmware's live setpoint (worst 2.3 % at no load, 1.3 % at full load).
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a

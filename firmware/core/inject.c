@@ -1,5 +1,17 @@
 #include <math.h>
 #include "inject.h"
+#include "table.h"
+
+/* Start of the main injection, deg before TDC, from the old ECU at 1500
+ * rpm: median per 1 mg of fuel, steady running (field evidence 2026-10-14
+ * sec. 3b). Held beyond 26.5 mg. */
+static const float SOI_Q[] = { 6.5f, 8.5f, 11.5f, 14.5f, 17.0f, 18.5f, 20.5f, 26.5f };
+static const float SOI_D[] = { 11.5f, 12.4f, 13.5f, 15.5f, 15.9f, 16.0f, 14.6f, 14.2f };
+
+float inject_soi_btdc(float fuel_mg)
+{
+    return table_lookup(SOI_Q, SOI_D, (int)(sizeof SOI_Q / sizeof SOI_Q[0]), fuel_mg);
+}
 
 uint32_t inject_dur_us(float fuel_mg, float rail_bar)
 {
@@ -36,8 +48,9 @@ int inject_cyl(const crank_t *c, float soi_deg, float fuel_mg, float rail_bar, e
 
 void inject_edge(const crank_t *c, float fuel_mg, float rail_bar, ecu_inj out[ECU_NCYL])
 {
+    float soi = inject_soi_btdc(fuel_mg);
     for (int k = 0; k < ECU_NCYL; k++)
-        inject_cyl(c, fmodf(CRANK_TDC1_DEG + 240.0f * k - INJ_SOI_BTDC + 720.0f, 720.0f),
+        inject_cyl(c, fmodf(CRANK_TDC1_DEG + 240.0f * k - soi + 720.0f, 720.0f),
                    fuel_mg, rail_bar, &out[k]);
 }
 

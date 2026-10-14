@@ -335,7 +335,9 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     if (io->state == ECU_RUN)
         gov_step(&gov, rpm, io->droop_sw, 0.001f);
     if (io->state == ECU_CRANK || io->state == ECU_RUN)
-        io->meter_duty = sens.fmi[S_RAIL] ? RAIL_DUTY_LIMP : rail_step(&rail, sens.val[S_RAIL], 0.001f);
+        io->meter_duty = sens.fmi[S_RAIL] ? RAIL_DUTY_LIMP
+            : rail_step(&rail, rail_set_bar(io->state == ECU_RUN ? gov.fuel : FUEL_START_MG),
+                        sens.val[S_RAIL], 0.001f);
     else
         io->meter_duty = METER_CLOSED;
 

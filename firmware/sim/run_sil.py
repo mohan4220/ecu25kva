@@ -149,7 +149,8 @@ class Sim:
                     self.can.append((self.next_ms, pgn(cid), data))
                 self._after(self.next_ms)
                 self.trace.append((self.next_ms, self.eng.rpm, self.io.state,
-                                   self.eng.rail_bar, self.io.meter_duty, self.io.wdg))
+                                   self.eng.rail_bar, self.io.meter_duty,
+                                   self.ecu.rail_set_bar(self.io.fuel_mg), self.io.wdg))
                 if each_ms:
                     each_ms(self)
                 self.next_ms += 1000
@@ -336,12 +337,13 @@ def can_content():
 def rail():
     c = Checks("10 rail pressure within 5 % in steady running")
     sim = Sim().start(8.0)
-    lo0 = [p for t, r, st, p, *_ in sim.trace if 6 * S <= t < 8 * S]
+    # against the firmware's own setpoint, which follows fuel
+    lo0 = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if 6 * S <= t < 8 * S]
     sim.eng.load_kw = 20
     sim.run(16.0)
-    lo20 = [p for t, r, st, p, *_ in sim.trace if 14 * S <= t < 16 * S]
+    lo20 = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if 14 * S <= t < 16 * S]
     for name, xs in (("0 kW", lo0), ("20 kW", lo20)):
-        worst = max(abs(x / 1000 - 1) for x in xs)
+        worst = max(abs(p / ps - 1) for p, ps in xs)
         c.that(f"{name}: worst deviation, fraction", worst, 0.05, ok=worst <= 0.05)
     return c
 

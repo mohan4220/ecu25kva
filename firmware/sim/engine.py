@@ -1,8 +1,10 @@
 """Engine + generator + rail + sensor model for the SIL simulator.
 
-Every constant is assumed: a plausible 3-cylinder genset diesel, chosen so
-that 34 mg per injection carries 20 kW at 1500 rpm. Replace with measured
-values when the engine is characterised.
+Mostly assumed: a plausible 3-cylinder genset diesel, chosen so that 34 mg
+per injection carries 20 kW at 1500 rpm. The old ECU's own recording
+(refs/field-evidence-2026-10-14.md) supplies the measured parts: the
+injector law, the metering valve's polarity, and a check on WORK_PER_MG
+(its inner torque, 84 Nm at 17 mg, against this model's 79 Nm).
 """
 import math
 
@@ -19,12 +21,12 @@ CAM_DEG = 660.0                      # cam edge cycle angle
 
 BAR_PER_CM3 = 750.0                  # bulk modulus / rail+pump volume
 PUMP = 4.0 / 1500                    # cm3/s per rpm, metering fully open
-METER_NC = True                      # = firmware METER_NC: normally closed, duty 1 = full flow
+METER_NC = False                     # measured: normally open, duty 1 = no flow
 LEAK = 1e-4                          # cm3/s per bar
 RELIEF = 1800.0
 CM3_PER_MG = 0.0012
 
-INJ_DEAD_US, INJ_K = 300.0, 0.0009   # same law the firmware assumes
+INJ_DEAD_US, INJ_K = 323.0, 0.00191  # measured on the old ECU (sec. 3d)
 
 
 def friction(rpm):
