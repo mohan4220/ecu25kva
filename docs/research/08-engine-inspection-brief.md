@@ -449,7 +449,7 @@ measurement each.
   - Are there parts on **both** sides? (This decides whether ours can fit.)
 - [ ] **6.3 The header on the board.** This closes the connector footprint. Count and measure:
   - How many pins in each row. On the outside, the 13 Oct photo showed 6 large + 4 rows of 22.
-  - The pitch: the distance across 10 pins, divided by 10. That's more accurate than one gap.
+  - The pitch: from the **centre of pin 1 to the centre of pin 11** (ten gaps), divided by 10. That's more accurate than one gap.
   - The distance between rows, and the gap at the central rib.
   - Which pins are the large ones, and where they sit relative to the small ones.
   - Pin thickness, if a pin can be reached with calipers.

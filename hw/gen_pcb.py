@@ -220,6 +220,13 @@ def build(out, pro, regions=None, footprints=None, force=False):
         fp = load_fp(ref, fpid)
         fp.SetReference(ref)
         fp.SetValue(c["value"])
+        # Linked to its symbol, so Update PCB from Schematic finds it.
+        fp.SetPath(pcbnew.KIID_PATH(c["path"]))
+        fp.SetSheetname("/" + c["sheet"] + "/")
+        fp.SetSheetfile(c["sheet"] + ".kicad_sch")
+        for k, v in c["fields"].items():
+            fp.SetField(k, v)
+            fp.GetField(k).SetVisible(False)
         if ref in PLACEHOLDER and not c["footprint"]:
             t = pcbnew.PCB_TEXT(fp)
             t.SetText("PLACEHOLDER")

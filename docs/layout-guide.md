@@ -37,7 +37,8 @@
 - **Check the board:** `.venv/bin/python hw/check_pcb.py`. It checks:
   - footprints, nets and classes
   - widths
-  - DRC clearance, courtyards, edge and hole clearance
+  - every DRC error (clearance, courtyards, edge and hole clearance, shorts, mask bridges)
+  - schematic parity: each pad's net, the symbol fields, the footprints. The board's footprints are linked to their symbols, so **Update PCB from Schematic** works once routing has started
 
   Unrouted connections are counted, not failed.
 - **Custom rule** (`ecu25kva.kicad_dru`): pads inside one footprint are exempt from net-class clearance, because that spacing is the maker's land pattern. Every class still applies to the copper you add.
@@ -57,14 +58,18 @@
 
 | Class | What | Current | Width (outer) | Clearance |
 |---|---|---|---|---|
-| `PWR_HI` | injector feed: pin 4 → VBAT_INJ, hold-path diodes, injector shunts | 18 A | 5.35 mm | 0.6 mm |
-| `GND` | ground | 18 A | 5.35 mm (pour) | 0.15 mm |
+| `PWR_HI` | injector feed: pin 4 → VBAT_INJ, the hold-path diodes | 18 A | 5.35 mm | 0.6 mm |
+| `RTN` | ground, and the injector shunt tops (~0 V, on fine-pitch amplifier pins) | 18 A | 5.35 mm (pour) | 0.15 mm |
+| `PWR_LOOM` | pin 6 → VBAT_EGR → EGR bridge and its shunt. Protected only by the 10 A loom fuse, so sized for 135 % of it (ISO 8820-3) | 13.5 A | 3.6 mm | 0.3 mm |
 | `HV100` | boost rail, bank nodes (pins 3, 5), low-side drains (pins 73, 29, 7), boost switch node | 18 A, up to ~116 V | 5.35 mm | 0.6 mm |
-| `HV100_SIG` | high-side gates and bootstraps, divider midpoints, PZTA42 collectors, VDD_REF | small, at boost voltage | 0.2 mm | 0.6 mm |
-| `PWR` | pin 21 fused path, VBAT_PROT, EGR feed and bridge, metering valve, regulator trunks | 6.4 A | 1.3 mm | 0.3 mm |
+| `HV100_SIG` | injector high-side gates and bootstraps, divider midpoints, PZTA42 collectors, VDD_REF; the EGR high-side gates and bootstraps (VBAT + 12 V, ~40 V) | small, 31–116 V | 0.2 mm | 0.6 mm |
+| `PWR` | pin 21 path behind the 5 A fuse F101, VBAT_PROT, metering valve, buck switch node, 12V_GATE | 6.4 A | 1.3 mm | 0.3 mm |
+| `PWR_LV` | 3V3_MCU, 5V_MAIN, the boost controller's VDD and current sense: low voltage on 0.5 mm-pitch pins | 6.4 A | 1.3 mm | 0.15 mm |
 | `CAN` | CAN1/CAN2 H and L | — | 0.2 mm, gap 0.25 (set from the fab's stack-up) | 0.2 mm |
 | `ANALOG` | sensor inputs, clamps, ADC nets, VR pair | — | 0.25 mm | 0.2 mm |
 | `Default` | logic | — | 0.2 mm | 0.15 mm |
+
+**The 0.3 mm on battery power is a judgement, not a table row.** IPC-2221B B2 gives 0.1 mm up to 30 V and 0.6 mm from 31 V; 0.3 mm adds margin over the 24 V nominal for clamped transients.
 
 **Peak versus average:** the 18 A is the injector peak phase, which is short. The class width is the conservative default. Where a pad forces you to neck down, keep the neck short and add copper on the other outer layer.
 
@@ -133,9 +138,11 @@
 - Place it in **the stage order**, input to output, with the pin side nearest J1001. A filter only works if its input and output copper don't couple around it.
 - **Keep the dampers** (R110–R113 with C113/C114/C117/C118) **next to the bulk capacitors**. `feed_emi.cir` needs them for stability against the boost converter's negative input resistance; they are not optional EMI decoration.
 - **The common-mode choke** that spec §6 calls for **is not on the schematic.** `emi_filter.cir` says it can only be modelled once a layout gives it a chassis return. Leave space at pin 21's entry for a common-mode choke and its chassis connection. **CISPR 25 Class 5 is the target** (owner, 12 Oct).
-- Q101 and Q102 gates are driven by parts not yet chosen. Their gate nets are on the board with nothing driving them yet. Leave room for a small controller beside each.
+- **Q101's gate is passive:** R103 to ground with the zener D102. There is no controller (decisions log §5b), and the same goes for Q103/Q104.
+- **Q102, the negative clamp, has a driven gate:** comparator U101 → gate driver U102 (UCC27517A) → Q102. Keep U102 at Q102's gate, with its return taken straight to Q102's source (ground), so the gate loop is small.
+- **Heat:** Q103 and Q104 carry the feeds continuously. The sheet note gives Q103 "Tj 117 C at a 105 C board" and Q104 (EGR, 6.4 A stall) "Tj 139 C at a 105 C board, 155 C while cranking". Give both tabs large L1 pours stitched to L4, and put them on the housing contact area if the measured housing allows.
 
-### Rails (`rails`, top right)
+### Rails (`rails`, right)
 
 **The circuit:**
 - **Buck:** LM5164 (U201), L201, bootstrap C203, switch node `/rails/SW`.
@@ -147,7 +154,7 @@
 - **L201** (WE-PD 1050): **no vias or sensitive traces underneath** (datasheet).
 - **U204–U206 thermal pads:** solder-mask-defined, 2.6 × 3.2 mm opening on 2.95 × 4.9 copper (the drawn footprint). TI's optional thermal vias are your call.
 
-### Metering valve and EGR bridge (`metering_egr`, right)
+### Metering valve and EGR bridge (`metering_egr`, top right, in the contact band)
 
 **The circuit:**
 - **Metering valve:** low-side FET Q501 on pin 88's return (`MU_RETURN`), 50 mΩ shunt R501, freewheel D501 to VBAT_PROT (`metering_unit_pwm.cir`).
@@ -156,6 +163,7 @@
 **Rules:**
 - Kelvin sense from R501 and R507 to U501 and U503.
 - **Bridge loop:** VBAT_EGR → high FET → motor pins → low FET → R507 → ground. Keep it compact, with bulk capacitance at the high-side drains.
+- **Heat:** the bridge FETs Q503–Q506 and the metering FET Q501 make heat (the EGR stall is 6.4 A continuous). Keep their tabs over the housing contact band, on pours stitched to L4.
 
 ### MCU and supervisor (`mcu`, centre)
 
@@ -223,6 +231,5 @@ Nothing is fabricated until all of these are true:
 1. J1001's footprint, position and the outline are **measured** from the old ECU (Group 6) and replace the placeholders.
 2. The **battery-ground pins** are confirmed (brief 5.1), and the schematic connects GND to them.
 3. D806's part is chosen (trip-loop pin, brief 5.2).
-4. The Q101/Q102 gate controllers are chosen and drawn.
-5. The **fab confirms the stack-up**, and the CAN pair width/gap is set from it.
-6. `check_pcb.py` passes with **zero** unrouted connections.
+4. The **fab confirms the stack-up**, and the CAN pair width/gap is set from it.
+5. `check_pcb.py` passes with **zero** unrouted connections.

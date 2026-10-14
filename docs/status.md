@@ -882,7 +882,7 @@ The September DSE record also shows that the DSE shuts down only on the DM1 **Pr
 
 **PCB prepared for hand routing, 14 October 2026** (decisions log §13). `hw/ecu25kva.kicad_pcb` holds all 379 parts placed by block, with:
 - the 4-layer stack-up
-- eight net classes, with widths computed from current
+- ten net classes, with widths computed from current
 - a custom rule for pads inside a part
 
 `hw/check_pcb.py` passes: footprints, nets, classes, widths, and DRC with no clearance or courtyard errors. 499 connections are left to route.

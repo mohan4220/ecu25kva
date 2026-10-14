@@ -256,7 +256,7 @@
         "line_style": 0,
         "microvia_diameter": 0.3,
         "microvia_drill": 0.1,
-        "name": "GND",
+        "name": "RTN",
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "schematic_color": "rgba(0, 0, 0, 0.000)",
         "track_width": 5.35,
@@ -273,7 +273,41 @@
         "line_style": 0,
         "microvia_diameter": 0.3,
         "microvia_drill": 0.1,
+        "name": "PWR_LOOM",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 3.6,
+        "via_diameter": 0.8,
+        "via_drill": 0.4,
+        "wire_width": 6
+      },
+      {
+        "bus_width": 12,
+        "clearance": 0.3,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.2,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
         "name": "PWR",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 1.3,
+        "via_diameter": 0.8,
+        "via_drill": 0.4,
+        "wire_width": 6
+      },
+      {
+        "bus_width": 12,
+        "clearance": 0.15,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.2,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+        "name": "PWR_LV",
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "schematic_color": "rgba(0, 0, 0, 0.000)",
         "track_width": 1.3,
@@ -378,11 +412,11 @@
         "pattern": "/12V_GATE"
       },
       {
-        "netclass": "PWR",
+        "netclass": "PWR_LV",
         "pattern": "/3V3_MCU"
       },
       {
-        "netclass": "PWR",
+        "netclass": "PWR_LV",
         "pattern": "/5V_MAIN"
       },
       {
@@ -438,11 +472,11 @@
         "pattern": "/CRANK_LO_74"
       },
       {
-        "netclass": "PWR",
+        "netclass": "PWR_LOOM",
         "pattern": "/EGR_HIGH_59"
       },
       {
-        "netclass": "PWR",
+        "netclass": "PWR_LOOM",
         "pattern": "/EGR_LOW_81"
       },
       {
@@ -522,7 +556,7 @@
         "pattern": "/SGND_36"
       },
       {
-        "netclass": "PWR",
+        "netclass": "PWR_LOOM",
         "pattern": "/VBAT_EGR"
       },
       {
@@ -546,7 +580,7 @@
         "pattern": "/V_BAT_1R_SNS"
       },
       {
-        "netclass": "PWR",
+        "netclass": "PWR_LOOM",
         "pattern": "/V_BAT_2R"
       },
       {
@@ -586,15 +620,15 @@
         "pattern": "/injector/HSB_BOOST_GATE"
       },
       {
-        "netclass": "PWR",
+        "netclass": "PWR_LV",
         "pattern": "/injector/ISNS_BOOST"
       },
       {
-        "netclass": "PWR_HI",
+        "netclass": "RTN",
         "pattern": "/injector/ISNS_INJ_A_SENSE"
       },
       {
-        "netclass": "PWR_HI",
+        "netclass": "RTN",
         "pattern": "/injector/ISNS_INJ_B_SENSE"
       },
       {
@@ -630,7 +664,7 @@
         "pattern": "/injector/VDD_BAT"
       },
       {
-        "netclass": "PWR",
+        "netclass": "PWR_LV",
         "pattern": "/injector/VDD_BOOST"
       },
       {
@@ -654,7 +688,23 @@
         "pattern": "/mcu/BULK_RTN"
       },
       {
-        "netclass": "PWR",
+        "netclass": "HV100_SIG",
+        "pattern": "/metering_egr/EGR_AH_G"
+      },
+      {
+        "netclass": "HV100_SIG",
+        "pattern": "/metering_egr/EGR_A_VB"
+      },
+      {
+        "netclass": "HV100_SIG",
+        "pattern": "/metering_egr/EGR_BH_G"
+      },
+      {
+        "netclass": "HV100_SIG",
+        "pattern": "/metering_egr/EGR_B_VB"
+      },
+      {
+        "netclass": "PWR_LOOM",
         "pattern": "/metering_egr/EGR_ISNS"
       },
       {
@@ -666,7 +716,7 @@
         "pattern": "/power_input/VBAT_CLAMPED"
       },
       {
-        "netclass": "PWR",
+        "netclass": "PWR_LOOM",
         "pattern": "/power_input/VBAT_EGR_IN"
       },
       {
@@ -730,7 +780,7 @@
         "pattern": "/speed_inputs/VR_LO_CLAMPED"
       },
       {
-        "netclass": "GND",
+        "netclass": "RTN",
         "pattern": "GND"
       },
       {

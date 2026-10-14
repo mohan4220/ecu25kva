@@ -46,9 +46,16 @@ def width_mm(amps, copper_mm, external=True):
 
 
 # ------------------------------------------------------------ classes
-# Clearances: IPC-2221B table 6-1, external uncoated (B2). The 100 V
-# class takes the 101-150 V row; the battery nets (24 V system, clamped
-# transients) are held at 0.3 mm.
+# Clearances: IPC-2221B table 6-1, external uncoated (B2): 0.1 mm up to
+# 30 V, 0.6 mm from 31 to 150 V. The 100 V nets and the ~40 V gate nets
+# take 0.6. The battery power nets at 0.3 mm are a JUDGEMENT, not a table
+# row: 24 V nominal sits in the 0.1 mm row, and 0.3 adds margin for the
+# clamped transients. Low-voltage power on fine-pitch pins gets 0.15.
+
+# The 10 A loom fuse on pins 4 and 6 (decisions log 5) is the only
+# protection on those feeds. A blade fuse may carry 135 % of rating for
+# up to 30 minutes (ISO 8820-3), so their copper is sized for that.
+LOOM_FUSE_A = 13.5
 def _cls(clearance, amps=None, width=None, via=(0.6, 0.3), **kw):
     c = {"clearance": clearance, "via_dia": via[0], "via_drill": via[1]}
     if amps:
@@ -63,16 +70,22 @@ def _cls(clearance, amps=None, width=None, via=(0.6, 0.3), **kw):
 CLASSES = {
     # Injector supply: 18 A peak-phase current.
     "PWR_HI": _cls(0.6, amps=18, via=(0.8, 0.4)),
-    # Ground carries the same 18 A back (mostly in the L2 plane), but sits
-    # beside every fine-pitch pin, so it keeps the default clearance.
-    "GND": _cls(0.15, amps=18, via=(0.8, 0.4)),
-    # EGR bridge, metering valve, fused logic supply, regulator trunks.
+    # Ground and the injector shunt tops: the same 18 A back at ~0 V, beside
+    # fine-pitch pins, so the default clearance.
+    "RTN": _cls(0.15, amps=18, via=(0.8, 0.4)),
+    # Pin 6 to the EGR bridge: sized for its loom fuse.
+    "PWR_LOOM": _cls(0.3, amps=LOOM_FUSE_A, via=(0.8, 0.4)),
+    # Pin-21 path behind the 5 A fuse F101, metering valve, 12 V gate rail.
     "PWR": _cls(0.3, amps=6.4, via=(0.8, 0.4)),
+    # 3V3, 5 V and the boost controller's supply and sense: low voltage on
+    # 0.5 mm-pitch pins.
+    "PWR_LV": _cls(0.15, amps=6.4, via=(0.8, 0.4)),
     # The boost rail and everything the injector current crosses at up
     # to 100-116 V: the 18 A peak phase flows here too.
     "HV100": _cls(0.6, amps=18, via=(0.8, 0.4)),
     # Small nets that sit at boost-rail voltage: high-side gates and
-    # bootstraps, divider midpoints, the PZTA42 collectors.
+    # bootstraps, divider midpoints, the PZTA42 collectors; and the EGR
+    # high-side gates and bootstraps at VBAT + 12 V (~40 V).
     "HV100_SIG": _cls(0.6, width=0.2),
     # 250 kbit/s CAN: width and gap are set from the fab's stack-up for
     # 120 ohm differential; these are the starting values.
@@ -83,15 +96,16 @@ CLASSES = {
 
 _NETS = {
     "PWR_HI": """/V_BAT_1R /power_input/VBAT_INJ_IN /VBAT_INJ
-        Net-(D408-K) Net-(D410-K) /injector/ISNS_INJ_A_SENSE
-        /injector/ISNS_INJ_B_SENSE""",
-    "GND": "GND",
+        Net-(D408-K) Net-(D410-K)""",
+    "RTN": "GND /injector/ISNS_INJ_A_SENSE /injector/ISNS_INJ_B_SENSE",
+    "PWR_LOOM": """/V_BAT_2R /power_input/VBAT_EGR_IN /VBAT_EGR /EGR_HIGH_59
+        /EGR_LOW_81 /metering_egr/EGR_ISNS""",
     "PWR": """/VBAT_IN Net-(F101-Pad2) /power_input/VBAT_EMI1
-        /power_input/VBAT_CLAMPED /VBAT_PROT /V_BAT_2R
-        /power_input/VBAT_EGR_IN /VBAT_EGR /EGR_HIGH_59 /EGR_LOW_81
-        /metering_egr/EGR_ISNS /MU_RETURN /metering_egr/ISNS_MU_SENSE
-        /injector/ISNS_BOOST /injector/VDD_BAT /injector/VDD_BOOST
-        /rails/SW /rails/VSNS /5V_MAIN /3V3_MCU /12V_GATE /mcu/BULK_RTN""",
+        /power_input/VBAT_CLAMPED /VBAT_PROT /MU_RETURN
+        /metering_egr/ISNS_MU_SENSE /injector/VDD_BAT /rails/SW /rails/VSNS
+        /12V_GATE /mcu/BULK_RTN""",
+    "PWR_LV": """/3V3_MCU /5V_MAIN /injector/VDD_BOOST
+        /injector/ISNS_BOOST""",
     "HV100": """/injector/BOOST_100V /injector/SW_BOOST /INJ_A_03 /INJ_B_05
         /INJ_LS1_73 /INJ_LS2_29 /INJ_LS3_07""",
     "HV100_SIG": """/injector/BOOST_MID /injector/FB_BOOST_MID
@@ -100,7 +114,9 @@ _NETS = {
         /injector/VDD_Q1C /injector/UA1_VB /injector/UA2_VB
         /injector/UB1_VB /injector/UB2_VB /injector/HSA_BOOST_GATE
         /injector/HSA_BAT_GATE /injector/HSB_BOOST_GATE
-        /injector/HSB_BAT_GATE""",
+        /injector/HSB_BAT_GATE /metering_egr/EGR_AH_G
+        /metering_egr/EGR_BH_G /metering_egr/EGR_A_VB
+        /metering_egr/EGR_B_VB""",
     "CAN": "/CAN1_H /CAN1_L /CAN2_H /CAN2_L",
     "ANALOG": """/BOOST_P_IN /BOOST_T_IN /COOLANT_T_IN /EGR_POS_IN /OIL_P_IN
         /RAIL_P_IN /SGND_34 /SGND_36
@@ -163,8 +179,8 @@ HOLE_KEEPOUT = 2.0                    # around the drill, for the screw head
 # power input left of J1001, logic and I/O around the middle and right.
 REGIONS = {
     "injector": (9.0, 0.5, 135.5, 48.0),
-    "rails": (135.5, 9.0, 179.5, 41.0),
-    "metering_egr": (135.5, 41.0, 179.5, 73.0),
+    "metering_egr": (135.5, 9.0, 179.5, 41.0),
+    "rails": (135.5, 41.0, 179.5, 73.0),
     "power_input": (0.5, 48.0, 61.5, 121.5),
     "mcu": (61.5, 48.0, 101.5, 88.0),
     "sensors_analog": (101.5, 48.0, 135.5, 78.0),
@@ -195,18 +211,39 @@ def export_netlist(tmpdir):
     return path
 
 
+def kicad_name(name, refs):
+    """The net name the PCB's schematic-parity check expects. The XML
+    netlist spells auto-named nets differently: it un-escapes "/" in pin
+    names ({slash}) and keeps a multi-unit symbol's unit letter
+    (U301A-...), which the schematic's own name drops."""
+    m = re.match(r"(Net|unconnected)-\((.*)\)$", name)
+    if not m:
+        return name
+    body = m.group(2).replace("/", "{slash}")
+    u = re.match(r"([A-Z]+\d+)[A-Z]-", body)
+    if u and u.group(1) in refs:
+        body = u.group(1) + body[len(u.group(1)) + 1:]
+    return f"{m.group(1)}-({body})"
+
+
 def read_netlist(path):
-    """-> (comps {ref: {value, footprint, sheet}},
+    """-> (comps {ref: {value, footprint, sheet, path, fields}},
            nets {name: [(ref, pin, pinfunction)]})"""
     root = ET.parse(path).getroot()
-    comps = {c.get("ref"): {
-        "value": c.findtext("value") or "",
-        "footprint": c.findtext("footprint") or "",
-        "sheet": c.find("sheetpath").get("names").strip("/")}
-        for c in root.find("components")}
-    nets = {n.get("name"): [(x.get("ref"), x.get("pin"),
-                             x.get("pinfunction") or "")
-                            for x in n.findall("node")]
+    comps = {}
+    for c in root.find("components"):
+        sp = c.find("sheetpath")
+        comps[c.get("ref")] = {
+            "value": c.findtext("value") or "",
+            "footprint": c.findtext("footprint") or "",
+            "sheet": sp.get("names").strip("/"),
+            "path": sp.get("tstamps") + c.findtext("tstamps").split()[0],
+            "fields": {f.get("name"): f.text or ""
+                       for f in c.find("fields") or []
+                       if f.get("name") != "Footprint"}}
+    nets = {kicad_name(n.get("name"), comps):
+            [(x.get("ref"), x.get("pin"), x.get("pinfunction") or "")
+             for x in n.findall("node")]
             for n in root.find("nets")}
     return comps, nets
 

@@ -15,8 +15,12 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pcb_rules as pr  # noqa: E402
 
-DRC_FAIL = ("clearance", "courtyards_overlap", "copper_edge_clearance",
-            "hole_clearance")
+DRC_NAMED = ("clearance", "courtyards_overlap", "copper_edge_clearance",
+             "hole_clearance")
+# Schematic-parity differences that are expected: the two parts whose
+# footprint comes from gen_pcb's PLACEHOLDER map, not the schematic.
+PARITY_OK = {("footprint_symbol_mismatch", "J1001"),
+             ("footprint_symbol_mismatch", "D806")}
 
 
 def read_board(path):
@@ -37,11 +41,16 @@ def drc(board):
     with tempfile.TemporaryDirectory() as d:
         out = os.path.join(d, "drc.json")
         r = subprocess.run([pr.KICAD_CLI, "pcb", "drc", "--format", "json",
-                            "--severity-error", "-o", out, board],
+                            "--severity-all", "--schematic-parity",
+                            "-o", out, board],
                            capture_output=True, text=True)
         if not os.path.exists(out):
             raise SystemExit(f"kicad-cli drc failed:\n{r.stdout}\n{r.stderr}")
-        return json.load(open(out))
+        rep = json.load(open(out))
+    # Parity is reported at every severity; DRC counts errors only.
+    rep["violations"] = [v for v in rep["violations"]
+                         if v["severity"] == "error"]
+    return rep
 
 
 def main():
@@ -86,8 +95,8 @@ def main():
            if n not in classes or classes[n]["track_width"] != c["track_width"]
            or classes[n]["clearance"] != c["clearance"]]
     check("class widths and clearances", not bad, str(bad))
-    for n in ("PWR_HI", "PWR", "HV100", "GND"):
-        print(f"      {n:7} {pr.CLASSES[n]['amps']:>5} A -> "
+    for n in [n for n, c in pr.CLASSES.items() if c.get("amps")]:
+        print(f"      {n:8} {pr.CLASSES[n]['amps']:>5} A -> "
               f"{pr.CLASSES[n]['track_width']} mm outer")
 
     # kicad-cli drops a rules file it cannot parse without a word, so
@@ -96,15 +105,22 @@ def main():
     check("custom rules file is pcb_rules.DRU",
           os.path.exists(dru) and open(dru).read() == pr.DRU)
 
+    def items(vs):
+        return "; ".join(v["description"] + ": " + " / ".join(
+            i["description"] for i in v["items"]) for v in vs[:3])
+
     rep = drc(board)
-    for kind in DRC_FAIL:
+    for kind in DRC_NAMED:
         hits = [v for v in rep["violations"] if v["type"] == kind]
-        check(f"DRC {kind}", not hits,
-              "; ".join(" / ".join(i["description"] for i in v["items"])
-                        for v in hits[:3]))
-    other = sorted({v["type"] for v in rep["violations"]} - set(DRC_FAIL))
-    if other:
-        print(f"INFO  other DRC errors: {other}")
+        check(f"DRC {kind}", not hits, items(hits))
+    other = [v for v in rep["violations"] if v["type"] not in DRC_NAMED]
+    check("DRC, every other error (shorts, mask bridges ...)", not other,
+          items(other))
+    parity = [v for v in rep.get("schematic_parity", [])
+              if (v["type"], v["items"][0]["description"].split()[-1])
+              not in PARITY_OK]
+    check("schematic parity (nets per pad, fields, footprints)", not parity,
+          f"{len(parity)}: {items(parity)}")
     print(f"INFO  unrouted connections: {len(rep.get('unconnected_items', []))}")
 
     print(f"\n{'ALL PASS' if not failed else f'{failed} FAILED'}")
