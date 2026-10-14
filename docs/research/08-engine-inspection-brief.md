@@ -426,6 +426,42 @@ measurement each.
 
 ---
 
+## Group 6 — Measure the old ECU, added 14 October 2026
+
+**Why.** The new board goes into the old ECU's die-cast housing (owner's decision, 11 Oct) and plugs into the same harness. So the board's outline, its screw holes, where it touches the housing to shed heat, and the exact header on it must all copy the old unit. The PCB is ready to route now, but **those four things are placeholders, and no board can be ordered until they're measured.**
+
+> **Do not open the only working ECU on a running genset.** Use the spare or dead unit (the one in the 13 Oct photos looked to be off the engine), or wait until ours replaces it. If the unit is sealed with screws under a label or with glue, stop and send photos first.
+
+**For every item:** a photo **straight on** (not angled), with a **ruler or calipers in the frame** and touching the part, plus the number read off the calipers. If you can only do some items, do 6.3 first: it is the one with no other source.
+
+- [ ] **6.1 The housing.**
+  - Inside length, width and depth.
+  - The connector opening: its position from two edges, and its size.
+  - The mounting bosses: how many, where (from one corner), and the hole or thread size.
+  - Anything inside the lid that presses on the board: thermal pads, raised pedestals, gap-filler. Measure their size and position.
+  - The round vent plug: where it is. The board has an air-pressure sensor that should sit near it.
+- [ ] **6.2 The board.**
+  - The outline, with every corner and cut-out.
+  - Thickness, at the edge, with calipers.
+  - The mounting holes: position and diameter.
+  - **Where it touches the housing.** These are usually bare copper or a grey thermal pad. Photograph both sides.
+  - The tallest parts and their heights.
+  - Are there parts on **both** sides? (This decides whether ours can fit.)
+- [ ] **6.3 The header on the board.** This closes the connector footprint. Count and measure:
+  - How many pins in each row. On the outside, the 13 Oct photo showed 6 large + 4 rows of 22.
+  - The pitch: the distance across 10 pins, divided by 10. That's more accurate than one gap.
+  - The distance between rows, and the gap at the central rib.
+  - Which pins are the large ones, and where they sit relative to the small ones.
+  - Pin thickness, if a pin can be reached with calipers.
+  - How the header is held: pegs, screws or clips. Measure their position.
+  - Its distance from the board edge.
+  - Any marking on the header body (a TE or Bosch number), photographed sharp.
+- [ ] **6.4 Only if the unit is open and safe to probe** (battery disconnected, unit off the engine):
+  - **Continuity, large pins to board ground.** With a meter on continuity, touch each of the six large pins in turn and the board's ground (a mounting hole's copper ring or a big ground area). Write down which pins beep. **This settles which pins are the battery ground (item 5.1).**
+  - **Which cavities have a contact fitted.** Look into the connector face and note every empty position. Read along with item 5.2, this narrows the trip-loop pin.
+
+---
+
 ## What this closes
 
 | # | Unknown | Closed by |
@@ -448,6 +484,9 @@ measurement each.
 | — | A pin *and a wire* for `TRIP_LOOP` | 5.2 |
 | — | Board-side connector footprint | 5.3 — confirms which family drawing is right |
 | — | Crank VR amplitude at cranking | 5.4 — supervised; the only Group 5 item that can change a drawn sheet |
+| — | **Board outline, holes, contact areas** | **6.1, 6.2 — placeholders on the PCB until measured** |
+| — | **J1001 header geometry** | **6.3 — the footprint; no board is ordered without it** |
+| — | Battery-ground pins (again) | 6.4 — continuity on the open unit |
 
 Ten register entries touched, two (U2, U11) closeable outright on the spot, one
 (U12) resolves the live safety-argument branch either way, the rest narrowed with a

@@ -90,6 +90,22 @@ The C core in `firmware/core/` touches no hardware. The simulator drives it
 with a model of the engine, generator and fuel rail. See decisions log §11,
 and §12 for the fault memory, event log, counters and trip recorder.
 
+## Preparing the PCB
+
+The board is generated, then routed by hand in **KiCad 10** (guide:
+`docs/layout-guide.md`). `KP` is KiCad's own Python:
+
+```bash
+KP=/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3
+.venv/bin/python hw/test_pcb_rules.py   # rules: widths, classes, regions, every power net classed
+$KP hw/gen_pcb.py --selftest            # the generator's own checks, on a temp copy
+$KP hw/gen_pcb.py                       # build hw/ecu25kva.kicad_pcb; on a routed board, rules only
+.venv/bin/python hw/check_pcb.py        # footprints, nets, classes, widths, DRC
+```
+
+The outline, holes and J1001 are placeholders until the old ECU is
+measured: `HOUSING` and `REGIONS` in `hw/pcb_rules.py`.
+
 ## Where the project stands
 
 Phase 1 is complete: twelve research memos, **25 verified circuit blocks**

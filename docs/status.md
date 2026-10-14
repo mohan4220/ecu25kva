@@ -31,7 +31,7 @@ copper, copper moves 0.39 %/°C, and no better resistor exists to buy. It needed
 current control, which put a 50 mΩ shunt and a sense amplifier on ECU pin 88's return —
 new schematic content, not a BOM line. See §1.7.
 
-**Schematic capture has started; no PCB exists. Firmware runs on the PC against a simulated engine (11 October).** The
+**Schematic complete; the PCB is prepared for hand routing, with the housing and connector as placeholders (14 October). Firmware runs on the PC against a simulated engine.** The
 KiCad project is in `hw/`, with all ten hierarchical sheets created and the first —
 `power_input` — drawn and netlist-checked. See §7.
 
@@ -269,7 +269,7 @@ contact-type confirmation, which gates nothing
 | 1 | Research memos | Done — twelve |
 | 1.5 | Block-level simulation | **Done — 26 blocks, 26 passing** (feed_emi added 8 Oct 2026) |
 | **2** | **KiCad hierarchical schematic capture** | **Complete — 379 components, 377 with footprints; connectivity OK with 2 named open items (power-ground pin, trip-loop pin)** |
-| 3 | 4-layer PCB layout, DRC, fab outputs | Not started |
+| 3 | 4-layer PCB layout, DRC, fab outputs | **Prepared for hand routing (14 Oct)**: board with all 379 parts placed by block, classes and rules set, DRC clean, 499 connections to route (decisions log §13). Housing and J1001 are placeholders until measured (brief Group 6) |
 | 4 | Firmware skeleton | **Core done on the PC, with production logging — 15/15 engine scenarios, 79 unit tests** (decisions log §11, §12). Next: S32K148 dev kit |
 
 ### Phase 2 — what exists
@@ -879,6 +879,15 @@ and 78 unit tests, all passing.
 - **An engine-off CAN trace.** It holds only UDS diagnostics (0x7E0/0x7E8), so **U4 stays open**. Its ECU names itself `KOEL_TC_82.5KVA` / `4R1190ETA4G1`, a 4-cylinder 82.5 kVA set, not ours; logged as **U17**.
 
 The September DSE record also shows that the DSE shuts down only on the DM1 **Protect** lamp, which our firmware never sets. Fixed on 14 October with the owner's go-ahead: a shutdown fault (overspeed, crank loss) now sets **red and Protect** in DM1; a sensor fault sets amber only. Decisions log §12, addendum.
+
+**PCB prepared for hand routing, 14 October 2026** (decisions log §13). `hw/ecu25kva.kicad_pcb` holds all 379 parts placed by block, with:
+- the 4-layer stack-up
+- eight net classes, with widths computed from current
+- a custom rule for pads inside a part
+
+`hw/check_pcb.py` passes: footprints, nets, classes, widths, and DRC with no clearance or courtyard errors. 499 connections are left to route.
+
+The outline, holes, cooling band and J1001 are **placeholders**; the inspection brief's new Group 6 asks for the measurements. **The parts don't fit one side of the spec's 160 × 120 mm guess**, so the placeholder is 180 × 130 mm. If the old board is smaller, parts go on both sides. The routing guide is `docs/layout-guide.md`.
 
 ---
 

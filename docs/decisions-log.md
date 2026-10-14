@@ -1089,6 +1089,81 @@ rather than under-speed when our ECU trips. That's a commissioning check.
 
 ---
 
+## 13. The board, prepared for hand routing (11–14 October)
+
+**The question:** should the PCB be laid out here, or by a person? And
+since the new ECU must fit somewhere on the engine, where does it go?
+
+**Chosen (owner, 11 October):**
+- **I prepare, a person routes.** The board file arrives with every part
+  placed by block and every rule set. A layout engineer routes it by
+  hand in KiCad 10.
+- **The board goes in the old ECU's die-cast housing.** The housing is
+  also the heat sink. So the outline, the screw holes, the cooling contact
+  areas and the J1001 header all copy the old unit.
+
+### What exists now
+
+| Item | Where |
+|---|---|
+| The board, 379 parts, 373 nets, placed by block | `hw/ecu25kva.kicad_pcb` (KiCad 10) |
+| Stack-up, computed widths, net classes, housing placeholders | `hw/pcb_rules.py` (tested by `hw/test_pcb_rules.py`) |
+| The generator | `hw/gen_pcb.py`. On a routed board it updates only the rules |
+| The check | `hw/check_pcb.py`. Footprints, nets, classes, widths, DRC: all pass, 499 connections unrouted (expected) |
+| Guide for the person routing | `docs/layout-guide.md` (the bible's PCB Layout Guide) |
+| What to measure on the old ECU | inspection brief, Group 6 |
+
+### The decisions inside it
+
+| Item | Choice | Why |
+|---|---|---|
+| Stack-up | 4 layers, 1.6 mm, Tg ≥ 170 °C; 2 oz outer, 1 oz inner; L2 a solid ground plane | Engine bay; high current on the outer layers; the plane is never cut |
+| Track widths | Computed from current by IPC-2221, for a 20 °C rise. Never typed | The spec named IPC-2152; IPC-2221 has a formula and comes out wider, so it errs safe. 18 A → 5.35 mm, 6.4 A → 1.3 mm on 2 oz |
+| Clearances | IPC-2221B, external, uncoated: 0.6 mm for anything at boost voltage, 0.3 mm for battery power, 0.2 mm for CAN and analogue, 0.15 mm for logic | Safe even before conformal coating |
+| Net classes | Eight: PWR_HI, GND, PWR, HV100, HV100_SIG, CAN, ANALOG, Default | See below for the three that differ from the plan |
+| Unclassified power nets | The check fails if any net touching a power part (power FET, power diode, inductor, fuse, milliohm shunt) has no class | A new power net can't silently get a thin trace |
+| Pads inside one part | Exempt from class clearance (a custom rule) | A 0.5 mm-pitch chip can't meet a 0.3 mm class rule; that spacing is the maker's. The classes govern the copper the router adds |
+| Single ground join | All high-current returns meet the board ground at J1001's battery-ground pins, and only there | Keeps injector and switching current out of the sensor ground (layout guide §4) |
+
+**Three changes from the plan, found while doing it:**
+- **The injector's 100 V nets carry 18 A, not 1 A.** The plan sized the 100 V class for 1 A. But the injector's peak current flows through the boost rail, the bank nodes and the low-side drains. So that class takes the 18 A width. A new class, **HV100_SIG**, gives the small nets that sit at boost voltage (gates, bootstraps, divider midpoints) the 0.6 mm clearance without a 5 mm default width.
+- **Ground has its own class.** Ground was planned under the 18 A class, with its 0.6 mm clearance. That put 0.6 mm between every ground pin and its neighbour, which no fine-pitch chip meets. Ground keeps the 18 A width at the default clearance. Anything at 100 V still gets 0.6 mm from its own class.
+- **The fused pin-21 path is 6.4 A class, not 18 A.** It sits behind the 5 A fuse F101. The injector's power comes in on pin 4.
+
+### Placeholders, and what the measurements change
+
+| Item | Placeholder | Settled by |
+|---|---|---|
+| Board outline | 180 × 130 mm | Group 6.1–6.2 |
+| Mounting holes | 4 × M3, corners | 6.1–6.2 |
+| Housing contact band | top 25 mm | 6.1–6.2 |
+| J1001 footprint | 6 large + 4 × 22 at an assumed 2.5 mm pitch, through-hole, marked "DO NOT FABRICATE" | **6.3** |
+| Battery-ground pins | 1 and 2, assumed. The schematic leaves them unconnected | 5.1, 6.4 |
+| D806 footprint | SMA | the trip-loop pin, 5.2 |
+
+When the measurements arrive, `HOUSING` and `REGIONS` in `pcb_rules.py`
+change. Before routing, re-run the generator. After routing starts, move
+the outline and J1001 by hand.
+
+**One finding the owner should know.** The spec's placeholder outline was
+160 × 120 mm, and **the parts don't fit on one side of it**. Packed, they
+need about 15,300 mm². At 160 × 120, the power-input block alone had no
+room beside the connector. The placeholder is therefore 180 × 130. If the
+old housing's board is smaller, our parts go on **both sides**. That is
+normal for an ECU, but it needs the housing's inside depth on both faces
+(Group 6.1 asks for it).
+
+**Two things the schematic doesn't have yet, which the layout guide reserves room for:**
+- a common-mode choke at the power input and on each CAN pair (spec §6, needed for CISPR 25 Class 5)
+- test points
+
+**One KiCad trap.** kicad-cli 10 silently ignores a custom-rules file it
+can't parse; KiCad 10 needs units on every number (`0mm`, not `0`). So
+`check_pcb.py` confirms the rules file is the generated one before it
+trusts the DRC.
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a

@@ -115,7 +115,10 @@ the sheets again so the footprints land.
 
 **Phase 2 (schematic capture) is complete and checked.** Ten
 hierarchical sheets, root wired, project netlist verified. Phase 3
-(part selection) is most of the way through; the PCB has not started.
+(part selection) is most of the way through. The PCB is prepared for
+hand routing (`hw/ecu25kva.kicad_pcb`, decisions log §13): every part
+placed by block, every rule set, with the housing and J1001 as
+placeholders until the old ECU is measured (brief Group 6).
 The firmware core runs on the PC against a simulated engine, with
 production logging (fault memory, events, counters, trip recorder) and
 all 15 scenarios passing (`firmware/`, decisions log §11–12).
@@ -223,8 +226,8 @@ C401 + C420 are two HXC 82 µF 80 V cans in series, balanced by the
 
 | Parts | Why |
 |---|---|
-| J1001 | the Bosch 94-way header: no public drawing. The harness mate is Bosch 1 928 405 063 (code C); the likely header is TE 936524-2 (154 = 60 + 94, 2.5 mm, restricted by TE). Ask the distributor, or buy and measure (memo 03 addendum) |
-| D806 | the trip-loop clamp, the LOWV-CLAMP residual |
+| J1001 | the Bosch 94-way header: no public drawing. The harness mate is Bosch 1 928 405 063 (code C); the likely header is TE 936524-2 (154 = 60 + 94, 2.5 mm, restricted by TE). Ask the distributor, or buy and measure (memo 03 addendum). On the board as `Bosch_94_PLACEHOLDER` (6 large + 4 × 22, read off the old ECU); measure it from the old ECU (brief 6.3) |
+| D806 | the trip-loop clamp, the LOWV-CLAMP residual. On the board as an assumed SMA |
 
 `hw/gen_footprints.py` holds the project footprints. It derives two from
 stock by renumbering pads: a TO-277A and a SOT-23 zener, whose stock pad
@@ -241,9 +244,12 @@ TI's optional thermal vias under the DDA pad are left to layout.
 
 Firmware on the S32K148 evaluation board, with an Arduino generating
 the engine signals (the core is already proven on the PC, §11 of the
-decisions log), and PCB layout (phase 5). Layout should not
-start before POWER-PATH is settled, since it changes which copper
-carries 18 A.
+decisions log). Routing the PCB by hand (`docs/layout-guide.md`), once
+Group 6's measurements replace the outline and J1001 placeholders.
+Rebuild and check the board with the commands in the README ("Preparing
+the PCB"). The generator needs KiCad 10's own Python; one footprint
+KiCad 10 dropped (the TPS40210's HVSSOP-10) is kept from KiCad 7.0.11
+in `hw/lib/kicad7.pretty`.
 
 ---
 
