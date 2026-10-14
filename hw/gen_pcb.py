@@ -8,7 +8,8 @@ Runs under KiCad's own Python (pcbnew 10):
 
 The rules (classes, widths, housing placeholders, regions) are in
 pcb_rules.py. The board is never regenerated over routing: if the
-existing board has a track, this stops unless --force.
+existing board has a track, only the rules are rewritten (net classes in
+the .kicad_pro, the .kicad_dru), unless --force.
 """
 import os
 import shutil
@@ -54,8 +55,14 @@ def selftest():
         b.Add(t)
         pcbnew.SaveBoard(out, b, True)
         before = os.stat(out).st_mtime_ns
-        stops(["track", "--force"])
+        import json
+        d = json.load(open(pro))
+        d["net_settings"]["classes"] = []
+        json.dump(d, open(pro, "w"))
+        stops(["track", "--force", "rules updated"])
         assert os.stat(out).st_mtime_ns == before, "routed board touched"
+        assert len(json.load(open(pro))["net_settings"]["classes"]) == \
+            len(pr.CLASSES), "rules not updated on a routed board"
         build(out, pro, force=True)
         assert len(pcbnew.LoadBoard(out).GetTracks()) == 0
     print("selftest ok")
@@ -172,12 +179,21 @@ def net_settings(pro):
         f.write("\n")
 
 
+def write_rules(pro):
+    """Net classes into the project file, custom rules beside it."""
+    net_settings(pro)
+    with open(os.path.splitext(pro)[0] + ".kicad_dru", "w") as f:
+        f.write(pr.DRU)
+
+
 def build(out, pro, regions=None, footprints=None, force=False):
     regions = regions or pr.REGIONS
     if os.path.exists(out) and not force:
         if len(pcbnew.LoadBoard(out).GetTracks()):
-            raise SystemExit(f"{out} has routing (a track or via); not "
-                             "overwritten. Re-run with --force to discard it.")
+            write_rules(pro)
+            raise SystemExit(f"{out} has routing (a track or via): rules "
+                             "updated, board not touched. Re-run with --force "
+                             "to discard the routing and rebuild.")
 
     with tempfile.TemporaryDirectory() as d:
         comps, nets = pr.read_netlist(pr.export_netlist(d))
@@ -252,9 +268,7 @@ def build(out, pro, regions=None, footprints=None, force=False):
          "PLACEHOLDER OUTLINE AND J1001 - DO NOT FABRICATE", 1.5)
 
     pcbnew.SaveBoard(out, board, True)
-    net_settings(pro)
-    with open(os.path.splitext(pro)[0] + ".kicad_dru", "w") as f:
-        f.write(pr.DRU)
+    write_rules(pro)
     print(f"{len(comps)} footprints, {len(nets)} nets, written {out}")
 
 
