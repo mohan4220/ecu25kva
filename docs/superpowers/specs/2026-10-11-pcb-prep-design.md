@@ -120,8 +120,8 @@ It also covers:
 | Mounting holes | 4 × M3 at the corners |
 | Housing contact (cooling) areas | a band 25 mm deep along the edge opposite J1001 |
 | Keep-outs for tall parts | none |
-| **J1001 footprint and position** | a 94-pad block at 2.5 mm pitch on one long edge, marked "PLACEHOLDER — DO NOT FABRICATE" |
-| Power-ground pin | pins 1, 2, 5, 6 (the large corner contacts on the drawing) assumed, marked as an assumption |
+| **J1001 footprint and position** | 6 large pins (1–6) + 4 rows of 22 (7–94), the arrangement on the old ECU (`refs/field-evidence-2026-10-13.md`), 2.5 mm pitch assumed, on one long edge, marked "PLACEHOLDER — DO NOT FABRICATE" |
+| Power-ground pin | among the six large pins 1–6, assumed, marked as an assumption |
 
 All of these sit in one `HOUSING` table at the top of the generator.
 When the measurements arrive, updating that table and re-running moves

@@ -871,6 +871,15 @@ ms counter wraps hourly, a lost tooth logs as a crank fault, and a
 too-long fault message is never half-sent. There are now 15 scenarios
 and 78 unit tests, all passing.
 
+**Field data, 13 October 2026** (`refs/field-evidence-2026-10-13.md`). Jeevan sent:
+- **Firing order 1-2-3**, which confirms the firmware assumption.
+- **Governor class ISO 8528-5 G2**, which becomes a requirement. The simulated governor meets every G2 limit. On the real engine, though, the load-rejection peak must stay under our own 1650 rpm trip, which is tighter than G2's +12 %.
+- **The KOEL injector number** `4H.508.70.0.PR.REV-1` (U5).
+- **Photos of the old ECU**: Bosch `0 281 021 133`, type `MD1CS162`, KOEL `T4.435.01.0`. Its connector face shows **6 large pins (1–6) and 4 rows of 22**, so the J1001 placeholder is corrected. A second, unidentified ECU is also recorded.
+- **An engine-off CAN trace.** It holds only UDS diagnostics (0x7E0/0x7E8), so **U4 stays open**. Its ECU names itself `KOEL_TC_82.5KVA` / `4R1190ETA4G1`, a 4-cylinder 82.5 kVA set, not ours; logged as **U17**.
+
+The September DSE record also shows that the DSE shuts down only on the DM1 **Protect** lamp, which our firmware never sets. A one-line fix is proposed, awaiting the owner.
+
 ---
 
 ## 8. Work at the machine

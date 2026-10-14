@@ -336,7 +336,7 @@ re-tuned on the engine.
 
 | Knob | File | Value | Status |
 |---|---|---|---|
-| `CRANK_TDC1_DEG` | crank.h | 90° after the gap | assumed (60-2 wheel, firing order 1-2-3 also assumed) |
+| `CRANK_TDC1_DEG` | crank.h | 90° after the gap | assumed (60-2 wheel assumed; **firing order 1-2-3 confirmed** 13 Oct 2026) |
 | `CRANK_TIMEOUT_US` | crank.h | 50 ms | design |
 | `OVERSPEED_RPM` | safety.h | 1650 | design |
 | `GOV_RPM_SET`, `GOV_DROOP` | govern.h | 1500, 4 % | design |
