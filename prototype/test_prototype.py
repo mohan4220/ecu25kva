@@ -119,6 +119,52 @@ def test_lab_power_ground():
     assert sum(ref == "J1002" for ref, _ in gnd) == 2, gnd
 
 
+# -- Task 4: the whole schematic --------------------------------------------
+def _git(*args):
+    import subprocess
+    return subprocess.run(["git", *args], cwd=os.path.join(HERE, ".."),
+                          capture_output=True, text=True).stdout
+
+
+def test_hw_untouched():
+    import gen_prototype
+    before = _git("status", "--porcelain", "hw/")
+    gen_prototype.main()
+    assert _git("status", "--porcelain", "hw/") == before
+
+
+def test_production_items_kept():
+    import importlib
+    import gen_prototype
+    for name in gen_prototype.PROD:
+        sh = importlib.import_module(f"gen_sheet_{name}").build()
+        text = open(os.path.join(HERE, f"{name}.kicad_sch")).read()
+        missing = [it for it in sh.items if it not in text]
+        assert not missing, (name, len(missing), missing[0][:200])
+
+
+def test_netlist_gate():
+    import check_prototype
+    assert check_prototype.main() == 0
+
+
+def test_tp_nets():
+    """Every test point and the BOOST_MON divider land on their nets."""
+    import tempfile
+    import additions
+    import pcb_rules as pr
+    with tempfile.TemporaryDirectory() as td:
+        _, nets = pr.read_netlist(pr.export_netlist(
+            td, root=os.path.join(HERE, "prototype.kicad_sch")))
+    on = {r: n.split("/")[-1] for n, v in nets.items() for r, p, _ in v
+          if r.startswith("TP")}
+    want = {ref: net for ref, (_, net, _) in additions.TEST_POINTS.items()}
+    assert on == want, {k: (on.get(k), want.get(k)) for k in want
+                        if on.get(k) != want[k]}
+    mon = [n for n in nets if n.endswith("BOOST_MON")]
+    assert len(mon) == 1 and len(nets[mon[0]]) >= 4, nets.get(mon[0])
+
+
 if __name__ == "__main__":
     names = sys.argv[1:] or sorted(n for n in globals() if n.startswith("test_"))
     for n in names:

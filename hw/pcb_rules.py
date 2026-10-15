@@ -201,10 +201,10 @@ def overlap(a, b):
 
 
 # ------------------------------------------------------------ netlist
-def export_netlist(tmpdir):
-    path = os.path.join(tmpdir, "ecu25kva.xml")
+def export_netlist(tmpdir, root=ROOT_SCH):
+    path = os.path.join(tmpdir, "netlist.xml")
     r = subprocess.run([KICAD_CLI, "sch", "export", "netlist", "--format",
-                        "kicadxml", "-o", path, ROOT_SCH],
+                        "kicadxml", "-o", path, root],
                        capture_output=True, text=True)
     if r.returncode != 0:
         raise SystemExit(f"kicad-cli failed:\n{r.stdout}\n{r.stderr}")

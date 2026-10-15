@@ -80,10 +80,10 @@ class Fail(Exception):
     pass
 
 
-def export_netlist(path):
+def export_netlist(path, root=ROOT):
     r = subprocess.run(
         ["kicad-cli", "sch", "export", "netlist", "--format", "kicadsexpr",
-         "-o", path, ROOT], capture_output=True, text=True)
+         "-o", path, root], capture_output=True, text=True)
     if r.returncode != 0:
         raise Fail(f"kicad-cli failed:\n{r.stdout}\n{r.stderr}")
     noise = (r.stdout + r.stderr).strip()
@@ -109,14 +109,14 @@ def parse(text):
     return comps, nets
 
 
-def child_labels(name):
-    p = os.path.join(HW, f"{name}.kicad_sch")
+def child_labels(name, folder=HW):
+    p = os.path.join(folder, f"{name}.kicad_sch")
     return set(re.findall(r'\(hierarchical_label "([^"]+)"', open(p).read()))
 
 
-def root_pins():
+def root_pins(root=ROOT):
     """{sheet name: {pin names}} as the ROOT sheet declares them."""
-    text = open(ROOT).read()
+    text = open(root).read()
     out = {}
     for m in re.finditer(r'\(sheet \(at [^\n]*\n(?:(?!\n  \(sheet ).)*?'
                          r'\(property "Sheetname" "([^"]+)"'
@@ -126,7 +126,13 @@ def root_pins():
     return out
 
 
-def main():
+def main(root=ROOT, expected_open=None, boundary_open=None,
+         connector_ref="J1001"):
+    """Defaults are production's. The prototype passes its own root and
+    open items; the power-ground boundary check runs only while a
+    boundary item is open."""
+    expected_open = EXPECTED_OPEN if expected_open is None else expected_open
+    boundary_open = BOUNDARY_OPEN if boundary_open is None else boundary_open
     checks, failed = [], 0
 
     def check(label, ok, detail=""):
@@ -136,7 +142,7 @@ def main():
             failed += 1
 
     with tempfile.TemporaryDirectory() as td:
-        text = export_netlist(os.path.join(td, "p.net"))
+        text = export_netlist(os.path.join(td, "p.net"), root)
     comps, nets = parse(text)
 
     check(f"project netlist exports and annotates cleanly "
@@ -152,20 +158,22 @@ def main():
     single = {n for n, p in named if len(p) < 2}
     check(f"{len(multi)} named nets carry two or more pins", len(multi) > 100)
 
-    unexplained = sorted(single - set(EXPECTED_OPEN))
+    unexplained = sorted(single - set(expected_open))
     check("every single-pin net is a recorded open item",
           not unexplained, f"not in EXPECTED_OPEN: {unexplained}")
 
     gnd_j = set()
     for n, p in nets:
         if n == "GND":
-            gnd_j = {pin for ref, pin in p if ref == "J1001"}
-    check("power ground is a recorded open item: GND reaches the connector "
-          "only through sensor grounds", gnd_j == GND_SENSOR_ONLY,
-          f"GND connector pins now {sorted(gnd_j, key=int)} -- if a power "
-          "ground was added, retire BOUNDARY_OPEN['power ground']")
+            gnd_j = {pin for ref, pin in p if ref == connector_ref}
+    if boundary_open:
+        check("power ground is a recorded open item: GND reaches the "
+              "connector only through sensor grounds",
+              gnd_j == GND_SENSOR_ONLY,
+              f"GND connector pins now {sorted(gnd_j, key=int)} -- if a "
+              "power ground was added, retire BOUNDARY_OPEN['power ground']")
 
-    stale = sorted(set(EXPECTED_OPEN) - single)
+    stale = sorted(set(expected_open) - single)
     check("no stale exemptions -- an open item that closed must leave "
           "EXPECTED_OPEN", not stale, f"no longer single-pin: {stale}")
 
@@ -176,9 +184,10 @@ def main():
     check(f"components land on {len(by_sheet)} sheet paths",
           len(by_sheet) >= 10, f"paths: {sorted(by_sheet)}")
 
-    declared = root_pins()
+    declared = root_pins(root)
     for name in sorted(declared):
-        want, have = child_labels(name), declared[name]
+        want = child_labels(name, os.path.dirname(root))
+        have = declared[name]
         check(f"root sheet exposes every net {name} exports "
               f"({len(want)})", want <= have, f"missing: {sorted(want - have)}")
 
@@ -324,9 +333,9 @@ def main():
     if failed:
         print(f"  {failed} check(s) FAILED")
         return 1
-    print(f"  {len(EXPECTED_OPEN) + len(BOUNDARY_OPEN)} open items, each "
+    print(f"  {len(expected_open) + len(boundary_open)} open items, each "
           "named and none silent:")
-    for k, v in list(EXPECTED_OPEN.items()) + list(BOUNDARY_OPEN.items()):
+    for k, v in list(expected_open.items()) + list(boundary_open.items()):
         print(f"    {k}: {v}")
     print("  schematic connectivity OK")
     return 0
