@@ -1,0 +1,1 @@
+e5f0a3786805bed8f00baf27e1cd4f8f1a51ee5bad44493c79c142fa3083cc90  STM32G474V(B-C-E)Tx.xml  (https://raw.githubusercontent.com/STMicroelectronics/STM32_open_pin_data/master/mcu/STM32G474V(B-C-E)Tx.xml, 15 Oct 2026)
