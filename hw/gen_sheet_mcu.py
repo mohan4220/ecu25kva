@@ -214,20 +214,28 @@ def supervisor(sh):
 
     # Open-drain outputs need pullups -- datasheet: "Connect RESET using
     # a 1-kOhm to 100-kOhm resistor to VDD."
-    for name, (px, py), val in (("~RESET", rp["~RESET"], "10k"),
-                                ("~WDO", rp["~WDO"], "10k")):
-        ry = py - 15.24
-        sh.place("Device:R", "R", px + 5.08, ry, val,
+    # RESET's pullup hangs above its pin, WDO's below and one column
+    # over. Both used to sit in one column 2.54 mm apart, and RESET's
+    # lead wire ran through WDO's pullup pin: the two outputs were one
+    # net until 15 Oct 2026 (check_netlist MUST_SEPARATE).
+    for name, (px, py), val, below in (
+            ("~RESET", rp["~RESET"], "10k", False),
+            ("~WDO", rp["~WDO"], "10k", True)):
+        x = px + (12.7 if below else 5.08)
+        ry = py + 15.24 if below else py - 15.24
+        sh.place("Device:R", "R", x, ry, val,
                  fields={"Source": "TPS3850 datasheet sec.5 -- open-drain "
                                    "output pullup, 1k-100k to VDD"})
-        a = pin_xy(*PINS["Device:R"]["1"], px + 5.08, ry, 0)
-        b = pin_xy(*PINS["Device:R"]["2"], px + 5.08, ry, 0)
+        a = pin_xy(*PINS["Device:R"]["1"], x, ry, 0)
+        b = pin_xy(*PINS["Device:R"]["2"], x, ry, 0)
         t, bo = (a, b) if a[1] < b[1] else (b, a)
-        sh.wire(t[0], t[1], t[0], t[1] - 5.08)
-        sh.label("3V3_MCU", t[0], t[1] - 5.08)
-        sh.wire(bo[0], bo[1], bo[0], py)
-        sh.wire(px, py, bo[0], py)
-        sh.junction(bo[0], py)
+        far, near = (bo, t) if below else (t, bo)
+        step = 5.08 if below else -5.08
+        sh.wire(far[0], far[1], far[0], far[1] + step)
+        sh.label("3V3_MCU", far[0], far[1] + step)
+        sh.wire(near[0], near[1], near[0], py)
+        sh.wire(px, py, near[0], py)
+        sh.junction(near[0], py)
 
     # RESET goes to the MCU's own RESET_b and to the kill inverter.
     px, py = rp["~RESET"]

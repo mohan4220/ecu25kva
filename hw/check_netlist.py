@@ -57,6 +57,9 @@ BOUNDARY_OPEN = {
 # is a rail that got disconnected by a rename.
 MUST_SPAN = ("GND", "/VBAT_PROT", "/3V3_MCU", "/5V_MAIN", "/12V_GATE")
 
+# Pins that must never share a net: the TPS3850's ~WDO and ~RESET.
+MUST_SEPARATE = ((("U302", "8"), ("U302", "9")),)
+
 # Supply pins that legitimately have no capacitor across them: the pin is
 # a return, or the "supply" is a bootstrap node whose capacitor IS the
 # thing being bootstrapped and is already counted elsewhere.
@@ -248,6 +251,16 @@ def main():
                 undecoupled.append(f"{ref} pin {num} ({pname}) on {net}")
     check(f"every supply pin has a capacitor on its net ({supplies} pins)",
           not undecoupled, f"undecoupled: {undecoupled}")
+
+    # Two open-drain outputs on one net is a wired-OR nobody chose. The
+    # supervisor's RESET and WDO were exactly that until 15 Oct 2026:
+    # their pullups sat 2.54 mm apart in one column, and one's lead wire
+    # ran through the other's pin. Firmware then could not tell a
+    # watchdog trip from a rail trip, which is what WDO is for.
+    for a, b in MUST_SEPARATE:
+        na, nb = net_of.get(a), net_of.get(b)
+        check(f"{a[0]} pin {a[1]} and pin {b[1]} are separate nets",
+              na is not None and na != nb, f"both on {na}")
 
     for rail in MUST_SPAN:
         hit = [p for n, p in named if n == rail]
