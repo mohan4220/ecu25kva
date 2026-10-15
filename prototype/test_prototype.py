@@ -101,6 +101,24 @@ def test_pdn_stm32():
         print(f"  {k}: peak {peak * 1000:.1f} mOhm")
 
 
+# -- Task 3: lab terminals --------------------------------------------------
+def test_lab_labels():
+    import gen_sheet_lab_io
+    prod = _hlabels(open(os.path.join(HERE, "..", "hw",
+                                      "connector.kicad_sch")).read())
+    assert len(prod) == 40
+    got = _hlabels(gen_sheet_lab_io.build().render())
+    assert got == prod | {"TRIP_LOOP"}, got ^ (prod | {"TRIP_LOOP"})
+
+
+def test_lab_power_ground():
+    import gen_sheet_lab_io as g
+    gnd = [(ref, pos) for ref, nets in g.TERMINALS.items()
+           for pos, net in enumerate(nets, 1) if net == "GND"]
+    assert len(gnd) >= 3, gnd
+    assert sum(ref == "J1002" for ref, _ in gnd) == 2, gnd
+
+
 if __name__ == "__main__":
     names = sys.argv[1:] or sorted(n for n in globals() if n.startswith("test_"))
     for n in names:
