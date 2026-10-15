@@ -359,8 +359,9 @@ def esc(s):
     return out
 
 
-def _u():
-    return str(uuid.uuid4())
+# UUIDs are derived, not random: the PCB links each footprint to its
+# symbol by UUID, so regenerating an unchanged sheet must reproduce them.
+_NS = uuid.UUID("6f1c2a52-3b1e-4d7a-9c55-0e25c25a0e25")
 
 
 def _eff(size=1.27, justify=None, hide=False):
@@ -430,6 +431,15 @@ class Sheet:
         self.libs = {}
         self.refs = {}
         self.instances = []
+        self._n = 0
+
+    def _uid(self, key=None):
+        """Stable per sheet: a symbol's from its reference, everything
+        else from its order on the page."""
+        if key is None:
+            self._n += 1
+            key = f"#{self._n}"
+        return str(uuid.uuid5(_NS, f"{self.title}/{key}"))
 
     # -- placement ---------------------------------------------------
     def place(self, libid, ref_prefix, x, y, value, rot=0, unit=1,
@@ -481,7 +491,7 @@ class Sheet:
                 and ref in PASSIVE_FP
                 and PASSIVE_FP[ref]["value"] == value):
             footprint = PASSIVE_FP[ref]["footprint"]
-        uid = _u()
+        uid = self._uid(f"sym:{ref}:{unit}")
         mir = f"\n    (mirror {mirror})" if mirror else ""
         # A power symbol's reference (#PWR01, ...) is noise on the page --
         # KiCad hides it by convention and so does this.
@@ -514,12 +524,12 @@ class Sheet:
     def wire(self, x1, y1, x2, y2):
         self.items.append(
             f'  (wire (pts (xy {r2(x1)} {r2(y1)}) (xy {r2(x2)} {r2(y2)}))\n'
-            f'    (stroke (width 0) (type default))\n    (uuid {_u()})\n  )')
+            f'    (stroke (width 0) (type default))\n    (uuid {self._uid()})\n  )')
 
     def junction(self, x, y):
         self.items.append(
             f'  (junction (at {r2(x)} {r2(y)}) (diameter 0) (color 0 0 0 0)\n'
-            f'    (uuid {_u()})\n  )')
+            f'    (uuid {self._uid()})\n  )')
 
     def label(self, text, x, y, rot=0):
         # Same frame rule as hlabel below: justification is read in the
@@ -530,7 +540,7 @@ class Sheet:
         just = "right bottom" if rot % 360 == 180 else "left bottom"
         self.items.append(
             f'  (label "{esc(text)}" (at {r2(x)} {r2(y)} {rot})\n'
-            f'    {_eff(justify=just)}\n    (uuid {_u()})\n  )')
+            f'    {_eff(justify=just)}\n    (uuid {self._uid()})\n  )')
 
     def hlabel(self, text, x, y, shape="passive", rot=0, justify=None):
         # A label's justification is read in the label's OWN rotated
@@ -542,7 +552,7 @@ class Sheet:
         self.items.append(
             f'  (hierarchical_label "{esc(text)}" (shape {shape}) '
             f'(at {r2(x)} {r2(y)} {rot})\n'
-            f'    {_eff(justify=justify)}\n    (uuid {_u()})\n  )')
+            f'    {_eff(justify=justify)}\n    (uuid {self._uid()})\n  )')
 
     def gnd(self, x, y):
         self.place("power:GND", "#PWR", x, y, "GND")
@@ -550,12 +560,12 @@ class Sheet:
     def text(self, body, x, y, size=1.27):
         self.items.append(
             f'  (text "{esc(body)}" (at {r2(x)} {r2(y)} 0)\n'
-            f'    {_eff(size=size, justify="left")}\n    (uuid {_u()})\n  )')
+            f'    {_eff(size=size, justify="left")}\n    (uuid {self._uid()})\n  )')
 
     # -- output ------------------------------------------------------
     def render(self):
         out = ['(kicad_sch (version 20230121) (generator ecu25kva_gen)',
-               f'  (uuid {_u()})',
+               f'  (uuid {self._uid()})',
                f'  (paper "{self.paper}")',
                '  (title_block',
                f'    (title "{esc(self.title)}")',

@@ -9,17 +9,16 @@ each part carries its source in a hidden `Source` field so the value and
 the reason for it travel together. The EMI filter's topology and values
 are emi_filter.cir's, element for element.
 
-TWO PARTS ARE DELIBERATELY NOT DRAWN, and their gates are left on named
-nets with nothing driving them:
+BOTH GATES ARE DRIVEN (this docstring said otherwise until 15 Oct 2026):
 
-  Q1 gate  VBAT_REV_GATE   the ideal-diode controller
-  Q2 gate  NCLAMP_GATE     the negative clamp's comparator
+  Q1 gate  VBAT_REV_GATE   passive: 47k to ground, zener gate-to-source.
+                           Q1 became a P-FET on 22 Sep 2026 and needs no
+                           controller (see the note at Q1).
+  Q2 gate  NCLAMP_GATE     TLV3201-Q1 comparator into a UCC27517A-Q1
+                           driver, chosen 22 Sep 2026 (neg_clamp_control).
 
-Neither part has been chosen, and neither pinout can be drawn without
-choosing one. This project's rule is that nothing is guessed into copper,
-so ERC will report both as unconnected -- correctly. That is the sheet
-reporting an open decision, not an oversight, and the text block on the
-page says so to whoever opens it next.
+The same passive P-FET topology protects the pin 04 and pin 06 feeds
+(Q103, Q104; decisions log 5b).
 """
 import os
 import sys
@@ -619,20 +618,15 @@ def build():
 
     # ---- the note that makes the decisions visible ----
     sh.text(
-        "OPEN -- two gates on this sheet are intentionally undriven, and ERC "
-        "will report them:\\n"
-        "  VBAT_REV_GATE   ideal-diode controller for Q1. No part chosen. Its "
-        "turn-off time is load-bearing\\n"
-        "                  (reverse_battery.cir models it with none) but "
-        "nothing sources that number yet.\\n"
-        "  NCLAMP_GATE     comparator for Q2, sensing VIN against -0.1 V. No "
-        "part chosen. Its propagation\\n"
-        "                  delay is the last unmodelled term in "
-        "negative_pulses.cir -- VIN sits at the\\n"
-        "                  Schottky's -0.53 V for exactly that long before "
-        "the clamp engages.\\n"
-        "Neither pinout can be drawn without choosing a part, and this "
-        "project does not guess parts into copper.",
+        "GATE DRIVE -- both power-path gates are driven:\\n"
+        "  VBAT_REV_GATE   Q1 is a P-FET: 47k gate to ground, zener "
+        "gate-to-source. No controller needed.\\n"
+        "  NCLAMP_GATE     Q2 (negative clamp): TLV3201-Q1 comparator into a "
+        "UCC27517A-Q1 driver.\\n"
+        "                  Engage below -100 mV, release above -5 mV "
+        "(see neg_clamp_control).\\n"
+        "Keep U102 at Q2's gate with a short return to Q2's source: the "
+        "clamp's speed is the gate loop's.",
         30, 150, size=1.6)
     sh.text(
         "Stage order is spec sec.4: EMI filter -> fuse -> TVS -> "

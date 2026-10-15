@@ -75,8 +75,17 @@ LAYOUT = (("power_input", "rails", "mcu", "injector"),
           ("can", "connector"))
 
 
-def u():
-    return str(uuid.uuid4())
+_NS = uuid.UUID("6f1c2a52-3b1e-4d7a-9c55-0e25c25a0e25")
+_n = [0]
+
+
+def u(key=None):
+    """Derived, not random: a sheet's UUID is half of every footprint's
+    link to its symbol, so re-running this must reproduce it."""
+    if key is None:
+        _n[0] += 1
+        key = f"#{_n[0]}"
+    return str(uuid.uuid5(_NS, f"root/{key}"))
 
 
 # KiCad's own shape vocabulary for hierarchical pins and labels. A
@@ -130,7 +139,7 @@ def sheet_symbol(name, fname, desc, blocks, tags, x, y, nets):
         f'  (sheet (at {x} {y}) (size {SHEET_W} {h:.2f}) (fields_autoplaced)',
         '    (stroke (width 0.1524) (type solid))',
         '    (fill (color 0 0 0 0.0000))',
-        f'    (uuid {u()})',
+        f'    (uuid {u("sheet:" + name)})',
         prop("Sheetname", name, 0, -0.7112, "left bottom"),
         prop("Sheetfile", fname, 1, h + 0.5588, "left top"),
         prop("Description", desc, 2, 0, "left", hide=True),

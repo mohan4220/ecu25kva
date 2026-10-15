@@ -97,6 +97,7 @@ The board is generated, then routed by hand in **KiCad 10** (guide:
 
 ```bash
 KP=/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3
+.venv/bin/python hw/test_schlib.py       # schematic regeneration keeps its UUIDs
 .venv/bin/python hw/test_pcb_rules.py   # rules: widths, classes, regions, every power net classed
 $KP hw/gen_pcb.py --selftest            # the generator's own checks, on a temp copy
 $KP hw/gen_pcb.py                       # build hw/ecu25kva.kicad_pcb; on a routed board, rules only

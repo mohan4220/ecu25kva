@@ -935,54 +935,29 @@ value or closes a register entry; those two change the output count.
 
 ## 9. Resume here — next session
 
-Written at the end of 20 September so the next session does not have to re-derive where
-things stand. **Nothing is half-finished: the tree is clean, all 24 blocks pass,
-everything is pushed.**
+Rewritten 15 October 2026. **The tree is clean and pushed. Every check passes:**
+- 26/26 circuit simulations
+- the netlist gate, with its 2 named open items
+- 80 firmware unit tests and 15/15 engine scenarios
+- the PCB rules and generator self-tests
+- the board check, including the schematic links
 
-### What closed today
+### Where it stands
+- **Schematic:** complete, 379 parts. Regenerating it is now deterministic.
+- **PCB:** prepared for hand routing, not routed (decisions log §13).
+- **Firmware:** runs on the PC, calibrated from the old ECU's own recording (§14).
+- **Safety change written up, not yet wired:** the overspeed trip moves to the injector feed, pin 04 (spec §3 item 6).
 
-Phase 1.5 is done. All six temperature-corner failures are answered, and the answers are
-in `docs/bom_requirements.md` rather than in a widened check — see §1.7 for what each one
-cost and which three were more than part swaps.
+### Waiting on the machine (inspection brief)
+1. **7.1, the metering valve's part number.** It confirms "normally open", which the firmware and the trip design now assume.
+2. **Group 6, the old ECU's measurements:** housing, board, and the J1001 header. Until then, no board can be ordered.
+3. **5.1 / 6.4, which pins are battery ground.**
+4. **A running-engine J1939 trace on the DSE's CAN** (U4). The 14 Oct file was an XCP recording, not a bus trace.
+5. **7.2–7.4, the pin 04 fuse, any existing trip module, and room for a relay:** needed when the trip is fitted.
 
-Phase 2 started. The KiCad project exists with all ten sheets, the S32K148 symbol is
-generated from NXP's own pin table, and `power_input` is drawn and netlist-checked.
+### Needs a person
+- **Routing the PCB:** `docs/layout-guide.md`, once Group 6 replaces the placeholders.
+- **MC33816AE last-time-buy:** a distributor question (fallback path only).
 
-### Next, in order
-
-**1. Draw the remaining sheets.** The generator and its helper (`hw/schlib.py`) are in
-place, so each sheet is now a matter of describing its parts and their provenance. Order
-by what unblocks the most:
-
-- `mcu` — the pin map is done and every other sheet references it
-- `rails` — `buck_preregulator` plus the two specified parts (`PDN-BULK`, `SENSOR-PTC`)
-- `metering_egr` — carries the new current-sense requirement (`MU-ISENSE`)
-- `can` — small and fully specified (`CAN-TERM`)
-- then `injector`, `sensors_analog`, `speed_inputs`, `discrete_io`, `connector`
-
-**2. Check each sheet's netlist, not its plot.** Every bug found on the first sheet was
-invisible on a page that plotted correctly. `kicad-cli sch export netlist` is the check;
-KiCad 7's CLI has no ERC subcommand, so this stands in for it.
-
-**3. Two parts still need choosing**, and both show up as undriven gates on `power_input`
-(§6): the ideal-diode controller and the negative-clamp comparator. Neither pinout can be
-drawn without a datasheet.
-
-### Needs a person, not an agent
-
-- **MC33816AE last-time-buy 06/08/2027** — a distributor conversation, not another search.
-- ~~**L9781 datasheet**~~ — closed 8 Oct 2026. The owner supplied ST's data brief,
-  which confirms the 80 V tank ceiling.
-
-### At the machine
-
-See §8. **U16 (the alternator rectifier) is closed** (9 Oct 2026): the owner chose to
-design for the suppressed, clamped load dump rather than match this machine's
-alternator.
-
-### The pattern worth carrying forward
-
-Every wrong number found in this project so far has been found in prose, not in a check.
-The corner that fails is the one that is written as an enforced check; the corner that is
-written as a caveat in a comment is the one that gets believed. The same held today at the
-schematic: three real errors, all invisible on the page, all obvious in the netlist.
+### Next that needs neither
+- **The S32K148 port:** running the firmware core on NXP's evaluation board, with the engine signals simulated on the bench. It needs the board, a debugger and a toolchain on this machine.

@@ -32,8 +32,9 @@ def read_board(path):
         ref = re.search(r'\(property "Reference" "([^"]+)"', block).group(1)
         fab = re.findall(r'\(fp_text user "([^"]*)"\s*\(at[^\n]*\)\s*'
                          r'\(layer "F\.Fab"\)', block)
+        path = re.search(r'\(path "([^"]*)"\)', block)
         fps[ref] = {"nets": set(re.findall(r'\(net "([^"]*)"\)', block)),
-                    "fab": fab}
+                    "fab": fab, "path": path.group(1) if path else ""}
     return fps
 
 
@@ -72,6 +73,11 @@ def main():
     check("footprints", len(fps) == len(comps) and set(fps) == set(comps),
           f"{len(fps)} on the board, {len(comps)} in the schematic; "
           f"differ: {sorted(set(fps) ^ set(comps))[:10]}")
+    # KiCad's parity check falls back to matching by reference, so it
+    # misses a stale link; Update PCB from Schematic does not.
+    stale = sorted(r for r in fps if r in comps and fps[r]["path"] != comps[r]["path"])
+    check("footprints linked to their symbols (path)", not stale,
+          f"{len(stale)} stale: {stale[:10]}")
     for ref in ("J1001", "D806"):
         fab = fps.get(ref, {}).get("fab", [])
         check(f"{ref} flagged PLACEHOLDER on F.Fab",

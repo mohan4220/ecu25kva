@@ -109,6 +109,15 @@ generator refuses to overwrite a non-empty file. After adding or
 re-valuing any R or C, re-run `assign_passives.py` and then regenerate
 the sheets again so the footprints land.
 
+**Schematic UUIDs are derived, not random** (since 15 Oct). A symbol's
+UUID comes from its sheet title and reference, and a sheet's from its
+name, so regenerating an unchanged sheet is byte-identical
+(`hw/test_schlib.py`). The PCB links every footprint to its symbol by
+these. Renaming a sheet, retitling it, or changing a reference
+re-links those parts. Before routing, re-run `gen_pcb.py`; after
+routing, use KiCad's Update PCB from Schematic with "re-link by
+reference". `check_pcb.py` fails on any stale link.
+
 ---
 
 ## 3. Where things stand
@@ -257,6 +266,12 @@ in `hw/lib/kicad7.pretty`.
 
 These each cost a debugging session already:
 
+- **KiCad's schematic-parity check doesn't notice a stale footprint
+  link:** it falls back to matching by reference. `check_pcb.py`
+  compares the paths itself.
+- **kicad-cli 10 silently ignores a custom-rules file it can't parse.**
+  Every number needs units (`0mm`). `check_pcb.py` confirms the file is
+  the generated one.
 - **A wire endpoint landing mid-span does not connect** in KiCad 7, even
   with a junction in the file. The page plots correctly and the netlist
   says "unconnected". Use `schlib.Rail`, which splits every segment at
