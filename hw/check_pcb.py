@@ -54,10 +54,14 @@ def drc(board):
     return rep
 
 
-def main():
-    board = os.path.join(pr.HW, "ecu25kva.kicad_pcb")
-    if "--board" in sys.argv:
-        board = sys.argv[sys.argv.index("--board") + 1]
+def main(board=None, rules=pr, parity_ok=PARITY_OK,
+         placeholders=("J1001", "D806"), require_routed=False):
+    """Defaults are production's. `rules` is a pcb_rules-shaped module
+    (the prototype passes proto_rules). Returns the number of FAILs."""
+    if board is None:
+        board = os.path.join(pr.HW, "ecu25kva.kicad_pcb")
+        if "--board" in sys.argv:
+            board = sys.argv[sys.argv.index("--board") + 1]
     base = os.path.splitext(board)[0]
     failed = 0
 
@@ -67,7 +71,7 @@ def main():
         print(f"{'PASS' if ok else 'FAIL'}  {label}" + (f"  -- {detail}" if detail else ""))
 
     with tempfile.TemporaryDirectory() as d:
-        comps, nets = pr.read_netlist(pr.export_netlist(d))
+        comps, nets = pr.read_netlist(pr.export_netlist(d, rules.ROOT_SCH))
     fps = read_board(board)
 
     check("footprints", len(fps) == len(comps) and set(fps) == set(comps),
@@ -78,7 +82,7 @@ def main():
     stale = sorted(r for r in fps if r in comps and fps[r]["path"] != comps[r]["path"])
     check("footprints linked to their symbols (path)", not stale,
           f"{len(stale)} stale: {stale[:10]}")
-    for ref in ("J1001", "D806"):
+    for ref in placeholders:
         fab = fps.get(ref, {}).get("fab", [])
         check(f"{ref} flagged PLACEHOLDER on F.Fab",
               any("PLACEHOLDER" in t for t in fab), str(fab))
@@ -90,26 +94,27 @@ def main():
 
     pro = json.load(open(base + ".kicad_pro"))["net_settings"]
     patterns = {p["pattern"]: p["netclass"] for p in pro["netclass_patterns"]}
-    assign, unclassified, stale = pr.classify(set(nets), pr.power_nets(comps, nets))
+    assign, unclassified, stale = pr.classify(
+        set(nets), pr.power_nets(comps, nets), rules.ASSIGN)
     wrong = sorted(n for n, c in assign.items() if patterns.get(n) != c)
     check("classes in the project file", not wrong, f"wrong or missing: {wrong[:10]}")
     check("power nets all classified", not unclassified, str(unclassified))
     check("no stale class assignments", not stale, str(stale))
 
     classes = {c["name"]: c for c in pro["classes"]}
-    bad = [n for n, c in pr.CLASSES.items()
+    bad = [n for n, c in rules.CLASSES.items()
            if n not in classes or classes[n]["track_width"] != c["track_width"]
            or classes[n]["clearance"] != c["clearance"]]
     check("class widths and clearances", not bad, str(bad))
-    for n in [n for n, c in pr.CLASSES.items() if c.get("amps")]:
-        print(f"      {n:8} {pr.CLASSES[n]['amps']:>5} A -> "
-              f"{pr.CLASSES[n]['track_width']} mm outer")
+    for n in [n for n, c in rules.CLASSES.items() if c.get("amps")]:
+        print(f"      {n:8} {rules.CLASSES[n]['amps']:>5} A -> "
+              f"{rules.CLASSES[n]['track_width']} mm outer")
 
     # kicad-cli drops a rules file it cannot parse without a word, so
     # prove it is the one pcb_rules generates.
     dru = base + ".kicad_dru"
     check("custom rules file is pcb_rules.DRU",
-          os.path.exists(dru) and open(dru).read() == pr.DRU)
+          os.path.exists(dru) and open(dru).read() == rules.DRU)
 
     def items(vs):
         return "; ".join(v["description"] + ": " + " / ".join(
@@ -124,14 +129,19 @@ def main():
           items(other))
     parity = [v for v in rep.get("schematic_parity", [])
               if (v["type"], v["items"][0]["description"].split()[-1])
-              not in PARITY_OK]
+              not in parity_ok]
     check("schematic parity (nets per pad, fields, footprints)", not parity,
           f"{len(parity)}: {items(parity)}")
-    print(f"INFO  unrouted connections: {len(rep.get('unconnected_items', []))}")
+    unrouted = len(rep.get("unconnected_items", []))
+    if require_routed:
+        check("routed: no unconnected items", not unrouted,
+              f"{unrouted} unrouted")
+    else:
+        print(f"INFO  unrouted connections: {unrouted}")
 
     print(f"\n{'ALL PASS' if not failed else f'{failed} FAILED'}")
-    sys.exit(1 if failed else 0)
+    return failed
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(1 if main() else 0)

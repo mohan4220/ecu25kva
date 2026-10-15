@@ -145,12 +145,13 @@ DRU = """(version 1)
 """
 
 
-def classify(net_names, power_nets):
+def classify(net_names, power_nets, table=None):
     """-> (assignment for nets present, unclassified power nets, stale
-    ASSIGN names that match no net)."""
-    assign = {n: c for n, c in ASSIGN.items() if n in net_names}
+    names in the table (default ASSIGN) that match no net)."""
+    table = ASSIGN if table is None else table
+    assign = {n: c for n, c in table.items() if n in net_names}
     unclassified = sorted(n for n in power_nets if n not in assign)
-    stale = sorted(n for n in ASSIGN if n not in net_names)
+    stale = sorted(n for n in table if n not in net_names)
     return assign, unclassified, stale
 
 

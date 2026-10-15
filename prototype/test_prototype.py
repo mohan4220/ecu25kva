@@ -165,6 +165,37 @@ def test_tp_nets():
     assert len(mon) == 1 and len(nets[mon[0]]) >= 4, nets.get(mon[0])
 
 
+# -- Task 5: placement ------------------------------------------------------
+BOARD = os.path.join(HERE, "prototype.kicad_pcb")
+
+
+def test_usb_pads():
+    """Every netlist pin of the USB-C receptacle is a pad of its footprint
+    (a 14-pin symbol on a 16-pad footprint)."""
+    import re
+    import tempfile
+    import pcb_rules as pr
+    with tempfile.TemporaryDirectory() as td:
+        comps, nets = pr.read_netlist(pr.export_netlist(
+            td, root=os.path.join(HERE, "prototype.kicad_sch")))
+    lib, name = comps["J302"]["footprint"].split(":")
+    mod = open(os.path.join(pr.FOOTPRINT_DIR, lib + ".pretty",
+                            name + ".kicad_mod")).read()
+    import proto_rules
+    ren = proto_rules.PAD_RENAME.get("J302", {})
+    pads = {ren.get(p, p) for p in re.findall(r'\(pad "([^"]*)"', mod)}
+    pins = {p for v in nets.values() for r, p, _ in v if r == "J302"}
+    assert pins and pins <= pads, pins - pads
+
+
+def test_placement_clean():
+    import check_pcb
+    import proto_rules
+    assert check_pcb.main(board=BOARD, rules=proto_rules,
+                          parity_ok=proto_rules.PARITY_OK,
+                          placeholders=("D806",)) == 0
+
+
 if __name__ == "__main__":
     names = sys.argv[1:] or sorted(n for n in globals() if n.startswith("test_"))
     for n in names:

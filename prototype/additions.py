@@ -51,6 +51,12 @@ def apply(name, sh):
              "TP HV 100V" if net == "BOOST_100V" else f"TP {net}", fp,
              {"1": net}, ref=ref,
              fields={"Note": "prototype test point (prototype/additions.py)"})
+        if fp == PAD:
+            # a bare pad is copper, not a part: out of the BOM, as its
+            # footprint already says
+            i = max(i for i, it in enumerate(sh.items)
+                    if it.startswith('  (symbol (lib_id "Connector:TestPoint")'))
+            sh.items[i] = sh.items[i].replace("(in_bom yes)", "(in_bom no)", 1)
         y += 15.24
     if name == "injector":
         boost_mon(sh, x, y + 15.24)
