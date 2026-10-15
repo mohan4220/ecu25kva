@@ -4,6 +4,8 @@
 
 **Status:** design agreed in conversation; written for the owner's review.
 
+**Where it lives:** **everything for the prototype is in `prototype/`**: this spec, its plan, the scripts and every output (owner, 15 Oct). Production tools in `hw/` are imported and reused, never copied. Any change to one is a backwards-compatible parameter, proved by production regenerating byte for byte.
+
 **Why:** nothing has yet shown the design working. The production board is blocked on the Bosch connector and the old ECU's housing. A prototype that sets both aside can be built now. It proves the circuits on the bench, and later carries the firmware and the Python engine simulator.
 
 ## Decisions taken in conversation (15 Oct)
@@ -48,6 +50,7 @@ prototype/
   additions.py            prototype-only parts added to the built production sheets
   stm32_pins.py           pin assignment, checked against ST's pin data
   proto_rules.py          board outline, regions, terminals; imports hw/pcb_rules
+  docs/spec.md, docs/plan.md   this spec and its build plan
   prototype.kicad_pro/.kicad_sch/... and the sheets
   prototype.kicad_pcb
   fab/                    Gerbers, drill, BOM, placement
