@@ -1,0 +1,45 @@
+* ============================================================
+* 3V3_MCU decoupling impedance, PROTOTYPE (STM32G474VET6)
+* A copy of sim/blocks/mcu_pdn.cir with the prototype's ceramics.
+* ============================================================
+* Same model and same 100 mOhm target (50 mV / 0.5 A step) as the
+* production block. The step is kept: DS12288's supply-current table
+* could not be retrieved on 15 Oct 2026, and a Cortex-M4 at 170 MHz
+* draws tens of mA, so 0.5 A is conservative for this chip.
+*
+* What changed against production:
+*   ceramics  6 x 100 nF 0402 at the VDD/VBAT pins (was 10):
+*             0.6 uF, ESR 30/6 = 5 mOhm, ESL 0.8/6 = 0.133 nH
+*   added     4.7 uF 0805 (AN5093 bulk): ESR 5 mOhm, ESL 0.8 nH
+*             with its vias
+*   kept      C313 + R306, the bulk pair, at both ends of its band
+*             (production n4/n5): 96 uF end of life with 72.2 mOhm
+*             (cold) and 21.78 mOhm (warm)
+* VDDA/VREF+ sit behind the ferrite on their own rail and are not
+* part of this network.
+* ============================================================
+
+.subckt net n params: rb=50m
+Rldo n l1 0.01
+Lldo l1 0 0.15u
+Cb  n  b1 96u
+Rb  b1 b2 {rb}
+Lb  b2 0  2n
+Cc  n  c1 0.6u
+Rc  c1 c2 5m
+Lc  c2 0  0.133n
+Ck  n  k1 4.7u
+Rk  k1 k2 5m
+Lk  k2 0  0.8n
+.ends
+
+Iac1 cold 0 AC 1
+X1 cold net rb=72.2m
+Iac2 warm 0 AC 1
+X2 warm net rb=21.78m
+
+.control
+ac dec 100 1k 100meg
+wrdata mcu_pdn_stm32.dat vm(cold) vm(warm)
+.endc
+.end
