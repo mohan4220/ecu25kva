@@ -87,6 +87,8 @@ BOOK = [
      "How the engine-control software works: timing, safety, CAN, logs, knobs, tests, port"),
     ("04e-layout", "layout-guide.md", "PCB Layout Guide",
      "For the person routing the board: classes, the ground join, each block's critical loops"),
+    ("04f-prototype", "../prototype/docs/bring-up.md", "Prototype Bring-up",
+     "For the person at the bench: power the prototype up block by block, with expected readings"),
     ("05-engine", "research/01-engine-identity.md", "Memo 01 -- Engine Identity",
      "Which engine this actually is, established from five hardware constraints"),
     ("06-gcu", "research/02-kg640c-gcu.md", "Memo 02 -- KG640C Controller",

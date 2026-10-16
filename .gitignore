@@ -15,3 +15,6 @@ hw/*.kicad_prl
 hw/fp-info-cache
 hw/*.bak
 firmware/sim/build/
+
+# prototype router scratch (DSN/SES)
+prototype/build/

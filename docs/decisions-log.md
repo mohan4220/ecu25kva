@@ -1191,6 +1191,53 @@ trusts the DRC.
 
 ---
 
+## 15. A prototype board, buildable now (15–16 October)
+
+**The question:** the production board waits on the Bosch connector and the old ECU's housing. Nothing has shown the design working. Can a board that sets both aside be built now?
+
+**Chosen (owner, 15 October):** yes. Everything for it is in `prototype/` (spec `prototype/docs/spec.md`, plan `prototype/docs/plan.md`, bring-up guide `prototype/docs/bring-up.md`).
+
+| Question | Owner's answer |
+|---|---|
+| What goes on it | **The full production circuit.** Its eight sheets are built by the production generators, unchanged |
+| MCU | **STM32G474VET6**, cheaper and easier to get than the S32K148. The production MCU choice is revisited once the prototype works |
+| Dev board or one board | **One board,** MCU soldered on. A WeAct STM32G474 module is bought separately, for early firmware only |
+| Assembly | **Fab-assembled.** The files are fab-neutral; the fab is chosen at quoting |
+| Routing | **Done here,** by script. The owner does not route |
+| Connector and housing | **Set aside.** Pluggable 5.08 mm screw terminals, labelled with the production pin numbers |
+| High-current copper (16 Oct) | **Pours carry the current.** 585 of the 640 power pads are narrower than their class width, so no track can meet the class at the pad. Each power net's power parts are joined by class-width pours; tracks to small parts on a power net may be pad-width |
+| Board size (16 Oct) | **300 × 200 mm** ("you can use bigger board dimensions"). 220 × 160 and 240 × 180 were too congested to route the injector stage at full width |
+
+### What it adds to production, and only to the prototype
+
+- **Test points** on every rail, the boost rail (marked HV), CAN, the crank and cam edges and the four current senses: TP1–TP24.
+- **A boost-rail monitor** `BOOST_MON`: 2 × 499 k + 24.9 k, so 116 V reads 2.82 V.
+- **A battery monitor** `VBAT_MON` on the MCU sheet: 120 k / 10 k.
+- **A 2 × 10 bridge header** for the future simulator board.
+- **USB-C, data only.** It does not power the board, so the MCU rail has one source.
+
+### How the board is routed
+
+- **`prototype/power_router.py`** routes the 29 power nets as class-width bars. It is a maze router on a 0.5 mm grid over B.Cu, F.Cu and In2. Nets negotiate for space (the PathFinder method) until no two overlap. Where a bar changes layer it gets a via array at 2 A per via. On In2, which is 1 oz copper, bars are twice as wide.
+- **Freerouting 2.4.1** routes everything else. **It treats a KiCad pour as no obstacle** (in its own code, a DSN plane loads with `isObstacle=false`). So a first run routed signals straight across the power bars, which the refill would have cut. In its input each bar is now a fixed wire and each pour via a fixed via; they come out again after import. `test_router_sees_pours` guards this.
+- **Proofs:**
+  - `test_power_pours_connect`: with every track removed, every power part's pads are still joined, so no track carries load current.
+  - `gen_board.necks()`: every bar keeps at least 3 of 5 sample points across its width filled, outside its own pads.
+
+### Found on the way
+
+- **A production defect, fixed in `hw/`.** In the supervisor, the `~RESET` and `~WDO` pull-ups overlapped on the schematic. That shorted the TPS3850's reset and watchdog-fault outputs into one net. Fixed in commit 491f37e. `check_netlist.MUST_SEPARATE` now guards it.
+- **U606's library footprint** (Freescale 98ARH99066A) has a malformed courtyard. The prototype redraws it as a rectangle. **Production uses the same footprint** and passes the design-rule check only because of where it sits. Check it before production layout.
+- **ST's datasheet DS12288 could not be downloaded** (st.com refused). The power-distribution check keeps production's 0.5 A load step: 70.3 mΩ cold and 78.5 mΩ warm against the 100 mΩ target. The STM32's real step is smaller.
+
+### The cost to know before quoting
+
+- **The stack-up is production's:** 4 layers, 2 oz outer copper, 1 oz inner. The pour widths are computed for 2 oz.
+- **A 1 oz quote is not a drop-in.** The bars would carry about half the current.
+- **300 × 200 mm with 2 oz outer copper** is outside most fabs' cheapest prototype tier. Expect to pay for size and copper weight, not part count.
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a

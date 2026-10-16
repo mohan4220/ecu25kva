@@ -5,3 +5,10 @@
 (rule "land pattern holes"
   (condition "A.Parent == B.Parent")
   (constraint hole_clearance (min 0mm)))
+(rule "L2 ground plane"
+  (layer In1.Cu)
+  (condition "A.NetName == 'GND' || B.NetName == 'GND'")
+  (constraint clearance (min 0.2mm)))
+(rule "tracks"
+  (condition "A.Type == 'Track' && A.Length > 2mm")
+  (constraint track_width (min 0.2mm)))

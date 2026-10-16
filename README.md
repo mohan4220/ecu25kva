@@ -107,6 +107,24 @@ $KP hw/gen_pcb.py                       # build hw/ecu25kva.kicad_pcb; on a rout
 The outline, holes and J1001 are placeholders until the old ECU is
 measured: `HOUSING` and `REGIONS` in `hw/pcb_rules.py`.
 
+## The prototype board
+
+A bench board that can be built now: the full production circuit with an
+STM32G474, screw terminals instead of the Bosch connector, 300 × 200 mm.
+Everything is in `prototype/` (decisions log §15; bring-up guide
+`prototype/docs/bring-up.md`). Routing needs Java and Freerouting 2.4.1:
+
+```bash
+export PATH=/Applications/KiCad/KiCad.app/Contents/MacOS:$PATH
+export KICAD_SYMBOL_DIR=~/opt/kicad7-libs/kicad-symbols-7.0.11   # the symbols hw/ was drawn with
+.venv/bin/python prototype/gen_prototype.py     # schematic: production sheets + mcu_stm32 + lab_io
+.venv/bin/python prototype/check_prototype.py   # netlist gate, no open items
+$KP prototype/gen_board.py setup                # fetch Freerouting, check its SHA-256
+$KP prototype/gen_board.py route                # place, power pours, Freerouting (about 2 h)
+$KP prototype/gen_board.py fab                  # prototype/fab/: Gerbers, drill, positions, BOM
+.venv/bin/python prototype/test_prototype.py    # every prototype check
+```
+
 ## Where the project stands
 
 Phase 1 is complete: twelve research memos, **25 verified circuit blocks**

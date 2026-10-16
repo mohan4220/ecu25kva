@@ -142,10 +142,10 @@ The production sheets in `hw/` are **not** changed by any of this.
 |---|---|
 | Stack-up, classes, widths, clearances | **Production's** (`hw/pcb_rules.py`): 4 layers, 1.6 mm, 2 oz outer and 1 oz inner, Tg ≥ 170 °C, the ten classes. The prototype tests the production rules |
 | New nets | USB D+/D− at 90 Ω differential; the rest Default |
-| Outline | **220 × 160 mm**, 4 × M3 at the corners. The parts pack to about 15,300 mm²; the rest is room to route |
+| Outline | **300 × 200 mm**, 4 × M3 at the corners (owner, 16 Oct: "you can use bigger board dimensions"). Was 220 × 160; with a pour corridor kept round every power part, the parts need about 26,600 mm² before packing losses, and 240 × 180 left the injector stage too congested to route at full width |
 | Placement | By block, as production. **Terminals along two edges:** power and actuators on one, sensors, speed, switches and CAN on the opposite, each block beside its terminals |
 | Critical loops | **Placed by explicit coordinates**, not shelf-packed: the boost switch loop, each injector turn-off loop, the buck loop, the feed filters, the MCU decoupling |
-| High-current nets | **Copper pours, not tracks:** PWR_HI, HV100, RTN, PWR_LOOM and PWR, each over its block. L2 is one solid ground plane |
+| High-current nets | **Pours carry the current** (owner, 16 Oct). 585 of the 640 power pads are narrower than their class width, so no track can meet the class at the pad. Each power net's power parts (FETs, diodes, inductors, fuses, shunts, bulk capacitors, terminals) are joined by **class-width pours**, routed around obstacles by `prototype/power_router.py`, mostly on B.Cu, with via arrays at 2 A per via. Tracks reaching small parts on a power net may be pad-width. `test_power_pours_connect` proves no track carries load current, and `gen_board.necks()` that every pour keeps at least half its width between pads. L2 is one solid ground plane, and ground floods both outer layers |
 | Everything else | **Freerouting**, through KiCad's export and import (Specctra DSN/SES), honouring every class width and clearance. Java 27 is installed |
 | Done when | 0 unrouted, 0 design-rule errors, 0 parity differences, `check_pcb` all pass |
 
@@ -163,7 +163,7 @@ The production sheets in `hw/` are **not** changed by any of this.
 
 | Risk | Handling |
 |---|---|
-| Freerouting can't finish at production widths | Pours carry the high-current nets. If it still stalls: widen the outline, then let signal nets neck down only inside pads, never in PWR/HV classes |
+| Freerouting can't finish at production widths | **Happened (16 Oct)**: power pads are narrower than their class widths. Resolved as above: pours carry the current, Freerouting routes only the remaining connections, and the outline grew to 300 × 200 |
 | A production generator assumes `hw/` paths | Parameterise the output path; regenerating production must stay byte-identical (`test_schlib.py` already guards UUIDs) |
 | `mcu_pdn.cir` was sized for the S32K148's current | Re-run the block with the STM32G474's supply-current figure from its datasheet before ordering |
 | A part the fab doesn't stock | Fab-neutral BOM now; substitutions decided when quoting, each recorded |

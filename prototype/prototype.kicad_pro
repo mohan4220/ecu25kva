@@ -1,6 +1,10 @@
 {
   "board": {
-    "design_settings": {}
+    "design_settings": {
+      "rules": {
+        "min_track_width": 0.15
+      }
+    }
   },
   "libraries": {
     "pinned_footprint_libs": [],

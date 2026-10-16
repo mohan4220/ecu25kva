@@ -19,9 +19,13 @@ ROOT_SCH = os.path.join(HERE, "prototype.kicad_sch")
 BOARD = os.path.join(HERE, "prototype.kicad_pcb")
 PRO = os.path.join(HERE, "prototype.kicad_pro")
 
-OUTLINE = (220.0, 160.0)
-HOLES = [(4.0, 4.0, 3.2), (216.0, 4.0, 3.2),
-         (4.0, 156.0, 3.2), (216.0, 156.0, 3.2)]          # x, y, drill (M3)
+# 300 x 200 (owner, 16 Oct: "you can use bigger board dimensions"). With
+# corridors kept around every power part for its pour (gen_board.margin),
+# 220 x 160 and then 240 x 180 left the injector stage too congested for
+# its power nets to route at full class width.
+OUTLINE = (300.0, 200.0)
+HOLES = [(4.0, 4.0, 3.2), (296.0, 4.0, 3.2),
+         (4.0, 196.0, 3.2), (296.0, 196.0, 3.2)]          # x, y, drill (M3)
 
 # USB full speed (12 Mbit/s): edges of several ns on a few cm of track
 # are electrically short, so 90 ohm is a target, not a requirement.
@@ -57,41 +61,86 @@ RECT_COURTYARD = {"Sensor_Pressure:Freescale_98ARH99066A"}
 DRU = _pr.DRU + """(rule "land pattern holes"
   (condition "A.Parent == B.Parent")
   (constraint hole_clearance (min 0mm)))
+(rule "L2 ground plane"
+  (layer In1.Cu)
+  (condition "A.NetName == 'GND' || B.NetName == 'GND'")
+  (constraint clearance (min 0.2mm)))
+(rule "tracks"
+  (condition "A.Type == 'Track'")
+  (constraint track_width (min 0.2mm)))
+(rule "pin necks"
+  (condition "A.Type == 'Track' && A.intersectsCourtyard('*')")
+  (constraint track_width (min 0.15mm)))
 """
+MIN_TRACK_MM = 0.15        # board setup minimum: a pin neck; "tracks" holds the rest at 0.2
+# Pin necks (owner, 16 Oct): a track may narrow to 0.15 mm inside a
+# part's courtyard, into a fine-pitch pin where 0.2 mm does not clear the
+# neighbours; 0.2 mm everywhere else. (KiCad 10 cannot parse a condition
+# on a track's length, and drops the whole file silently.) Flag 0.15 mm
+# on 2 oz outer copper at quoting.
+# L2 is internal copper: IPC-2221B table 6-1 (B1) asks 0.2 mm up to 150 V.
+# At the outer-layer 0.6 mm, the rows of 1.1 mm-pitch pour vias cut the
+# plane into islands.
 
 # Terminals: ref -> (edge, position along it in mm, from the top or left).
 # Right edge holds sensors and speed; switches and CAN go on the bottom
 # because J1005-J1007 (142 mm) do not fit between the corner holes.
 TERMINALS = {
-    "J1001": ("left", 9.0), "J1002": ("left", 35.0), "J1003": ("left", 100.0),
-    "J1004": ("top", 85.0),
-    "J1005": ("right", 9.0), "J1006": ("right", 86.0),
-    "J1008": ("bottom", 120.0), "J1007": ("bottom", 160.0),
+    "J1001": ("left", 9.0), "J1002": ("left", 35.0), "J1003": ("left", 120.0),
+    "J1004": ("top", 150.0),
+    "J1005": ("right", 9.0), "J1006": ("right", 90.0),
+    "J1008": ("bottom", 185.0), "J1007": ("bottom", 235.0),
 }
-FIXED = {"J1009": (175.0, 58.0, 0)}          # bridge header: x, y, rotation
+FIXED = {"J1009": (232.0, 50.0, 0)}          # bridge header: x, y, rotation
 
-# Sheet -> (x0, y0, x1, y1), board mm, y down.
+
+
+# Sheet -> (x0, y0, x1, y1), board mm, y down. Power on the left beside
+# its terminals, logic on the right beside its own; each block about 1.5x
+# its spaced parts, and a 7 mm apron in front of the left terminals for
+# the pours fanning out of them.
 REGIONS = {
-    "power_input":    (15.0, 1.0, 83.0, 80.0),
-    "injector":       (15.0, 82.0, 112.0, 158.0),
-    "metering_egr":   (84.0, 15.0, 118.0, 72.0),
-    "rails":          (120.0, 1.0, 178.0, 40.0),
-    "mcu_stm32":      (120.0, 42.0, 170.0, 95.0),
-    "sensors_analog": (180.0, 1.0, 206.0, 84.0),
-    "speed_inputs":   (172.0, 86.0, 206.0, 120.0),
-    "discrete_io":    (114.0, 97.0, 170.0, 145.0),
-    "can":            (172.0, 122.0, 206.0, 145.0),
+    "power_input":    (20.0, 1.0, 140.0, 92.0),
+    "injector":       (20.0, 100.0, 175.0, 199.0),
+    "metering_egr":   (145.0, 15.0, 200.0, 80.0),
+    "rails":          (205.0, 1.0, 284.0, 45.0),
+    "mcu_stm32":      (180.0, 85.0, 228.0, 140.0),
+    "sensors_analog": (240.0, 47.0, 285.0, 88.0),
+    "speed_inputs":   (240.0, 90.0, 285.0, 135.0),
+    "discrete_io":    (232.0, 140.0, 285.0, 185.0),
+    "can":            (180.0, 145.0, 228.0, 185.0),
 }
 
 # Critical loops (docs/layout-guide.md), each packed as one tight block
 # before the rest of its sheet: seeds, plus every capacitor on the same
 # sheet that shares a non-GND net with a seed.
 CLUSTERS = {
-    "boost_turnoff": ("injector", "U401 Q401 L401 D401 R402 C401 C420 "
-                      "D412 D413 D414 Q412 Q414 Q416 R428 R429"),
+    # one block per real loop: each bank's low sides, turn-off diodes and
+    # shunt together, so a shunt sits beside the FETs it measures
+    "bank_a": ("injector", "Q412 Q414 D412 D413 R428"),
+    "bank_b": ("injector", "Q416 D414 R429"),
+    "boost": ("injector", "U401 Q401 L401 D401 R402 C401 C420"),
     "high_sides": ("injector", "Q408 Q410 D408 D409 D410 D411 "
                    "C409 C411 C413 C415"),
     "buck": ("rails", "U201 L201"),
-    "feeds": ("power_input", "Q103 Q104 L103 L104 R110 R111 R112 R113 "
-              "C113 C114 C117 C118"),
 }
+# The feed filters (L103/L104 and their dampers) are not a fast loop and
+# were a cluster until 16 Oct; with pour corridors round every member the
+# block packed at 1.6x its parts' area, so they pack with the rest.
+
+# Pours (gen_board.pours), owner 16 Oct: POURS CARRY THE CURRENT. Each
+# power-class net's power parts are joined by bars at the class width
+# along the shortest tree through their pads. Bars go on B.Cu first: all
+# parts are on top, so B.Cu has no SMD pads to cut them. A net whose bars
+# would lose width to another's takes the next layer (In2 last, at
+# double width). GND is the solid In1 (L2) plane.
+# Tracks that reach small parts on a power net (dividers, decoupling,
+# sense) may be pad-width: they carry no load current, and
+# test_power_pours_connect proves it.
+import re as _re  # noqa: E402
+POWER_PART = _re.compile(r"TO-252|TO-263|SMPD|TO-277|D_SMC|^L_|^Fuse|"
+                         r"CP_Elec|PhoenixContact")
+POUR_CLASSES = ("PWR_HI", "HV100", "RTN", "PWR_LOOM", "PWR", "PWR_LV")
+NECK_MIN = 3            # of 5 points across a bar, filled, all along it
+VIA_AMPS = 2.0          # per 0.4 mm via, 25 um plating: conservative
+ROUTER_WIDTH_UM = 250   # router stubs on power nets reach small parts only
