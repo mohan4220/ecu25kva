@@ -28,6 +28,15 @@ GAP = gen_pcb.GAP
 
 
 SPACED = {}              # power part ref -> margin kept clear around it
+# run 9 left U401, U203 and U504 (0.5 mm pitch) walled in by their own
+# satellites: a fine-pitch chip keeps room for a via beside every pin
+FINE_PITCH, FINE_ROOM = 0.65, 1.0
+
+
+def pitch(fp):
+    pts = [p.GetPosition() for p in fp.Pads()]
+    d = (math.hypot(a.x - b.x, a.y - b.y) / 1e6 for i, a in enumerate(pts) for b in pts[i + 1:])
+    return min((x for x in d if x > 0.05), default=99.0)     # not a pad's own paste
 
 
 def is_power(fp):
@@ -273,7 +282,7 @@ def place(out=pr.BOARD):
         for ref, pin, _ in nodes:
             pad_net[(ref, pin)] = ni
 
-    fp_of, blocks = {}, {}
+    fp_of, blocks, fine = {}, {}, set()
     for ref in sorted(comps):
         c = comps[ref]
         fpid = c["footprint"] or pr.PLACEHOLDER.get(ref)
@@ -311,8 +320,13 @@ def place(out=pr.BOARD):
         fp_of[ref] = fp
         if is_power(fp) and c["sheet"] != "lab_io":
             SPACED[ref] = margin(fp)
+        elif ref[0] == "U" and pitch(fp) <= FINE_PITCH:
+            SPACED[ref] = FINE_ROOM
+            fine.add(ref)
         blocks.setdefault(c["sheet"], []).append(fp)
 
+    if fine != set(pr.FINE_PITCH_ICS):         # the pin escape rule names them
+        raise SystemExit(f"fine-pitch chips {sorted(fine)} != pr.FINE_PITCH_ICS")
     for ref, (edge, pos) in pr.TERMINALS.items():
         edge_place(fp_of[ref], edge, pos)
     for ref, (x, y, rot) in pr.FIXED.items():
@@ -358,6 +372,8 @@ def place(out=pr.BOARD):
                          if fp.GetReference() not in taken]
     for sheet, its in items.items():
         shelf(its, pr.REGIONS[sheet], sheet)
+    for ref, deg in pr.TURN.items():
+        fp_of[ref].SetOrientationDegrees(fp_of[ref].GetOrientationDegrees() + deg)
 
     for sheet, fps in sorted(blocks.items()):
         g = pcbnew.PCB_GROUP(board)
@@ -896,22 +912,27 @@ def write_rules():
         f.write("\n")
 
 
-def widen(path, rounds=3):
-    """Every track under 0.2 mm (the router narrows into tight pins) goes
-    to 0.2 mm; one that then breaks clearance goes back, but to no less
-    than the 0.15 mm pin-neck minimum. Returns how many stay narrow."""
+def widen(path, rounds=4):
+    """Every track under 0.2 mm (the routers narrow into tight pins) goes
+    to 0.2 mm; one that then breaks clearance goes back to its own width,
+    for good, and KiCad looks again until it finds none. (Widening the
+    reverted ones again each round, as before, left 4 too close.)
+    Returns how many stay narrow."""
     import json
     import subprocess
-    lo, hi = pcbnew.FromMM(0.15), pcbnew.FromMM(0.2)
+    hi = pcbnew.FromMM(0.2)
+
+    def key(t):
+        return (t.GetLayer(), t.GetStart().x, t.GetStart().y, t.GetEnd().x, t.GetEnd().y)
+    board = pcbnew.LoadBoard(path)
+    orig = {key(t): t.GetWidth() for t in board.GetTracks()
+            if t.Type() == pcbnew.PCB_TRACE_T and t.GetWidth() < hi}
+    for t in board.GetTracks():
+        if key(t) in orig:
+            t.SetWidth(hi)
+    pcbnew.SaveBoard(path, board, True)
+    narrow = set()
     for _ in range(rounds):
-        board = pcbnew.LoadBoard(path)
-        was = {}
-        for t in board.GetTracks():
-            if t.Type() == pcbnew.PCB_TRACE_T and t.GetWidth() < hi:
-                was[(t.GetLayer(), t.GetStart().x, t.GetStart().y, t.GetEnd().x, t.GetEnd().y)] = \
-                    t.GetWidth()
-                t.SetWidth(hi)
-        pcbnew.SaveBoard(path, board, True)
         refill(path)                     # the floods must give way first
         with tempfile.TemporaryDirectory() as d:
             subprocess.run([KICAD_CLI, "pcb", "drc", "--format", "json", "-o",
@@ -920,17 +941,484 @@ def widen(path, rounds=3):
         hit = {i["uuid"] for v in rep["violations"] if v["type"] == "clearance"
                for i in v["items"]}
         board = pcbnew.LoadBoard(path)
-        back = 0
-        for t in board.GetTracks():
-            k = (t.GetLayer(), t.GetStart().x, t.GetStart().y, t.GetEnd().x, t.GetEnd().y)
-            if k in was and t.m_Uuid.AsString() in hit:
-                t.SetWidth(max(was[k], lo))
-                back += 1
+        back = [t for t in board.GetTracks()
+                if key(t) in orig and key(t) not in narrow and t.m_Uuid.AsString() in hit]
+        for t in back:
+            t.SetWidth(orig[key(t)])
+            narrow.add(key(t))
         pcbnew.SaveBoard(path, board, True)
-        refill(path)
         if not back:
             break
-    return back
+    refill(path)
+    return len(narrow)
+
+
+def drc(path):
+    import json
+    import subprocess
+    with tempfile.TemporaryDirectory() as d:
+        subprocess.run([KICAD_CLI, "pcb", "drc", "--format", "json", "-o",
+                        os.path.join(d, "r.json"), path], capture_output=True)
+        return json.load(open(os.path.join(d, "r.json")))
+
+
+def finish(path=pr.BOARD):
+    """Freerouting's clearance model is not KiCad's: rip out each router
+    track or via KiCad finds too close to something (never locked pour
+    copper), then route every open connection with finish_router.py,
+    near its ends first, then wider."""
+    rep = drc(path)
+    bad = {i["uuid"] for v in rep["violations"] if v["type"] == "clearance" for i in v["items"]}
+    board = pcbnew.LoadBoard(path)
+    # a pour cut in two: in a neck the router saw only its centreline, so
+    # a track can cross the rest and the refill carves round it (run 9,
+    # INJ_B_05). Every other net's track inside that pour's outline goes;
+    # the passes below route it again with the pour whole
+    zones = {z.m_Uuid.AsString(): z for z in board.Zones()}
+    cut = [zones[u] for v in rep["unconnected_items"] for u in {i["uuid"] for i in v["items"]}
+           if u in zones and len(v["items"]) == 2
+           and all(i["uuid"] in zones for i in v["items"])]
+    for z in cut:
+        ol = z.Outline()
+        for t in board.GetTracks():
+            if t.Type() == pcbnew.PCB_TRACE_T and not t.IsLocked() \
+                    and t.GetLayer() == z.GetFirstLayer() and t.GetNetCode() != z.GetNetCode():
+                s, e = t.GetStart(), t.GetEnd()
+                n = max(1, int(math.hypot(e.x - s.x, e.y - s.y) / 1e5))
+                if any(ol.Contains(pcbnew.VECTOR2I(int(s.x + (e.x - s.x) * k / n),
+                                                   int(s.y + (e.y - s.y) * k / n)))
+                       for k in range(n + 1)):
+                    bad.add(t.m_Uuid.AsString())
+    ripped = 0
+    for t in list(board.GetTracks()):
+        if t.m_Uuid.AsString() in bad and not t.IsLocked():
+            board.Remove(t)
+            ripped += 1
+    pcbnew.SaveBoard(path, board, True)
+    refill(path)
+    # each pass in its own process: after a Remove(), pcbnew's next
+    # LoadBoard() in the same process comes back without its methods
+    import shutil
+    import subprocess
+
+    os.environ["BOARD"] = path               # the stages below work on this board
+    first = os.path.join(HERE, "build", "finish_first.json")
+    if os.path.exists(first):
+        os.remove(first)
+
+    def stage(*a):
+        subprocess.run([sys.executable, os.path.abspath(__file__), *map(str, a)], check=True)
+    # near, wider, then the long way round on a coarser grid (run 12's
+    # HSB_BAT_GATE: 115 mm across the pours)
+    passes = ((6.0, 0.05), (15.0, 0.05), (50.0, 0.1))
+    for m, g in passes:
+        stage("finish_pass", m, g)
+    print(f"finish: ripped {ripped} router items KiCad found too close", flush=True)
+    # what is still open is walled in: rip the other nets' tracks round its
+    # ends, route it first, then the ripped ones. A round that leaves more
+    # open than it found is undone
+    keep = os.path.join(HERE, "build", "finish_keep.kicad_pcb")
+    # round the ends, then along the line between them (run 12: U504's
+    # pin 8, walled in by its own pins' tracks); wider rips did worse
+    for r, corridor in ((1.0, False), (1.5, True), (1.0, True), (2.0, False)):
+        n0 = len(drc(path)["unconnected_items"])
+        if not n0:
+            break
+        shutil.copy(path, keep)
+        stage("ripup", r, *(["corridor"] if corridor else []))
+        for m, g in passes:
+            stage("finish_pass", m, g)
+        n1 = len(drc(path)["unconnected_items"])
+        print(f"rip-up {r:g} mm{' corridor' if corridor else ''}: {n0} open -> {n1}", flush=True)
+        if n1 >= n0:
+            shutil.copy(keep, path)
+    if os.path.exists(first):
+        os.remove(first)
+    for _ in range(6):
+        if subprocess.run([sys.executable, os.path.abspath(__file__), "tidy"]).returncode != 10:
+            break
+    return ripped
+
+
+def tidy(path):
+    """What rip-ups leave: a via or track stub KiCad calls dangling, and a
+    router via drilled into its own net's pour via (two VBAT_PROT holes
+    0.07 mm apart, run 12). Only unlocked copper goes, and only while
+    nothing comes unconnected; a round that unconnects is undone. One
+    round per process (pcbnew after a Remove()); exits 10 if it removed
+    anything, so finish() runs it again."""
+    import shutil
+    keep = os.path.join(HERE, "build", "tidy_keep.kicad_pcb")
+    gone_total = 0
+    for _ in range(1):
+        rep = drc(path)
+        n0 = len(rep["unconnected_items"])
+        bad = {i["uuid"] for v in rep["violations"]
+               if v["type"] in ("via_dangling", "track_dangling") for i in v["items"]}
+        pairs = [[i["uuid"] for i in v["items"]] for v in rep["violations"]
+                 if v["type"] == "hole_to_hole" and len(v["items"]) == 2]
+        board = pcbnew.LoadBoard(path)
+        by = {t.m_Uuid.AsString(): t for t in board.GetTracks()}
+        for a, b in pairs:
+            ta, tb = by.get(a), by.get(b)
+            if ta and tb and ta.GetNetCode() == tb.GetNetCode():
+                bad.add(b if ta.IsLocked() or not tb.IsLocked() else a)
+        out = [t for u, t in by.items() if u in bad and not t.IsLocked()]
+        if not out:
+            break
+        shutil.copy(path, keep)
+        for t in out:
+            board.Remove(t)
+        pcbnew.SaveBoard(path, board, True)
+        refill(path)
+        if len(drc(path)["unconnected_items"]) > n0:
+            shutil.copy(keep, path)
+            print("  tidy: a round unconnected something, undone", flush=True)
+            break
+        gone_total += len(out)
+    print(f"  tidy: removed {gone_total} dangling or doubled items", flush=True)
+    os._exit(10 if gone_total else 0)    # and pcbnew's teardown can segfault
+
+
+def turn(path, ref, deg):
+    """Turn a placed part in place by `deg` and rip the router's copper on
+    its pads; finish then routes its nets first. Run 12's R503 (U504's
+    gate-source resistor) faced the driver gate-down, source-up, against
+    the pins' order: EGR_AH_G and EGR_HIGH_59 had to cross."""
+    import json
+    board = pcbnew.LoadBoard(path)
+    fp = board.FindFootprintByReference(ref)
+    gone, nets = set(), set()
+    for pad in fp.Pads():
+        nets.add(pad.GetNetname())
+        for it in board.GetConnectivity().GetConnectedItems(pad):
+            if it.Type() in (pcbnew.PCB_TRACE_T, pcbnew.PCB_VIA_T) and not it.IsLocked():
+                gone.add(it.m_Uuid.AsString())
+    fp.SetOrientationDegrees(fp.GetOrientationDegrees() + deg)
+    for t in list(board.GetTracks()):
+        if t.m_Uuid.AsString() in gone:
+            board.Remove(t)
+    pcbnew.SaveBoard(path, board, True)
+    refill(path)
+    json.dump(sorted(nets), open(os.path.join(HERE, "build", "finish_first.json"), "w"))
+    print(f"  {ref} turned {deg:g}: ripped {len(gone)} items on {sorted(nets)}", flush=True)
+    os._exit(0)
+
+
+def ripup(path, radius, corridor=False):
+    """Rip every other net's router track and via within `radius` of each
+    open connection's ends; finish_pass then routes those connections
+    before the ones this tore up."""
+    import json
+    rep = drc(path)
+    board = pcbnew.LoadBoard(path)
+    ends, nets, lines = [], set(), []
+    for v in rep["unconnected_items"]:
+        pa, pb = (pcbnew.VECTOR2I_MM(i["pos"]["x"], i["pos"]["y"]) for i in v["items"])
+        ends += [pa, pb]
+        lines.append((pa, pb))
+        nets.add(v["items"][0]["description"].split("[", 1)[1].split("]", 1)[0])
+    r = pcbnew.FromMM(radius)
+
+    def near(t):
+        if any(t.HitTest(p, r) for p in ends):
+            return True
+        if not corridor:
+            return False
+        # the corridor: what crosses between the two ends (U504's pin 8,
+        # boxed in by its own pins' tracks on the way to D502)
+        for a, b in lines:
+            n = max(1, int((b - a).EuclideanNorm() / (r or 1)))
+            if any(t.HitTest(pcbnew.VECTOR2I(a.x + (b.x - a.x) * k // n, a.y + (b.y - a.y) * k // n), r)
+                   for k in range(n + 1)):
+                return True
+        return False
+    gone = 0
+    for t in list(board.GetTracks()):
+        if t.IsLocked() or t.GetNetname() in nets or t.GetNetname() == "GND":
+            continue
+        if near(t):
+            board.Remove(t)
+            gone += 1
+    pcbnew.SaveBoard(path, board, True)
+    refill(path)
+    json.dump(sorted(nets), open(os.path.join(HERE, "build", "finish_first.json"), "w"))
+    print(f"  ripped {gone} items within {radius:g} mm of {len(ends)} open ends", flush=True)
+    os._exit(0)          # all saved: pcbnew's teardown after a Remove() can segfault
+
+
+VIA_IN_POUR = 1.0      # mm of pour copper kept round a passing via's hole
+POUR_NOTCH = 0.3       # mm a via's clearance may bite off a pour's edge
+
+
+def finish_pass(path, grid=0.05, margin=6.0):
+    """One pass of finish_router.py over every open connection, keeping
+    only what KiCad's DRC passes."""
+    import json
+    import subprocess
+    work = os.path.join(HERE, "build")
+    rep = drc(path)
+    board = pcbnew.LoadBoard(path)
+    base_necks = set(necks(board))
+    o = gen_pcb.ORIGIN
+    ROUTED = ("F.Cu", "In2.Cu", "B.Cu")
+    byid = {}
+    for it in list(board.GetPads()) + list(board.GetTracks()) + list(board.Zones()):
+        byid[it.m_Uuid.AsString()] = it
+
+    def cls(net):
+        return pr.ASSIGN.get(net, "RTN" if net == "GND" else "Default")
+
+    def width(net):
+        """A power net's current rides its pour: what is left to finish
+        reaches a small part, at the signal width (C419's 3V3_MCU fits
+        past a ground stub at 0.2 mm, not at the router's 0.25)."""
+        c = cls(net)
+        return 0.2 if c in pr.POUR_CLASSES else max(0.2, pr.CLASSES[c]["track_width"])
+
+    def ends(it, toward):
+        """(point mm from the origin, layers) where a new track may start."""
+        if it.Type() == pcbnew.PCB_PAD_T:
+            p = it.GetPosition()
+            return (p.x / 1e6 - o[0], p.y / 1e6 - o[1]), \
+                [L for L in ROUTED if it.IsOnLayer(board.GetLayerID(L))]
+        if it.Type() == pcbnew.PCB_VIA_T:
+            p = it.GetPosition()
+            return (p.x / 1e6 - o[0], p.y / 1e6 - o[1]), list(ROUTED)
+        if it.Type() == pcbnew.PCB_TRACE_T:
+            p = min((it.GetStart(), it.GetEnd()),
+                    key=lambda q: math.hypot(q.x / 1e6 - o[0] - toward[0], q.y / 1e6 - o[1] - toward[1]))
+            # an end on its own net's via is on every layer (U301's pins:
+            # the via 0.3 mm off the pad, and a search for another one)
+            on_via = any(v.Type() == pcbnew.PCB_VIA_T and v.GetNetCode() == it.GetNetCode()
+                         and (v.GetPosition() - p).EuclideanNorm() < v.GetWidth(pcbnew.F_Cu) / 2
+                         for v in board.GetTracks())
+            return (p.x / 1e6 - o[0], p.y / 1e6 - o[1]), \
+                list(ROUTED) if on_via else [board.GetLayerName(it.GetLayer())]
+        if it.Type() == pcbnew.PCB_ZONE_T:
+            L = it.GetLayer()
+            f = it.GetFilledPolysList(L)
+            best = None
+            for i in range(f.OutlineCount()):
+                c = f.COutline(i)
+                for k in range(c.PointCount()):
+                    q = c.CPoint(k)
+                    d = math.hypot(q.x / 1e6 - o[0] - toward[0], q.y / 1e6 - o[1] - toward[1])
+                    if best is None or d < best[0]:
+                        best = (d, (q.x / 1e6 - o[0], q.y / 1e6 - o[1]))
+            return (best[1] if best else None), [board.GetLayerName(L)]
+        return None, []
+
+    def polys(sps):
+        sps.Fracture()
+        return [[(sps.COutline(i).CPoint(k).x / 1e6 - o[0], sps.COutline(i).CPoint(k).y / 1e6 - o[1])
+                 for k in range(sps.COutline(i).PointCount())] for i in range(sps.OutlineCount())]
+
+    def own(it, layers, wn):
+        """The copper of the item's island (what it already connects to)
+        on its first routed layer, pulled in by half a neck: a track whose
+        centre starts there stays on it. The island, not the item: run
+        12's 3V3_MCU end was a 0.53 mm track between two pins, no cell of
+        it clear, beside a pad with room all round"""
+        sp = pcbnew.SHAPE_POLY_SET()
+        lid = board.GetLayerID(layers[0])
+        isl = [it] + ([] if it.Type() == pcbnew.PCB_ZONE_T
+                      else list(board.GetConnectivity().GetConnectedItems(it)))
+        for x in isl:
+            if not x.IsOnLayer(lid):
+                continue
+            if x.Type() == pcbnew.PCB_ZONE_T:
+                sp.Append(x.GetFilledPolysList(lid))
+            else:
+                x.TransformShapeToPolygon(sp, lid, 0, err, pcbnew.ERROR_INSIDE)
+        sp.Simplify()                    # also unfractures a fill
+        sp.Inflate(-pcbnew.FromMM(wn / 2), pcbnew.CORNER_STRATEGY_CHAMFER_ALL_CORNERS, err)
+        return polys(sp)
+
+    jobs, err = [], pcbnew.FromMM(0.005)
+    for n, v in enumerate(rep["unconnected_items"]):
+        a, b = (byid.get(i["uuid"]) for i in v["items"])
+        if a is None or b is None:
+            continue
+        net = a.GetNetname()
+        pa = ends(a, (v["items"][1]["pos"]["x"] - o[0], v["items"][1]["pos"]["y"] - o[1]))
+        pb = ends(b, pa[0] or (0, 0))
+        if pa[0] is None or pb[0] is None or not pa[1] or not pb[1]:
+            continue
+        w, c0 = width(net), pr.CLASSES[cls(net)]["clearance"]
+        wn = min(w, pr.MIN_TRACK_MM)
+        W, H = pr.OUTLINE
+        win = (max(0.6, min(pa[0][0], pb[0][0]) - margin), max(0.6, min(pa[0][1], pb[0][1]) - margin),
+               min(W - 0.6, max(pa[0][0], pb[0][0]) + margin), min(H - 0.6, max(pa[0][1], pb[0][1]) + margin))
+        box = pcbnew.BOX2I(pcbnew.VECTOR2I_MM(o[0] + win[0] - 2, o[1] + win[1] - 2),
+                           pcbnew.VECTOR2I_MM(win[2] - win[0] + 4, win[3] - win[1] + 4))
+        tr = {L: pcbnew.SHAPE_POLY_SET() for L in ROUTED}
+        trn = {L: pcbnew.SHAPE_POLY_SET() for L in ROUTED}     # for a pin neck
+        vb = pcbnew.SHAPE_POLY_SET()
+        vs = pcbnew.SHAPE_POLY_SET()          # a via here bites a pour
+        court = pcbnew.SHAPE_POLY_SET()
+        for it in byid.values():
+            if not it.GetBoundingBox().Intersects(box):
+                continue
+            other = it.GetNetname() != net
+            if it.Type() == pcbnew.PCB_ZONE_T:
+                # ground floods give way on refill; a pour does not
+                if not other or it.GetNetname() == "GND" or it.GetAssignedPriority() < 1:
+                    continue
+            c = max(c0, pr.CLASSES[cls(it.GetNetname())]["clearance"]) if it.GetNetname() else c0
+            # a via crosses L2: 0.2 mm to ground there ("L2 ground plane")
+            cv = max(c, 0.2) if it.GetNetname() == "GND" else c
+            cn = c            # in a courtyard: the pin escape rule
+            if it.Type() == pcbnew.PCB_PAD_T and it.GetParentFootprint().GetReference() \
+                    in pr.FINE_PITCH_ICS:
+                ks = {cls(net), cls(it.GetNetname())}
+                if ks & {"PWR", "PWR_LOOM"} and not ks & set(pr.ESCAPE_EXEMPT):
+                    cn = pr.ESCAPE_MM
+            for L in ROUTED:
+                lid = board.GetLayerID(L)
+                if other and it.IsOnLayer(lid):
+                    if it.Type() == pcbnew.PCB_ZONE_T:
+                        for buf, ww in ((tr[L], w), (trn[L], wn)):
+                            f = pcbnew.SHAPE_POLY_SET(it.GetFilledPolysList(lid))
+                            f.Inflate(pcbnew.FromMM(c + ww / 2 + 0.01),
+                                      pcbnew.CORNER_STRATEGY_ROUND_ALL_CORNERS, err)
+                            buf.Append(f)
+                        # a via may pass through a pour where the fill
+                        # keeps VIA_IN_POUR of copper all round its hole
+                        # (U405's pin 6 had no other way out, run 10)
+                        # and may bite POUR_NOTCH off its edge. A deeper
+                        # bite is only dear, not barred (U504 pin 8 has no
+                        # other way out than 1.2 mm into a 6.7 mm VBAT_EGR
+                        # pour): necks() after the pass is the judge
+                        f = pcbnew.SHAPE_POLY_SET(it.GetFilledPolysList(lid))
+                        f.Inflate(pcbnew.FromMM(c + 0.31 - POUR_NOTCH),
+                                  pcbnew.CORNER_STRATEGY_ROUND_ALL_CORNERS, err)
+                        inner = pcbnew.SHAPE_POLY_SET(it.GetFilledPolysList(lid))
+                        # a fill comes fractured, each hole joined to the
+                        # outline by a slit; shrunk, every slit opens
+                        inner.Unfracture()
+                        inner.Inflate(-pcbnew.FromMM(0.3 + c + VIA_IN_POUR),
+                                      pcbnew.CORNER_STRATEGY_ROUND_ALL_CORNERS, err)
+                        f.BooleanSubtract(inner)
+                        vs.Append(f)
+                    elif it.Type() == pcbnew.PCB_VIA_T:
+                        # its full ring on every layer: KiCad's shape drops
+                        # an inner ring it calls unconnected, its DRC does not
+                        p, r0 = it.GetPosition(), it.GetWidth(pcbnew.F_Cu) / 2e6
+                        for buf, grow, cc in ((tr[L], w / 2, c), (trn[L], wn / 2, c), (vb, 0.3, cv)):
+                            rr = (r0 + cc + grow + 0.01) * 1e6
+                            buf.NewOutline()
+                            for k in range(24):
+                                buf.Append(int(p.x + rr * math.cos(k * math.pi / 12)),
+                                           int(p.y + rr * math.sin(k * math.pi / 12)))
+                    else:
+                        # a through-hole pad on an inner layer: its outer shape
+                        sl = lid if it.Type() != pcbnew.PCB_PAD_T or \
+                            it.GetAttribute() == pcbnew.PAD_ATTRIB_SMD else pcbnew.F_Cu
+                        it.TransformShapeToPolygon(tr[L], sl, pcbnew.FromMM(c + w / 2 + 0.01),
+                                                   err, pcbnew.ERROR_OUTSIDE)
+                        it.TransformShapeToPolygon(trn[L], sl, pcbnew.FromMM(cn + wn / 2 + 0.01),
+                                                   err, pcbnew.ERROR_OUTSIDE)
+                        it.TransformShapeToPolygon(vb, sl, pcbnew.FromMM(cv + 0.31),
+                                                   err, pcbnew.ERROR_OUTSIDE)
+            # every hole, any net, keeps 0.25 mm to a new via's 0.3 mm drill
+            dr = it.GetDrillSize().x if it.Type() == pcbnew.PCB_PAD_T else \
+                (it.GetDrill() if it.Type() == pcbnew.PCB_VIA_T else 0)
+            if dr:
+                p = it.GetPosition()
+                r = dr / 2e6 + 0.25 + 0.15 + 0.01
+                vb.NewOutline()
+                for k in range(16):
+                    vb.Append(int(p.x + r * 1e6 * math.cos(k * math.pi / 8)),
+                              int(p.y + r * 1e6 * math.sin(k * math.pi / 8)))
+        # courtyards, held 0.02 mm in: a track that meets one may neck
+        for fp in board.GetFootprints():
+            if fp.GetBoundingBox().Intersects(box):
+                fp.BuildCourtyardCaches()
+                cy = pcbnew.SHAPE_POLY_SET(fp.GetCourtyard(pcbnew.F_CrtYd if fp.GetLayer() == pcbnew.F_Cu
+                                                           else pcbnew.B_CrtYd))
+                court.Append(cy)
+        court.Inflate(-pcbnew.FromMM(0.02), pcbnew.CORNER_STRATEGY_CHAMFER_ALL_CORNERS, err)
+        jobs.append({"id": n, "net": net, "grid": grid, "window": win,
+                     "a": pa[0], "a_layers": pa[1], "b": pb[0], "b_layers": pb[1],
+                     "a_own": own(a, pa[1], wn), "b_own": own(b, pb[1], wn),
+                     "width": w, "neck": wn, "clr": c0,
+                     "track_obst": {L: polys(tr[L]) for L in ROUTED},
+                     "track_obst_neck": {L: polys(trn[L]) for L in ROUTED},
+                     "courtyards": polys(court), "via_obst": polys(vb),
+                     "via_soft": polys(vs)})
+    fj = os.path.join(work, "finish_first.json")
+    first = set(json.load(open(fj))) if os.path.exists(fj) else set()
+    jobs.sort(key=lambda j: j["net"] not in first)          # stable: DRC order within
+    jf, rf = os.path.join(work, "finish_jobs.json"), os.path.join(work, "finish_paths.json")
+    json.dump(jobs, open(jf, "w"))
+    venv = os.path.join(HERE, "..", ".venv", "bin", "python")
+    subprocess.run([venv, os.path.join(HERE, "finish_router.py"), jf, rf], check=True)
+    res = json.load(open(rf))
+    added, vias_of = {}, {}
+    for job in jobs:
+        r = res.get(str(job["id"]))
+        if not r:
+            continue
+        net = board.FindNet(job["net"])
+        items = []
+        for L, a, b, sw in r["segs"]:
+            if math.dist(a, b) < 1e-3:
+                continue
+            t = pcbnew.PCB_TRACK(board)
+            t.SetStart(pcbnew.VECTOR2I_MM(o[0] + a[0], o[1] + a[1]))
+            t.SetEnd(pcbnew.VECTOR2I_MM(o[0] + b[0], o[1] + b[1]))
+            t.SetWidth(pcbnew.FromMM(sw))
+            t.SetLayer(board.GetLayerID(L))
+            t.SetNet(net)
+            board.Add(t)
+            items.append(t.m_Uuid.AsString())
+        for x, y in r["vias"]:
+            v = pcbnew.PCB_VIA(board)
+            v.SetPosition(pcbnew.VECTOR2I_MM(o[0] + x, o[1] + y))
+            v.SetWidth(pcbnew.FromMM(0.6))
+            v.SetDrill(pcbnew.FromMM(0.3))
+            v.SetNet(net)
+            board.Add(v)
+            items.append(v.m_Uuid.AsString())
+        added[job["id"]] = items
+        vias_of[job["id"]] = r["vias"]
+    pcbnew.SaveBoard(path, board, True)
+    refill(path)
+    # KiCad's DRC is the arbiter: a connection with any item in a
+    # violation comes out whole
+    rep2 = drc(path)
+    bad = {i["uuid"] for v in rep2["violations"] if v["severity"] == "error" for i in v["items"]}
+    drop = [j for j, ids in added.items() if bad & set(ids)]
+    mine = {u for j in drop for u in added[j]}
+    import collections
+    print("  rejected for:", dict(collections.Counter(
+        v["type"] for v in rep2["violations"] if v["severity"] == "error"
+        and mine & {i["uuid"] for i in v["items"]})), flush=True)
+    if os.environ.get("FINISH_DEBUG"):
+        for v in rep2["violations"]:
+            if v["severity"] == "error" and mine & {i["uuid"] for i in v["items"]}:
+                print("   ", v["description"][:90], "|",
+                      " / ".join(i["description"][:50] for i in v["items"]))
+    board = pcbnew.LoadBoard(path)
+    # a via that bit a pour too deep: the pour now necks. Out goes every
+    # connection with a via inside that net's pour
+    for net in set(necks(board)) - base_necks:
+        zs = [z.Outline() for z in board.Zones() if z.GetNetname() == net]
+        bit = [j for j, vs_ in vias_of.items() if j not in drop and any(
+            o_.Contains(pcbnew.VECTOR2I_MM(gen_pcb.ORIGIN[0] + x, gen_pcb.ORIGIN[1] + y))
+            for x, y in vs_ for o_ in zs)]
+        print(f"  {net} necks: dropping {len(bit)}", flush=True)
+        drop += bit
+    gone = {u for j in drop for u in added[j]}
+    for t in list(board.GetTracks()):
+        if t.m_Uuid.AsString() in gone:
+            board.Remove(t)
+    pcbnew.SaveBoard(path, board, True)
+    refill(path)
+    print(f"  within {margin:g} mm: {len(jobs)} open, {len(added)} routed, "
+          f"{len(drop)} dropped by DRC, {len(added) - len(drop)} kept", flush=True)
+    return len(added) - len(drop)
 
 
 def refill(path):
@@ -1219,9 +1707,16 @@ def fab(path=pr.BOARD):
 
 
 if __name__ == "__main__":
+    BOARD = os.environ.get("BOARD", pr.BOARD)
     stage = sys.argv[1] if len(sys.argv) > 1 else "place"
     {"place": place, "pour": pour, "route": route, "setup": setup,
      "fab": fab,
      "necks": lambda: print(necks(pcbnew.LoadBoard(pr.BOARD)) or "no necks"),
+     "finish": lambda: finish(BOARD),
+     "finish_pass": lambda: finish_pass(BOARD, margin=float(sys.argv[2]),
+                                        grid=float(sys.argv[3]) if len(sys.argv) > 3 else 0.05),
+     "tidy": lambda: tidy(BOARD),
+     "turn": lambda: turn(BOARD, sys.argv[2], float(sys.argv[3])),
+     "ripup": lambda: ripup(BOARD, float(sys.argv[2]), len(sys.argv) > 3),
      "widen": lambda: (write_rules(),
                        print(f"pin necks kept narrow: {widen(pr.BOARD)}"))}[stage]()

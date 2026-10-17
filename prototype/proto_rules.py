@@ -56,6 +56,22 @@ PAD_RENAME = {"J302": {"SH": "S1"}}
 # bounding rectangle, which is larger, so conservative.
 RECT_COURTYARD = {"Sensor_Pressure:Freescale_98ARH99066A"}
 
+# Pin escape (17 Oct): a 0.3 mm clearance net cannot leave a 0.5 mm pitch
+# pin, nor reach one between two others (U203 pin 13, VSNS: 0.275 mm even
+# dead centre). Inside the chip's courtyard a track keeps the chip's own
+# pin gap, 0.2 mm, to that chip's pads; the 100 V classes and PWR_HI keep
+# theirs. The chips with a pitch of 0.65 mm or less (gen_board checks it)
+FINE_PITCH_ICS = ("U101", "U202", "U203", "U301", "U302", "U401", "U701")
+ESCAPE_MM = 0.2
+ESCAPE_EXEMPT = ("HV100", "HV100_SIG", "PWR_HI")
+ESCAPE_KEEP = " && ".join(f"A.NetClass != '{c}' && B.NetClass != '{c}'" for c in ESCAPE_EXEMPT)
+
+# Parts turned in place after packing, by degrees; 180 keeps the packed
+# box. R503, U504's gate-source resistor, faced gate-down, source-up,
+# against the driver's pin order: EGR_AH_G and EGR_HIGH_59 had to cross
+# under 0.6 mm clearance, and EGR_A_VB was walled in (run 12)
+TURN = {"R503": 180}
+
 # Production's rules plus one: a footprint's own holes against its own
 # pads are the maker's land pattern too (the USB-C shell pegs).
 DRU = _pr.DRU + """(rule "land pattern holes"
@@ -71,7 +87,10 @@ DRU = _pr.DRU + """(rule "land pattern holes"
 (rule "pin necks"
   (condition "A.Type == 'Track' && A.intersectsCourtyard('*')")
   (constraint track_width (min 0.15mm)))
-"""
+""" + "".join(f"""(rule "pin escape {u}"
+  (condition "A.Type == 'Track' && B.Type == 'Pad' && A.intersectsCourtyard('{u}') && B.memberOfFootprint('{u}') && (A.NetClass == 'PWR' || A.NetClass == 'PWR_LOOM' || B.NetClass == 'PWR' || B.NetClass == 'PWR_LOOM') && {ESCAPE_KEEP}")
+  (constraint clearance (min {ESCAPE_MM}mm)))
+""" for u in FINE_PITCH_ICS)
 MIN_TRACK_MM = 0.15        # board setup minimum: a pin neck; "tracks" holds the rest at 0.2
 # Pin necks (owner, 16 Oct): a track may narrow to 0.15 mm inside a
 # part's courtyard, into a fine-pitch pin where 0.2 mm does not clear the

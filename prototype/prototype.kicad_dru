@@ -10,5 +10,29 @@
   (condition "A.NetName == 'GND' || B.NetName == 'GND'")
   (constraint clearance (min 0.2mm)))
 (rule "tracks"
-  (condition "A.Type == 'Track' && A.Length > 2mm")
+  (condition "A.Type == 'Track'")
   (constraint track_width (min 0.2mm)))
+(rule "pin necks"
+  (condition "A.Type == 'Track' && A.intersectsCourtyard('*')")
+  (constraint track_width (min 0.15mm)))
+(rule "pin escape U101"
+  (condition "A.Type == 'Track' && B.Type == 'Pad' && A.intersectsCourtyard('U101') && B.memberOfFootprint('U101') && (A.NetClass == 'PWR' || A.NetClass == 'PWR_LOOM' || B.NetClass == 'PWR' || B.NetClass == 'PWR_LOOM') && A.NetClass != 'HV100' && B.NetClass != 'HV100' && A.NetClass != 'HV100_SIG' && B.NetClass != 'HV100_SIG' && A.NetClass != 'PWR_HI' && B.NetClass != 'PWR_HI'")
+  (constraint clearance (min 0.2mm)))
+(rule "pin escape U202"
+  (condition "A.Type == 'Track' && B.Type == 'Pad' && A.intersectsCourtyard('U202') && B.memberOfFootprint('U202') && (A.NetClass == 'PWR' || A.NetClass == 'PWR_LOOM' || B.NetClass == 'PWR' || B.NetClass == 'PWR_LOOM') && A.NetClass != 'HV100' && B.NetClass != 'HV100' && A.NetClass != 'HV100_SIG' && B.NetClass != 'HV100_SIG' && A.NetClass != 'PWR_HI' && B.NetClass != 'PWR_HI'")
+  (constraint clearance (min 0.2mm)))
+(rule "pin escape U203"
+  (condition "A.Type == 'Track' && B.Type == 'Pad' && A.intersectsCourtyard('U203') && B.memberOfFootprint('U203') && (A.NetClass == 'PWR' || A.NetClass == 'PWR_LOOM' || B.NetClass == 'PWR' || B.NetClass == 'PWR_LOOM') && A.NetClass != 'HV100' && B.NetClass != 'HV100' && A.NetClass != 'HV100_SIG' && B.NetClass != 'HV100_SIG' && A.NetClass != 'PWR_HI' && B.NetClass != 'PWR_HI'")
+  (constraint clearance (min 0.2mm)))
+(rule "pin escape U301"
+  (condition "A.Type == 'Track' && B.Type == 'Pad' && A.intersectsCourtyard('U301') && B.memberOfFootprint('U301') && (A.NetClass == 'PWR' || A.NetClass == 'PWR_LOOM' || B.NetClass == 'PWR' || B.NetClass == 'PWR_LOOM') && A.NetClass != 'HV100' && B.NetClass != 'HV100' && A.NetClass != 'HV100_SIG' && B.NetClass != 'HV100_SIG' && A.NetClass != 'PWR_HI' && B.NetClass != 'PWR_HI'")
+  (constraint clearance (min 0.2mm)))
+(rule "pin escape U302"
+  (condition "A.Type == 'Track' && B.Type == 'Pad' && A.intersectsCourtyard('U302') && B.memberOfFootprint('U302') && (A.NetClass == 'PWR' || A.NetClass == 'PWR_LOOM' || B.NetClass == 'PWR' || B.NetClass == 'PWR_LOOM') && A.NetClass != 'HV100' && B.NetClass != 'HV100' && A.NetClass != 'HV100_SIG' && B.NetClass != 'HV100_SIG' && A.NetClass != 'PWR_HI' && B.NetClass != 'PWR_HI'")
+  (constraint clearance (min 0.2mm)))
+(rule "pin escape U401"
+  (condition "A.Type == 'Track' && B.Type == 'Pad' && A.intersectsCourtyard('U401') && B.memberOfFootprint('U401') && (A.NetClass == 'PWR' || A.NetClass == 'PWR_LOOM' || B.NetClass == 'PWR' || B.NetClass == 'PWR_LOOM') && A.NetClass != 'HV100' && B.NetClass != 'HV100' && A.NetClass != 'HV100_SIG' && B.NetClass != 'HV100_SIG' && A.NetClass != 'PWR_HI' && B.NetClass != 'PWR_HI'")
+  (constraint clearance (min 0.2mm)))
+(rule "pin escape U701"
+  (condition "A.Type == 'Track' && B.Type == 'Pad' && A.intersectsCourtyard('U701') && B.memberOfFootprint('U701') && (A.NetClass == 'PWR' || A.NetClass == 'PWR_LOOM' || B.NetClass == 'PWR' || B.NetClass == 'PWR_LOOM') && A.NetClass != 'HV100' && B.NetClass != 'HV100' && A.NetClass != 'HV100_SIG' && B.NetClass != 'HV100_SIG' && A.NetClass != 'PWR_HI' && B.NetClass != 'PWR_HI'")
+  (constraint clearance (min 0.2mm)))

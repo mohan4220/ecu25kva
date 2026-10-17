@@ -18,3 +18,7 @@ firmware/sim/build/
 
 # prototype router scratch (DSN/SES)
 prototype/build/
+
+# KiCad local history
+.history/
+*.lck
