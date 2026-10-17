@@ -1191,7 +1191,7 @@ trusts the DRC.
 
 ---
 
-## 15. A prototype board, buildable now (15–16 October)
+## 15. A prototype board, buildable now (15–17 October)
 
 **The question:** the production board waits on the Bosch connector and the old ECU's housing. Nothing has shown the design working. Can a board that sets both aside be built now?
 
@@ -1207,6 +1207,8 @@ trusts the DRC.
 | Connector and housing | **Set aside.** Pluggable 5.08 mm screw terminals, labelled with the production pin numbers |
 | High-current copper (16 Oct) | **Pours carry the current.** 585 of the 640 power pads are narrower than their class width, so no track can meet the class at the pad. Each power net's power parts are joined by class-width pours; tracks to small parts on a power net may be pad-width |
 | Board size (16 Oct) | **300 × 200 mm** ("you can use bigger board dimensions"). 220 × 160 and 240 × 180 were too congested to route the injector stage at full width |
+| Pin necks (16 Oct) | **0.15 mm, inside a part's courtyard only.** 0.2 mm (the 2 oz minimum) does not clear between 0.5 mm-pitch pins; 0.2 mm everywhere else |
+| Layers (16 Oct) | **Stay at 4.** L2 stays a solid ground plane, never cut; signals use F.Cu, In2 and B.Cu |
 
 ### What it adds to production, and only to the prototype
 
@@ -1220,9 +1222,26 @@ trusts the DRC.
 
 - **`prototype/power_router.py`** routes the 29 power nets as class-width bars. It is a maze router on a 0.5 mm grid over B.Cu, F.Cu and In2. Nets negotiate for space (the PathFinder method) until no two overlap. Where a bar changes layer it gets a via array at 2 A per via. On In2, which is 1 oz copper, bars are twice as wide.
 - **Freerouting 2.4.1** routes everything else. **It treats a KiCad pour as no obstacle** (in its own code, a DSN plane loads with `isObstacle=false`). So a first run routed signals straight across the power bars, which the refill would have cut. In its input each bar is now a fixed wire and each pour via a fixed via; they come out again after import. `test_router_sees_pours` guards this.
+- **Ground reaches L2 through its own vias** (`gnd_fanout`), one per ground pad, so Freerouting never sees L2. It routes three layers; its vias come back through all four.
+- **Freerouting leaves about 45 connections open** (run 12, 29 passes, 1 h 50 min). **`prototype/finish_router.py`** routes them, one at a time, with KiCad's DRC as the judge: anything DRC rejects comes out whole. What it needed, each found on a connection that would not route:
+  - **A start anywhere on the end's copper island**, not only its centre point. Off a 0.5 mm-pitch pin's centre is the only legal start beside a 0.3 mm clearance net.
+  - **Vias through a pour's interior**, with 1 mm of pour kept round the hole. A deeper bite into a pour's edge is allowed but priced as a 20 mm detour, and `necks()` judges it afterwards.
+  - **A last pass 50 mm round the ends on a 0.1 mm grid**, for HSB_BAT_GATE: 115 mm across the injector pours.
+  - **Rip-up**: other nets' tracks round the open ends, then along the line between them, are taken out; the open connection routes first, the rest after. Rounds that leave more open are undone.
+  - **`tidy`** removes the vias and stubs rip-up leaves dangling.
+- **Result (17 October): nothing unconnected, 0 DRC errors, schematic parity clean** but for D806's placeholder footprint. Freerouting started from 625 nets.
 - **Proofs:**
   - `test_power_pours_connect`: with every track removed, every power part's pads are still joined, so no track carries load current.
   - `gen_board.necks()`: every bar keeps at least 3 of 5 sample points across its width filled, outside its own pads.
+
+### Rules the routing needed (17 October)
+
+| Rule | Why | Cost if wrong |
+|---|---|---|
+| **Pin escape:** inside a fine-pitch chip's courtyard, a PWR or PWR_LOOM track keeps the chip's own 0.2 mm pin gap to that chip's pads, not 0.3 mm. The 100 V classes and PWR_HI keep theirs | U203 pin 13 (VSNS) lies between OVC_BST and OVC_GATE on a 0.5 mm pitch: even a 0.15 mm track dead centre is 0.275 mm from them. The chip itself holds those voltages across 0.2 mm. **Production has the same pin** | A creepage review of the 7 chips (U101, U202, U203, U301, U302, U401, U701) |
+| **Fine-pitch chips keep 1 mm clear** round their courtyard in placement | Run 9 left U401, U203 and U504 walled in by their own satellites | A placement rerun |
+| **R503 is turned 180°** after packing | U504's gate-source resistor faced gate-down, source-up, against the driver's pin order: EGR_AH_G and EGR_HIGH_59 had to cross at 0.6 mm clearance, and EGR_A_VB was walled in | None: the same box |
+| **Finishing tracks on power nets are 0.2 mm** | They reach small parts; the current rides the pours | None measurable |
 
 ### Found on the way
 
@@ -1235,6 +1254,8 @@ trusts the DRC.
 - **The stack-up is production's:** 4 layers, 2 oz outer copper, 1 oz inner. The pour widths are computed for 2 oz.
 - **A 1 oz quote is not a drop-in.** The bars would carry about half the current.
 - **300 × 200 mm with 2 oz outer copper** is outside most fabs' cheapest prototype tier. Expect to pay for size and copper weight, not part count.
+- **87 pin necks are 0.15 mm on 2 oz outer copper.** Some fabs' 2 oz minimum is 0.15–0.2 mm: ask at quoting.
+- **20 small islands of pour fill** are left floating (current-sense pours on In2, three on the ground plane). They carry nothing; a fab may ask about them.
 
 ---
 

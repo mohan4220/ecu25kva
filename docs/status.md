@@ -945,6 +945,7 @@ Rewritten 15 October 2026. **The tree is clean and pushed. Every check passes:**
 ### Where it stands
 - **Schematic:** complete, 379 parts. Regenerating it is now deterministic.
 - **PCB:** prepared for hand routing, not routed (decisions log §13).
+- **Prototype board (17 October):** routed and fab-ready in `prototype/`: the full production circuit with an STM32G474, screw terminals, 300 × 200 mm, 4 layers. 0 DRC errors, nothing unconnected, schematic parity clean. Gerbers, drill, positions and BOM in `prototype/fab/`; bring-up guide `prototype/docs/bring-up.md` (decisions log §15).
 - **Firmware:** runs on the PC, calibrated from the old ECU's own recording (§14).
 - **Safety change written up, not yet wired:** the overspeed trip moves to the injector feed, pin 04 (spec §3 item 6).
 
@@ -960,4 +961,5 @@ Rewritten 15 October 2026. **The tree is clean and pushed. Every check passes:**
 - **MC33816AE last-time-buy:** a distributor question (fallback path only).
 
 ### Next that needs neither
+- **Quote and build the prototype:** 2 oz outer copper, 300 × 200 mm, 87 pin necks at 0.15 mm (decisions log §15, "The cost to know before quoting").
 - **The S32K148 port:** running the firmware core on NXP's evaluation board, with the engine signals simulated on the bench. It needs the board, a debugger and a toolchain on this machine.

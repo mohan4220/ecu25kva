@@ -131,6 +131,10 @@ placeholders until the old ECU is measured (brief Group 6).
 The firmware core runs on the PC against a simulated engine, with
 production logging (fault memory, events, counters, trip recorder) and
 all 15 scenarios passing (`firmware/`, decisions log §11–12).
+**A prototype board is routed and fab-ready** (`prototype/`, decisions
+log §15): the full production circuit with an STM32G474 and screw
+terminals, 300 × 200 mm, 0 DRC errors, nothing unconnected. Fab files in
+`prototype/fab/`, bring-up guide `prototype/docs/bring-up.md`.
 
 | Gate | State |
 |---|---|

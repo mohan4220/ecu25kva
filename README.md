@@ -121,6 +121,7 @@ export KICAD_SYMBOL_DIR=~/opt/kicad7-libs/kicad-symbols-7.0.11   # the symbols h
 .venv/bin/python prototype/check_prototype.py   # netlist gate, no open items
 $KP prototype/gen_board.py setup                # fetch Freerouting, check its SHA-256
 $KP prototype/gen_board.py route                # place, power pours, Freerouting (about 2 h)
+$KP prototype/gen_board.py finish               # route what Freerouting left, rip-up, tidy
 $KP prototype/gen_board.py fab                  # prototype/fab/: Gerbers, drill, positions, BOM
 .venv/bin/python prototype/test_prototype.py    # every prototype check
 ```
