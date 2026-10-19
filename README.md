@@ -122,6 +122,9 @@ export KICAD_SYMBOL_DIR=~/opt/kicad7-libs/kicad-symbols-7.0.11   # the symbols h
 $KP prototype/gen_board.py setup                # fetch Freerouting, check its SHA-256
 $KP prototype/gen_board.py route                # place, power pours, Freerouting (about 2 h)
 $KP prototype/gen_board.py finish               # route what Freerouting left, rip-up, tidy
+$KP prototype/gen_board.py sync                 # after a schematic change: rename, add new parts
+$KP prototype/gen_board.py rip_thin             # tracks too thin for TRACK_AMPS out; then finish
+$KP prototype/gen_board.py widen                # tracks up to 0.2 mm, TRACK_AMPS nets to their IPC width
 $KP prototype/gen_board.py fab                  # prototype/fab/: Gerbers, drill, positions, BOM
 .venv/bin/python prototype/test_prototype.py    # every prototype check
 ```

@@ -140,7 +140,7 @@ terminals, 300 × 200 mm, 0 DRC errors, nothing unconnected. Fab files in
 |---|---|
 | Simulation blocks | **26 of 26 pass** |
 | Netlist connectivity | **passes**, with 2 named open items |
-| Footprints | **377 of 379** components |
+| Footprints | **378 of 380** components |
 | Chip R and C packaged | **236 of 236** |
 
 **Verified part numbers** are in `docs/bom_requirements.md` under
@@ -295,6 +295,17 @@ These each cost a debugging session already:
 - **The ngspice version matters.** The suite passes on ngspice 42
   and fails on 47 (see §2). Upgrading the simulator is a change that
   needs the whole suite re-run, not a routine update.
+- **kicad-cli's DRC report stops listing unconnected items at about
+  500.** A test that reads that list for one net passes blind on a badly
+  broken board. Read connectivity in pcbnew instead
+  (`gen_board.py clusters`).
+- **pcbnew SWIG objects never match with `is`.** Each access hands back
+  a new wrapper; compare `m_Uuid`. `f is not fp` silently let a new part
+  collide with its own courtyard.
+- **A symbol added ahead of others on a sheet renumbers them,** and the
+  symbol UUIDs follow the references. On a routed prototype board, run
+  `gen_board.py sync`: it matches footprints to parts by value and pad
+  nets, renames them and places only what is new.
 - **Simulation models hide things.** An idealised zener hid both the
   leakage that started LOWV-CLAMP and an 84 mV loading error that a
   passing check had pinned as the expected value. When a model's part

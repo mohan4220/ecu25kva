@@ -268,7 +268,7 @@ contact-type confirmation, which gates nothing
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
 | 1.5 | Block-level simulation | **Done — 26 blocks, 26 passing** (feed_emi added 8 Oct 2026) |
-| **2** | **KiCad hierarchical schematic capture** | **Complete — 379 components, 377 with footprints; connectivity OK with 2 named open items (power-ground pin, trip-loop pin)** |
+| **2** | **KiCad hierarchical schematic capture** | **Complete — 380 components, 378 with footprints; connectivity OK with 2 named open items (power-ground pin, trip-loop pin)** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | **Prepared for hand routing (14 Oct)**: board with all 379 parts placed by block, classes and rules set, DRC clean, 499 connections to route (decisions log §13). Housing and J1001 are placeholders until measured (brief Group 6) |
 | 4 | Firmware skeleton | **Core done on the PC, with production logging — 15/15 engine scenarios, 80 unit tests; calibrated from the old ECU's recording (§14)** (decisions log §11, §12). Next: S32K148 dev kit |
 
@@ -943,9 +943,9 @@ Rewritten 15 October 2026. **The tree is clean and pushed. Every check passes:**
 - the board check, including the schematic links
 
 ### Where it stands
-- **Schematic:** complete, 379 parts. Regenerating it is now deterministic.
+- **Schematic:** complete, 380 parts (D302 added 19 Oct). Regenerating it is now deterministic.
 - **PCB:** prepared for hand routing, not routed (decisions log §13).
-- **Prototype board (17 October):** routed and fab-ready in `prototype/`: the full production circuit with an STM32G474, screw terminals, 300 × 200 mm, 4 layers. 0 DRC errors, nothing unconnected, schematic parity clean. Gerbers, drill, positions and BOM in `prototype/fab/`; bring-up guide `prototype/docs/bring-up.md` (decisions log §15).
+- **Prototype board (17 October):** routed and fab-ready in `prototype/`: the full production circuit with an STM32G474, screw terminals, 300 × 200 mm, 4 layers. 0 DRC errors, nothing unconnected, schematic parity clean. Gerbers, drill, positions and BOM in `prototype/fab/`; bring-up guide `prototype/docs/bring-up.md` (decisions log §15). **Reviewed 19 October:** the review found the watchdog kill path lost by the 15 October supervisor fix. D302 (BAT54Q) restores it, in production too. The 5 V buck's output and switch node now run on the outer layers, sized for its 1 A. The pour checks were made able to fail.
 - **Firmware:** runs on the PC, calibrated from the old ECU's own recording (§14).
 - **Safety change written up, not yet wired:** the overspeed trip moves to the injector feed, pin 04 (spec §3 item 6).
 
@@ -961,5 +961,5 @@ Rewritten 15 October 2026. **The tree is clean and pushed. Every check passes:**
 - **MC33816AE last-time-buy:** a distributor question (fallback path only).
 
 ### Next that needs neither
-- **Quote and build the prototype:** 2 oz outer copper, 300 × 200 mm, 87 pin necks at 0.15 mm (decisions log §15, "The cost to know before quoting").
+- **Quote and build the prototype:** 2 oz outer copper, 300 × 200 mm, 95 pin necks at 0.15 mm (decisions log §15, "The cost to know before quoting").
 - **The S32K148 port:** running the firmware core on NXP's evaluation board, with the engine signals simulated on the bench. It needs the board, a debugger and a toolchain on this machine.

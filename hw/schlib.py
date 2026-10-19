@@ -185,6 +185,15 @@ CHOSEN = {
         "VS-1EMH02HM3", "Diode_SMD:D_SMA",
         "The bootstrap diode's part: 200 V covers the 100 V class, and "
         "one part number beats two"),
+    # The watchdog-to-reset diode (17 Oct 2026). Diodes Inc. DS11005
+    # Rev. 34-2: 30 V, 200 mA, VF 240 mV max at 0.1 mA, 320 mV at 1 mA;
+    # SOT-23, pin 1 anode, 3 cathode (as the BZX84-Q). The automotive
+    # BAT54Q has its own datasheet, which diodes.com would not serve to a
+    # script; DS11005 names it ("BAT54Q /AQ /CQ /SQ").
+    ("Device:D_Schottky", "30V 200mA"): (
+        "BAT54Q-7-F", "ecu25kva:SOT-23_Zener_K1_A2",
+        "Diodes Inc. BAT54Q, 30 V, 200 mA, VF 320 mV max at 1 mA, "
+        "AEC-Q101, SOT-23 (DS11005 for the electrical figures)"),
     ("Device:D_Schottky", "100V 20A"): (
         "SS20PH102HM3", "ecu25kva:TO-277A_K1_A2",
         "Vishay TMBS, 100 V, 20 A, 310 A surge, AEC-Q101 (HM3). "

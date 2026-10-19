@@ -224,7 +224,6 @@ def test_power_pours_connect():
     joined, by pour copper alone: no thin track carries load current."""
     import json
     import re
-    import shutil
     import subprocess
     import tempfile
     import proto_rules as pr
@@ -240,24 +239,60 @@ def test_power_pours_connect():
     with tempfile.TemporaryDirectory() as d:
         brd = os.path.join(d, "p.kicad_pcb")
         open(brd, "w").write(stripped)
-        for ext in (".kicad_pro", ".kicad_dru"):
-            shutil.copy(BOARD[:-10] + ext, brd[:-10] + ext)
-        subprocess.run([pr.KICAD_CLI, "pcb", "drc", "--refill-zones",
-                        "--format", "json", "-o", os.path.join(d, "r.json"),
-                        brd], capture_output=True)
-        rep = json.load(open(os.path.join(d, "r.json")))
+        r = subprocess.run([pr.KICAD_PY, os.path.join(HERE, "gen_board.py"),
+                            "clusters", brd], capture_output=True, text=True)
+    groups = json.loads(r.stdout.strip().splitlines()[-1])
     bad = []
-    for v in rep.get("unconnected_items", []):
-        ends = [re.search(r"Pad \S+ \[([^\]]*)\] of (\S+)", i["description"])
-                for i in v["items"]]
-        # two legs of one part (an SMPD's twin anode pads) are joined
-        # inside the part: no copper needed between them for current
-        if all(ends) and ends[0].group(2) != ends[1].group(2) \
-                and all(m.group(2) in power for m in ends) and (
-                ends[0].group(1) == "GND" or
-                pr.ASSIGN.get(ends[0].group(1)) in pr.POUR_CLASSES):
-            bad.append(" / ".join(i["description"] for i in v["items"]))
+    for net, gs in groups.items():
+        if net != "GND" and pr.ASSIGN.get(net) not in pr.POUR_CLASSES:
+            continue
+        hold = [g for g in gs if any(k.split(".")[0] in power for k in g)]
+        if len(hold) > 1:
+            bad.append(f"{net}: {len(hold)} islands, " + " | ".join(
+                ",".join(g[:3]) for g in hold[:3]))
     assert not bad, f"{len(bad)} power pads joined only by tracks: {bad[:4]}"
+
+
+def test_no_necks():
+    """No pour run keeps less than NECK_MIN of its width filled away from
+    its own pads (necks(), the same judge finish_pass uses), so no track
+    or via the router added has pinched a pour."""
+    import subprocess
+    import proto_rules as pr
+    r = subprocess.run([pr.KICAD_PY, os.path.join(HERE, "gen_board.py"), "necks"],
+                       capture_output=True, text=True, env={**os.environ, "BOARD": BOARD})
+    assert r.stdout.strip().splitlines()[-1:] == ["no necks"], r.stdout[-500:] + r.stderr[-500:]
+
+
+def test_inputs_committed():
+    """The router input and the power router's runs, which these tests
+    read, are committed: a fresh clone runs every test."""
+    for f in ("power.json", "prototype.dsn"):
+        ign = _git("check-ignore", os.path.join("prototype", "build", f))
+        assert not ign.strip(), f"prototype/build/{f} is gitignored"
+
+
+def test_track_power_widths():
+    """A power-class net with no pour rides tracks: every one of them is
+    wide enough for the net's TRACK_AMPS on its own layer, and no such net
+    is missing from the table."""
+    import re
+    import proto_rules as pr
+    text = open(BOARD).read()
+    poured = set(re.findall(r'\n\t\(zone\n\t\t\(net "([^"]*)"\)', text))
+    want = {n for n, c in pr.ASSIGN.items() if c in pr.POUR_CLASSES} - poured
+    tracks = re.findall(r'\n\t\(segment\n.*?\(width ([\d.]+)\)\n\t\t\(layer "([^"]+)"\)'
+                        r'\n.*?\(net "([^"]*)"\)', text, flags=re.S)
+    want &= {n for _, _, n in tracks}
+    assert want <= set(pr.TRACK_AMPS), sorted(want - set(pr.TRACK_AMPS))
+    cu = dict(pr.STACKUP)
+    thin = {}
+    for w, layer, net in tracks:
+        if net in pr.TRACK_AMPS:
+            need = pr.width_mm(pr.TRACK_AMPS[net], cu[layer], layer in ("F.Cu", "B.Cu"))
+            if float(w) < need - 1e-6:
+                thin.setdefault((net, layer, need), []).append(float(w))
+    assert not thin, {k: (len(v), min(v)) for k, v in thin.items()}
 
 
 def test_router_sees_pours():

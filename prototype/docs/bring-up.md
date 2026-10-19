@@ -3,11 +3,13 @@
 **For:** the person at the bench with the assembled prototype board. **You need:**
 - a bench supply with an adjustable current limit, 0–20 V
 - a multimeter
-- a 100 MHz oscilloscope with a probe rated for 100 V
+- a 100 MHz oscilloscope with a probe rated **300 V CAT II or better** (the boost rail reaches 116 V)
 - an ST-LINK V3 or J-Link with the 10-pin 1.27 mm Cortex cable
 - dummy loads for steps 4 and 5
 
 Power the board up **one supply at a time**, in the order below. Each supply has its own terminal: pin 21 is the logic feed, pin 04 the injector feed, pin 06 the EGR feed. So each block comes up with everything after it simply unpowered. Don't skip a step. If a reading is outside its range, **stop** and find out why before going on.
+
+**The boost capacitors stay charged after the supply is off.** TP12 can hold close to 100 V for minutes. Before you touch the board after step 4 or step 5, measure TP12 to GND and wait until it reads **under 5 V**.
 
 Expected values come from the production simulation blocks (`sim/blocks/`) and the sheet notes; each is named.
 
@@ -63,10 +65,10 @@ Supply **13.5 V on J1001-1**, with GND on J1002. Leave pins 04 and 06 open.
 | TP5 5V_MAIN | 5.0 V, ripple under 50 mV p-p | `buck_preregulator.cir` |
 | TP7 3V3_MCU | 3.30 V. **It must sit inside 3.143–3.459 V**, or the supervisor resets the board. The TLV767 holds 1 % | `rails` sheet; `supervisor.cir` |
 | TP8–TP10 5V_SENSOR_A/B/C | about 5.0 V, following 5V_MAIN | `sensor_rail.cir` |
-| D302 (3V3 LED) | on | — |
+| D303 (3V3 LED) | on | — |
 | TP4 12V_GATE | **about 0 V**. It comes from the boost rail, which is unpowered | `injector` sheet |
 
-Then connect the debugger to J301. **SWD must connect,** and the debugger should read the device ID (STM32G474, `0x469`). Flash a test build that toggles `LED_STATUS` (PB7): D303 should blink.
+Then connect the debugger to J301. **SWD must connect,** and the debugger should read the device ID (STM32G474, `0x469`). Flash a test build that toggles `LED_STATUS` (PB7): D304 should blink.
 
 **The supervisor will reset the MCU every few tens of milliseconds** unless the firmware kicks `WDT_KICK` (PC11) at 5–20 ms intervals (decisions log 11). With no firmware, a reset pulse train on NRST is correct behaviour, not a fault.
 
@@ -93,6 +95,8 @@ Then connect the debugger to J301. **SWD must connect,** and the debugger should
 | `BOOST_MON` (PB11) | **2.43 V at 100 V** (24.9 k / (2 × 499 k + 24.9 k) = 0.0243) | `prototype/additions.py` |
 | TP4 12V_GATE | about 12.3 V (a 13 V zener-referenced follower from the boost rail). The drivers' UVLO is 9.8 V | `injector` sheet |
 
+**Before firing any injector, raise the pin 04 limit to 5 A.** The boost recharge after each shot draws more than 1 A; at a 1 A limit the supply folds back and the readings below are wrong.
+
 With firmware firing one injection at 1 ms:
 - **TP15/TP16** (ISNS_INJ) should show the current rising to the 18 A peak in about **38 µs**, from the boost rail (`injector_boost.cir`).
 - After turn-off, the current should fall in about **36 µs** (`injector_turnoff.cir`).
@@ -101,14 +105,15 @@ With firmware firing one injection at 1 ms:
 ## 5. The watchdog-kill test
 
 1. With pins 21, 04 and 06 powered and the firmware driving the outputs, **stop kicking `WDT_KICK`**.
-2. Within the watchdog window, the TPS3850 asserts RESET. Q301 turns off, and `GATE_KILL` rises to about **12 V** (zener-clamped, 12.7 V maximum). Probe it at R305/Q301's drain.
+2. At the end of the watchdog window, the TPS3850 asserts `WDO`. `WDO` pulls `RESET` low through D302 (a BAT54Q Schottky, about 0.3 V), so the MCU resets and Q301 turns off. `GATE_KILL` rises to about **12 V** (zener-clamped, 12.7 V maximum). Probe it at R305/Q301's drain.
 3. **Every gate must drop:**
    - injector high and low sides
    - metering FET
    - EGR bridge
-   - relays
+
+   The kill FETs that do this are Q402–Q405, Q413, Q415, Q417, Q502 and Q507. The relays are not on `GATE_KILL`: the firmware drops them, and it is in reset.
 
    Check the current on each dummy load, and the gate of Q412 (low side 1) on the scope.
-4. `WDT_FAULT` (PC12) reads low after the reset. This is how firmware tells a watchdog trip from a rail trip. **Since 15 Oct 2026 this is a separate net from RESET:** they were shorted together on the production schematic until this prototype found it.
+4. On the scope, `WDT_FAULT` (PC12) and NRST go low together and come back high together. `WDT_FAULT` is high again by the time firmware runs, so it does not record which trip it was. **History:** RESET and `WDT_FAULT` were shorted on the production schematic until 15 Oct 2026; that fix removed the only path from `WDO` to the reset, and D302 (19 Oct) puts it back.
 
-**Pass:** all five steps within their ranges. Record the readings in `docs/status.md` with the date and board serial.
+**Pass:** all five steps within their ranges, and TP12 under 5 V before you disconnect. Record the readings in `docs/status.md` with the date and board serial.

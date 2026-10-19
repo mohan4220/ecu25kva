@@ -105,7 +105,7 @@ def test_regions_inside_outline():
 def test_assign_covers_netlist():
     with tempfile.TemporaryDirectory() as d:
         comps, nets = pr.read_netlist(pr.export_netlist(d))
-    assert len(comps) == 379, len(comps)
+    assert len(comps) == 380, len(comps)      # 379 + D302 (19 Oct)
     power = pr.power_nets(comps, nets)
     assert "/VBAT_INJ" in power and "/injector/BOOST_100V" in power
     assert "/injector/HSA_BOOST_GATE" not in power, "a gate is not a power net"

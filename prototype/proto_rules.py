@@ -163,3 +163,29 @@ POUR_CLASSES = ("PWR_HI", "HV100", "RTN", "PWR_LOOM", "PWR", "PWR_LV")
 NECK_MIN = 3            # of 5 points across a bar, filled, all along it
 VIA_AMPS = 2.0          # per 0.4 mm via, 25 um plating: conservative
 ROUTER_WIDTH_UM = 250   # router stubs on power nets reach small parts only
+
+# Power-class nets with at most one power part get no pour: tracks carry
+# them, so each track must carry the net's own current on its own layer
+# (IPC-2221 width_mm: 0.15 mm outer carries 1.2 A at 2 oz; In2, 1 oz
+# inner, needs 0.55 mm for 1 A). Amps are the steady worst case:
+TRACK_AMPS = {
+    # LM5164's rated output. Each sensor group's tracker limits at
+    # 301-520 mA, so one chafed sensor lead holds the buck near its limit
+    "/rails/SW": 1.0,
+    "/5V_MAIN": 1.0,
+    # the MCU, the CAN transceivers' VIO and two LEDs: ~0.25 A. Nothing
+    # off the board reaches it; a short is a board fault and the TLV767
+    # current-limits and shuts down
+    "/3V3_MCU": 0.3,
+    "/mcu_stm32/3V3_A": 0.05,          # VDDA and VREF+
+    "/mcu_stm32/BULK_RTN": 0.1,        # the bulk capacitor's ripple return
+    # gate-driver supplies: gate charge times switching rate, tens of mA
+    "/12V_GATE": 0.1,
+    "/injector/VDD_BOOST": 0.1,
+    "/injector/VDD_BAT": 0.1,
+}
+
+# KiCad's own Python, for checks that need pcbnew (the tests run under .venv)
+KICAD_PY = os.environ.get("KICAD_PY", os.path.join(
+    os.path.dirname(KICAD_CLI), "..", "Frameworks", "Python.framework",
+    "Versions", "3.9", "bin", "python3"))

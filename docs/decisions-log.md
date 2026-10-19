@@ -1242,10 +1242,12 @@ trusts the DRC.
 | **Fine-pitch chips keep 1 mm clear** round their courtyard in placement | Run 9 left U401, U203 and U504 walled in by their own satellites | A placement rerun |
 | **R503 is turned 180°** after packing | U504's gate-source resistor faced gate-down, source-up, against the driver's pin order: EGR_AH_G and EGR_HIGH_59 had to cross at 0.6 mm clearance, and EGR_A_VB was walled in | None: the same box |
 | **Finishing tracks on power nets are 0.2 mm** | They reach small parts; the current rides the pours | None measurable |
+| **A power net with no pour carries its own current on tracks** (`TRACK_AMPS`: 1 A on the 5 V buck's switch node and output, 0.05–0.3 A on the rest). Each track is IPC-2221 wide for that current on its layer. A net that would need more than 0.2 mm on In2 stays on the outer layers | Eight power-class nets have at most one power part, so the pour router gives them no bars. The 5 V buck's output ran 0.2 mm on 1 oz In2: 65 °C rise at the buck's 1 A, which a chafed sensor lead can hold (each sensor tracker limits at 301–520 mA). `test_track_power_widths` | A rerun if a load grows: the table is the budget |
 
 ### Found on the way
 
 - **A production defect, fixed in `hw/`.** In the supervisor, the `~RESET` and `~WDO` pull-ups overlapped on the schematic. That shorted the TPS3850's reset and watchdog-fault outputs into one net. Fixed in commit 491f37e. `check_netlist.MUST_SEPARATE` now guards it.
+- **That fix broke the watchdog kill (found in review, 19 October).** The TPS3850 asserts `WDO` on a watchdog timeout and never `RESET` (SBVS301B §7.3.6.3). Once the short was gone, a hung MCU no longer reset or killed the gates. **D302, a BAT54Q-7-F Schottky** (anode `~RESET`, cathode `WDT_FAULT`), puts the path back: `WDO` low pulls `RESET` to about 0.3 V. That is below Q301's 1.1 V minimum threshold, so `GATE_KILL` rises. `RESET` low leaves `WDO` alone. In production and on the prototype; `check_netlist` WDO_KILL guards it. **The cost:** the MCU is held in reset for as long as `WDO` is low, so `WDT_FAULT` no longer tells firmware which trip it was. No firmware reads it.
 - **U606's library footprint** (Freescale 98ARH99066A) has a malformed courtyard. The prototype redraws it as a rectangle. **Production uses the same footprint** and passes the design-rule check only because of where it sits. Check it before production layout.
 - **ST's datasheet DS12288 could not be downloaded** (st.com refused). The power-distribution check keeps production's 0.5 A load step: 70.3 mΩ cold and 78.5 mΩ warm against the 100 mΩ target. The STM32's real step is smaller.
 
@@ -1254,7 +1256,7 @@ trusts the DRC.
 - **The stack-up is production's:** 4 layers, 2 oz outer copper, 1 oz inner. The pour widths are computed for 2 oz.
 - **A 1 oz quote is not a drop-in.** The bars would carry about half the current.
 - **300 × 200 mm with 2 oz outer copper** is outside most fabs' cheapest prototype tier. Expect to pay for size and copper weight, not part count.
-- **87 pin necks are 0.15 mm on 2 oz outer copper.** Some fabs' 2 oz minimum is 0.15–0.2 mm: ask at quoting.
+- **95 pin necks are 0.15 mm on 2 oz outer copper.** Some fabs' 2 oz minimum is 0.15–0.2 mm: ask at quoting.
 - **20 small islands of pour fill** are left floating (current-sense pours on In2, three on the ground plane). They carry nothing; a fab may ask about them.
 
 ---

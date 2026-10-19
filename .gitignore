@@ -17,7 +17,9 @@ hw/*.bak
 firmware/sim/build/
 
 # prototype router scratch (DSN/SES)
-prototype/build/
+prototype/build/*
+!prototype/build/power.json
+!prototype/build/prototype.dsn
 
 # KiCad local history
 .history/

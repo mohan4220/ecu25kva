@@ -276,7 +276,7 @@ Table as every other row in this document):
 |---|---|---|---|---|---|
 | `RESET_b` | `PTA5` | 141 | dedicated | **weak pull-up** | **Forced — this is the only `RESET_b` pin on the part.** Dedicated function, not muxed. Reset default per RM Table 4-3: weak pull-up enabled (the one deliberate exception among the pins this document touches) |
 | `WDT_KICK` | `PTE0` | 138 | GPIO output | Hi-Z, no pull | MCU → TPS3850 `WDI`. Free choice of pin; what is *not* free is that some pin must do this |
-| `WDT_FAULT` | `PTE1` | 137 | GPIO input | Hi-Z, no pull | TPS3850 `WDO` → MCU, so firmware can tell a watchdog timeout from a rail excursion. `WDO` asserts only while `RESET` is high, which is what makes the two distinguishable |
+| `WDT_FAULT` | `PTE1` | 137 | GPIO input | Hi-Z, no pull | TPS3850 `WDO` → MCU, a live input. Since 19 Oct 2026 `WDO` also pulls `RESET` low through D302 (BAT54Q), so a watchdog timeout resets the MCU and kills the gates. The MCU is held in reset for as long as `WDO` is low, so by the time firmware runs it reads high again: it no longer tells a watchdog timeout from a rail excursion |
 
 That takes the committed count from 37 signals to **39**, and the spare GPIO from 91 to
 **89**.

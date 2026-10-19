@@ -13,8 +13,10 @@ kick it -- a window watchdog nobody feeds resets the board on a timer.
 So:
 
     PTE0  WDT_KICK   MCU -> TPS3850 WDI   (falling edge inside the window)
-    PTE1  WDT_FAULT  TPS3850 WDO -> MCU   (so firmware can read that the
-                                           watchdog, not the rail, tripped)
+    PTE1  WDT_FAULT  TPS3850 WDO -> MCU   (a live GPIO; D302 makes WDO also
+                                           pull RESET, so after the reset it
+                                           reads high again: it does not tell
+                                           firmware which one tripped)
 
 Both are free GPIO-HD pins on the 144-LQFP, PE=0/PS=0 at reset, taken
 from the 91 the pin map leaves spare.
@@ -242,6 +244,7 @@ def supervisor(sh):
     sh.wire(px, py, px + STUB + 10.16, py)
     sh.label("~{RESET}", px + STUB + 10.16, py)
 
+
     # Timing and strap pins are routed as a comb -- each goes left to its
     # own column, then down to its own part. Sharing a column stacked the
     # capacitors and their ground symbols on top of each other.
@@ -329,6 +332,27 @@ def supervisor(sh):
     sh.gnd(za[0], za[1] + 5.08)
     sh.label("GATE_KILL", d[0] + 15.24, d[1] - 7.62)
     sh.hlabel("GATE_KILL", d[0] + 17.78, d[1] - 7.62, shape="output")
+
+    # Placed last, so the GATE_KILL clamp keeps D301. A watchdog timeout
+    # asserts WDO only, never RESET (SBVS301B sec.7.3.6.3: WDO flags "a
+    # fault in the watchdog timing without performing an entire system
+    # reset"). This Schottky makes it one: WDO low pulls RESET to ~0.3 V,
+    # so the MCU resets and Q301 turns off: GATE_KILL rises (memo 11: the
+    # kill path covers "watchdog-fault conditions"). RESET low leaves WDO
+    # alone. check_netlist WDO_KILL.
+    rx = sx + 12.7 + 5.08              # the supervisor's right pins
+    dx, dy = rx + 40.64, sy + 25.4
+    sh.place("Device:D_Schottky", "D", dx, dy, "30V 200mA",
+             fields={"Note": "Anode ~RESET, cathode WDT_FAULT: a watchdog "
+                             "fault resets the MCU and kills the gates. "
+                             "VF <= 0.32 V at the 0.33 mA of RESET's 10k "
+                             "pullup, below Q301's 1.1 V minimum Vth"})
+    k = pin_xy(*PINS["Device:D_Schottky"]["1"], dx, dy, 0)
+    a = pin_xy(*PINS["Device:D_Schottky"]["2"], dx, dy, 0)
+    sh.wire(k[0], k[1], k[0] - 7.62, k[1])
+    sh.label("WDT_FAULT", k[0] - 7.62, k[1], rot=180)
+    sh.wire(a[0], a[1], a[0] + 7.62, a[1])
+    sh.label("~{RESET}", a[0] + 7.62, a[1])
 
 
 def decoupling(sh):
@@ -451,8 +475,10 @@ def notes(sh):
         "                   watchdog, but memo 11's topology requires the "
         "MCU to kick it. A window watchdog nobody feeds\n"
         "                   resets the board on a timer.\n"
-        "  PTE1  WDT_FAULT  TPS3850 WDO -> MCU, so firmware can tell a "
-        "watchdog trip from a rail trip.\n"
+        "  PTE1  WDT_FAULT  TPS3850 WDO -> MCU, a live input. D302 makes WDO "
+        "pull RESET too, so it reads high again\n"
+        "                   once the MCU is out of reset: it does not record "
+        "which trip it was.\n"
         "Both are free GPIO-HD pins, PE=0/PS=0 at reset, from the 91 the "
         "pin map leaves spare.",
         40, 132, size=1.6)

@@ -269,6 +269,194 @@ def edge_place(fp, edge, pos):
     move_to([fp], *at)
 
 
+def make_fp(board, ref, c, pad_net):
+    """One netlist part as a footprint on `board`: fields, path, pad nets."""
+    fpid = c["footprint"] or pr.PLACEHOLDER.get(ref)
+    if not fpid:
+        raise SystemExit(f"{ref}: no footprint and none in PLACEHOLDER")
+    fp = load_fp(ref, fpid)
+    if fpid in pr.RECT_COURTYARD:
+        rect_courtyard(fp)
+    fp.SetReference(ref)
+    fp.SetValue(c["value"])
+    fp.SetPath(pcbnew.KIID_PATH(c["path"]))
+    fp.SetSheetname("/" + c["sheet"] + "/")
+    fp.SetSheetfile(c["sheet"] + ".kicad_sch")
+    for k, v in c["fields"].items():
+        fp.SetField(k, v)
+        fp.GetField(k).SetVisible(False)
+    if ref in pr.PLACEHOLDER and not c["footprint"]:
+        t = pcbnew.PCB_TEXT(fp)
+        t.SetText("PLACEHOLDER")
+        t.SetLayer(pcbnew.F_Fab)
+        t.SetTextSize(pcbnew.VECTOR2I_MM(0.8, 0.8))
+        fp.Add(t)
+    ren = pr.PAD_RENAME.get(ref, {})
+    nums = set()
+    for pad in fp.Pads():
+        if pad.GetNumber() in ren:
+            pad.SetNumber(ren[pad.GetNumber()])
+        nums.add(pad.GetNumber())
+        if (ref, pad.GetNumber()) in pad_net:
+            pad.SetNet(pad_net[(ref, pad.GetNumber())])
+    missing = {p for r, p in pad_net if r == ref} - nums
+    if missing:
+        raise SystemExit(f"{ref}: {fpid} has no pad {sorted(missing)}")
+    board.Add(fp)
+    return fp
+
+
+def sync(path=pr.BOARD):
+    """Bring a routed board up to a changed schematic without placing it
+    again. A footprint matched to its part by value and pad nets keeps its
+    place and copper and takes the part's reference and path (a new part
+    ahead of it on a sheet shifts the numbers). A new part goes at the
+    nearest spot beside the part sharing most of its nets where its courtyard, plus GAP,
+    touches no other courtyard and no other net's F.Cu track or via;
+    finish then routes its nets first. A footprint the schematic dropped
+    is an error: removing one is a decision, not a sync."""
+    import json
+    with tempfile.TemporaryDirectory() as d:
+        comps, nets = pr.read_netlist(pr.export_netlist(d, pr.ROOT_SCH))
+    board = pcbnew.LoadBoard(path)
+    pad_net = {}
+    for name, nodes in nets.items():
+        ni = board.FindNet(name)
+        if ni is None:
+            ni = pcbnew.NETINFO_ITEM(board, name)
+            board.Add(ni)
+        for ref, pin, _ in nodes:
+            pad_net[(ref, pin)] = ni
+
+    def key_part(ref):
+        ren = pr.PAD_RENAME.get(ref, {})
+        return (comps[ref]["value"], frozenset(
+            (ren.get(p, p), ni.GetNetname()) for (r, p), ni in pad_net.items() if r == ref))
+
+    def key_fp(fp):
+        return (fp.GetValue(), frozenset(
+            (p.GetNumber(), p.GetNetname()) for p in fp.Pads() if p.GetNetname()))
+
+    fps = {fp.GetReference(): fp for fp in board.GetFootprints()}
+    free = dict(fps)
+    todo = []
+    for ref in sorted(comps, key=lambda r: r not in fps):   # same name first
+        k = key_part(ref)
+        fp = (free.pop(ref) if ref in free and key_fp(free[ref]) == k else
+              next((free.pop(r) for r, f in list(free.items()) if key_fp(f) == k), None))
+        if fp is None:
+            todo.append(ref)
+            continue
+        if fp.GetReference() != ref:
+            print(f"  {fp.GetReference()} -> {ref}", flush=True)
+            fp.SetReference(ref)
+        fp.SetPath(pcbnew.KIID_PATH(comps[ref]["path"]))
+    if free:
+        raise SystemExit(f"on the board, not in the schematic: {sorted(free)}")
+
+    nets_first = set()
+    for ref in todo:
+        fp = make_fp(board, ref, comps[ref], pad_net)
+        mine = {p.GetNetname() for p in fp.Pads() if p.GetNetname()}
+        nets_first |= mine
+        # beside the part sharing most of its nets, not the nets' centroid:
+        # a reset line runs across the board
+        best = max((f for f in board.GetFootprints() if f.m_Uuid != fp.m_Uuid),
+                   key=lambda f: (len(mine & {p.GetNetname() for p in f.Pads()}),
+                                  -len(f.Pads())))     # a tie: the smaller part
+        mates = [p.GetPosition() for p in best.Pads() if p.GetNetname() in mine]
+        print(f"  {ref}: beside {best.GetReference()}", flush=True)
+        cx = sum(q.x for q in mates) / len(mates)
+        cy = sum(q.y for q in mates) / len(mates)
+        spot = free_spot(board, fp, cx, cy)
+        if spot is None:
+            raise SystemExit(f"{ref}: no free spot within 25 mm of its net-mates")
+        print(f"  {ref} placed at ({spot[0] / 1e6 - gen_pcb.ORIGIN[0]:.2f}, "
+              f"{spot[1] / 1e6 - gen_pcb.ORIGIN[1]:.2f}) mm, {spot[2]} deg", flush=True)
+    pcbnew.SaveBoard(path, board, True)
+    refill(path)
+    json.dump(sorted(nets_first), open(os.path.join(HERE, "build", "finish_first.json"), "w"))
+    os._exit(0)
+
+
+def free_spot(board, fp, cx, cy, reach=25.0, step=0.25):
+    """Move `fp` to the free spot nearest (cx, cy), nm; return (x, y, deg)."""
+    gap = pcbnew.FromMM(GAP)
+    edge = board.GetBoardEdgesBoundingBox()
+    edge.Inflate(-gap)
+    others = []
+    for f in board.GetFootprints():
+        if f.m_Uuid != fp.m_Uuid:
+            b = crtyd(f)
+            others.append(b)
+    copper = [(t, pcbnew.FromMM(pr.CLASSES[pr.ASSIGN.get(t.GetNetname(), "Default")]["clearance"]))
+              for t in board.GetTracks()
+              if t.Type() == pcbnew.PCB_VIA_T or t.GetLayer() == pcbnew.F_Cu]
+
+    def inflated(b, c):
+        b = pcbnew.BOX2I(b.GetPosition(), b.GetSize())
+        b.Inflate(c)
+        return b
+    n = int(reach / step)
+    rings = sorted(((i * i + j * j), i, j) for i in range(-n, n + 1) for j in range(-n, n + 1)
+                   if i * i + j * j <= n * n)
+    for _, i, j in rings:
+        for deg in (0, 90, 180, 270):
+            fp.SetOrientationDegrees(deg)
+            fp.SetPosition(pcbnew.VECTOR2I(int(cx + pcbnew.FromMM(i * step)),
+                                           int(cy + pcbnew.FromMM(j * step))))
+            b = crtyd(fp)
+            b.Inflate(gap)
+            if not edge.Contains(b) or any(b.Intersects(o) for o in others):
+                continue
+            if any(t.GetBoundingBox().Intersects(b2) for t, b2 in
+                   ((t, inflated(b, c)) for t, c in copper)):
+                continue
+            return fp.GetPosition().x, fp.GetPosition().y, deg
+    return None
+
+
+def clusters(path):
+    """Print, as JSON, each net's pads grouped by the copper joining them
+    ({net: [["REF.PAD", ...], ...]}). A part's own pads on one net count as joined:
+    an SMPD's twin anodes meet inside it. Read straight from the file's
+    copper and fills, with no refill and no DRC report, whose unconnected
+    list stops at about 500 items."""
+    import json
+    board = pcbnew.LoadBoard(path)
+    conn = board.GetConnectivity()
+    parent = {}
+
+    def find(a):
+        while parent.setdefault(a, a) != a:
+            a = parent[a]
+        return a
+    pads = {}
+    for fp in board.GetFootprints():
+        first = {}                       # net -> this part's first pad on it
+        for p in fp.Pads():
+            if not p.GetNetname():
+                continue
+            k = f"{fp.GetReference()}.{p.GetNumber()}"
+            pads[p.m_Uuid.AsString()] = (k, p.GetNetname())
+            parent[find(k)] = find(first.setdefault(p.GetNetname(), k))
+    for fp in board.GetFootprints():
+        for p in fp.Pads():
+            me = pads.get(p.m_Uuid.AsString())
+            if not me:
+                continue
+            for it in conn.GetConnectedItems(p):
+                other = pads.get(it.m_Uuid.AsString())
+                if other and other[1] == me[1]:
+                    parent[find(other[0])] = find(me[0])
+    out = {}
+    for k, net in pads.values():
+        out.setdefault(net, {}).setdefault(find(k), []).append(k)
+    print(json.dumps({n: sorted(map(sorted, g.values())) for n, g in out.items()}))
+    sys.stdout.flush()
+    os._exit(0)
+
+
 def place(out=pr.BOARD):
     with tempfile.TemporaryDirectory() as d:
         comps, nets = pr.read_netlist(pr.export_netlist(d, pr.ROOT_SCH))
@@ -285,38 +473,7 @@ def place(out=pr.BOARD):
     fp_of, blocks, fine = {}, {}, set()
     for ref in sorted(comps):
         c = comps[ref]
-        fpid = c["footprint"] or pr.PLACEHOLDER.get(ref)
-        if not fpid:
-            raise SystemExit(f"{ref}: no footprint and none in PLACEHOLDER")
-        fp = load_fp(ref, fpid)
-        if fpid in pr.RECT_COURTYARD:
-            rect_courtyard(fp)
-        fp.SetReference(ref)
-        fp.SetValue(c["value"])
-        fp.SetPath(pcbnew.KIID_PATH(c["path"]))
-        fp.SetSheetname("/" + c["sheet"] + "/")
-        fp.SetSheetfile(c["sheet"] + ".kicad_sch")
-        for k, v in c["fields"].items():
-            fp.SetField(k, v)
-            fp.GetField(k).SetVisible(False)
-        if ref in pr.PLACEHOLDER and not c["footprint"]:
-            t = pcbnew.PCB_TEXT(fp)
-            t.SetText("PLACEHOLDER")
-            t.SetLayer(pcbnew.F_Fab)
-            t.SetTextSize(pcbnew.VECTOR2I_MM(0.8, 0.8))
-            fp.Add(t)
-        ren = pr.PAD_RENAME.get(ref, {})
-        nums = set()
-        for pad in fp.Pads():
-            if pad.GetNumber() in ren:
-                pad.SetNumber(ren[pad.GetNumber()])
-            nums.add(pad.GetNumber())
-            if (ref, pad.GetNumber()) in pad_net:
-                pad.SetNet(pad_net[(ref, pad.GetNumber())])
-        missing = {p for r, p in pad_net if r == ref} - nums
-        if missing:
-            raise SystemExit(f"{ref}: {fpid} has no pad {sorted(missing)}")
-        board.Add(fp)
+        fp = make_fp(board, ref, c, pad_net)
         fp_of[ref] = fp
         if is_power(fp) and c["sheet"] != "lab_io":
             SPACED[ref] = margin(fp)
@@ -917,19 +1074,26 @@ def widen(path, rounds=4):
     to 0.2 mm; one that then breaks clearance goes back to its own width,
     for good, and KiCad looks again until it finds none. (Widening the
     reverted ones again each round, as before, left 4 too close.)
-    Returns how many stay narrow."""
+    A net in TRACK_AMPS rides tracks, so its target is the IPC width for
+    its current on that layer, where wider. Returns how many stay narrow."""
     import json
     import subprocess
-    hi = pcbnew.FromMM(0.2)
+    cu = dict(pr.STACKUP)
+
+    def target(t):
+        a = pr.TRACK_AMPS.get(t.GetNetname())
+        L = t.GetLayerName()
+        need = pr.width_mm(a, cu[L], L in ("F.Cu", "B.Cu")) if a else 0.0
+        return pcbnew.FromMM(max(0.2, need))
 
     def key(t):
         return (t.GetLayer(), t.GetStart().x, t.GetStart().y, t.GetEnd().x, t.GetEnd().y)
     board = pcbnew.LoadBoard(path)
     orig = {key(t): t.GetWidth() for t in board.GetTracks()
-            if t.Type() == pcbnew.PCB_TRACE_T and t.GetWidth() < hi}
+            if t.Type() == pcbnew.PCB_TRACE_T and t.GetWidth() < target(t)}
     for t in board.GetTracks():
         if key(t) in orig:
-            t.SetWidth(hi)
+            t.SetWidth(target(t))
     pcbnew.SaveBoard(path, board, True)
     narrow = set()
     for _ in range(rounds):
@@ -1008,11 +1172,31 @@ def finish(path=pr.BOARD):
 
     def stage(*a):
         subprocess.run([sys.executable, os.path.abspath(__file__), *map(str, a)], check=True)
+
+    def necked():
+        import ast
+        r = subprocess.run([sys.executable, os.path.abspath(__file__), "necks"],
+                           capture_output=True, text=True, check=True)
+        last = r.stdout.strip().splitlines()[-1]
+        return set() if last == "no necks" else set(ast.literal_eval(last))
+
+    def guarded(m, g):
+        """A pass that leaves a pour necked is undone whole: finish_pass
+        drops the connections whose vias bit a pour, and this catches the
+        rest (a track across a neck)."""
+        pre = os.path.join(HERE, "build", "finish_pre.kicad_pcb")
+        shutil.copy(path, pre)
+        before = necked()
+        stage("finish_pass", m, g)
+        new = necked() - before
+        if new:
+            shutil.copy(pre, path)
+            print(f"  pass undone: it necked {sorted(new)}", flush=True)
     # near, wider, then the long way round on a coarser grid (run 12's
     # HSB_BAT_GATE: 115 mm across the pours)
     passes = ((6.0, 0.05), (15.0, 0.05), (50.0, 0.1))
     for m, g in passes:
-        stage("finish_pass", m, g)
+        guarded(m, g)
     print(f"finish: ripped {ripped} router items KiCad found too close", flush=True)
     # what is still open is walled in: rip the other nets' tracks round its
     # ends, route it first, then the ripped ones. A round that leaves more
@@ -1027,7 +1211,7 @@ def finish(path=pr.BOARD):
         shutil.copy(path, keep)
         stage("ripup", r, *(["corridor"] if corridor else []))
         for m, g in passes:
-            stage("finish_pass", m, g)
+            guarded(m, g)
         n1 = len(drc(path)["unconnected_items"])
         print(f"rip-up {r:g} mm{' corridor' if corridor else ''}: {n0} open -> {n1}", flush=True)
         if n1 >= n0:
@@ -1105,6 +1289,34 @@ def turn(path, ref, deg):
     os._exit(0)
 
 
+def rip_thin(path):
+    """Rip every track of a TRACK_AMPS net narrower than its current needs
+    on its layer (widen could not widen it in place), and all its In2
+    tracks where In2 needs more than 0.2 mm; finish then routes those nets
+    first, at width()."""
+    import json
+    board = pcbnew.LoadBoard(path)
+    cu = dict(pr.STACKUP)
+    nets, n = set(), 0
+    for t in list(board.GetTracks()):
+        a = pr.TRACK_AMPS.get(t.GetNetname())
+        L = t.GetLayerName()
+        need = pr.width_mm(a, cu[L], L in ("F.Cu", "B.Cu")) if a else 0.0
+        # where In2 would need more than 0.2 mm the net leaves In2 whole
+        # (finish_pass outer_only): an In2 stub left behind is an end the
+        # outer router cannot start from
+        if t.Type() == pcbnew.PCB_TRACE_T and a and (
+                t.GetWidth() < pcbnew.FromMM(need) - 1000 or (L == "In2.Cu" and need > 0.2)):
+            nets.add(t.GetNetname())
+            board.Remove(t)
+            n += 1
+    pcbnew.SaveBoard(path, board, True)
+    refill(path)
+    json.dump(sorted(nets), open(os.path.join(HERE, "build", "finish_first.json"), "w"))
+    print(f"  ripped {n} thin tracks on {sorted(nets)}", flush=True)
+    os._exit(0)
+
+
 def ripup(path, radius, corridor=False):
     """Rip every other net's router track and via within `radius` of each
     open connection's ends; finish_pass then routes those connections
@@ -1172,9 +1384,19 @@ def finish_pass(path, grid=0.05, margin=6.0):
     def width(net):
         """A power net's current rides its pour: what is left to finish
         reaches a small part, at the signal width (C419's 3V3_MCU fits
-        past a ground stub at 0.2 mm, not at the router's 0.25)."""
+        past a ground stub at 0.2 mm, not at the router's 0.25). A net with
+        no pour carries its TRACK_AMPS: the outer width (outer_only keeps
+        it off In2 where In2 would need more)."""
         c = cls(net)
+        if net in pr.TRACK_AMPS:
+            return max(0.2, pr.width_mm(pr.TRACK_AMPS[net], dict(pr.STACKUP)["F.Cu"]))
         return 0.2 if c in pr.POUR_CLASSES else max(0.2, pr.CLASSES[c]["track_width"])
+
+    def outer_only(net):
+        """1 oz In2 needs 0.55 mm for 1 A where 2 oz outer needs 0.15: a
+        net whose current wants more than 0.2 mm on In2 stays off it."""
+        a = pr.TRACK_AMPS.get(net)
+        return bool(a) and pr.width_mm(a, dict(pr.STACKUP)["In2.Cu"], False) > 0.2
 
     def ends(it, toward):
         """(point mm from the origin, layers) where a new track may start."""
@@ -1241,6 +1463,10 @@ def finish_pass(path, grid=0.05, margin=6.0):
         if a is None or b is None:
             continue
         net = a.GetNetname()
+        # two pieces of one pour: a track between them would carry its
+        # load current. The pour itself must join them, or the test fails
+        if a.Type() == b.Type() == pcbnew.PCB_ZONE_T and cls(net) in pr.POUR_CLASSES:
+            continue
         pa = ends(a, (v["items"][1]["pos"]["x"] - o[0], v["items"][1]["pos"]["y"] - o[1]))
         pb = ends(b, pa[0] or (0, 0))
         if pa[0] is None or pb[0] is None or not pa[1] or not pb[1]:
@@ -1339,6 +1565,14 @@ def finish_pass(path, grid=0.05, margin=6.0):
                                                            else pcbnew.B_CrtYd))
                 court.Append(cy)
         court.Inflate(-pcbnew.FromMM(0.02), pcbnew.CORNER_STRATEGY_CHAMFER_ALL_CORNERS, err)
+        if outer_only(net):
+            wall = pcbnew.SHAPE_POLY_SET()
+            wall.NewOutline()
+            for x, y in ((box.GetLeft(), box.GetTop()), (box.GetRight(), box.GetTop()),
+                         (box.GetRight(), box.GetBottom()), (box.GetLeft(), box.GetBottom())):
+                wall.Append(x, y)
+            tr["In2.Cu"].Append(wall)
+            trn["In2.Cu"].Append(wall)
         jobs.append({"id": n, "net": net, "grid": grid, "window": win,
                      "a": pa[0], "a_layers": pa[1], "b": pb[0], "b_layers": pb[1],
                      "a_own": own(a, pa[1], wn), "b_own": own(b, pb[1], wn),
@@ -1710,12 +1944,14 @@ if __name__ == "__main__":
     BOARD = os.environ.get("BOARD", pr.BOARD)
     stage = sys.argv[1] if len(sys.argv) > 1 else "place"
     {"place": place, "pour": pour, "route": route, "setup": setup,
-     "fab": fab,
-     "necks": lambda: print(necks(pcbnew.LoadBoard(pr.BOARD)) or "no necks"),
+     "fab": fab, "sync": lambda: sync(BOARD),
+     "clusters": lambda: clusters(sys.argv[2]),
+     "necks": lambda: print(necks(pcbnew.LoadBoard(BOARD)) or "no necks"),
      "finish": lambda: finish(BOARD),
      "finish_pass": lambda: finish_pass(BOARD, margin=float(sys.argv[2]),
                                         grid=float(sys.argv[3]) if len(sys.argv) > 3 else 0.05),
      "tidy": lambda: tidy(BOARD),
+     "rip_thin": lambda: rip_thin(BOARD),
      "turn": lambda: turn(BOARD, sys.argv[2], float(sys.argv[3])),
      "ripup": lambda: ripup(BOARD, float(sys.argv[2]), len(sys.argv) > 3),
      "widen": lambda: (write_rules(),

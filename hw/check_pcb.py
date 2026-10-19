@@ -128,8 +128,8 @@ def main(board=None, rules=pr, parity_ok=PARITY_OK,
     check("DRC, every other error (shorts, mask bridges ...)", not other,
           items(other))
     parity = [v for v in rep.get("schematic_parity", [])
-              if (v["type"], v["items"][0]["description"].split()[-1])
-              not in parity_ok]
+              if (v["type"], (v["items"] or [v])[0]["description"].split()[-1])
+              not in parity_ok]      # a missing footprint has no items
     check("schematic parity (nets per pad, fields, footprints)", not parity,
           f"{len(parity)}: {items(parity)}")
     unrouted = len(rep.get("unconnected_items", []))

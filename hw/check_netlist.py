@@ -60,6 +60,14 @@ MUST_SPAN = ("GND", "/VBAT_PROT", "/3V3_MCU", "/5V_MAIN", "/12V_GATE")
 # Pins that must never share a net: the TPS3850's ~WDO and ~RESET.
 MUST_SEPARATE = ((("U302", "8"), ("U302", "9")),)
 
+# A watchdog timeout asserts WDO only, never RESET (TPS3850 SBVS301B
+# sec.7.3.6.3), so WDO reaches the gate kill only through a Schottky
+# from RESET (anode) to WDO (cathode): WDO low pulls RESET low, the MCU
+# resets and GATE_KILL rises; RESET low leaves WDO alone. Separating the
+# two nets on 15 Oct 2026 cut that path, and nothing noticed until the
+# final review of the prototype branch (17 Oct).
+WDO_KILL = (("U302", "9"), ("U302", "8"))       # (RESET, WDO)
+
 # Supply pins that legitimately have no capacitor across them: the pin is
 # a return, or the "supply" is a bootstrap node whose capacitor IS the
 # thing being bootstrapped and is already counted elsewhere.
@@ -270,6 +278,12 @@ def main(root=ROOT, expected_open=None, boundary_open=None,
         na, nb = net_of.get(a), net_of.get(b)
         check(f"{a[0]} pin {a[1]} and pin {b[1]} are separate nets",
               na is not None and na != nb, f"both on {na}")
+
+    rst, wdo = (net_of.get(p) for p in WDO_KILL)
+    path = [r for r, part in part_of.items() if part == "D_Schottky"
+            and net_of.get((r, "2")) == rst and net_of.get((r, "1")) == wdo]
+    check(f"a watchdog fault reaches the gate kill: a Schottky from "
+          f"{rst} to {wdo}", bool(path) and rst != wdo, f"diodes: {path}")
 
     for rail in MUST_SPAN:
         hit = [p for n, p in named if n == rail]
