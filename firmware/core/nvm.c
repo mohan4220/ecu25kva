@@ -2,10 +2,11 @@
 #include <string.h>
 #include "nvm.h"
 
-uint32_t nvm_crc32(const void *p, uint32_t len)
+/* CRC-32 (zlib's): continue `crc` over more bytes; start from 0 */
+uint32_t nvm_crc32_more(uint32_t crc, const void *p, uint32_t len)
 {
     const uint8_t *b = p;
-    uint32_t c = 0xFFFFFFFFu;
+    uint32_t c = ~crc;
     while (len--) {
         c ^= *b++;
         for (int k = 0; k < 8; k++)
@@ -13,6 +14,8 @@ uint32_t nvm_crc32(const void *p, uint32_t len)
     }
     return ~c;
 }
+
+uint32_t nvm_crc32(const void *p, uint32_t len) { return nvm_crc32_more(0, p, len); }
 
 /* CRC of the whole image with its crc field taken as zero */
 static uint32_t image_crc(const void *p)

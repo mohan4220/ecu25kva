@@ -51,6 +51,7 @@ typedef struct {
 } nvm_image;
 
 uint32_t nvm_crc32(const void *p, uint32_t len);
+uint32_t nvm_crc32_more(uint32_t crc, const void *p, uint32_t len);
 void nvm_fresh(nvm_image *m);
 int  nvm_valid(const void *p, uint32_t len);
 int  nvm_pick(const void *a, const void *b, uint32_t len);   /* 0 = a, 1 = b, -1 = neither */
