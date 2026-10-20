@@ -332,9 +332,10 @@ The 16 scripts. Each also carries a comment naming the Python-only claims of spe
   - Load firmware… sends the file input's bytes to `POST /firmware`. The firmware panel shows "load only firmware you trust".
   - The runs list reads `trace.csv` into the charts.
   - Colours are CSS variables, with a dark scheme under `prefers-color-scheme`.
+  - SPN names in the DM1 panel: 27 EGR position, 100 oil pressure, 102 boost, 110 coolant temperature, 157 rail pressure, 190 engine speed, 628 calibration (EOL), 636 crank position.
 - [ ] **Step 4: Run** `cargo test -p ecusim`. Expected: all PASS.
 - [ ] **Step 5: Check by hand** with `cargo run -p ecusim --release`:
-  - Start: the charts move and DM1 shows SPN 628 FMI 13 only if the EOL is not loaded (it is, so DM1 is clear).
+  - Start: the charts move and DM1 is clear (the EOL record is loaded).
   - A 20 kW load step, then `sensor clt open`: DM1 shows 110/3.
   - Run `16-overload` at 10×.
   - Load a `fwbuild` library.
