@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ECU simulator</title>
+<link rel="stylesheet" href="uPlot.min.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="bar">
+  <h1>ECU simulator</h1>
+  <div class="group">
+    <button data-cmd="run" title="Start a live session, or carry on after Pause">Run</button>
+    <button data-cmd="pause">Pause</button>
+    <button data-cmd="stop" title="End the run and write its folder">Stop</button>
+    <button data-cmd="reset" title="Throw the run away">Reset</button>
+  </div>
+  <div class="group" id="speeds">
+    <span class="label">Speed</span>
+    <button data-speed="1">1×</button>
+    <button data-speed="2">2×</button>
+    <button data-speed="10">10×</button>
+    <button data-speed="max">max</button>
+  </div>
+  <div class="status">
+    <span id="st-mode" class="pill">stopped</span>
+    <span>t <b id="st-t">0.0</b> s</span>
+    <span id="st-speed"></span>
+    <span>state <b id="st-state">-</b></span>
+    <span>firmware <b id="st-fw">bundled</b></span>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <section>
+      <h2>Engine</h2>
+      <div class="row">
+        <button data-line="start">Start</button>
+        <button data-line="ignition off">Stop (ignition off)</button>
+        <button data-line="ignition on">Ignition on</button>
+      </div>
+      <label class="slider">Load <b id="load-v">0</b> kW
+        <input id="load" type="range" min="0" max="30" step="1" value="0">
+      </label>
+      <label class="check"><input id="droop" type="checkbox"> Droop switch</label>
+    </section>
+
+    <section>
+      <h2>Faults</h2>
+      <select id="fault" aria-label="Fault">
+        <option>sensor clt open</option>
+        <option>sensor oil open</option>
+        <option>sensor rail short</option>
+        <option>sensor boost short5v</option>
+        <option>sensor rail volts 2.5</option>
+        <option>sensor rail offset 0.2</option>
+        <option>sensor rail stuck</option>
+        <option>sensor clt clear</option>
+        <option>crank lost</option>
+        <option>crank drop 1</option>
+        <option>crank extra 1</option>
+        <option>crank restore</option>
+        <option>cam lost</option>
+        <option>cam restore</option>
+        <option>fuel stuck 80</option>
+        <option>fuel stuck 40 cyl 2</option>
+        <option>fuel free</option>
+        <option>leak 10</option>
+        <option>leak 1</option>
+        <option>ignition bounce 200</option>
+        <option>request dm2</option>
+        <option>request dm3</option>
+        <option>request dm4</option>
+        <option>power cycle</option>
+        <option>tear next save</option>
+      </select>
+      <div class="row">
+        <input id="action" type="text" spellcheck="false" aria-label="Action to apply">
+        <button id="apply">Apply</button>
+      </div>
+      <p class="hint">Any script action, applied at the current time.</p>
+    </section>
+
+    <section>
+      <h2>Scenario</h2>
+      <div class="row">
+        <select id="library" aria-label="Scenario library"></select>
+        <button id="lib-open">Load</button>
+      </div>
+      <div class="row">
+        <label class="button">Open…<input id="file" type="file" accept=".seq,.txt" hidden></label>
+        <button id="save">Save as…</button>
+        <button id="run-script" class="primary">Run script</button>
+      </div>
+      <textarea id="editor" spellcheck="false" aria-label="Scenario script" placeholder="Drop a .seq file here, or write one:&#10;0 start&#10;8 load 20&#10;13 end&#10;expect no trip"></textarea>
+      <ul id="errors" class="errors"></ul>
+    </section>
+
+    <section>
+      <h2>Firmware</h2>
+      <label class="button">Load firmware…<input id="fw-file" type="file" hidden></label>
+      <p id="fw-msg" class="hint">Bundled firmware. Load only firmware you trust: it runs on this computer.</p>
+    </section>
+  </aside>
+
+  <div class="content">
+    <div id="viewing" class="viewing" hidden>Showing <b id="viewing-name"></b>
+      <button id="back-live">Back to live</button></div>
+    <div id="charts" class="charts"></div>
+
+    <div class="panels">
+      <section>
+        <h2>DM1</h2>
+        <div id="lamps" class="lamps"></div>
+        <table><thead><tr><th>SPN</th><th>FMI</th><th>Name</th></tr></thead>
+          <tbody id="dm1"></tbody></table>
+      </section>
+      <section>
+        <h2>Report</h2>
+        <div id="report" class="report"><p class="hint">Checks appear here when a script ends.</p></div>
+      </section>
+      <section>
+        <h2>Events</h2>
+        <ul id="events" class="log"></ul>
+      </section>
+      <section class="wide">
+        <h2>CAN</h2>
+        <div class="scroll"><table class="mono"><thead><tr><th>t ms</th><th>dir</th><th>ID</th><th>data</th><th>PGN</th></tr></thead>
+          <tbody id="can"></tbody></table></div>
+      </section>
+      <section>
+        <h2>Runs</h2>
+        <ul id="runs" class="log links"></ul>
+      </section>
+    </div>
+  </div>
+</main>
+<script src="uPlot.iife.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
