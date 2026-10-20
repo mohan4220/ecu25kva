@@ -58,6 +58,19 @@ pub enum Ch {
     V5,
 }
 
+/// A sensor fault (spec section 3). Open reads as the board's pull: the
+/// NTC's pull-up gives 5 V, the 0.5-4.5 V sensors read low.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SensorFault {
+    None,
+    Open,
+    Short,
+    Short5v,
+    Volts(f64),
+    Offset(f64),
+    Stuck(f64),
+}
+
 pub struct Engine {
     pub theta: f64, // cycle angle, deg
     pub omega: f64, // rad/s
@@ -69,6 +82,13 @@ pub struct Engine {
     pub net_torque: f64,
     /// Runaway: fuel regardless of commands, per cylinder.
     pub stuck_fuel: [Option<f64>; NCYL],
+    pub sensor: [SensorFault; 6],
+    pub crank_lost: bool,
+    pub crank_drop: u32,  // crank edges still to drop
+    pub crank_extra: u32, // spurious edges still to add, each midway between two teeth
+    pub cam_lost: bool,
+    pub leak: f64, // multiplier on LEAK
+    last_crank_us: Option<u64>,
     pub fuel: [f64; NCYL], // mg delivered for each cylinder's coming stroke
     pub cmd: [Option<(u64, u32)>; NCYL], // (start_us, dur_us) not yet finished
     seq: [u32; NCYL],
@@ -93,6 +113,13 @@ impl Engine {
             starter: false,
             net_torque: 0.0,
             stuck_fuel: [None; NCYL],
+            sensor: [SensorFault::None; 6],
+            crank_lost: false,
+            crank_drop: 0,
+            crank_extra: 0,
+            cam_lost: false,
+            leak: 1.0,
+            last_crank_us: None,
             fuel: [0.0; NCYL],
             cmd: [None; NCYL],
             seq: [0; NCYL],
@@ -174,13 +201,23 @@ impl Engine {
             let mut n = (old / 6.0).floor() as i64 + 1;
             while (n * 6) as f64 <= new {
                 let a = n * 6;
-                if a % 360 < 348 {
-                    edges.push((t_us + ((a as f64 - old) / span * dt_us as f64).round_ties_even() as u64, false));
+                if a % 360 < 348 && !self.crank_lost {
+                    if self.crank_drop > 0 {
+                        self.crank_drop -= 1;
+                    } else {
+                        let te = t_us + ((a as f64 - old) / span * dt_us as f64).round_ties_even() as u64;
+                        if let (true, Some(last)) = (self.crank_extra > 0, self.last_crank_us) {
+                            edges.push(((last + te) / 2, false));
+                            self.crank_extra -= 1;
+                        }
+                        edges.push((te, false));
+                        self.last_crank_us = Some(te);
+                    }
                 }
                 n += 1;
             }
             let c = ((old - CAM_DEG) / 720.0).floor() + 1.0;
-            if CAM_DEG + 720.0 * c <= new {
+            if CAM_DEG + 720.0 * c <= new && !self.cam_lost {
                 edges.push((t_us + ((CAM_DEG + 720.0 * c - old) / span * dt_us as f64).round_ties_even() as u64, true));
             }
         }
@@ -200,7 +237,7 @@ impl Engine {
 
         // rail
         let opening = if METER_NC { self.duty } else { 1.0 - self.duty };
-        let q = PUMP * rpm * opening - q_inj * CM3_PER_MG / dt - LEAK * self.rail_bar;
+        let q = PUMP * rpm * opening - q_inj * CM3_PER_MG / dt - LEAK * self.leak * self.rail_bar;
         self.rail_bar = (self.rail_bar + BAR_PER_CM3 * q * dt).max(0.0).min(RELIEF);
 
         // coolant towards a load-dependent temperature, tau 60 s
@@ -208,8 +245,28 @@ impl Engine {
         self.clt_c += (target - self.clt_c) * dt / 60.0;
     }
 
-    /// Sensor volts, indexed by `Ch as usize`.
+    /// Sensor volts with faults applied, indexed by `Ch as usize`.
     pub fn volts(&self) -> [f64; 6] {
+        let mut v = self.model_volts();
+        for (i, x) in v.iter_mut().enumerate() {
+            *x = match self.sensor[i] {
+                SensorFault::None => *x,
+                SensorFault::Open => if i == Ch::Clt as usize { 5.0 } else { 0.0 },
+                SensorFault::Short => 0.0,
+                SensorFault::Short5v => 5.0,
+                SensorFault::Volts(f) | SensorFault::Stuck(f) => f,
+                SensorFault::Offset(o) => *x + o,
+            };
+        }
+        v
+    }
+
+    /// Hold a channel at the volts it reads now.
+    pub fn stick(&mut self, ch: Ch) {
+        self.sensor[ch as usize] = SensorFault::Stuck(self.volts()[ch as usize]);
+    }
+
+    fn model_volts(&self) -> [f64; 6] {
         let load = self.load_kw / 20.0;
         [
             ntc_volts(self.clt_c),
