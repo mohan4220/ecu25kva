@@ -11,6 +11,13 @@
 #include "j1939.h"
 #include "nvm.h"
 #include "log.h"
+#include "eol.h"
+#include "service.h"
+#include "isotp.h"
+#include "link.h"
+
+#define SPN_PROGRAM 628u             /* program memory */
+#define FMI_CALIBRATION 13u          /* out of calibration: no end-of-line record */
 
 #define RUN_RPM 400.0f               /* CRANK -> RUN once phased and above this */
 #define WDG_TOGGLE_MS 5              /* WDI falling edge every 10 ms */
@@ -36,6 +43,15 @@ static uint8_t pend_dm1, pend_dm2, pend_dm4, pend_hours;
 static uint8_t bam_n, bam_i;
 static uint8_t bam_wait;             /* ms to the next TP.DT */
 static uint16_t under_ms, over_ms;   /* underspeed: ms below its floor, ms back above */
+/* the service link: one UDS core behind USB framing and CAN channel 2 */
+static svc_t svc;
+static eol_record eol;               /* the working record; ecu_eol_image hands it out */
+static uint8_t eol_ok;               /* a good record was loaded or written */
+static isotp_t can2;
+static link_rx_t usb_rx;
+static uint8_t svc_req[ISOTP_MAX], svc_rsp[SVC_RESP_MAX];
+static uint8_t stopped;              /* engine stopped, as the service link means it */
+static uint32_t now_us;              /* the last tick's time */
 
 static void event(ecu_io *io, uint8_t code, uint16_t arg)
 {
@@ -115,6 +131,19 @@ void ecu_init(ecu_io *io)
     io->nvm_save = io->nvm_slot = 0;
     ms = bg_ms = 0;
     save_req = save_now = saved_once = 0;
+    svc_init(&svc, 0);
+    isotp_init(&can2, ECU_CAN2_RESP);
+    memset(&usb_rx, 0, sizeof usb_rx);
+    eol_default(&eol);                  /* until ecu_eol_load: SPN 628 */
+    eol_ok = 0;
+    sens_trim(eol.gain, eol.offset);
+    stopped = 1;
+    now_us = 0;
+    io->usb_in_n = 0;
+    io->usb_out_n = 0;
+    io->can2_n = 0;
+    io->eol_save = io->boot_req = io->reset_req = 0;
+    io->session = SES_DEFAULT;
     ign_off_ms = 0;
     rec_reset(&rec);
     reset_all(io);
@@ -306,6 +335,203 @@ void ecu_can_rx(ecu_io *io, const ecu_can *f)
     }
 }
 
+/* ---- the service link ---- */
+
+static void pump_can2(ecu_io *io)
+{
+    ecu_can f;
+    while (io->can2_n < ECU_CANQ && isotp_next(&can2, &f))
+        io->can2[io->can2_n++] = f;
+}
+
+static void put16(uint8_t *p, uint32_t v) { p[0] = (uint8_t)(v >> 8); p[1] = (uint8_t)v; }
+
+static uint16_t eol_changed(ecu_io *io, uint16_t n)
+{
+    eol_seal(&eol);
+    eol_ok = (uint8_t)eol_valid(&eol);
+    if (eol_ok)
+        fault_drop(io, SPN_PROGRAM, FMI_CALIBRATION);
+    sens_trim(eol.gain, eol.offset);
+    io->eol_save = 1;
+    return n;
+}
+
+static uint16_t read_id(ecu_io *io, uint16_t id, uint8_t *r)
+{
+    uint8_t *d = r + 3;
+    switch (id) {
+    case 0xF18C: memcpy(d, eol.serial, 16); return 16;
+    case 0xF191: put16(d, eol.hw_rev); return 2;
+    case 0xF18B: put16(d, eol.build_date >> 16); put16(d + 2, eol.build_date); return 4;
+    case 0xF195: put16(d, ECU_SW_VERSION); return 2;
+    case 0xF180: put16(d, io->boot_ver); return 2;
+    case 0x0100: memcpy(d, eol.gain, 24); memcpy(d + 24, eol.offset, 24); return 48;   /* LE floats */
+    case 0x0101: d[0] = eol.station; d[1] = eol.passed; d[2] = eol.locked; return 3;
+    default: return 0;
+    }
+}
+
+/* Writes and routines: extended session, unlocked, engine stopped. */
+static uint8_t may_change(const svc_t *s)
+{
+    return s->session != SES_EXTENDED ? NRC_SESSION : !s->unlocked ? NRC_SECURITY
+         : !s->stopped ? NRC_CONDITIONS : 0;
+}
+
+static uint16_t write_id(ecu_io *io, const uint8_t *q, uint16_t n, uint8_t *r)
+{
+    uint16_t id = (uint16_t)(q[1] << 8 | q[2]);
+    const uint8_t *d = q + 3;
+    uint16_t m = (uint16_t)(n - 3);
+    if (eol.locked)
+        return svc_nrc(r, 0x2E, NRC_CONDITIONS);
+    switch (id) {
+    case 0xF18C:
+        if (m < 1 || m > 16)
+            return svc_nrc(r, 0x2E, NRC_LENGTH);
+        memset(eol.serial, 0, 16);
+        memcpy(eol.serial, d, m);
+        break;
+    case 0xF191:
+        if (m != 2)
+            return svc_nrc(r, 0x2E, NRC_LENGTH);
+        eol.hw_rev = (uint16_t)(d[0] << 8 | d[1]);
+        break;
+    case 0xF18B:
+        if (m != 4)
+            return svc_nrc(r, 0x2E, NRC_LENGTH);
+        eol.build_date = (uint32_t)d[0] << 24 | (uint32_t)d[1] << 16 | (uint32_t)d[2] << 8 | d[3];
+        break;
+    case 0x0100: {
+        float g[EOL_N], o[EOL_N];
+        if (m != 48)
+            return svc_nrc(r, 0x2E, NRC_LENGTH);
+        memcpy(g, d, 24);
+        memcpy(o, d + 24, 24);
+        if (!eol_trims_ok(g, o))
+            return svc_nrc(r, 0x2E, NRC_RANGE);
+        memcpy(eol.gain, g, 24);
+        memcpy(eol.offset, o, 24);
+        break;
+    }
+    case 0x0101:                        /* station, passed; the lock is a routine */
+        if (m != 2)
+            return svc_nrc(r, 0x2E, NRC_LENGTH);
+        eol.station = d[0];
+        eol.passed = d[1] != 0;
+        break;
+    default:
+        return svc_nrc(r, 0x2E, NRC_RANGE);
+    }
+    r[0] = 0x6E;
+    r[1] = q[1];
+    r[2] = q[2];
+    return eol_changed(io, 3);
+}
+
+static uint16_t app_extra(svc_t *s, const uint8_t *q, uint16_t n, uint8_t *r)
+{
+    ecu_io *io = s->ctx;
+    uint8_t why;
+    switch (q[0]) {
+    case 0x22: {                        /* readable in any session, engine running too */
+        if (n != 3)
+            return svc_nrc(r, 0x22, NRC_LENGTH);
+        uint16_t m = read_id(io, (uint16_t)(q[1] << 8 | q[2]), r);
+        if (!m)
+            return svc_nrc(r, 0x22, NRC_RANGE);
+        r[0] = 0x62;
+        r[1] = q[1];
+        r[2] = q[2];
+        return (uint16_t)(m + 3);
+    }
+    case 0x2E:
+        if (n < 4)
+            return svc_nrc(r, 0x2E, NRC_LENGTH);
+        if ((why = may_change(s)))
+            return svc_nrc(r, 0x2E, why);
+        return write_id(io, q, n, r);
+    case 0x31: {
+        if (n != 4)
+            return svc_nrc(r, 0x31, NRC_LENGTH);
+        if (q[1] != 0x01)
+            return svc_nrc(r, 0x31, NRC_SUBFUNC);
+        uint16_t id = (uint16_t)(q[2] << 8 | q[3]);
+        if (id != 0xF000 && id != 0xF001)
+            return svc_nrc(r, 0x31, NRC_RANGE);
+        if ((why = may_change(s)))
+            return svc_nrc(r, 0x31, why);
+        eol.locked = id == 0xF000;
+        if (id == 0xF001)
+            event(io, EV_EOL_UNLOCK, 0);    /* a rework: on record */
+        memcpy(r, (const uint8_t[]){ 0x71, 0x01, q[2], q[3] }, 4);
+        return eol_changed(io, 4);
+    }
+    default:
+        return svc_nrc(r, q[0], NRC_NOT_SUPPORTED);
+    }
+}
+
+static uint16_t serve(ecu_io *io, const uint8_t *q, uint16_t n)
+{
+    svc.ctx = io;
+    uint16_t m = svc_handle(&svc, q, n, svc_rsp, ms, now_us, stopped, app_extra);
+    if (svc.prog_req)
+        io->boot_req = 1;
+    if (svc.reset_req)
+        io->reset_req = 1;
+    svc.prog_req = svc.reset_req = 0;
+    io->session = svc.session;
+    return m;
+}
+
+void ecu_can2_rx(ecu_io *io, const ecu_can *f)
+{
+    uint16_t n;
+    if (f->id != ECU_CAN2_REQ)
+        return;
+    if (isotp_rx(&can2, f, svc_req, &n)) {
+        uint16_t m = serve(io, svc_req, n);
+        if (m)
+            isotp_send(&can2, svc_rsp, m);
+    }
+    pump_can2(io);
+}
+
+static void usb_poll(ecu_io *io)
+{
+    uint16_t n;
+    for (uint8_t i = 0; i < io->usb_in_n; i++) {
+        if (!link_feed(&usb_rx, io->usb_in[i], svc_req, &n))
+            continue;
+        uint16_t m = serve(io, svc_req, n);
+        if (m && io->usb_out_n + m + 5u <= ECU_USB_OUT)   /* else the tester retries */
+            io->usb_out_n = (uint16_t)(io->usb_out_n + link_frame(svc_rsp, m, io->usb_out + io->usb_out_n));
+    }
+    io->usb_in_n = 0;
+}
+
+void ecu_eol_load(ecu_io *io, const void *a, const void *b)
+{
+    (void)io;
+    int pick = eol_pick(a, b);
+    if (pick < 0) {
+        eol_default(&eol);
+        eol_ok = 0;
+    } else {
+        memcpy(&eol, pick ? b : a, sizeof eol);
+        eol_ok = 1;
+    }
+    sens_trim(eol.gain, eol.offset);
+}
+
+const void *ecu_eol_image(uint32_t *len)
+{
+    *len = sizeof eol;
+    return &eol;
+}
+
 void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
 {
     if (++ms >= ECU_MS_WRAP)
@@ -327,6 +553,13 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     float rpm = crank.have && (int32_t)(t_us - crank_last_us(&crank)) <= (int32_t)CRANK_TIMEOUT_US
                     ? crank_rpm(&crank) : 0;
 
+    now_us = t_us;
+    stopped = (io->state == ECU_OFF || io->state == ECU_WAIT || io->state == ECU_SHUTDOWN)
+              && (!crank.have || (int32_t)(t_us - crank_last_us(&crank)) > ECU_STOPPED_MS * 1000);
+    svc_tick(&svc, ms, stopped);
+    io->session = svc.session;
+    pump_can2(io);
+
     if (io->state == ECU_SHUTDOWN) {
         /* the latch clears only on a real ignition cycle: low for IGN_OFF_MS
          * with the engine stopped, then high. A contact bounce does nothing. */
@@ -345,6 +578,8 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
         event(io, EV_IGN_ON, 0);
     }
 
+    if (!eol_ok)
+        fault_raise(io, SPN_PROGRAM, FMI_CALIBRATION);
     crank_poll(&crank, t_us);
     const float v[S_N] = { io->v_clt, io->v_oil, io->v_rail, io->v_boost, io->v_egr };
     sens_step_1ms(&sens, v, io->v_5v);
@@ -408,6 +643,7 @@ const void *ecu_nvm_live(void) { return &img; }
 void ecu_background(ecu_io *io)
 {
     bg_ms = ms;
+    usb_poll(io);
     if (io->nvm_save)                   /* the host has not finished the last write */
         return;
     /* strict: whole seconds, so ">" is what guarantees at least SAVE_GAP_S */

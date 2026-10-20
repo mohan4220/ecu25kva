@@ -24,5 +24,8 @@ extern const float sens_default[S_N];
 void  sens_reset(sens_t *s);
 void  sens_step_1ms(sens_t *s, const float v[S_N], float v_5v);
 float sens_convert(int ch, float v_ratiometric);
+/* End-of-line trims, v * gain + offset before conversion: S_N inputs,
+ * then the 5 V reference. Kept across sens_reset. */
+void  sens_trim(const float gain[S_N + 1], const float offset[S_N + 1]);
 
 #endif

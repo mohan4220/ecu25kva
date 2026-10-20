@@ -14,6 +14,8 @@
 #include "log.h"
 #include "isotp.h"
 #include "link.h"
+#include "eol.h"
+#include "service.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; \
@@ -369,6 +371,10 @@ static void ecu_up(ecu_io *io)
     io->v_5v = 5.0f;
     io->v_bat = 24.0f;
     ecu_nvm_load(io, NULL, NULL, 0);
+    eol_record r;
+    eol_default(&r);
+    eol_seal(&r);
+    ecu_eol_load(io, &r, &r);              /* a unit that passed the line */
     tick_t = 0;
     host_dead = 0;
     seals = 0;
@@ -564,6 +570,233 @@ static void test_link_bad_crc(void)
     n = link_frame(m, 3, fr);
     for (uint16_t i = 0; i < n; i++) whole += link_feed(&r, fr[i], msg_b, &len);
     CHECK(whole == 2 && len == 3);                       /* resynchronised on the next 0x55 */
+}
+
+/* ---- service core ---- */
+static uint8_t rsp[600];
+
+/* One UDS request over the USB link; returns the response length (0 none). */
+static uint16_t uds(ecu_io *io, const uint8_t *req, uint16_t n)
+{
+    static link_rx_t r;
+    uint8_t fr[80];
+    uint16_t m = link_frame(req, n, fr), len = 0, got = 0;
+    for (uint16_t i = 0; i < m; i += 64) {
+        io->usb_in_n = (uint8_t)(m - i < 64 ? m - i : 64);
+        memcpy(io->usb_in, fr + i, io->usb_in_n);
+        ecu_background(io);
+    }
+    for (uint16_t i = 0; i < io->usb_out_n; i++)
+        if (link_feed(&r, io->usb_out[i], rsp, &len))
+            got = len;
+    io->usb_out_n = 0;
+    return got;
+}
+
+#define UDS(io, ...) uds(io, (const uint8_t[]){ __VA_ARGS__ }, sizeof((const uint8_t[]){ __VA_ARGS__ }))
+
+static void unlock(ecu_io *io)
+{
+    CHECK(UDS(io, 0x10, 0x03) >= 2 && rsp[0] == 0x50);
+    CHECK(UDS(io, 0x27, 0x01) == 6 && rsp[0] == 0x67);
+    uint32_t seed = rsp[2] | rsp[3] << 8 | rsp[4] << 16 | (uint32_t)rsp[5] << 24;
+    uint32_t k = svc_key(seed);
+    CHECK(UDS(io, 0x27, 0x02, (uint8_t)k, (uint8_t)(k >> 8), (uint8_t)(k >> 16),
+              (uint8_t)(k >> 24)) == 2 && rsp[0] == 0x67);
+}
+
+static int nrc(uint16_t n, uint8_t sid, uint8_t code)
+{
+    return n == 3 && rsp[0] == 0x7F && rsp[1] == sid && rsp[2] == code;
+}
+
+static uint16_t direct(svc_t *s, const uint8_t *req, uint16_t n, uint32_t ms)
+{
+    return svc_handle(s, req, n, rsp, ms, ms * 1000u + 17, 1, NULL);
+}
+#define DIRECT(s, ms, ...) direct(s, (const uint8_t[]){ __VA_ARGS__ }, \
+    sizeof((const uint8_t[]){ __VA_ARGS__ }), ms)
+
+static uint32_t seed_of(void) { return rsp[2] | rsp[3] << 8 | rsp[4] << 16 | (uint32_t)rsp[5] << 24; }
+
+static uint16_t key_req(svc_t *s, uint32_t k, uint32_t ms)
+{
+    const uint8_t q[] = { 0x27, 0x02, (uint8_t)k, (uint8_t)(k >> 8), (uint8_t)(k >> 16), (uint8_t)(k >> 24) };
+    return direct(s, q, 6, ms);
+}
+
+static void test_svc_seed_key(void)
+{
+    static svc_t s;
+    svc_init(&s, 0);
+    CHECK(nrc(DIRECT(&s, 10, 0x27, 0x01), 0x27, 0x7F));      /* not in the default session */
+    CHECK(DIRECT(&s, 10, 0x10, 0x03) == 6 && rsp[0] == 0x50 && rsp[1] == 0x03);
+    CHECK(svc_handle(&s, (const uint8_t[]){ 0x27, 0x01 }, 2, rsp, 10, 0, 1, NULL) == 6
+          && seed_of() != 0);                                  /* us 0: still not 0 */
+    CHECK(nrc(key_req(&s, 0, 20), 0x27, 0x35));                /* a seed is out: wrong key 1 */
+    for (int i = 0; i < 2; i++) {
+        CHECK(DIRECT(&s, 30 + 20 * i, 0x27, 0x01) == 6);
+        CHECK(nrc(key_req(&s, svc_key(seed_of()) + 1, 40 + 20 * i), 0x27, i == 0 ? 0x35 : 0x36));
+    }
+    CHECK(!svc_unlocked(&s));
+    CHECK(DIRECT(&s, 4000, 0x3E, 0x00) == 2 && rsp[0] == 0x7E);
+    CHECK(DIRECT(&s, 8000, 0x3E, 0x00) == 2);
+    CHECK(nrc(DIRECT(&s, 10059, 0x27, 0x01), 0x27, 0x36));     /* locked out for 10 s */
+    CHECK(DIRECT(&s, 10061, 0x27, 0x01) == 6);
+    CHECK(key_req(&s, svc_key(seed_of()), 10062) == 2 && rsp[0] == 0x67 && rsp[1] == 0x02);
+    CHECK(svc_unlocked(&s));
+    CHECK(nrc(key_req(&s, 1, 10063), 0x27, 0x24));             /* no seed out */
+    CHECK(DIRECT(&s, 10064, 0x3E, 0x80) == 0);                 /* suppressed response */
+}
+
+static void test_svc_timeout(void)
+{
+    static svc_t s;
+    svc_init(&s, 0);
+    CHECK(DIRECT(&s, 100, 0x10, 0x03) == 6);
+    CHECK(DIRECT(&s, 100, 0x27, 0x01) == 6);
+    CHECK(key_req(&s, svc_key(seed_of()), 100) == 2 && svc_unlocked(&s));
+    svc_tick(&s, 5100, 1);
+    CHECK(svc_session(&s) == 3 && svc_unlocked(&s));
+    svc_tick(&s, 5101 + 1, 1);
+    CHECK(svc_session(&s) == 1 && !svc_unlocked(&s));
+}
+
+static void test_svc_engine_turning(void)
+{
+    ecu_io io; uint32_t t = 0; int tooth = 0;
+    ecu_up(&io);
+    ticks(&io, 1, 1);
+    ecu_spin(&io, 300, 174, &t, &tooth, 1);
+    CHECK(io.state == ECU_CRANK);
+    CHECK(nrc(UDS(&io, 0x10, 0x03), 0x10, 0x22));
+    CHECK(nrc(UDS(&io, 0x10, 0x02), 0x10, 0x22));
+    ecu_up(&io);
+    t = 0; tooth = 0;
+    ticks(&io, 1100, 1);                                       /* WAIT, no tooth for 1 s */
+    CHECK(UDS(&io, 0x10, 0x03) == 6 && io.session == 3);
+    tick_t = 1100000; t = tick_t;
+    ecu_spin(&io, 300, 40, &t, &tooth, 1);                     /* someone cranks it */
+    CHECK(io.session == 1);
+}
+
+static void eol_write_ok(ecu_io *io, const uint8_t *q, uint16_t n)
+{
+    io->eol_save = 0;
+    CHECK(uds(io, q, n) == 3 && rsp[0] == 0x6E && rsp[1] == q[1] && rsp[2] == q[2]);
+    CHECK(io->eol_save == 1);
+}
+
+static void test_eol_write_lock(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    ticks(&io, 1100, 1);
+    unlock(&io);
+    const uint8_t sn[] = { 0x2E, 0xF1, 0x8C, 'S', 'N', '0', '0', '0', '1' };
+    eol_write_ok(&io, sn, sizeof sn);
+    uint8_t tr[3 + 48] = { 0x2E, 0x01, 0x00 };
+    float g[12] = { 1.01f, 1, 1, 1, 1, 0.99f, 0.02f, 0, 0, 0, 0, -0.01f };
+    memcpy(tr + 3, g, 48);
+    eol_write_ok(&io, tr, sizeof tr);
+    CHECK(UDS(&io, 0x22, 0xF1, 0x8C) == 19 && rsp[0] == 0x62 && memcmp(rsp + 3, "SN0001\0", 7) == 0);
+    CHECK(UDS(&io, 0x22, 0x01, 0x00) == 51 && memcmp(rsp + 3, g, 48) == 0);
+    uint32_t len;
+    const eol_record *img = ecu_eol_image(&len);
+    CHECK(len == sizeof(eol_record) && eol_valid(img) && img->gain[0] == 1.01f);
+    io.eol_save = 0;
+    CHECK(UDS(&io, 0x31, 0x01, 0xF0, 0x00) == 4 && rsp[0] == 0x71 && io.eol_save == 1);
+    CHECK(img->locked == 1);
+    CHECK(nrc(uds(&io, sn, sizeof sn), 0x2E, 0x22));          /* locked */
+    CHECK(UDS(&io, 0x22, 0x01, 0x01) == 6 && rsp[5] == 1);
+    CHECK(UDS(&io, 0x31, 0x01, 0xF0, 0x01) == 4 && img->locked == 0);
+    eol_write_ok(&io, sn, sizeof sn);
+}
+
+static void test_eol_trim_range(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    ticks(&io, 1100, 1);
+    unlock(&io);
+    uint8_t tr[3 + 48] = { 0x2E, 0x01, 0x00 };
+    float g[12] = { 1.2f, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
+    memcpy(tr + 3, g, 48);
+    CHECK(nrc(uds(&io, tr, sizeof tr), 0x2E, 0x31));
+    g[0] = 1; g[6] = 0.2f;
+    memcpy(tr + 3, g, 48);
+    CHECK(nrc(uds(&io, tr, sizeof tr), 0x2E, 0x31));
+    CHECK(nrc(UDS(&io, 0x2E, 0x01, 0x00, 1, 2), 0x2E, 0x13));   /* wrong length */
+}
+
+static void test_eol_missing_raises_628(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    static eol_record blank;
+    memset(&blank, 0, sizeof blank);
+    ecu_eol_load(&io, &blank, &blank);
+    ticks(&io, 10, 1);
+    const nvm_dtc *d = log_dtc_find(ecu_nvm_live(), 628, 13);
+    CHECK(d && (d->status & DTC_ACTIVE));
+    CHECK(near(io.clt_c, sens_convert(S_CLT, 2.5f), 1e-4f));     /* gain 1, offset 0 */
+}
+
+static void test_trim_applied(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    eol_record r;
+    eol_default(&r);
+    r.gain[S_CLT] = 1.05f;
+    eol_seal(&r);
+    ecu_eol_load(&io, &r, &r);
+    ticks(&io, 10, 1);
+    CHECK(near(io.clt_c, sens_convert(S_CLT, 2.5f * 1.05f), 1e-4f));
+    CHECK(io.fault_n == 0);
+}
+
+static void test_boot_request(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    ticks(&io, 1100, 1);
+    CHECK(UDS(&io, 0x10, 0x03) == 6);
+    CHECK(nrc(UDS(&io, 0x10, 0x02), 0x10, 0x33));              /* not unlocked */
+    CHECK(io.boot_req == 0);
+    unlock(&io);
+    CHECK(UDS(&io, 0x10, 0x02) == 6 && rsp[0] == 0x50 && rsp[1] == 0x02);
+    CHECK(io.boot_req == 1);
+    CHECK(UDS(&io, 0x11, 0x01) == 2 && rsp[0] == 0x51 && io.reset_req == 1);
+}
+
+static void test_can2_read(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    ticks(&io, 1100, 1);
+    static isotp_t tester;
+    isotp_init(&tester, 0x7E0);
+    ecu_can f;
+    CHECK(isotp_send(&tester, (const uint8_t[]){ 0x22, 0xF1, 0x8C }, 3) == 0);
+    CHECK(isotp_next(&tester, &f));
+    ecu_can other = f;
+    other.id = 0x7E1;
+    ecu_can2_rx(&io, &other);                                   /* not ours */
+    ecu_can2_rx(&io, &f);
+    uint16_t len = 0;
+    int got = 0;
+    for (int ms = 0; ms < 20 && !got; ms++) {
+        ticks(&io, 1, 1);
+        for (int k = 0; k < io.can2_n; k++) {
+            CHECK(io.can2[k].id == 0x7E8);
+            got |= isotp_rx(&tester, &io.can2[k], rsp, &len);
+        }
+        io.can2_n = 0;
+        if (isotp_next(&tester, &f))                            /* flow control */
+            ecu_can2_rx(&io, &f);
+    }
+    CHECK(got && len == 19 && rsp[0] == 0x62);
 }
 
 static void test_ecu_start(void)
@@ -1403,6 +1636,15 @@ int main(void)
     test_isotp_lost_cf();
     test_link_roundtrip();
     test_link_bad_crc();
+    test_svc_seed_key();
+    test_svc_timeout();
+    test_svc_engine_turning();
+    test_eol_write_lock();
+    test_eol_trim_range();
+    test_eol_missing_raises_628();
+    test_trim_applied();
+    test_boot_request();
+    test_can2_read();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }

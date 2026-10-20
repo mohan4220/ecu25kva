@@ -17,9 +17,11 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1] / "sim"))
 subprocess.run(["make", "-s", "-C", str(HERE)], check=True)
 
-from ecu import Ecu, RUN, SHUTDOWN, NCYL  # noqa: E402
+from ecu import Ecu, RUN, SHUTDOWN, NCYL, eol_record  # noqa: E402
 from engine import Engine  # noqa: E402
 from run_sim import Checks, PASS, FAIL  # noqa: E402
+
+EOL = eol_record(b"SIL")
 
 S = 1_000_000                        # us per second
 EEC1, ET1, EFLP1, DM1 = 0xF004, 0xFEEE, 0xFEEF, 0xFECA
@@ -95,6 +97,7 @@ class Sim:
         self.tear_next = False       # the next save is cut by a power loss halfway
         self.torn = False
         self.ecu.nvm_load(*self.slots)
+        self.ecu.eol_load(EOL, EOL)      # a unit that passed the end-of-line test
         self._state = self.io.state
         self._volts()
 
@@ -173,6 +176,7 @@ class Sim:
         self.io.reset_cause = 0
         self._volts()
         self.ecu.nvm_load(*self.slots)
+        self.ecu.eol_load(EOL, EOL)
         self._sent = [0] * NCYL
         self.eng.seq = [0] * NCYL
         self.eng.cmd = [None] * NCYL
