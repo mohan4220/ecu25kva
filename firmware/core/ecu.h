@@ -19,6 +19,16 @@
 #define ECU_CAN2_RESP 0x7E8u
 #define ECU_USB_IN 64
 #define ECU_USB_OUT 512
+#ifndef ECU_ABI_VERSION
+#define ECU_ABI_VERSION 1u           /* bump whenever ecu_io or an entry point changes */
+#endif
+
+/* Exported from a Windows DLL (the simulator's loadable firmware) */
+#if defined(_WIN32) && defined(ECU_DLL)
+#define ECU_API __declspec(dllexport)
+#else
+#define ECU_API
+#endif
 
 typedef enum { ECU_OFF, ECU_WAIT, ECU_CRANK, ECU_RUN, ECU_SHUTDOWN } ecu_state;
 
@@ -61,30 +71,31 @@ typedef struct {
     uint8_t session;                 /* status: UDS session, 1 default, 2 programming, 3 extended */
 } ecu_io;
 
-void ecu_init(ecu_io *io);
-void ecu_crank_edge(ecu_io *io, uint32_t t_us);   /* falling edge of a tooth */
-void ecu_cam_edge(ecu_io *io, uint32_t t_us);
-void ecu_tick_1ms(ecu_io *io, uint32_t t_us);      /* slow loops, CAN, safety */
-size_t ecu_io_size(void);
+ECU_API void ecu_init(ecu_io *io);
+ECU_API void ecu_crank_edge(ecu_io *io, uint32_t t_us);   /* falling edge of a tooth */
+ECU_API void ecu_cam_edge(ecu_io *io, uint32_t t_us);
+ECU_API void ecu_tick_1ms(ecu_io *io, uint32_t t_us);      /* slow loops, CAN, safety */
+ECU_API size_t ecu_io_size(void);
+ECU_API uint32_t ecu_abi_version(void);   /* ECU_ABI_VERSION: the simulator refuses a mismatch */
 
 /* Persistence. Load after ecu_init with both slots (either may be blank). */
-void ecu_nvm_load(ecu_io *io, const void *slot_a, const void *slot_b, uint32_t len);
-const void *ecu_nvm_image(uint32_t *len);
-const void *ecu_nvm_live(void);      /* the live image, for diagnostics and tests */
+ECU_API void ecu_nvm_load(ecu_io *io, const void *slot_a, const void *slot_b, uint32_t len);
+ECU_API const void *ecu_nvm_image(uint32_t *len);
+ECU_API const void *ecu_nvm_live(void);      /* the live image, for diagnostics and tests */
 
 /* Main loop, as often as it likes: saves, and the watchdog check-in.
  * Never call it from an interrupt; it is the only place a save is asked for. */
-void ecu_background(ecu_io *io);
+ECU_API void ecu_background(ecu_io *io);
 
 /* A received CAN frame: J1939 requests for DM2, DM3, DM4 and HOURS. */
-void ecu_can_rx(ecu_io *io, const ecu_can *f);
+ECU_API void ecu_can_rx(ecu_io *io, const ecu_can *f);
 
 /* A frame from CAN channel 2: the service link (only ID ECU_CAN2_REQ). */
-void ecu_can2_rx(ecu_io *io, const ecu_can *f);
+ECU_API void ecu_can2_rx(ecu_io *io, const ecu_can *f);
 
 /* The end-of-line record's two copies, after ecu_init (either may be
  * blank). Neither good: gain 1, offset 0, and SPN 628 FMI 13. */
-void ecu_eol_load(ecu_io *io, const void *a, const void *b);
-const void *ecu_eol_image(uint32_t *len);
+ECU_API void ecu_eol_load(ecu_io *io, const void *a, const void *b);
+ECU_API const void *ecu_eol_image(uint32_t *len);
 
 #endif

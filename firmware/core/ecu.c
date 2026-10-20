@@ -633,6 +633,7 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
 }
 
 size_t ecu_io_size(void) { return sizeof(ecu_io); }
+uint32_t ecu_abi_version(void) { return ECU_ABI_VERSION; }
 
 void ecu_nvm_load(ecu_io *io, const void *slot_a, const void *slot_b, uint32_t len)
 {

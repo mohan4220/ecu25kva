@@ -9,6 +9,8 @@
 #ifndef RAIL_H
 #define RAIL_H
 
+#include "ecu.h"
+
 #define METER_NC 0                   /* measured behaviour: see above */
 #define METER_CLOSED (METER_NC ? 0.0f : 1.0f)   /* duty that stops flow */
 #define RAIL_KP 0.002f               /* calibration, duty/bar */
@@ -19,7 +21,7 @@
 typedef struct { float integ; } rail_t;
 
 void  rail_reset(rail_t *r);
-float rail_set_bar(float fuel_mg);
+ECU_API float rail_set_bar(float fuel_mg);
 float rail_step(rail_t *r, float set_bar, float rail_bar, float dt_s);
 
 #endif
