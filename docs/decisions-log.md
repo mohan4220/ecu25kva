@@ -1317,6 +1317,56 @@ All portable C, tested on the PC (firmware guide §16). Spec
 
 ---
 
+## 17. A simulator anyone can run (20 October)
+
+**Asked for:** three simulators. (1) The firmware alone. (2) The prototype
+board fed sensor values and faults over USB, its firmware using them in
+place of its inputs. (3) The board on a bench rig that plays the engine.
+Each runs live or from a script, and everything is traced in a browser.
+This entry is mode 1. The owner's friend uses Windows: "it should be an
+easy setup for him too".
+
+| Question | Answer | Why |
+|---|---|---|
+| Language | **All Rust**: engine model, loop, server | One `.exe`, nothing to install. About 100 times faster than real time, against about 3 times for the Python model, so scripts run in seconds. The same model can later run on the mode 3 bench's microcontroller |
+| The firmware | **Unchanged C**, built in, and loadable from the UI as a `.dll`/`.dylib`/`.so` | The simulator tests the code that ships. A loaded build is refused unless `ecu_abi_version()` and `ecu_io_size()` match |
+| The UI | A web page served by the program itself, on 127.0.0.1 only | Works the same on every OS. `--share` lets a second PC watch, and then refuses firmware uploads, which run code |
+| Scripts | `.seq` text: timed actions, `end`, and `expect` checks | Readable by someone who has never seen the code. A live session is saved in the same syntax, so it replays |
+| The Python SIL | **Kept** as the firmware's gate | It checks what the script language cannot say: the sync edge count, watchdog periods, CAN intervals, the NVM image byte by byte |
+
+### How it is checked
+
+- The Rust engine model gives the Python model's crank edge times
+  exactly, and speed and rail within 1e-6, over four open-loop profiles.
+- The whole loop gives the Python SIL's 5 s start with identical states
+  and speed within 1 rpm.
+- All 16 SIL scenarios run as scripts and pass. CI runs them on Windows,
+  macOS and Linux once the branch is pushed.
+
+### Found on the way
+
+- The droop scenario claims a 4 % drop, not a speed. Scripts gained one
+  check, `mean change`, for it.
+- A DM1 with two faults is sent as a multi-frame BAM. The Python SIL
+  reads only single frames, so a second fault would have gone unseen
+  there. The simulator reassembles them.
+- Operating systems hand back an already-loaded library for the same path,
+  so a rebuilt firmware uploaded under the old name would have run the
+  old code. Every load is a fresh copy.
+
+### Risks
+
+| Risk | Answer |
+|---|---|
+| Loaded firmware runs with the user's rights | The UI says so; uploads are refused under `--share` |
+| The binary is unsigned | SmartScreen and Gatekeeper warn once; the guide says how to proceed |
+| A live session keeps its whole trace in memory | About 300 MB per simulated hour; streaming to disk is the upgrade if long sessions matter |
+| `sin` and `exp` differ in the last bit between OSes | Traces can differ slightly across machines; the checks' bands absorb it |
+
+Guide: `simulator/README.md`. Spec and plan: `simulator/docs/`.
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a

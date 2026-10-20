@@ -127,6 +127,7 @@ already open runs to its end.
 | `ecu_eol_load` | start-up, after init | once | Loads the good copy of the end-of-line record; neither good means SPN 628 FMI 13 and untrimmed inputs |
 | `ecu_eol_image` | main loop | when `eol_save` is set | Gives the record to write |
 | `ecu_can2_rx` | CAN channel 2 receive | per frame | The service link (only ID 0x7E0) |
+| `ecu_abi_version`, `ecu_io_size` | the simulator, on load | once | The interface version and `sizeof(ecu_io)`; `ecusim` refuses a firmware library whose values differ from its own. Bump `ECU_ABI_VERSION` with any change to `ecu_io` or an entry point |
 
 **One rule for the port:** `ecu_crank_edge`, `ecu_cam_edge`,
 `ecu_tick_1ms`, `ecu_can_rx` and `ecu_can2_rx` share data and must not interrupt each

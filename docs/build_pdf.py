@@ -89,6 +89,8 @@ BOOK = [
      "For the person routing the board: classes, the ground join, each block's critical loops"),
     ("04f-prototype", "../prototype/docs/bring-up.md", "Prototype Bring-up",
      "For the person at the bench: power the prototype up block by block, with expected readings"),
+    ("04g-simulator", "../simulator/README.md", "Simulator Guide",
+     "Run the firmware against the engine model in a browser, live or from scripts; Windows-ready"),
     ("05-engine", "research/01-engine-identity.md", "Memo 01 -- Engine Identity",
      "Which engine this actually is, established from five hardware constraints"),
     ("06-gcu", "research/02-kg640c-gcu.md", "Memo 02 -- KG640C Controller",

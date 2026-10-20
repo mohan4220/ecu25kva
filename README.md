@@ -99,6 +99,15 @@ T=firmware/tools/ecu_service.py
     --sw-ver 0x00010002 --hw-min 0x0100 --hw-max 0x01FF
 ```
 
+**The simulator** runs the same firmware live or from scripts, traced in
+a browser, on Windows, macOS or Linux with nothing to install (guide
+[simulator/README.md](simulator/README.md)):
+
+```bash
+cd simulator && cargo run --release -p ecusim                 # the browser UI
+cd simulator && cargo run --release -p ecusim -- run 'scenarios/sil/*.seq'
+```
+
 The C core in `firmware/core/` touches no hardware. The simulator drives it
 with a model of the engine, generator and fuel rail. See decisions log §11,
 and §12 for the fault memory, event log, counters and trip recorder.

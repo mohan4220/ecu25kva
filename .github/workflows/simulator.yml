@@ -1,0 +1,54 @@
+# The simulator on Windows, macOS and Linux: tests, the 16 SIL scenarios,
+# and downloadable binaries (Actions run -> Artifacts).
+name: simulator
+
+on:
+  push:
+    paths: ["simulator/**", "firmware/core/**", ".github/workflows/simulator.yml"]
+  pull_request:
+    paths: ["simulator/**", "firmware/core/**", ".github/workflows/simulator.yml"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, name: windows, exe: ecusim.exe, out: ecusim-windows.exe, fw: ecu_fw.dll }
+          - { os: macos-latest, name: macos, exe: ecusim, out: ecusim-macos, fw: ecu_fw.dylib }
+          - { os: ubuntu-latest, name: linux, exe: ecusim, out: ecusim-linux, fw: ecu_fw.so }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: simulator
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Tests
+        run: cargo test --workspace --release
+      - name: Build
+        run: cargo build --release -p ecusim
+      - name: The 16 SIL scenarios
+        run: target/release/${{ matrix.exe }} run 'scenarios/sil/*.seq' --out ci-runs
+      - name: Firmware library
+        run: cargo run --release -p fwbuild
+      - name: Collect
+        run: |
+          mkdir -p dist/app dist/fw
+          cp target/release/${{ matrix.exe }} dist/app/${{ matrix.out }}
+          cp build/${{ matrix.fw }} dist/fw/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ecusim-${{ matrix.name }}
+          path: simulator/dist/app/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ecu_fw-${{ matrix.name }}
+          path: simulator/dist/fw/
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: runs-${{ matrix.name }}
+          path: simulator/ci-runs/

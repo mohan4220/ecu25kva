@@ -135,6 +135,10 @@ October it also has a service link (decisions log §16, firmware guide
 §16): a bootloader, the end-of-line record with analog trims, an
 underspeed warning, and a laptop tool over USB or CAN channel 2. Only the
 chip layers are missing; the prototype is first flashed over SWD.
+**A simulator anyone can run** (`simulator/`, decisions log §17): `ecusim`
+is one Rust program that runs that firmware live or from scripts, traced
+in a browser, with firmware builds loadable from the page. It is built
+for a Windows user with nothing installed.
 **A prototype board is routed and fab-ready** (`prototype/`, decisions
 log §15): the full production circuit with an STM32G474 and screw
 terminals, 300 × 200 mm, 0 DRC errors, nothing unconnected. Fab files in
@@ -310,6 +314,14 @@ These each cost a debugging session already:
   symbol UUIDs follow the references. On a routed prototype board, run
   `gen_board.py sync`: it matches footprints to parts by value and pad
   nets, renames them and places only what is new.
+- **The simulator's `EcuIo` copies `ecu_io` by hand.** Change the struct
+  or an entry point, bump `ECU_ABI_VERSION` (`ecu.h`) and `ABI_VERSION`
+  (`simulator/crates/sim/src/fw.rs`); `io_size_matches` catches a
+  missed field.
+- **A dynamic library loaded twice from one path is the first one
+  again.** `Firmware::load` copies every upload to a fresh name. The C
+  core's state is global, so a firmware is one ECU: a `Sim` claims it,
+  and a second waits.
 - **Simulation models hide things.** An idealised zener hid both the
   leakage that started LOWV-CLAMP and an 84 mV loading error that a
   passing check had pinned as the expected value. When a model's part
@@ -328,6 +340,7 @@ These each cost a debugging session already:
 | `hw/check_netlist.py` | the connectivity gate: shadowed nets, decoupling, rails, open items |
 | `sim/blocks/*.cir` | 25 self-checking SPICE blocks |
 | `sim/run_sim.py` | runs them and asserts every claim as arithmetic |
+| `simulator/` | `ecusim`: the firmware against the engine model, in a browser (guide `simulator/README.md`) |
 | `docs/bom_requirements.md` | requirements, chosen parts, and the open design items |
 | `docs/status.md` | the long-form running record |
 | `docs/decisions-log.md` | decisions put to the owner, with options and reasoning |
