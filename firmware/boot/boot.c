@@ -159,6 +159,13 @@ static uint16_t boot_extra(svc_t *s, const uint8_t *q, uint16_t n, uint8_t *r)
             r[4] = (uint8_t)BOOT_VERSION;
             return 5;
         }
+        if (id == 0xFD00) {             /* the application area, so the tool knows no chip */
+            for (int i = 0; i < 4; i++) {
+                r[3 + i] = (uint8_t)(b->f->app_base >> (24 - 8 * i));
+                r[7 + i] = (uint8_t)(b->f->app_size >> (24 - 8 * i));
+            }
+            return 11;
+        }
         if (id == 0xF195) {             /* the application's, from a good header; else 0 */
             img_hdr h;
             uint32_t v = boot_decide(b->f, 0, b->hw_rev) && read_hdr(b->f, &h) ? h.sw_ver : 0;
@@ -197,6 +204,8 @@ static uint16_t boot_extra(svc_t *s, const uint8_t *q, uint16_t n, uint8_t *r)
         return 1;
     }
 }
+
+size_t boot_state_size(void) { return sizeof(boot_t); }
 
 /* While in the bootloader the engine cannot run: it is always stopped. */
 uint16_t boot_handle(boot_t *b, const uint8_t *req, uint16_t n, uint8_t *resp, uint32_t ms, uint32_t us)

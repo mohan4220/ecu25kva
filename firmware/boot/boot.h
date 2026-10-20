@@ -4,6 +4,7 @@
 #ifndef BOOT_H
 #define BOOT_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include "service.h"
 
@@ -35,5 +36,6 @@ typedef struct {
 void     boot_init(boot_t *b, const boot_flash *f, uint16_t hw_rev);
 int      boot_decide(const boot_flash *f, int stay, uint16_t hw_rev);    /* 1 jump, 0 stay */
 uint16_t boot_handle(boot_t *b, const uint8_t *req, uint16_t n, uint8_t *resp, uint32_t ms, uint32_t us);
+size_t   boot_state_size(void);        /* for the PC simulator's binding */
 
 #endif

@@ -179,6 +179,10 @@ static void test_boot_locked(void)
     CHECK(nrc(erase(APP_BASE, APP_SIZE), 0x31, 0x33));         /* not unlocked */
     CHECK(nrc(download(APP_BASE + BOOT_HDR, 64), 0x34, 0x33));
     CHECK(REQ(0x22, 0xF1, 0x80) == 5 && rsp[0] == 0x62 && (rsp[3] << 8 | rsp[4]) == BOOT_VERSION);
+    CHECK(REQ(0x22, 0xFD, 0x00) == 11);                        /* where the application goes */
+    CHECK((uint32_t)(rsp[3] << 24 | rsp[4] << 16 | rsp[5] << 8 | rsp[6]) == APP_BASE);
+    CHECK((uint32_t)(rsp[7] << 24 | rsp[8] << 16 | rsp[9] << 8 | rsp[10]) == APP_SIZE);
+    CHECK(boot_state_size() == sizeof(boot_t));
 }
 
 static void test_boot_flash_ok(void)
