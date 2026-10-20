@@ -12,6 +12,8 @@
 #include "j1939.h"
 #include "nvm.h"
 #include "log.h"
+#include "isotp.h"
+#include "link.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; \
@@ -460,6 +462,108 @@ static void test_underspeed(void)
     const nvm_dtc *d = log_dtc_find(ecu_nvm_live(), SPN_SPEED, FMI_LOW_MODERATE);
     CHECK(d && (d->status & DTC_ACTIVE));
     CHECK(spin_lamps == LAMP_AMBER);                 /* not Protect: the DSE decides */
+}
+
+/* ---- service link framing ---- */
+static uint8_t msg_a[ISOTP_MAX], msg_b[ISOTP_MAX];
+
+/* Send `n` bytes from one end to the other, frame by frame, the flow
+ * control going back. `drop` = index of a consecutive frame to lose (0 none;
+ * negative: that frame arrives twice).
+ * Returns the length delivered, -1 if nothing arrived. */
+static int isotp_pass(isotp_t *tx, isotp_t *rx, const uint8_t *m, uint16_t n, int drop)
+{
+    uint16_t got = 0;
+    int delivered = -1, cf = 0;
+    CHECK(isotp_send(tx, m, n) == 0);
+    for (int guard = 0; guard < 2000; guard++) {
+        ecu_can f;
+        int moved = 0;
+        if (isotp_next(tx, &f)) {
+            moved = 1;
+            CHECK(f.id == tx->tx_id && f.len == 8);
+            if ((f.data[0] >> 4) == 2 && ++cf == drop)
+                continue;                               /* lost on the bus */
+            if (isotp_rx(rx, &f, msg_b, &got))
+                delivered = got;
+            if (cf == -drop && (f.data[0] >> 4) == 2 && isotp_rx(rx, &f, msg_b, &got))
+                delivered = got;                        /* repeated on the bus */
+        }
+        if (isotp_next(rx, &f)) {                       /* flow control back */
+            moved = 1;
+            isotp_rx(tx, &f, msg_a, &got);
+        }
+        if (!moved)
+            break;
+    }
+    return delivered;
+}
+
+static void test_isotp_roundtrip(void)
+{
+    static isotp_t a, b;
+    isotp_init(&a, 0x7E0);
+    isotp_init(&b, 0x7E8);
+    static uint8_t m[ISOTP_MAX];
+    for (int i = 0; i < ISOTP_MAX; i++) m[i] = (uint8_t)(i * 7 + 3);
+    const uint16_t lens[] = { 1, 7, 8, ISOTP_MAX };
+    for (int k = 0; k < 4; k++) {
+        memset(msg_b, 0, sizeof msg_b);
+        CHECK(isotp_pass(&a, &b, m, lens[k], 0) == lens[k]);
+        CHECK(memcmp(msg_b, m, lens[k]) == 0);
+    }
+    CHECK(isotp_send(&a, m, ISOTP_MAX + 1) == -1);
+    CHECK(isotp_send(&a, m, 0) == -1);
+}
+
+static void test_isotp_lost_cf(void)
+{
+    static isotp_t a, b;
+    isotp_init(&a, 0x7E0);
+    isotp_init(&b, 0x7E8);
+    uint8_t m[100];
+    for (int i = 0; i < 100; i++) m[i] = (uint8_t)i;
+    CHECK(isotp_pass(&a, &b, m, 100, 3) == -1);       /* never a corrupted message */
+    CHECK(isotp_pass(&a, &b, m, 100, -3) == -1);      /* nor a repeated frame's */
+    m[0] = 0x5A;
+    CHECK(isotp_pass(&a, &b, m, 100, 0) == 100);      /* the next one still arrives */
+    CHECK(memcmp(msg_b, m, 100) == 0);
+}
+
+static void test_link_roundtrip(void)
+{
+    CHECK(crc16_ccitt((const uint8_t *)"123456789", 9) == 0x29B1);   /* CRC-16/CCITT-FALSE */
+    static link_rx_t r;
+    memset(&r, 0, sizeof r);
+    uint8_t m[300], fr[310];
+    for (int i = 0; i < 300; i++) m[i] = (uint8_t)(255 - i);
+    uint16_t n = link_frame(m, 300, fr), len = 0;
+    CHECK(n == 305 && fr[0] == 0x55);
+    int whole = 0;
+    for (uint16_t i = 0; i < n; i++)
+        whole += link_feed(&r, fr[i], msg_b, &len);
+    CHECK(whole == 1 && len == 300 && memcmp(msg_b, m, 300) == 0);
+}
+
+static void test_link_bad_crc(void)
+{
+    static link_rx_t r;
+    memset(&r, 0, sizeof r);
+    uint8_t m[10] = { 0x22, 0xF1, 0x8C }, fr[40];
+    uint16_t len = 0;
+    uint16_t n = link_frame(m, 3, fr);
+    fr[n - 1] ^= 0x01;                                  /* corrupted on the wire */
+    n += link_frame(m, 10, fr + n);
+    int whole = 0;
+    for (uint16_t i = 0; i < n; i++)
+        whole += link_feed(&r, fr[i], msg_b, &len);
+    CHECK(whole == 1 && len == 10);                      /* only the good one */
+    uint8_t big[] = { 0x55, 0xFF, 0x0F };                /* 4095 + 1 would follow: too long */
+    big[1] = 0x00; big[2] = 0x10;
+    for (int i = 0; i < 3; i++) whole += link_feed(&r, big[i], msg_b, &len);
+    n = link_frame(m, 3, fr);
+    for (uint16_t i = 0; i < n; i++) whole += link_feed(&r, fr[i], msg_b, &len);
+    CHECK(whole == 2 && len == 3);                       /* resynchronised on the next 0x55 */
 }
 
 static void test_ecu_start(void)
@@ -1295,6 +1399,10 @@ int main(void)
     test_ecu_wdg_reset_saved();
     test_ecu_bam_dt_not_dropped();
     test_underspeed();
+    test_isotp_roundtrip();
+    test_isotp_lost_cf();
+    test_link_roundtrip();
+    test_link_bad_crc();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }
