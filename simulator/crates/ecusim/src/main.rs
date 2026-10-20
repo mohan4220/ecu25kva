@@ -2,6 +2,7 @@
 //!
 //!   ecusim run <file.seq>... [--fw LIB] [--out DIR]   headless, at max speed
 mod library;
+mod live;
 mod runs;
 
 use sim::{seq, Firmware};
