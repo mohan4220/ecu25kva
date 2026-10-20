@@ -182,6 +182,7 @@ expect never dm1 190/18
 | Check | Passes when |
 |---|---|
 | `expect <signal> <mean\|min\|max> <lo>..<hi> over <t0>..<t1>` | the statistic of that signal in the window is inside the band; either bound may be left out |
+| `expect <signal> mean change <lo>..<hi> from <a0>..<a1> to <b0>..<b1>` | the mean over the second window minus the mean over the first is inside the band (added 20 Oct for the droop scenario) |
 | `expect dm1 <spn>/<fmi> within <s> of <t>` | a DM1 carrying it is sent in (t, t+s] |
 | `expect never dm1 <spn>/<fmi>` | no DM1 in the run carries it |
 | `expect dm1 clear over <t0>..<t1>` | every DM1 in the window carries no DTC |

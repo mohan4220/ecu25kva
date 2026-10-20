@@ -54,6 +54,7 @@ pub struct Sim {
     pub torn: bool,
     pub saves: u32,
     pub release_on_run: bool, // starter off at the first ms in RUN
+    pub bounce_until: Option<u64>, // ignition back on at this t_us
     next_ms: u64,
     sent: [u32; NCYL],
     state: u8,
@@ -82,6 +83,7 @@ impl Sim {
             torn: false,
             saves: 0,
             release_on_run: false,
+            bounce_until: None,
             next_ms: 1000,
             sent: [0; NCYL],
             state: 0,
@@ -132,6 +134,8 @@ impl Sim {
         if self.io.state != self.state {
             self.state = self.io.state;
             self.states.push((t_us, self.state));
+            let name = STATES.get(self.state as usize).unwrap_or(&"?");
+            self.events.push(format!("# {} state {name}", crate::seq::secs(t_us)));
         }
     }
 
@@ -158,6 +162,10 @@ impl Sim {
             }
         }
         let t = self.next_ms;
+        if self.bounce_until.is_some_and(|b| self.t_us >= b) {
+            self.io.ignition = 1;
+            self.bounce_until = None;
+        }
         self.volts();
         self.fw.tick_1ms(&mut self.io, t as u32);
         self.fw.background(&mut self.io);
