@@ -81,9 +81,22 @@ python3 -m venv .venv && .venv/bin/pip install PySpice numpy schemdraw markdown 
 ## Running the firmware on the PC
 
 ```bash
-make -C firmware/sim test                    # unit tests of the C core
-.venv/bin/python firmware/sim/run_sil.py     # the 15 engine scenarios
+make -C firmware/sim test                    # unit tests of the C core and the bootloader
+.venv/bin/python firmware/sim/run_sil.py     # the 16 engine scenarios
 .venv/bin/python firmware/sim/run_sil.py runaway   # scenarios matching "runaway"
+.venv/bin/python firmware/sim/test_service.py      # the service tool end to end
+```
+
+The service tool reads and writes the end-of-line record and flashes the
+application, over USB, CAN channel 2 or the simulator (firmware guide §16).
+`key.bin` holds the 16 bytes of `SEC_SECRET`:
+
+```bash
+T=firmware/tools/ecu_service.py
+.venv/bin/python $T --link sim --secret key.bin info
+.venv/bin/python $T --link usb:/dev/tty.usbmodem1 --secret key.bin eol-read
+.venv/bin/python $T --link can:socketcan:can0 --secret key.bin flash app.bin \
+    --sw-ver 0x00010002 --hw-min 0x0100 --hw-max 0x01FF
 ```
 
 The C core in `firmware/core/` touches no hardware. The simulator drives it

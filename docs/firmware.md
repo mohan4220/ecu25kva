@@ -1,9 +1,12 @@
 # Firmware Guide: how the engine-control software works
 
 **Date:** 2026-10-11
-**Covers:** `firmware/` as merged on master (commit `1149ecc`).
+**Covers:** `firmware/` as merged on master (commit `1149ecc`), plus the
+service link of 20 October (§16): bootloader, end-of-line record,
+underspeed warning.
 **Read with:** decisions log §11 (why it is built this way), §12 (the
-logs), and the two specs in `docs/superpowers/specs/2026-10-1*`.
+logs), §16 (the service link), and the specs in
+`docs/superpowers/specs/2026-10-1*`.
 
 This guide explains what the firmware does and how, in the order a new
 engineer needs it:
@@ -16,6 +19,7 @@ engineer needs it:
 - every tuning knob
 - how it is tested
 - what the S32K148 port must provide
+- the service link: the laptop tool, the end-of-line record, the bootloader
 
 ---
 
@@ -57,10 +61,18 @@ nothing inside the core changes.
 | `core/j1939.c` | Every CAN frame the ECU sends, and request parsing |
 | `core/nvm.c` | The persistent image: layout, checksum, choosing between the two copies |
 | `core/log.c` | Writes into the image: events, counters, fault memory, trip recorder |
-| `sim/test_core.c` | 80 unit tests of the C code |
-| `sim/ecu.py` | Python wrapper around the compiled core |
+| `core/isotp.c` | ISO-TP framing for the service link on CAN channel 2 |
+| `core/link.c` | USB framing for the service link: sync byte, length, CRC-16 |
+| `core/service.c` | The UDS core both sides share: sessions, seed-key, tester present, reset |
+| `core/eol.c` | The end-of-line record: defaults, checksum, trim limits, picking a copy |
+| `boot/boot.c` | The bootloader: run the application or stay, erase, download, check |
+| `tools/ecu_service.py` | The laptop service tool (§16) |
+| `sim/test_core.c` | 94 unit tests of the C code |
+| `sim/test_boot.c` | 7 bootloader tests against a simulated flash |
+| `sim/ecu.py` | Python wrapper around the compiled core; `Unit`, a simulated board for the tool |
 | `sim/engine.py` | The engine model |
-| `sim/run_sil.py` | The 15 scenarios |
+| `sim/run_sil.py` | The 16 scenarios |
+| `sim/test_service.py` | The service tool end to end against `Unit` |
 
 All of the core's state lives in `static` variables inside `ecu.c`.
 There is one ECU per program, and `ecu_init` resets it.
@@ -85,6 +97,13 @@ platform writes the inputs and reads the outputs.
 | | `can[16]`, `can_n`, `can_drops` | CAN frames to send; the platform sends `can_n` of them, then zeroes it |
 | | `nvm_save`, `nvm_slot` | "Write the image to this copy now", cleared by the platform when done |
 | Status | `state`, `rpm`, `fuel_mg`, `rail_bar`, `clt_c`, `oil_kpa`, `fault_n`, `synced` | For display and tests |
+| Service link (§16) | `boot_ver` | Input: the bootloader's version, for UDS 0xF180 |
+| | `usb_in[64]`, `usb_in_n` | Bytes received on USB; `ecu_background` consumes them and zeroes the count |
+| | `usb_out[512]`, `usb_out_n` | Bytes to send on USB; the platform sends them, then zeroes the count |
+| | `can2[16]`, `can2_n` | Frames to send on CAN channel 2, as `can[]` |
+| | `eol_save` | "Write the end-of-line record to copy a, then copy b", cleared when done |
+| | `boot_req`, `reset_req` | Set the stay flag and reset into the bootloader; a plain reset |
+| | `session` | Status: the UDS session (1 default, 2 programming, 3 extended) |
 
 **Injection is given as commands, not pin levels.** For each cylinder
 the command is "start at time T, for D microseconds". The chip's timer
@@ -105,9 +124,12 @@ already open runs to its end.
 | `ecu_can_rx` | CAN receive | per frame | Answers J1939 requests (§9) |
 | `ecu_background` | main loop | as often as it likes | Saves, and checks in for the watchdog |
 | `ecu_nvm_image` | main loop | when `nvm_save` is set | Gives the sealed image to write |
+| `ecu_eol_load` | start-up, after init | once | Loads the good copy of the end-of-line record; neither good means SPN 628 FMI 13 and untrimmed inputs |
+| `ecu_eol_image` | main loop | when `eol_save` is set | Gives the record to write |
+| `ecu_can2_rx` | CAN channel 2 receive | per frame | The service link (only ID 0x7E0) |
 
 **One rule for the port:** `ecu_crank_edge`, `ecu_cam_edge`,
-`ecu_tick_1ms` and `ecu_can_rx` share data and must not interrupt each
+`ecu_tick_1ms`, `ecu_can_rx` and `ecu_can2_rx` share data and must not interrupt each
 other. Give their interrupts the same priority. `ecu_background` runs at
 the lowest level and may be interrupted at any time.
 
@@ -190,6 +212,14 @@ every 0.67 ms.
   - fault codes active
   - CAN keeps reporting, so the DSE sees the engine run down
 
+**Underspeed is a warning, not a state.** In RUN, once the setpoint ramp
+has finished, speed below **1350 rpm for 3 s** raises SPN 190 FMI 18 in
+DM1 with the **amber** lamp only. Speed above **1400 rpm for 1 s** clears
+it. The engine keeps governing: the DSE's own under-frequency settings
+decide whether the set stops. 1350 rpm is also the load-step scenario's
+floor, so a normal load step never raises it. (The red and Protect lamps
+stay with the real shutdowns: overspeed, SPN 190 FMI 0, and sync loss.)
+
 **The latch clears only on a real ignition cycle**: ignition off for at
 least 500 ms *with the engine stopped*, then on. A bouncing contact or a
 flicker while the engine still turns does nothing.
@@ -236,6 +266,13 @@ reads outside 4.5–5.5 V, 5.0 V is used instead.
 | Rail pressure | 0.5–4.5 V = 0–1800 bar | 0.2–4.8 V | 1000 bar | 157 |
 | Boost pressure | 0.5–4.5 V = 50–400 kPa | 0.2–4.8 V | 100 kPa | 102 |
 | EGR position | 0.5–4.5 V = 0–100 % | 0.2–4.8 V | 0 % | 27 |
+
+**End-of-line trims.** Each input, and the 5 V reference, is corrected
+as `v × gain + offset` before anything else, with the six gains and six
+offsets from the unit's end-of-line record (§16). The factory measures
+them; the limits are gain 0.9–1.1 and offset ±0.1 V. With no good record
+the trims are 1 and 0, and SPN 628 FMI 13 ("out of calibration") stays
+on DM1, so a unit that skipped the line says so on the DSE's screen.
 
 **Range faults:**
 - Out of range for **100 ms** raises a fault: FMI 3 for too high (an open
@@ -327,6 +364,7 @@ dev-kit spec. Until then, the simulator decodes them from the image
 | Sync-loss trip | Lost crank signal (50 ms) or a wheel that no longer makes sense | `crank.c`, `ecu.c` |
 | Injection cancel | Any command not yet started when a trip happens | `inject_cancel` |
 | Metering valve closed in SHUTDOWN | Rail pressure falls after a trip | `rail.h` `METER_CLOSED` |
+| Underspeed warning | A set held below 1350 rpm for 3 s (overload, a fuel fault): SPN 190 FMI 18, amber. **No shutdown**: the DSE decides | `ecu.c` `underspeed()` |
 | Window watchdog (TPS3850) | A hung main loop: the pulses stop and the chip resets the processor; the next power-up logs it | `ecu_tick_1ms`, `ecu_background` |
 | Independent trip module | Everything above failing: it cuts the metering valve's supply from outside the board | Hardware, spec §3 |
 
@@ -359,6 +397,11 @@ re-tuned on the engine.
 | `RUN_RPM` | ecu.c | 400 | design |
 | `IGN_OFF_MS` | ecu.h | 500 ms | design |
 | `SAVE_GAP_S` | ecu.h | 10 s | design (flash wear) |
+| `UNDERSPEED_RPM`, `UNDERSPEED_MS` | safety.h | 1350 rpm for 3 s | design (90 % of 1500) |
+| `UNDERSPEED_CLEAR_RPM`, `UNDERSPEED_CLEAR_MS` | safety.h | 1400 rpm for 1 s | design |
+| `SEC_SECRET` | service.h | 16 bytes, overridable per build | **set per product before shipping** |
+| `SVC_SESSION_MS`, `SVC_LOCK_MS` | service.h | 5 s, 10 s | design |
+| `EOL_GAIN_MIN/MAX`, `EOL_OFFSET_MAX` | eol.h | 0.9–1.1, ±0.1 V | design |
 
 The engine model in `sim/engine.py` has its own assumed constants, also
 marked. When real engine data arrives, change the constant, re-run the
@@ -367,15 +410,16 @@ scenarios, and they say at once whether the control still holds.
 ## 13. How it is tested
 
 ```
-make -C firmware/sim test                       # 80 unit tests, about 1 s
-.venv/bin/python firmware/sim/run_sil.py        # 15 scenarios, about 2-3 min
+make -C firmware/sim test                       # 94 unit tests and 7 bootloader tests, a few s
+.venv/bin/python firmware/sim/run_sil.py        # 16 scenarios, about 2-3 min
 .venv/bin/python firmware/sim/run_sil.py rail   # scenarios whose name contains "rail"
+.venv/bin/python firmware/sim/test_service.py   # the service tool end to end, about 10 s
 ```
 
 | # | Scenario | Proves |
 |---|---|---|
 | 1 | Start | in sync within 2 revolutions; 1500 rpm by 5 s; peak under 1600 |
-| 2 | Load step 0 → 20 kW | dip stays above 1350 rpm; back within ±15 rpm in 5 s |
+| 2 | Load step 0 → 20 kW | dip stays above 1350 rpm; back within ±15 rpm in 5 s; no underspeed warning |
 | 3 | Load rejection 20 → 0 kW | peak stays under the trip |
 | 4 | Droop switch | speed falls 4 ± 1 % at full load |
 | 5 | Stuck injector (runaway) | shuts down on the very tooth it first reads > 1650 rpm; no injection after; rail pressure falls |
@@ -389,6 +433,13 @@ make -C firmware/sim test                       # 80 unit tests, about 1 s
 | 13 | Power cut mid-save | the previous save loads |
 | 14 | Stored faults over CAN | DM2 reads them; DM3 clears them and leaves active ones |
 | 15 | One lost crank tooth | logged as a crank-sensor fault, not overspeed |
+| 16 | Overload, 30 kW | settles near 1190 rpm; SPN 190 FMI 18 within 5 s, amber only; never shuts down |
+
+Scenario 16 relies on one model assumption: the alternator's voltage
+regulator rolls the voltage off below 47 Hz (`AVR_KNEE_RPM`), so the
+load's power falls with speed and an overloaded set settles instead of
+stalling. With a pure constant-power load every overload stalls in under
+3 s, faster than the warning.
 
 **What a pass means, and what it doesn't.** The scenarios prove the logic
 and the safety behaviour. They don't prove the tuning on a real engine.
@@ -421,6 +472,20 @@ The core needs nothing else. The platform layer must:
 8. **Main loop:** call `ecu_background` continuously.
 9. **Priorities:** the edge, tick and CAN-receive interrupts at one
    priority. Mask them during the image copy inside `ecu_background`.
+10. **Service link:** pass CAN channel 2 frames to `ecu_can2_rx`; send
+    `can2[0..can2_n)`. On the prototype, copy USB virtual-serial bytes
+    into `usb_in` and send `usb_out`.
+11. **End-of-line record:** two copies in their own sector (S32K148: a
+    D-flash sector; STM32G474: the last page). Pass both to
+    `ecu_eol_load` at start-up. When `eol_save` is set, write
+    `ecu_eol_image()` to copy a, then copy b, then clear it. Pass the
+    bootloader's version in `boot_ver`.
+12. **Resets:** on `reset_req`, a software reset. On `boot_req`, set the
+    stay flag (one RAM word the reset does not clear) and reset.
+13. **The bootloader's host:** `flash_erase`, `flash_write` (whole 8-byte
+    words), `flash_read` over the application area only, the stay flag
+    (read and clear), and `jump_to_app` (stack pointer and vector table
+    from the application's base, then branch). §16 has the rest.
 
 ## 15. Known limits and open items
 
@@ -443,8 +508,10 @@ The core needs nothing else. The platform layer must:
 
 **Dev-kit spec:**
 - flash choice for about 110 000 writes per copy
-- the laptop service tool (event log, trip recorder, calibration)
-- the bootloader for field updates
+- the service tool's reading of the event log and trip recorder (the
+  record and flashing are done, §16)
+- the chip layers of the service link: STM32G474 and S32K148 flash, CAN,
+  USB and reset drivers (§14 items 10–13)
 - MISRA C checks
 - governor performance graded against ISO 8528-5
 - a failure analysis of the overspeed path
@@ -455,3 +522,90 @@ The core needs nothing else. The platform layer must:
 - A faulted sensor's snapshot stores its default value rather than "not
   available".
 - DM1 always reports an occurrence count of 1.
+
+## 16. The service link
+
+One protocol, a subset of UDS (ISO 14229), on two links: **USB** on the
+prototype for quick iterations, **CAN channel 2** in production (ECU pins
+86/87, off the DSE's J1939 bus). The application and the bootloader share
+`core/service.c`; only the framing differs.
+
+| Link | Framing |
+|---|---|
+| CAN channel 2 | ISO-TP, 11-bit: request `0x7E0`, response `0x7E8`, 500 kbit/s, frames padded with `0xAA`, block size 0, STmin 0, up to 4095 bytes |
+| USB (virtual serial) | `0x55`, length (2 bytes LE), payload, CRC-16/CCITT of the payload (2 bytes LE). A bad CRC or a length over 4095 drops the message |
+
+**Services:**
+
+| Service | Application | Bootloader |
+|---|---|---|
+| `0x10` session | default `01`, extended `03`; programming `02` (unlocked) resets into the bootloader | default, extended, programming |
+| `0x27` security | seed `01`, key `02`; not in the default session | same |
+| `0x3E` tester present | keeps a session alive (`3E 80`: no reply) | same |
+| `0x11` reset | `01` | `01`: runs the image if it is good |
+| `0x22` read | `F18C` serial, `F191` hardware revision, `F18B` build date, `F195` software version, `F180` boot version, `0100` trims, `0101` station, passed, locked | `F180`, `F195` (from the image header), `FD00` the application area |
+| `0x2E` write | the record's IDs: extended, unlocked, engine stopped, record not locked | — |
+| `0x31` routine | `F000` lock the record, `F001` unlock it (logged) | `FF00` erase (address, length), `FF01` check (CRC, version, hardware range) |
+| `0x34` / `0x36` / `0x37` | — | download, 1024-byte blocks, exit |
+
+**Refusals** are `7F, service, reason`: `22` conditions (the engine
+turning, or the record locked), `33` security, `35` wrong key, `36` too
+many wrong keys, `31` out of range, `24` wrong sequence, `13` wrong
+length, `72` programming failure, `7F` wrong session.
+
+**Rules:**
+- **Engine stopped** means OFF, WAIT or SHUTDOWN and no crank tooth for
+  1 s. Extended and programming sessions are refused otherwise, and an
+  open one ends at the first tooth.
+- A non-default session ends 5 s after the last message.
+- **Seed-key:** the key is CRC-32 of the seed (4 bytes LE) followed by
+  the 16-byte `SEC_SECRET`. Three wrong keys lock security access for
+  10 s. This stops casual writes, not a determined attacker: anyone who
+  reads one unit's flash can compute keys for all.
+
+**The end-of-line record** (`core/eol.h`, 84 bytes): magic `0xE01D`,
+version, serial (16 ASCII), hardware revision, build date (yyyymmdd), six
+gains and six offsets (coolant, oil, rail, boost, EGR, 5 V reference),
+station, passed, locked, CRC-32. Two copies apart from the logs; copy a
+is written first, so when both are good copy a is the newer. Once locked
+(`31 01 F000`) every write is refused until `31 01 F001`.
+
+**The bootloader** (`boot/boot.c`, 32 KiB at the bottom of flash):
+- At reset: if the stay flag is set, stay. Otherwise run the application
+  only if its header is good, its CRC matches, and the end-of-line
+  record's hardware revision is inside the header's range.
+- Programming: programming session, unlock, erase, download to the
+  application base + 64, transfer, exit, then the check routine. **The
+  header is written last**, after the CRC of what is in flash matches
+  the tool's, and its magic is the very last write. A power cut anywhere
+  before leaves no valid header, so the next reset stays in the
+  bootloader and the update is simply run again (`test_boot.c` cuts the
+  power at every single write).
+- It never erases or writes outside the application area. While it runs
+  the engine cannot: no injection, the metering valve at its safe state,
+  the gates held off by their pull-downs; the watchdog is still kicked.
+- No rollback: a bad image that passes its CRC is fixed by flashing the
+  previous one.
+
+**The laptop tool:**
+
+```
+T=firmware/tools/ecu_service.py; K=--secret key.bin      # key.bin: the 16 bytes of SEC_SECRET
+.venv/bin/python $T --link usb:/dev/tty.usbmodem1 $K info
+.venv/bin/python $T --link can:socketcan:can0 $K eol-read
+.venv/bin/python $T --link usb:/dev/tty.usbmodem1 $K eol-write --serial SN0042 \
+    --hw-rev 0x0100 --date 20261020 --trims trims.json --station 3 --passed
+.venv/bin/python $T --link usb:/dev/tty.usbmodem1 $K eol-lock          # eol-unlock for a rework
+.venv/bin/python $T --link usb:/dev/tty.usbmodem1 $K flash app.bin \
+    --sw-ver 0x00010002 --hw-min 0x0100 --hw-max 0x01FF
+.venv/bin/python $T --link sim $K info                                 # the simulated board
+```
+
+`trims.json` is `{"gain": [6 values], "offset": [6 values]}` in the order
+above. `pyserial` (USB) and `python-can` with `can-isotp` (CAN) are needed
+only by their links. A 256 KiB image takes about 10 s over CAN plus the
+erase; USB is faster.
+
+**Not yet:** the chip layers (§14 items 10–13). The prototype is first
+flashed over SWD (J301), as any new board is.
+

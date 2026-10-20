@@ -270,7 +270,7 @@ contact-type confirmation, which gates nothing
 | 1.5 | Block-level simulation | **Done — 26 blocks, 26 passing** (feed_emi added 8 Oct 2026) |
 | **2** | **KiCad hierarchical schematic capture** | **Complete — 380 components, 378 with footprints; connectivity OK with 2 named open items (power-ground pin, trip-loop pin)** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | **Prepared for hand routing (14 Oct)**: board with all 379 parts placed by block, classes and rules set, DRC clean, 499 connections to route (decisions log §13). Housing and J1001 are placeholders until measured (brief Group 6) |
-| 4 | Firmware skeleton | **Core done on the PC, with production logging — 15/15 engine scenarios, 80 unit tests; calibrated from the old ECU's recording (§14)** (decisions log §11, §12). Next: S32K148 dev kit |
+| 4 | Firmware skeleton | **Core done on the PC, with production logging — 16/16 engine scenarios, 94 unit tests; calibrated from the old ECU's recording (§14). Service link (20 Oct): bootloader, end-of-line record, underspeed warning, laptop tool over USB and CAN — 7 bootloader tests, the tool tested end to end** (decisions log §11, §12, §16). Next: S32K148 dev kit and the chip layers |
 
 ### Phase 2 — what exists
 
@@ -938,7 +938,7 @@ value or closes a register entry; those two change the output count.
 Rewritten 15 October 2026. **The tree is clean and pushed. Every check passes:**
 - 26/26 circuit simulations
 - the netlist gate, with its 2 named open items
-- 80 firmware unit tests and 15/15 engine scenarios
+- 94 firmware unit tests, 7 bootloader tests, 16/16 engine scenarios and the service tool end to end
 - the PCB rules and generator self-tests
 - the board check, including the schematic links
 
@@ -946,7 +946,7 @@ Rewritten 15 October 2026. **The tree is clean and pushed. Every check passes:**
 - **Schematic:** complete, 380 parts (D302 added 19 Oct). Regenerating it is now deterministic.
 - **PCB:** prepared for hand routing, not routed (decisions log §13).
 - **Prototype board (17 October):** routed and fab-ready in `prototype/`: the full production circuit with an STM32G474, screw terminals, 300 × 200 mm, 4 layers. 0 DRC errors, nothing unconnected, schematic parity clean. Gerbers, drill, positions and BOM in `prototype/fab/`; bring-up guide `prototype/docs/bring-up.md` (decisions log §15). **Reviewed 19 October:** the review found the watchdog kill path lost by the 15 October supervisor fix. D302 (BAT54Q) restores it, in production too. The 5 V buck's output and switch node now run on the outer layers, sized for its 1 A. The pour checks were made able to fail.
-- **Firmware:** runs on the PC, calibrated from the old ECU's own recording (§14).
+- **Firmware:** runs on the PC, calibrated from the old ECU's own recording (§14). **Service link (20 October):** a bootloader with the image header written last, the end-of-line record with its analog trims, an underspeed warning (SPN 190 FMI 18, amber, no shutdown), and a laptop tool (`firmware/tools/ecu_service.py`) over USB or CAN channel 2, all proven on the PC (decisions log §16, firmware guide §16). The chip layers (flash, CAN, USB, reset) are still to write.
 - **Safety change written up, not yet wired:** the overspeed trip moves to the injector feed, pin 04 (spec §3 item 6).
 
 ### Waiting on the machine (inspection brief)

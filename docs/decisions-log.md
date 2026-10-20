@@ -1259,6 +1259,55 @@ trusts the DRC.
 - **95 pin necks are 0.15 mm on 2 oz outer copper.** Some fabs' 2 oz minimum is 0.15–0.2 mm: ask at quoting.
 - **20 small islands of pour fill** are left floating (current-sense pours on In2, three on the ground plane). They carry nothing; a fab may ask about them.
 
+
+## 16. A service link: bootloader, end-of-line record, underspeed warning (17–20 October)
+
+**Prompted by** a friend's screenshot of a comparable production ECU's
+firmware, a TargetLink model. It has a bootloader, an end-of-line write
+and an underspeed fix. Ours had none of the three.
+
+### The owner's answers (17 October)
+
+| Question | Answer |
+|---|---|
+| Underspeed action | **Warn; the DSE decides.** The DSE has its own under-frequency shutdown; the ECU does not stop the engine for underspeed |
+| Link | **Both.** USB on the prototype for quick iterations; CAN channel 2 in production |
+| End-of-line scope | **The unit record**, locked once written. A factory output-test mode is later work |
+| Protection | **Seed-key**, and the engine must be stopped |
+
+### What was built
+
+All portable C, tested on the PC (firmware guide §16). Spec
+`docs/superpowers/specs/2026-10-17-service-link-design.md`.
+
+| Part | Decision | Why |
+|---|---|---|
+| Protocol | A subset of **UDS (ISO 14229)**, the same on both links | A technician's UDS tester can read the IDs; `python-udsoncan` could replace our tool |
+| Underspeed | Below 1350 rpm for 3 s: SPN 190 FMI 18, **amber lamp only**; above 1400 rpm for 1 s clears it | The DSE shuts down on the Protect lamp, which every SPN 190 used to light. A warning must not stop the set |
+| End-of-line record | 84 bytes, two copies apart from the logs, trims applied to every input; none good means SPN 628 FMI 13 | A unit that skipped the line says so on the DSE's screen |
+| Bootloader | Image header written **last**, magic last of all; never touches its own 32 KiB | A power cut anywhere leaves no valid header: the update is just run again. Tested by cutting the power at every write |
+| Hardware check | The bootloader runs an image only if the record's hardware revision is in the image's range | A good image for another board revision stays in the bootloader |
+| Engine stopped | OFF, WAIT or SHUTDOWN and no tooth for 1 s; an open session ends at the first tooth | A laptop left connected must never write while the engine turns |
+
+### Found on the way
+
+- **The SIL engine's load was constant power**, so any overload stalled
+  it in under 3 s, faster than the warning. A real alternator's regulator
+  rolls the voltage off below about 47 Hz, so a resistive load's power
+  falls with speed. The model now has that roll-off (`AVR_KNEE_RPM`, an
+  assumption); scenario 16 settles near 1190 rpm at 30 kW.
+- The spec's record size (88 bytes) was wrong: its own fields pack to 84.
+
+### Risks
+
+| Risk | What it costs | Answer |
+|---|---|---|
+| The seed-key secret is in every unit's flash | Anyone who reads one unit can compute keys for all | Acceptable for stopping casual writes. Signed images are the answer to tampering |
+| A CAN update at 500 kbit/s | About 30 KiB/s: a 256 KiB image takes about 10 s plus the erase | USB on the prototype |
+| The DSE's under-frequency settings are unknown (U4) | If the DSE ignores DM1 and has no under-frequency trip, nothing stops a set that sits overloaded | In the U4 questions |
+| No rollback | A bad image that passes its CRC needs the previous one flashed | One application slot, by choice |
+| **Still to write:** the chip layers | Flash, CAN, USB and reset drivers on the STM32G474 and S32K148 | The port contract, firmware guide §14 items 10–13 |
+
 ---
 
 ## Where these came from
