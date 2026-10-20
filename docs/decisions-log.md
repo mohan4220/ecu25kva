@@ -1287,7 +1287,8 @@ All portable C, tested on the PC (firmware guide §16). Spec
 | End-of-line record | 84 bytes, two copies apart from the logs, trims applied to every input; none good means SPN 628 FMI 13 | A unit that skipped the line says so on the DSE's screen |
 | Bootloader | Image header written **last**, magic last of all; never touches its own 32 KiB | A power cut anywhere leaves no valid header: the update is just run again. Tested by cutting the power at every write |
 | Hardware check | The bootloader runs an image only if the record's hardware revision is in the image's range | A good image for another board revision stays in the bootloader |
-| Engine stopped | OFF, WAIT or SHUTDOWN and no tooth for 1 s; an open session ends at the first tooth | A laptop left connected must never write while the engine turns |
+| Engine stopped | OFF, WAIT or SHUTDOWN and no tooth for 1 s; an open session ends at the first tooth; an ECU reset is refused while it turns | A laptop left connected, or a generic tester's reset button, must never stop a running set |
+| End-of-line "passed" | SPN 628 stays on until the record carries the passed stamp | A station that writes the serial and then aborts must not ship a unit running silently on default trims |
 
 ### Found on the way
 
@@ -1297,12 +1298,18 @@ All portable C, tested on the PC (firmware guide §16). Spec
   falls with speed. The model now has that roll-off (`AVR_KNEE_RPM`, an
   assumption); scenario 16 settles near 1190 rpm at 30 kW.
 - The spec's record size (88 bytes) was wrong: its own fields pack to 84.
+- **The final review (20 October)** found an ECU reset accepted on a
+  running set, a lost CAN flow-control frame that silenced channel 2
+  until power-off, "stopped" reading "turning" after 36 minutes at rest,
+  a partial record clearing SPN 628, USB served from the preemptible
+  background, a save handshake that could lose a write, and the affine
+  CRC-32 key. All seven fixed, each with a test that failed first.
 
 ### Risks
 
 | Risk | What it costs | Answer |
 |---|---|---|
-| The seed-key secret is in every unit's flash | Anyone who reads one unit can compute keys for all | Acceptable for stopping casual writes. Signed images are the answer to tampering |
+| The seed-key secret is in every unit's flash | Anyone who reads one unit can compute keys for all | Acceptable for stopping casual writes. Signed images are the answer to tampering. (The first design's CRC-32 key was worse: it is affine, so one sniffed unlock gave keys for every seed. The final review caught it; the key is now SipHash-2-4) |
 | A CAN update at 500 kbit/s | About 30 KiB/s: a 256 KiB image takes about 10 s plus the erase | USB on the prototype |
 | The DSE's under-frequency settings are unknown (U4) | If the DSE ignores DM1 and has no under-frequency trip, nothing stops a set that sits overloaded | In the U4 questions |
 | No rollback | A bad image that passes its CRC needs the previous one flashed | One application slot, by choice |

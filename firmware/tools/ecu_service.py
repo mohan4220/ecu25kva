@@ -39,6 +39,46 @@ class UdsError(Exception):
         super().__init__(text or f"service 0x{sid:02X} refused: {REASONS.get(code, hex(code))}")
 
 
+# ---- the key ---------------------------------------------------------------
+
+M64 = (1 << 64) - 1
+
+
+def siphash24(key, msg):
+    """SipHash-2-4, as firmware/core/service.c: the seed-key's keyed hash."""
+    def rotl(x, b):
+        return (x << b | x >> (64 - b)) & M64
+
+    def rounds(v, n):
+        v0, v1, v2, v3 = v
+        for _ in range(n):
+            v0 = (v0 + v1) & M64; v1 = rotl(v1, 13) ^ v0; v0 = rotl(v0, 32)
+            v2 = (v2 + v3) & M64; v3 = rotl(v3, 16) ^ v2
+            v0 = (v0 + v3) & M64; v3 = rotl(v3, 21) ^ v0
+            v2 = (v2 + v1) & M64; v1 = rotl(v1, 17) ^ v2; v2 = rotl(v2, 32)
+        return [v0, v1, v2, v3]
+    k0, k1 = struct.unpack("<QQ", key)
+    v = [0x736f6d6570736575 ^ k0, 0x646f72616e646f6d ^ k1,
+         0x6c7967656e657261 ^ k0, 0x7465646279746573 ^ k1]
+    tail = len(msg) - len(msg) % 8
+    for i in range(0, tail, 8):
+        w = struct.unpack_from("<Q", msg, i)[0]
+        v[3] ^= w
+        v = rounds(v, 2)
+        v[0] ^= w
+    b = (len(msg) & 0xFF) << 56 | int.from_bytes(msg[tail:], "little")
+    v[3] ^= b
+    v = rounds(v, 2)
+    v[0] ^= b
+    v[2] ^= 0xFF
+    v = rounds(v, 4)
+    return v[0] ^ v[1] ^ v[2] ^ v[3]
+
+
+def key_for(seed, secret):
+    return siphash24(secret, struct.pack("<I", seed)) & 0xFFFFFFFF
+
+
 # ---- links -----------------------------------------------------------------
 
 def crc16(data):
@@ -158,7 +198,7 @@ class Client:
 
     def unlock(self):
         seed = struct.unpack("<I", self.uds(0x27, 0x01)[2:6])[0]
-        key = zlib.crc32(struct.pack("<I", seed) + self.secret)
+        key = key_for(seed, self.secret)
         self.uds(bytes([0x27, 0x02]) + struct.pack("<I", key))
 
     def read(self, did):

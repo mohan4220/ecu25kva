@@ -45,12 +45,15 @@ static uint8_t bam_wait;             /* ms to the next TP.DT */
 static uint16_t under_ms, over_ms;   /* underspeed: ms below its floor, ms back above */
 /* the service link: one UDS core behind USB framing and CAN channel 2 */
 static svc_t svc;
-static eol_record eol;               /* the working record; ecu_eol_image hands it out */
-static uint8_t eol_ok;               /* a good record was loaded or written */
+static eol_record eol;               /* the working record */
+static eol_record eol_out;           /* the sealed copy the host is writing; ecu_eol_image's */
+static uint8_t eol_dirty;            /* changed since the host was last asked to save */
+static uint8_t eol_ok;               /* a good record, stamped "passed", was loaded or written */
 static isotp_t can2;
 static link_rx_t usb_rx;
 static uint8_t svc_req[ISOTP_MAX], svc_rsp[SVC_RESP_MAX];
 static uint8_t stopped;              /* engine stopped, as the service link means it */
+static uint16_t tooth_ms;            /* ms since the last crank tooth, saturating */
 static uint32_t now_us;              /* the last tick's time */
 
 static void event(ecu_io *io, uint8_t code, uint16_t arg)
@@ -135,9 +138,11 @@ void ecu_init(ecu_io *io)
     isotp_init(&can2, ECU_CAN2_RESP);
     memset(&usb_rx, 0, sizeof usb_rx);
     eol_default(&eol);                  /* until ecu_eol_load: SPN 628 */
-    eol_ok = 0;
+    eol_out = eol;
+    eol_ok = eol_dirty = 0;
     sens_trim(eol.gain, eol.offset);
     stopped = 1;
+    tooth_ms = ECU_STOPPED_MS;          /* no tooth yet: as long ago as counts */
     now_us = 0;
     io->usb_in_n = 0;
     io->usb_out_n = 0;
@@ -199,6 +204,7 @@ static void underspeed(ecu_io *io, float rpm)
 
 void ecu_crank_edge(ecu_io *io, uint32_t t_us)
 {
+    tooth_ms = 0;                       /* turning, whatever the state */
     if (io->state == ECU_OFF)
         return;
     if (io->state == ECU_WAIT) {
@@ -349,11 +355,11 @@ static void put16(uint8_t *p, uint32_t v) { p[0] = (uint8_t)(v >> 8); p[1] = (ui
 static uint16_t eol_changed(ecu_io *io, uint16_t n)
 {
     eol_seal(&eol);
-    eol_ok = (uint8_t)eol_valid(&eol);
+    eol_ok = (uint8_t)(eol_valid(&eol) && eol.passed);   /* a serial alone is not the line */
     if (eol_ok)
         fault_drop(io, SPN_PROGRAM, FMI_CALIBRATION);
     sens_trim(eol.gain, eol.offset);
-    io->eol_save = 1;
+    eol_dirty = 1;                      /* the next tick asks for a save, once the last is done */
     return n;
 }
 
@@ -521,15 +527,16 @@ void ecu_eol_load(ecu_io *io, const void *a, const void *b)
         eol_ok = 0;
     } else {
         memcpy(&eol, pick ? b : a, sizeof eol);
-        eol_ok = 1;
+        eol_ok = eol.passed != 0;
     }
+    eol_out = eol;
     sens_trim(eol.gain, eol.offset);
 }
 
 const void *ecu_eol_image(uint32_t *len)
 {
-    *len = sizeof eol;
-    return &eol;
+    *len = sizeof eol_out;
+    return &eol_out;
 }
 
 void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
@@ -554,9 +561,19 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
                     ? crank_rpm(&crank) : 0;
 
     now_us = t_us;
+    /* a counter, not a time difference: 2^31 us after the last tooth a
+     * signed difference turns negative and a set at rest reads "turning" */
+    if (tooth_ms < ECU_STOPPED_MS)
+        tooth_ms++;
     stopped = (io->state == ECU_OFF || io->state == ECU_WAIT || io->state == ECU_SHUTDOWN)
-              && (!crank.have || (int32_t)(t_us - crank_last_us(&crank)) > ECU_STOPPED_MS * 1000);
+              && tooth_ms >= ECU_STOPPED_MS;
     svc_tick(&svc, ms, stopped);
+    usb_poll(io);                       /* at tick priority: it shares state with the ISRs */
+    if (eol_dirty && !io->eol_save) {   /* never change the copy the host is writing */
+        eol_out = eol;
+        eol_dirty = 0;
+        io->eol_save = 1;
+    }
     io->session = svc.session;
     pump_can2(io);
 
@@ -643,7 +660,6 @@ const void *ecu_nvm_live(void) { return &img; }
 void ecu_background(ecu_io *io)
 {
     bg_ms = ms;
-    usb_poll(io);
     if (io->nvm_save)                   /* the host has not finished the last write */
         return;
     /* strict: whole seconds, so ">" is what guarantees at least SAVE_GAP_S */

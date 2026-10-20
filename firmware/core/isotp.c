@@ -72,6 +72,11 @@ int isotp_rx(isotp_t *t, const ecu_can *f, uint8_t *msg, uint16_t *len)
     if (f->len < 1)
         return 0;
     const uint8_t *d = f->data;
+    /* a new single or first frame is a new request: a reply still waiting
+     * for its flow control (lost, or the tester unplugged) is abandoned,
+     * or every later send would find the link busy for good */
+    if ((d[0] >> 4) <= 1 && t->tx_state == ISOTP_WAIT_FC)
+        t->tx_state = ISOTP_IDLE;
     switch (d[0] >> 4) {
     case 0: {                           /* single frame: replaces any reception */
         uint8_t n = d[0] & 15;

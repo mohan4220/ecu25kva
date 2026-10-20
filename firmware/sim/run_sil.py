@@ -21,7 +21,7 @@ from ecu import Ecu, RUN, SHUTDOWN, NCYL, eol_record  # noqa: E402
 from engine import Engine  # noqa: E402
 from run_sim import Checks, PASS, FAIL  # noqa: E402
 
-EOL = eol_record(b"SIL")
+EOL = eol_record(b"SIL", passed=1)
 
 S = 1_000_000                        # us per second
 EEC1, ET1, EFLP1, DM1 = 0xF004, 0xFEEE, 0xFEEF, 0xFECA

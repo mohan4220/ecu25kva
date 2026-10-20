@@ -373,6 +373,7 @@ static void ecu_up(ecu_io *io)
     ecu_nvm_load(io, NULL, NULL, 0);
     eol_record r;
     eol_default(&r);
+    r.passed = 1;
     eol_seal(&r);
     ecu_eol_load(io, &r, &r);              /* a unit that passed the line */
     tick_t = 0;
@@ -584,7 +585,9 @@ static uint16_t uds(ecu_io *io, const uint8_t *req, uint16_t n)
     for (uint16_t i = 0; i < m; i += 64) {
         io->usb_in_n = (uint8_t)(m - i < 64 ? m - i : 64);
         memcpy(io->usb_in, fr + i, io->usb_in_n);
-        ecu_background(io);
+        tick_t += 1000;
+        host_tick(io);
+        io->can_n = 0;
     }
     for (uint16_t i = 0; i < io->usb_out_n; i++)
         if (link_feed(&r, io->usb_out[i], rsp, &len))
@@ -709,6 +712,7 @@ static void test_eol_write_lock(void)
     CHECK(img->locked == 1);
     CHECK(nrc(uds(&io, sn, sizeof sn), 0x2E, 0x22));          /* locked */
     CHECK(UDS(&io, 0x22, 0x01, 0x01) == 6 && rsp[5] == 1);
+    io.eol_save = 0;                                            /* the host saved it */
     CHECK(UDS(&io, 0x31, 0x01, 0xF0, 0x01) == 4 && img->locked == 0);
     eol_write_ok(&io, sn, sizeof sn);
 }
@@ -749,6 +753,7 @@ static void test_trim_applied(void)
     eol_record r;
     eol_default(&r);
     r.gain[S_CLT] = 1.05f;
+    r.passed = 1;
     eol_seal(&r);
     ecu_eol_load(&io, &r, &r);
     ticks(&io, 10, 1);
@@ -768,6 +773,127 @@ static void test_boot_request(void)
     CHECK(UDS(&io, 0x10, 0x02) == 6 && rsp[0] == 0x50 && rsp[1] == 0x02);
     CHECK(io.boot_req == 1);
     CHECK(UDS(&io, 0x11, 0x01) == 2 && rsp[0] == 0x51 && io.reset_req == 1);
+}
+
+static void test_reset_refused_running(void)          /* final review C1 */
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    CHECK(nrc(UDS(&io, 0x11, 0x01), 0x11, 0x22));
+    CHECK(io.reset_req == 0);
+}
+
+static void test_can2_lost_fc(void)                   /* final review I2 */
+{
+    ecu_io io;
+    ecu_up(&io);
+    ticks(&io, 1100, 1);
+    ecu_can f = { 0x7E0, 8, { 0x03, 0x22, 0xF1, 0x8C, 0xAA, 0xAA, 0xAA, 0xAA } };
+    ecu_can2_rx(&io, &f);                                       /* a 19-byte answer: first frame */
+    ticks(&io, 5, 1);
+    io.can2_n = 0;                                              /* its flow control never comes */
+    ticks(&io, 2000, 1);
+    ecu_can tp = { 0x7E0, 8, { 0x02, 0x3E, 0x00, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA } };
+    ecu_can2_rx(&io, &tp);                                      /* the tester starts again */
+    ticks(&io, 2, 1);
+    CHECK(io.can2_n >= 1 && io.can2[0].data[0] == 0x02 && io.can2[0].data[1] == 0x7E);
+}
+
+static void test_stopped_after_long_rest(void)         /* final review I3 */
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    tick_t = t;
+    io.ignition = 0;                                            /* stopped, and stays off */
+    ticks(&io, 2000, 1);
+    CHECK(io.state == ECU_SHUTDOWN);
+    for (int min = 1; min <= 40; min++) {
+        ticks(&io, 60000, 1);
+        if (min == 30 || min == 37 || min == 40)
+            CHECK(UDS(&io, 0x10, 0x03) == 6 && UDS(&io, 0x10, 0x01) == 6);
+    }
+}
+
+static int dtc_active(uint32_t spn, uint8_t fmi)
+{
+    const nvm_dtc *d = log_dtc_find(ecu_nvm_live(), spn, fmi);
+    return d && (d->status & DTC_ACTIVE);
+}
+
+static void test_eol_partial_keeps_628(void)            /* final review I4 */
+{
+    ecu_io io;
+    ecu_up(&io);
+    static eol_record blank;
+    memset(&blank, 0, sizeof blank);
+    ecu_eol_load(&io, &blank, &blank);
+    ticks(&io, 1100, 1);
+    unlock(&io);
+    const uint8_t sn[] = { 0x2E, 0xF1, 0x8C, 'S', 'N', '7' };
+    eol_write_ok(&io, sn, sizeof sn);                           /* the station stops here */
+    ticks(&io, 2, 1);
+    CHECK(dtc_active(628, 13));                                 /* not through the line */
+    const uint8_t pass[] = { 0x2E, 0x01, 0x01, 4, 1 };
+    eol_write_ok(&io, pass, sizeof pass);
+    ticks(&io, 2, 1);
+    CHECK(!dtc_active(628, 13));
+}
+
+/* USB requests change state the interrupts share (the service core, the
+ * fault table): they are served at tick priority, never from the
+ * preemptible background. */
+static void test_usb_served_in_tick(void)              /* final review I5 */
+{
+    ecu_io io;
+    ecu_up(&io);
+    ticks(&io, 1100, 1);
+    uint8_t fr[16];
+    io.usb_in_n = (uint8_t)link_frame((const uint8_t[]){ 0x3E, 0x00 }, 2, fr);
+    memcpy(io.usb_in, fr, io.usb_in_n);
+    ecu_background(&io);
+    CHECK(io.usb_out_n == 0 && io.usb_in_n != 0);
+    tick_t += 1000;
+    ecu_tick_1ms(&io, tick_t);
+    CHECK(io.usb_out_n == 7 && io.usb_in_n == 0);
+}
+
+/* A write landing while the host is still saving: the image being saved
+ * does not change under it, and the new one is asked for once it is done. */
+static void test_eol_save_handshake(void)              /* final review I6 */
+{
+    ecu_io io;
+    ecu_up(&io);
+    ticks(&io, 1100, 1);
+    unlock(&io);
+    io.eol_save = 0;
+    CHECK(UDS(&io, 0x2E, 0xF1, 0x8C, 'A') == 3 && io.eol_save == 1);
+    uint32_t len;
+    const eol_record *img = ecu_eol_image(&len);
+    eol_record saving = *img;                                   /* the host is writing this */
+    CHECK(UDS(&io, 0x2E, 0xF1, 0x8C, 'B') == 3);                /* meanwhile, on CAN2 or USB */
+    CHECK(memcmp(img, &saving, sizeof saving) == 0);            /* stable while it writes */
+    io.eol_save = 0;                                            /* copies a and b done */
+    ticks(&io, 1, 1);
+    CHECK(io.eol_save == 1 && img->serial[0] == 'B' && eol_valid(img));
+}
+
+/* CRC-32 is affine: one sniffed seed and key gave the key for any seed,
+ * without the secret. The key is now SipHash-2-4 under SEC_SECRET. */
+static void test_siphash_key(void)                     /* final review I7 */
+{
+    uint8_t k[16], m[15];
+    for (int i = 0; i < 16; i++) k[i] = (uint8_t)i;
+    for (int i = 0; i < 15; i++) m[i] = (uint8_t)i;
+    CHECK(siphash24(k, m, 15) == 0xa129ca6149be45e5ull);        /* the SipHash paper's example */
+    CHECK(siphash24(k, m, 0) == 0x726fdb47dd0e0e31ull);         /* reference vector 0 */
+    const uint8_t sec[16] = SEC_SECRET;
+    const uint8_t seed[4] = { 0x78, 0x56, 0x34, 0x12 };
+    CHECK(svc_key(0x12345678u) == (uint32_t)siphash24(sec, seed, 4));
+    /* the affine relation that broke the CRC key no longer holds */
+    uint32_t s1 = 0x1111u, s2 = 0x2222u;
+    uint8_t z[20] = { 0 }, d[20] = { 0 };
+    d[0] = (uint8_t)(s1 ^ s2); d[1] = (uint8_t)((s1 ^ s2) >> 8);
+    CHECK((svc_key(s1) ^ nvm_crc32(d, 20) ^ nvm_crc32(z, 20)) != svc_key(s2));
 }
 
 static void test_can2_read(void)
@@ -1645,6 +1771,13 @@ int main(void)
     test_trim_applied();
     test_boot_request();
     test_can2_read();
+    test_reset_refused_running();
+    test_can2_lost_fc();
+    test_stopped_after_long_rest();
+    test_eol_partial_keeps_628();
+    test_usb_served_in_tick();
+    test_eol_save_handshake();
+    test_siphash_key();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }

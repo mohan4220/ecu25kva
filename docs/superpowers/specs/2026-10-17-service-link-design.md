@@ -104,8 +104,10 @@ message and resynchronises on the next `0x55`.
   it alive).
 
 **Seed-key.** The seed is 32 bits from the free-running µs counter mixed
-with the ms counter, never 0. The key is `CRC-32(seed, 4 bytes LE ‖
-secret, 16 bytes)`. The secret is a build constant, `SEC_SECRET` in
+with the ms counter, never 0. The key is the low 32 bits of
+`SipHash-2-4(secret, seed as 4 bytes LE)`. (First written as CRC-32 of
+seed ‖ secret; the final review showed that is affine, so one sniffed
+unlock forges every key. Changed 20 October.) The secret is a build constant, `SEC_SECRET` in
 `service.h`, and the tool reads the same 16 bytes from a file the owner
 keeps. Three wrong keys lock security access for 10 s. Unlocked lasts
 until the session ends.

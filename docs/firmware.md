@@ -67,7 +67,7 @@ nothing inside the core changes.
 | `core/eol.c` | The end-of-line record: defaults, checksum, trim limits, picking a copy |
 | `boot/boot.c` | The bootloader: run the application or stay, erase, download, check |
 | `tools/ecu_service.py` | The laptop service tool (§16) |
-| `sim/test_core.c` | 94 unit tests of the C code |
+| `sim/test_core.c` | 101 unit tests of the C code |
 | `sim/test_boot.c` | 7 bootloader tests against a simulated flash |
 | `sim/ecu.py` | Python wrapper around the compiled core; `Unit`, a simulated board for the tool |
 | `sim/engine.py` | The engine model |
@@ -98,10 +98,10 @@ platform writes the inputs and reads the outputs.
 | | `nvm_save`, `nvm_slot` | "Write the image to this copy now", cleared by the platform when done |
 | Status | `state`, `rpm`, `fuel_mg`, `rail_bar`, `clt_c`, `oil_kpa`, `fault_n`, `synced` | For display and tests |
 | Service link (§16) | `boot_ver` | Input: the bootloader's version, for UDS 0xF180 |
-| | `usb_in[64]`, `usb_in_n` | Bytes received on USB; `ecu_background` consumes them and zeroes the count |
+| | `usb_in[64]`, `usb_in_n` | Bytes received on USB; the next `ecu_tick_1ms` consumes them and zeroes the count (at tick priority: they change state the interrupts share) |
 | | `usb_out[512]`, `usb_out_n` | Bytes to send on USB; the platform sends them, then zeroes the count |
 | | `can2[16]`, `can2_n` | Frames to send on CAN channel 2, as `can[]` |
-| | `eol_save` | "Write the end-of-line record to copy a, then copy b", cleared when done |
+| | `eol_save` | "Write the end-of-line record to copy a, then copy b", cleared when done. The image does not change while it is set; a later change asks again once it is cleared |
 | | `boot_req`, `reset_req` | Set the stay flag and reset into the bootloader; a plain reset |
 | | `session` | Status: the UDS session (1 default, 2 programming, 3 extended) |
 
@@ -410,7 +410,7 @@ scenarios, and they say at once whether the control still holds.
 ## 13. How it is tested
 
 ```
-make -C firmware/sim test                       # 94 unit tests and 7 bootloader tests, a few s
+make -C firmware/sim test                       # 101 unit tests and 7 bootloader tests, a few s
 .venv/bin/python firmware/sim/run_sil.py        # 16 scenarios, about 2-3 min
 .venv/bin/python firmware/sim/run_sil.py rail   # scenarios whose name contains "rail"
 .venv/bin/python firmware/sim/test_service.py   # the service tool end to end, about 10 s
@@ -472,9 +472,10 @@ The core needs nothing else. The platform layer must:
 8. **Main loop:** call `ecu_background` continuously.
 9. **Priorities:** the edge, tick and CAN-receive interrupts at one
    priority. Mask them during the image copy inside `ecu_background`.
-10. **Service link:** pass CAN channel 2 frames to `ecu_can2_rx`; send
-    `can2[0..can2_n)`. On the prototype, copy USB virtual-serial bytes
-    into `usb_in` and send `usb_out`.
+10. **Service link:** pass CAN channel 2 frames to `ecu_can2_rx` (at the
+    tick's priority); send `can2[0..can2_n)`. On the prototype, copy USB
+    virtual-serial bytes into `usb_in` (up to 64 per ms; the tick takes
+    them) and send `usb_out`.
 11. **End-of-line record:** two copies in their own sector (S32K148: a
     D-flash sector; STM32G474: the last page). Pass both to
     `ecu_eol_load` at start-up. When `eol_save` is set, write
@@ -542,7 +543,7 @@ prototype for quick iterations, **CAN channel 2** in production (ECU pins
 | `0x10` session | default `01`, extended `03`; programming `02` (unlocked) resets into the bootloader | default, extended, programming |
 | `0x27` security | seed `01`, key `02`; not in the default session | same |
 | `0x3E` tester present | keeps a session alive (`3E 80`: no reply) | same |
-| `0x11` reset | `01` | `01`: runs the image if it is good |
+| `0x11` reset | `01`, engine stopped only | `01`: runs the image if it is good |
 | `0x22` read | `F18C` serial, `F191` hardware revision, `F18B` build date, `F195` software version, `F180` boot version, `0100` trims, `0101` station, passed, locked | `F180`, `F195` (from the image header), `FD00` the application area |
 | `0x2E` write | the record's IDs: extended, unlocked, engine stopped, record not locked | — |
 | `0x31` routine | `F000` lock the record, `F001` unlock it (logged) | `FF00` erase (address, length), `FF01` check (CRC, version, hardware range) |
@@ -555,19 +556,25 @@ length, `72` programming failure, `7F` wrong session.
 
 **Rules:**
 - **Engine stopped** means OFF, WAIT or SHUTDOWN and no crank tooth for
-  1 s. Extended and programming sessions are refused otherwise, and an
-  open one ends at the first tooth.
+  1 s (a saturating counter, so it holds however long the set rests).
+  Extended and programming sessions, and an ECU reset, are refused
+  otherwise, and an open session ends at the first tooth.
 - A non-default session ends 5 s after the last message.
-- **Seed-key:** the key is CRC-32 of the seed (4 bytes LE) followed by
-  the 16-byte `SEC_SECRET`. Three wrong keys lock security access for
-  10 s. This stops casual writes, not a determined attacker: anyone who
-  reads one unit's flash can compute keys for all.
+- **Seed-key:** the key is the low 32 bits of **SipHash-2-4** of the seed
+  (4 bytes LE), keyed with the 16-byte `SEC_SECRET`. Three wrong keys lock
+  security access for 10 s. A sniffed seed and key reveal nothing about
+  other seeds (the first design's CRC-32 key did: it is affine). It still
+  stops casual writes, not a determined attacker: anyone who reads one
+  unit's flash has the secret for all.
 
 **The end-of-line record** (`core/eol.h`, 84 bytes): magic `0xE01D`,
 version, serial (16 ASCII), hardware revision, build date (yyyymmdd), six
 gains and six offsets (coolant, oil, rail, boost, EGR, 5 V reference),
 station, passed, locked, CRC-32. Two copies apart from the logs; copy a
-is written first, so when both are good copy a is the newer. Once locked
+is written first, so when both are good copy a is the newer. **Only a
+record stamped "passed" counts:** until the station writes that stamp,
+SPN 628 FMI 13 stays on, so a station that stops after the serial ships
+no silent unit. Once locked
 (`31 01 F000`) every write is refused until `31 01 F001`.
 
 **The bootloader** (`boot/boot.c`, 32 KiB at the bottom of flash):

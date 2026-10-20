@@ -1,7 +1,8 @@
 /* The service link's UDS (ISO 14229) core, shared by the application
  * and the bootloader: sessions, seed-key security, tester present, ECU
  * reset. Everything else goes to the caller's `extra` handler.
- * Not proof against a determined attacker (spec 2026-10-17 sec. 12). */
+ * The key is a keyed hash, so a sniffed seed and key reveal nothing about
+ * other seeds; the secret is still in every unit's flash (decisions §16). */
 #ifndef SERVICE_H
 #define SERVICE_H
 
@@ -38,7 +39,8 @@ struct svc {
 };
 
 void     svc_init(svc_t *s, int in_boot);
-uint32_t svc_key(uint32_t seed);
+uint32_t svc_key(uint32_t seed);      /* low 32 bits of SipHash-2-4(SEC_SECRET, seed LE) */
+uint64_t siphash24(const uint8_t key[16], const uint8_t *m, uint32_t n);
 uint16_t svc_nrc(uint8_t *resp, uint8_t sid, uint8_t code);
 uint16_t svc_handle(svc_t *s, const uint8_t *req, uint16_t n, uint8_t *resp,
                     uint32_t ms, uint32_t us, int engine_stopped, svc_extra extra);

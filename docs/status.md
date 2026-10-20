@@ -270,7 +270,7 @@ contact-type confirmation, which gates nothing
 | 1.5 | Block-level simulation | **Done — 26 blocks, 26 passing** (feed_emi added 8 Oct 2026) |
 | **2** | **KiCad hierarchical schematic capture** | **Complete — 380 components, 378 with footprints; connectivity OK with 2 named open items (power-ground pin, trip-loop pin)** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | **Prepared for hand routing (14 Oct)**: board with all 379 parts placed by block, classes and rules set, DRC clean, 499 connections to route (decisions log §13). Housing and J1001 are placeholders until measured (brief Group 6) |
-| 4 | Firmware skeleton | **Core done on the PC, with production logging — 16/16 engine scenarios, 94 unit tests; calibrated from the old ECU's recording (§14). Service link (20 Oct): bootloader, end-of-line record, underspeed warning, laptop tool over USB and CAN — 7 bootloader tests, the tool tested end to end** (decisions log §11, §12, §16). Next: S32K148 dev kit and the chip layers |
+| 4 | Firmware skeleton | **Core done on the PC, with production logging — 16/16 engine scenarios, 101 unit tests; calibrated from the old ECU's recording (§14). Service link (20 Oct): bootloader, end-of-line record, underspeed warning, laptop tool over USB and CAN — 7 bootloader tests, the tool tested end to end** (decisions log §11, §12, §16). Next: S32K148 dev kit and the chip layers |
 
 ### Phase 2 — what exists
 
@@ -938,7 +938,7 @@ value or closes a register entry; those two change the output count.
 Rewritten 15 October 2026. **The tree is clean and pushed. Every check passes:**
 - 26/26 circuit simulations
 - the netlist gate, with its 2 named open items
-- 94 firmware unit tests, 7 bootloader tests, 16/16 engine scenarios and the service tool end to end
+- 101 firmware unit tests, 7 bootloader tests, 16/16 engine scenarios and the service tool end to end
 - the PCB rules and generator self-tests
 - the board check, including the schematic links
 

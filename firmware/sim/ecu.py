@@ -267,8 +267,8 @@ class Unit:
             chunk = fr.raw[i:min(n, i + USB_IN)]
             C.memmove(io.usb_in, chunk, len(chunk))
             io.usb_in_n = len(chunk)
-            self.app.background()
-        self.run(5)
+            self.run(1)                          # the tick serves USB
+        self.run(4)
         rx, msg, ln, got = C.create_string_buffer(8192), C.create_string_buffer(4096), C.c_uint16(), b""
         for b in bytes(io.usb_out[:io.usb_out_n]):
             if lib.link_feed(rx, C.c_uint8(b), msg, C.byref(ln)):

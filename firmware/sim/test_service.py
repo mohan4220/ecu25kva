@@ -83,6 +83,12 @@ def test_wrong_hardware():
     assert u.mode == "boot", (u.mode, out)               # a good image for other hardware stays
 
 
+def test_key_vectors():
+    k = bytes(range(16))
+    assert ecu_service.siphash24(k, bytes(range(15))) == 0xa129ca6149be45e5   # the SipHash paper
+    assert ecu_service.siphash24(k, b"") == 0x726fdb47dd0e0e31
+
+
 def test_engine_turning():
     u = Unit()
     u.turning = True

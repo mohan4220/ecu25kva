@@ -50,7 +50,7 @@ typedef struct {
     /* service link (spec 2026-10-17) */
     uint16_t boot_ver;               /* input: the bootloader's version, for UDS 0xF180 */
     uint8_t usb_in[ECU_USB_IN];      /* host writes bytes received, sets usb_in_n; */
-    uint8_t usb_in_n;                /* ecu_background consumes them and clears it */
+    uint8_t usb_in_n;                /* the next ecu_tick_1ms consumes them and clears it */
     uint8_t usb_out[ECU_USB_OUT];    /* host sends usb_out[0..usb_out_n), then sets 0 */
     uint16_t usb_out_n;
     ecu_can can2[ECU_CANQ];          /* CAN channel 2 frames out, as can[] */
