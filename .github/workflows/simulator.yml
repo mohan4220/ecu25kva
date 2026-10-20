@@ -19,6 +19,9 @@ jobs:
           - { os: macos-latest, name: macos, exe: ecusim, out: ecusim-macos, fw: ecu_fw.dylib }
           - { os: ubuntu-latest, name: linux, exe: ecusim, out: ecusim-linux, fw: ecu_fw.so }
     runs-on: ${{ matrix.os }}
+    env:
+      # Windows: link the C runtime in, so the .exe runs with nothing installed
+      RUSTFLAGS: ${{ matrix.name == 'windows' && '-C target-feature=+crt-static' || '' }}
     defaults:
       run:
         working-directory: simulator

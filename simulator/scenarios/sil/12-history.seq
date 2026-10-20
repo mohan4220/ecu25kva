@@ -1,9 +1,14 @@
 # 12 runaway, then power cycle: the history survives
-# Python-only: previously active after power-up, occurrence count 1,
-# freeze-frame rpm >= 1650, SHUTDOWN in the event log, the trip recording
-# and its 50 after-trip samples, starts counted.
+# DM2 lists only stored faults that are not active, so 190/0 on DM2 right
+# after the power cycle proves the reload kept it, as previously active.
+# (Ask at once: the fuel stays stuck, and by 9.5 s it is active again.)
+# Python-only: occurrence count 1, freeze-frame rpm >= 1650, SHUTDOWN in
+# the event log, the trip recording and its 50 after-trip samples, starts
+# counted.
 0 start
 6 fuel stuck 80
 9 power cycle
-9 end
+9 request dm2
+9.2 end
 expect stored 190/0
+expect dm2 190/0 after 9

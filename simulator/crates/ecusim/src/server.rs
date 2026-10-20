@@ -33,10 +33,32 @@ pub fn bind(port: u16, share: bool) -> Result<(Server, u16), String> {
 
 /// One thread per request; never returns.
 pub fn serve(server: Server, tx: mpsc::Sender<Cmd>, hub: Arc<Hub>, share: bool, runs_dir: PathBuf) {
+    let port = server.server_addr().to_ip().map_or(0, |a| a.port());
     for req in server.incoming_requests() {
         let (tx, hub, runs_dir) = (tx.clone(), hub.clone(), runs_dir.clone());
-        std::thread::spawn(move || handle(req, &tx, &hub, share, &runs_dir));
+        std::thread::spawn(move || {
+            if trusted(&req, port, share) {
+                handle(req, &tx, &hub, share, &runs_dir)
+            } else {
+                text(req, 403, "refused: this request did not come from the simulator's own page")
+            }
+        });
     }
+}
+
+/// Only the simulator's own page may talk to it. Any web site the user
+/// visits can send a POST to 127.0.0.1 (no preflight for a plain body), and
+/// /firmware loads native code; a DNS-rebinding name can pose as us. So:
+/// the Host must be ours (locally), and an Origin, if sent, must match it.
+fn trusted(req: &Request, port: u16, share: bool) -> bool {
+    let get = |name: &'static str| {
+        req.headers().iter().find(|h| h.field.equiv(name)).map(|h| h.value.as_str().to_string())
+    };
+    let host = get("Host").unwrap_or_default();
+    if !share && host != format!("127.0.0.1:{port}") && host != format!("localhost:{port}") {
+        return false;
+    }
+    get("Origin").is_none_or(|o| o == format!("http://{host}"))
 }
 
 fn header(k: &str, v: &str) -> Header {

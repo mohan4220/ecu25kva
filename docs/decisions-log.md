@@ -1358,7 +1358,8 @@ easy setup for him too".
 
 | Risk | Answer |
 |---|---|
-| Loaded firmware runs with the user's rights | The UI says so; uploads are refused under `--share` |
+| Loaded firmware runs with the user's rights | The UI says so; uploads are refused under `--share`. Only the simulator's own page may send it anything: the final review found that any web site the user visits could POST a library to 127.0.0.1 (no preflight for a plain body), so the Host and Origin headers are checked |
+| The Windows `.exe` needing the VC++ runtime | The C runtime is linked in (`+crt-static`, `/MT`), so nothing is installed |
 | The binary is unsigned | SmartScreen and Gatekeeper warn once; the guide says how to proceed |
 | A live session keeps its whole trace in memory | About 300 MB per simulated hour; streaming to disk is the upgrade if long sessions matter |
 | `sin` and `exp` differ in the last bit between OSes | Traces can differ slightly across machines; the checks' bands absorb it |

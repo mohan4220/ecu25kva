@@ -40,6 +40,7 @@ pub fn build(core: &Path, out: &Path, defines: &[&str]) -> Result<(), String> {
         .host(TARGET)
         .opt_level(2)
         .debug(false)
+        .static_crt(true) // MSVC: /MT, so the DLL needs no VC++ runtime installed
         .cargo_metadata(false)
         .cargo_warnings(false)
         .try_get_compiler()

@@ -30,10 +30,14 @@ fn start(share: bool) -> Srv {
     Srv { port, tx, hub }
 }
 
-/// (status, body)
+/// (status, body), as the page itself sends it
 fn http(port: u16, method: &str, path: &str, body: &[u8]) -> (u16, Vec<u8>) {
+    raw(port, method, path, body, &format!("Host: 127.0.0.1:{port}\r\n"))
+}
+
+fn raw(port: u16, method: &str, path: &str, body: &[u8], headers: &str) -> (u16, Vec<u8>) {
     let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
-    write!(s, "{method} {path} HTTP/1.1\r\nHost: x\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).unwrap();
+    write!(s, "{method} {path} HTTP/1.1\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n", body.len()).unwrap();
     s.write_all(body).unwrap();
     let mut r = vec![];
     s.read_to_end(&mut r).unwrap();
@@ -130,7 +134,7 @@ fn sse_subscriber_dropped_on_disconnect() {
     let s = start(false);
     assert_eq!(http(s.port, "POST", "/cmd", b"start").0, 200);
     let mut c = TcpStream::connect(("127.0.0.1", s.port)).unwrap();
-    write!(c, "GET /events HTTP/1.1\r\nHost: x\r\n\r\n").unwrap();
+    write!(c, "GET /events HTTP/1.1\r\nHost: 127.0.0.1:{}\r\n\r\n", s.port).unwrap();
     let mut got = vec![0u8; 4096];
     let n = c.read(&mut got).unwrap();
     assert!(text(&got[..n]).contains("text/event-stream"));
@@ -147,7 +151,7 @@ fn sse_subscriber_dropped_on_disconnect() {
     }
     // still running, and a new tab gets the stream
     let mut c = TcpStream::connect(("127.0.0.1", s.port)).unwrap();
-    write!(c, "GET /events HTTP/1.1\r\nHost: x\r\n\r\n").unwrap();
+    write!(c, "GET /events HTTP/1.1\r\nHost: 127.0.0.1:{}\r\n\r\n", s.port).unwrap();
     c.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
     let mut seen = String::new();
     while !seen.contains("\"mode\":\"running\"") {
@@ -155,4 +159,27 @@ fn sse_subscriber_dropped_on_disconnect() {
         assert!(n > 0);
         seen += &text(&got[..n]);
     }
+}
+
+#[test]
+fn foreign_origin_refused() {
+    // a web page elsewhere must not reach dlopen, nor drive the engine
+    let s = start(false);
+    let evil = format!("Host: 127.0.0.1:{}\r\nOrigin: http://evil.example\r\n", s.port);
+    assert_eq!(raw(s.port, "POST", "/firmware?name=x.dll", &[0x5Au8; 64], &evil).0, 403);
+    assert_eq!(raw(s.port, "POST", "/cmd", b"load 20", &evil).0, 403);
+    assert_eq!(raw(s.port, "POST", "/scenario", b"0 start\n1 end\n", &evil).0, 403);
+    // the page's own requests carry its own origin
+    let own = format!("Host: 127.0.0.1:{0}\r\nOrigin: http://127.0.0.1:{0}\r\n", s.port);
+    assert_eq!(raw(s.port, "POST", "/cmd", b"speed 2", &own).0, 200);
+}
+
+#[test]
+fn foreign_host_refused() {
+    // DNS rebinding: a name that resolves to 127.0.0.1 but is not ours
+    let s = start(false);
+    let evil = format!("Host: evil.example:{}\r\n", s.port);
+    assert_eq!(raw(s.port, "GET", "/", b"", &evil).0, 403);
+    assert_eq!(raw(s.port, "POST", "/firmware?name=x.dll", &[0x5Au8; 64], &evil).0, 403);
+    assert_eq!(raw(s.port, "GET", "/", b"", &format!("Host: localhost:{}\r\n", s.port)).0, 200);
 }

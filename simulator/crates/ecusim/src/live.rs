@@ -114,6 +114,7 @@ impl Live {
         self.hub.publish("report", &json!({"name": self.name, "outcomes": out, "folder": folder}));
         self.script = None;
         self.mode = Mode::Stopped;
+        self.reached.clear(); // its samples belong to the run just ended
         self.publish_status();
     }
 
@@ -149,6 +150,7 @@ impl Live {
                 self.sim = None;
                 self.script = None;
                 self.mode = Mode::Stopped;
+                self.reached.clear();
             }
             Cmd::Speed(s) => {
                 self.speed = s.filter(|x| *x > 0.0);
@@ -396,6 +398,21 @@ mod tests {
         });
         assert_eq!(outcomes.len(), 3);
         assert!(outcomes.iter().all(|o| o["pass"] == true), "{outcomes:?}");
+    }
+
+    #[test]
+    fn stop_after_a_long_run_keeps_the_thread() {
+        let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
+        let (tx, hub) = spawn(Firmware::bundled(), tmp("long"));
+        let rx = hub.subscribe();
+        tx.send(Cmd::Speed(None)).unwrap();
+        tx.send(Cmd::Line("start".into())).unwrap();
+        let t0 = Instant::now();
+        watch(&rx, |ev, _| ev == "status" && t0.elapsed() > Duration::from_millis(1500));
+        tx.send(Cmd::Stop).unwrap();
+        watch(&rx, |ev, _| ev == "report");
+        tx.send(Cmd::Line("start".into())).unwrap();
+        watch(&rx, |ev, d| ev == "status" && d["mode"] == "running");
     }
 
     #[test]
