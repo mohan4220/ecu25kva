@@ -35,6 +35,7 @@ static ecu_can tx[J1939_BAM_MAX];    /* scratch for building a response */
 static uint8_t pend_dm1, pend_dm2, pend_dm4, pend_hours;
 static uint8_t bam_n, bam_i;
 static uint8_t bam_wait;             /* ms to the next TP.DT */
+static uint16_t under_ms, over_ms;   /* underspeed: ms below its floor, ms back above */
 
 static void event(ecu_io *io, uint8_t code, uint16_t arg)
 {
@@ -95,6 +96,7 @@ static void reset_all(ecu_io *io)
     memset(&faults, 0, sizeof faults);
     log_dtc_all_inactive(&img);         /* the latch clears; the history stays */
     ign_low_ms = 0;
+    under_ms = over_ms = 0;
     bam_n = bam_i = 0;
     pend_dm1 = pend_dm2 = pend_dm4 = pend_hours = 0;
     inject_cancel(io->inj);
@@ -146,6 +148,24 @@ static void check(ecu_io *io, float rpm)
     int why = safety_check(rpm, crank_fault(&crank), io->ignition, io->state == ECU_RUN);
     if (why != TRIP_NONE && !(why == TRIP_IGN && io->state == ECU_SHUTDOWN))
         trip(io, why);
+}
+
+/* Armed in RUN once the setpoint ramp from the start has finished. A
+ * warning only: the engine keeps governing (spec: the DSE decides). */
+static void underspeed(ecu_io *io, float rpm)
+{
+    int armed = io->state == ECU_RUN && gov.set >= gov_setpoint(gov.fuel, io->droop_sw) - 1.0f;
+    if (!armed) {
+        under_ms = over_ms = 0;
+        fault_drop(io, SPN_SPEED, FMI_LOW_MODERATE);
+        return;
+    }
+    under_ms = rpm < UNDERSPEED_RPM ? (uint16_t)(under_ms + (under_ms < UNDERSPEED_MS)) : 0;
+    over_ms = rpm > UNDERSPEED_CLEAR_RPM ? (uint16_t)(over_ms + (over_ms < UNDERSPEED_CLEAR_MS)) : 0;
+    if (under_ms >= UNDERSPEED_MS)
+        fault_raise(io, SPN_SPEED, FMI_LOW_MODERATE);
+    else if (over_ms >= UNDERSPEED_CLEAR_MS)
+        fault_drop(io, SPN_SPEED, FMI_LOW_MODERATE);
 }
 
 void ecu_crank_edge(ecu_io *io, uint32_t t_us)
@@ -207,7 +227,8 @@ static uint8_t lamps(void)
 {
     uint8_t l = 0;
     for (int i = 0; i < faults.n; i++)
-        l |= (faults.f[i].spn == SPN_SPEED || faults.f[i].spn == SPN_POS)
+        l |= ((faults.f[i].spn == SPN_SPEED && faults.f[i].fmi != FMI_LOW_MODERATE)
+              || faults.f[i].spn == SPN_POS)
              ? LAMP_RED | LAMP_PROTECT        /* shutdown: the DSE stops only on Protect */
              : LAMP_AMBER;
     return l;
@@ -331,6 +352,7 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
 
     io->rpm = rpm;
     check(io, rpm);
+    underspeed(io, rpm);
 
     if (io->state == ECU_RUN)
         gov_step(&gov, rpm, io->droop_sw, 0.001f);

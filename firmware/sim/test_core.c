@@ -381,7 +381,9 @@ static void ticks(ecu_io *io, int n, int drain)
     }
 }
 
-/* Edges at `rpm`, with 1 ms ticks interleaved when with_ticks. */
+/* Edges at `rpm`, with 1 ms ticks interleaved when with_ticks. The last
+ * DM1's lamp byte seen while spinning is kept in spin_lamps. */
+static uint8_t spin_lamps;
 static void ecu_spin(ecu_io *io, float rpm, int edges, uint32_t *t, int *tooth, int with_ticks)
 {
     for (int i = 0; i < edges; i++) {
@@ -389,6 +391,8 @@ static void ecu_spin(ecu_io *io, float rpm, int edges, uint32_t *t, int *tooth, 
         while (with_ticks && tick_t + 1000 <= *t) {
             tick_t += 1000;
             host_tick(io);
+            for (int k = 0; k < io->can_n; k++)
+                if (io->can[k].id == 0x18FECAEAu) spin_lamps = io->can[k].data[0];
             io->can_n = 0;
         }
         if (cam) ecu_cam_edge(io, *t - 10);
@@ -408,7 +412,7 @@ static void ecu_running(ecu_io *io, uint32_t *t, int *tooth)
 
 /* Tick until the next DM1 and report whether its first DTC is `spn`
  * (0 = the empty "no fault" DTC). Its lamp byte is left in dm1_lamps. */
-static uint8_t dm1_lamps;
+static uint8_t dm1_lamps, dm1_fmi;
 static int dm1_first_spn(ecu_io *io, uint32_t spn)
 {
     for (int i = 0; i < 1000; i++) {
@@ -419,6 +423,7 @@ static int dm1_first_spn(ecu_io *io, uint32_t spn)
             if (f->id == 0x18FECAEAu) {
                 uint32_t got = f->data[2] | f->data[3] << 8 | (uint32_t)(f->data[4] & 0xE0) << 11;
                 dm1_lamps = f->data[0];
+                dm1_fmi = f->data[4] & 0x1F;
                 io->can_n = 0;
                 return got == spn;
             }
@@ -426,6 +431,35 @@ static int dm1_first_spn(ecu_io *io, uint32_t spn)
         io->can_n = 0;
     }
     return 0;
+}
+
+/* Edges at `rpm`, ticks interleaved, for `dur` ms of simulated time. */
+static void ecu_hold(ecu_io *io, float rpm, uint32_t dur, uint32_t *t, int *tooth)
+{
+    uint32_t end = tick_t + dur * 1000u;         /* tick_t is in us */
+    while (tick_t < end)
+        ecu_spin(io, rpm, 1, t, tooth, 1);
+}
+
+static void test_underspeed(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    ecu_hold(&io, 1500, 3000, &t, &tooth);          /* the setpoint ramp is over */
+    CHECK(io.fault_n == 0);
+    ecu_hold(&io, 1340, 2900, &t, &tooth);
+    CHECK(io.fault_n == 0);
+    ecu_hold(&io, 1340, 200, &t, &tooth);
+    CHECK(io.fault_n == 1);
+    CHECK(io.state == ECU_RUN);                      /* a warning, never a shutdown */
+    ecu_hold(&io, 1410, 900, &t, &tooth);
+    CHECK(io.fault_n == 1);
+    ecu_hold(&io, 1410, 200, &t, &tooth);
+    CHECK(io.fault_n == 0);
+    ecu_hold(&io, 1340, 4200, &t, &tooth);           /* and one DM1 after it rose */
+    const nvm_dtc *d = log_dtc_find(ecu_nvm_live(), SPN_SPEED, FMI_LOW_MODERATE);
+    CHECK(d && (d->status & DTC_ACTIVE));
+    CHECK(spin_lamps == LAMP_AMBER);                 /* not Protect: the DSE decides */
 }
 
 static void test_ecu_start(void)
@@ -1260,6 +1294,7 @@ int main(void)
     test_ecu_dm1_not_starved();
     test_ecu_wdg_reset_saved();
     test_ecu_bam_dt_not_dropped();
+    test_underspeed();
     printf("%s: %d failure(s)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }

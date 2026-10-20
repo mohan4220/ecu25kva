@@ -13,6 +13,11 @@ RPM = 2 * math.pi / 60               # rad/s per rpm
 J = 2.0                              # kg m2, engine + alternator rotor
 WORK_PER_MG = 19.5                   # J indicated per mg fuel (LHV 42.6 kJ/g x 0.46)
 GEN_EFF = 0.9
+# The alternator's voltage regulator rolls the voltage off with frequency
+# below its knee (assumed 47 Hz, below full-load droop's 48 Hz), so a
+# resistive load's power falls as (rpm / knee)^2 and an overloaded set
+# settles at a lower speed instead of stalling.
+AVR_KNEE_RPM = 1410.0
 STARTER_T, STARTER_NOLOAD = 100.0, 165.0     # N m stall, rpm at zero torque
 COMP_T = 40.0                        # N m compression/expansion ripple amplitude
 TDC1 = 90.0                          # cycle angle of cylinder 1 firing TDC (= CRANK_TDC1_DEG)
@@ -102,7 +107,8 @@ class Engine:
         if self.starter:
             torque += max(0.0, STARTER_T * (1 - rpm / STARTER_NOLOAD))
         torque -= friction(rpm) if self.omega > 0 else 0
-        torque -= self.load_kw * 1000 / GEN_EFF / max(self.omega, 50.0)
+        roll = min(1.0, rpm / AVR_KNEE_RPM) ** 2
+        torque -= self.load_kw * roll * 1000 / GEN_EFF / max(self.omega, 50.0)
         self.net_torque = torque
         self.omega = max(0.0, self.omega + torque / J * dt)
 

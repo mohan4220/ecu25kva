@@ -222,6 +222,9 @@ def load_step():
     c.that("lowest speed, rpm", min(r for t, r, *_ in sim.trace if t >= 8 * S), 1350,
            ok=min(r for t, r, *_ in sim.trace if t >= 8 * S) > 1350, unit="rpm")
     c.that("speed 5 s after, rpm", sim.mean_rpm(12.9, 13.0), 1500, tol=15, unit="rpm")
+    under = [t for t, d in sim.dm1_after(0) if (190, 18) in d]
+    c.that("no underspeed warning (SPN 190 FMI 18)", "none" if not under else "raised", 0,
+           ok=not under)
     return c
 
 
@@ -438,12 +441,30 @@ def lost_tooth():
            ok=(190, 0) not in stored)
     return c
 
+def overload():
+    c = Checks("16 overload 30 kW: underspeed warning, engine keeps running")
+    sim = Sim().start(8.0)
+    sim.eng.load_kw = 30                # beyond the 45 mg fuel limit at 1350 rpm
+    sim.run(20.0)
+    sag = next((t for t, r, *_ in sim.trace if t >= 8 * S and r < 1350), None)
+    c.that("speed sags below 1350 rpm", "yes" if sag else "no", 0, ok=sag is not None)
+    if sag:
+        got = next((t for t, d in sim.dm1_after(sag) if (190, 18) in d), None)
+        c.that("DM1 carries SPN 190 FMI 18 within 5 s of the sag, s",
+               (got - sag) / S if got else 99, 5, ok=got is not None and got - sag <= 5 * S, unit="s")
+        if got:
+            lamp = next(d for t, p, d in sim.can if p == DM1 and t == got)[0]
+            c.that("amber lamp only, not Protect", hex(lamp), 0, ok=lamp == 0x04)
+    c.that("never shut down", "ok" if sim.trip() is None else "tripped", 0,
+           ok=sim.trip() is None and sim.io.state == RUN)
+    return c
+
 
 SCENARIOS = {f.__name__: f for f in (start, load_step, load_reject, droop, runaway,
                                      crank_loss, ignition_off, sensor_open,
                                      can_content, rail, watchdog,
                                      history_after_power_cycle, torn_save,
-                                     dm2_dm3_over_can, lost_tooth)}
+                                     dm2_dm3_over_can, lost_tooth, overload)}
 
 
 def main():
