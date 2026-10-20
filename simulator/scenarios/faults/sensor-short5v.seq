@@ -1,0 +1,5 @@
+# Boost sensor shorted to 5 V, then cleared
+0 start
+6 sensor boost short5v
+10 sensor boost clear
+14 end

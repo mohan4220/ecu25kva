@@ -1,0 +1,6 @@
+# 8  coolant sensor open circuit
+0 start
+6 sensor clt open
+9 end
+expect dm1 110/3 within 1.2 of 6
+expect state RUN at end

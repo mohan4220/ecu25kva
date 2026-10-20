@@ -1,0 +1,9 @@
+# 13 power lost halfway through a save
+# Python-only: a save was torn, and the reload took the previous image
+# (its seq and starts).
+0 start
+3 tear next save
+3 ignition off
+16 power cycle
+16 end
+expect trip within 13000 ms of 3

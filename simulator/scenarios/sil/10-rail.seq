@@ -1,0 +1,8 @@
+# 10 rail pressure within 5 % of the firmware's setpoint in steady running
+0 start
+8 load 20
+16 end
+expect rail_err min -0.05.. over 6..8
+expect rail_err max ..0.05 over 6..8
+expect rail_err min -0.05.. over 14..16
+expect rail_err max ..0.05 over 14..16

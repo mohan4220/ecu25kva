@@ -1,0 +1,7 @@
+# 2  load step 0 -> 20 kW
+0 start
+8 load 20
+13 end
+expect rpm min 1350.. over 8..13
+expect rpm mean 1485..1515 over 12.9..13
+expect never dm1 190/18

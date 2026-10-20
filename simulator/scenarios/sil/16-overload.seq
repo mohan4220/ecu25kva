@@ -1,0 +1,11 @@
+# 16 overload 30 kW: underspeed warning, engine keeps running
+# Python measures the DM1 from the moment speed sags below 1350 rpm (within
+# 5 s); here from the load step.
+0 start
+8 load 30
+20 end
+expect rpm min ..1350 over 8..20
+expect dm1 190/18 within 6 of 8
+expect lamp amber with 190/18
+expect no trip
+expect state RUN at end

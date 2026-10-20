@@ -1,0 +1,12 @@
+# 14 stored faults read and cleared over CAN
+0 start
+6 sensor clt open
+7.5 sensor clt clear
+8 request dm2
+8.1 sensor oil volts 0.1
+9 request dm3
+9.1 request dm2
+11.2 end
+expect dm2 110/3 after 8
+expect dm2 empty after 9.1
+expect dm1 100/4 within 2.2 of 9

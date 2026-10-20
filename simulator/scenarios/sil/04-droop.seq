@@ -1,0 +1,6 @@
+# 4  droop switch: 4 % from no load to full load (4 +- 1 % of 1500 rpm)
+0 droop on
+0 start
+10 load 20
+18 end
+expect rpm mean change -75..-45 from 9..10 to 17..18

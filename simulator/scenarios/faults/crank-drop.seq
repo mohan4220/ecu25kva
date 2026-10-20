@@ -1,0 +1,4 @@
+# Three crank edges lost at 1500 rpm
+0 start
+6 crank drop 3
+10 end

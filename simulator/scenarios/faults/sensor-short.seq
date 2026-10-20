@@ -1,0 +1,5 @@
+# Rail pressure sensor shorted to ground, then cleared
+0 start
+6 sensor rail short
+10 sensor rail clear
+14 end

@@ -1,0 +1,9 @@
+# 12 runaway, then power cycle: the history survives
+# Python-only: previously active after power-up, occurrence count 1,
+# freeze-frame rpm >= 1650, SHUTDOWN in the event log, the trip recording
+# and its 50 after-trip samples, starts counted.
+0 start
+6 fuel stuck 80
+9 power cycle
+9 end
+expect stored 190/0

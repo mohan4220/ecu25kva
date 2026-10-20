@@ -1,0 +1,6 @@
+# Rail sensor stuck while the load steps: the reading no longer follows
+0 start
+6 sensor rail stuck
+8 load 20
+14 sensor rail clear
+18 end

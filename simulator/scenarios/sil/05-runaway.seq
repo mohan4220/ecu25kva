@@ -1,0 +1,9 @@
+# 5  runaway (stuck fuel): trip at 1650 rpm
+# Python-only: SHUTDOWN on the very edge the ECU first reads above 1650 rpm,
+# no injection command from that edge on, pending commands cancelled, and
+# the rail never above its value at the trip.
+0 start
+6 fuel stuck 80
+7 end
+expect trip within 1000 ms of 6
+expect dm1 190/0 within 1 of 6

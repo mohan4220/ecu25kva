@@ -1,0 +1,6 @@
+# Rail leak, ten times normal, at full load
+0 start
+6 load 20
+8 leak 10
+14 leak 1
+18 end

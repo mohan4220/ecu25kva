@@ -1,0 +1,6 @@
+# Rail sensor reading 0.2 V high: the governor sees a high rail
+0 start
+6 load 10
+8 sensor rail offset 0.2
+14 sensor rail clear
+18 end

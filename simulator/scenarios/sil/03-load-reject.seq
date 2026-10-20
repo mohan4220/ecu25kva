@@ -1,0 +1,7 @@
+# 3  load rejection 20 -> 0 kW
+0 start
+5 load 20
+12 load 0
+17 end
+expect rpm max ..1650 over 12..17
+expect no trip

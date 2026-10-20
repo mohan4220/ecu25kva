@@ -1,0 +1,7 @@
+# 11 watchdog kick inside the 5-20 ms window
+# Python-only: every WDI period 5-20 ms, and kicks still running at the end.
+0 start
+8 load 20
+13 end
+expect no trip
+expect state RUN at end

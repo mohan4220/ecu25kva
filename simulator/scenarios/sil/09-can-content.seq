@@ -1,0 +1,7 @@
+# 9  CAN content and rates
+# Python-only: EEC1 20 ms, ET1 1000 ms, EFL/P1 500 ms and DM1 1000 ms
+# intervals within 2 ms, and EEC1 speed within 0.5 % of the engine's.
+0 start
+8 end
+expect no trip
+expect state RUN at end

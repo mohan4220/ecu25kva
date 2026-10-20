@@ -1,0 +1,4 @@
+# One spurious crank edge at 1500 rpm
+0 start
+6 crank extra 1
+10 end

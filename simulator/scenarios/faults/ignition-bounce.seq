@@ -1,0 +1,4 @@
+# Ignition dropping out for 200 ms while running
+0 start
+6 ignition bounce 200
+12 end

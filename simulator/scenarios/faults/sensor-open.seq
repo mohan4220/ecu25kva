@@ -1,0 +1,6 @@
+# Oil pressure sensor open circuit at full load, then reconnected
+0 start
+6 load 20
+8 sensor oil open
+12 sensor oil clear
+16 end

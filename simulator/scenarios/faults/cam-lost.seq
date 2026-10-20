@@ -1,0 +1,5 @@
+# Cam signal lost while running, then restored
+0 start
+6 cam lost
+10 cam restore
+14 end

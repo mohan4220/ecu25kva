@@ -1,0 +1,5 @@
+# Crank signal lost, then restored after the stop
+0 start
+6 crank lost
+9 crank restore
+12 end

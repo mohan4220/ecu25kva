@@ -1,0 +1,7 @@
+# 15 one lost crank tooth at 1500 rpm
+0 start
+6 crank drop 1
+8 end
+expect trip within 2000 ms of 6
+expect stored 636/2
+expect not stored 190/0

@@ -1,0 +1,6 @@
+# 6  crank signal lost while running
+0 start
+6 crank lost
+7.5 end
+expect trip within 100 ms of 6
+expect dm1 636/* within 1.5 of 6

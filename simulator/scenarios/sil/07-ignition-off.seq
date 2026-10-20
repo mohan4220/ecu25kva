@@ -1,0 +1,7 @@
+# 7  ignition off: stop, no fault
+0 start
+6 ignition off
+36 end
+expect trip within 30000 ms of 6
+expect dm1 clear over 6.001..36
+expect rpm min ..50 over 6..36

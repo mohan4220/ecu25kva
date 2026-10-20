@@ -1,0 +1,5 @@
+# Coolant sensor forced to 0.5 V (very hot), then cleared
+0 start
+6 sensor clt volts 0.5
+12 sensor clt clear
+16 end

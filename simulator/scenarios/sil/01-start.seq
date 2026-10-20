@@ -1,0 +1,7 @@
+# 1  start: sync, then 1500 rpm (firmware/sim/run_sil.py)
+# Python-only: sync within 118 crank edges (2 revs + 2).
+0 start
+5 end
+expect rpm mean 1485..1515 over 4.9..5
+expect rpm max ..1600 over 0..5
+expect no trip

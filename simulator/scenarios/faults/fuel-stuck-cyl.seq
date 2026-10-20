@@ -1,0 +1,5 @@
+# One injector stuck delivering 40 mg on cylinder 2
+0 start
+6 fuel stuck 40 cyl 2
+10 fuel free
+14 end
