@@ -70,6 +70,11 @@ anywhere in the diagram. They belong to the GCU.
 
 **Consequence:** two analog front-ends and two connector positions removed.
 
+**REVERSED for water-in-fuel, 8 Nov 2026** (decisions log §18). Bosch's terminal
+diagram wires the water-in-fuel sensor (F 002 H23 583) to ECU pin 21, `I_S_WFLS`, active
+high from the main-relay line. It is an ECU input again: an NPN-buffered switch input, and
+an amber DTC (SPN 97). Fuel level stays with the GCU.
+
 ### 2.4 Discrete inputs are active-high, not active-low
 
 `AUDIO ABORT` (20), `OVERSIDE SWITCH` (24) and `IGNITION` (71) are all **red** wires —
@@ -288,6 +293,32 @@ section.
    supervised `TRIP_LOOP` input unnecessary is **open**, for the owner. The loop also
    reports a cut wire to the module, which the voltage alone doesn't.
 
+7. **SUPERSEDES ITEM 6, 8 Nov 2026 (Bosch pinout, decisions log §18): the trip module
+   opens the main relay's coil feed.** Under Bosch's wiring pins 04/06 come from the main
+   relay's contact and are the board's *only* supply, so breaking pin 04 now drops the
+   ECU as well. Item 6's "the ECU stays alive to log the trip" no longer holds. The trip
+   loop had no Bosch pin and is gone.
+
+   The module's contact goes **in series with the relay coil's Term. 30 feed**, between
+   the coil's fuse and relay terminal 86. When it trips, the relay opens and takes
+   everything with it:
+   - **The injectors**, on 04, both their hold path and the boost converter's input.
+   - **The EGR**, on 06.
+   - **The ECU**, also on 04.
+   - **The metering unit and the buzzer relay**, on the main-relay line.
+
+   No injection is possible with 04 dead. The normally-open metering valve going to full
+   flow therefore feeds a rail with no outlet but its relief valve, which is item 6's
+   reasoning applied one step earlier.
+
+   - **The contact carries only the coil current**, about 84 mA, so the module's own
+     contact is enough and item 6's run relay is not needed.
+   - **The ECU cannot defeat it.** The ECU switches only the coil's low side (pin 50, and
+     the wake FET from pin 71). With the coil's feed open, neither can close the relay.
+   - **What the ECU sees:** nothing. It loses power. The GCU sees the J1939 traffic stop
+     and alarms on it. A logged trip is what this gives up. The module's own indication,
+     and the GCU's, record it instead.
+
 The owners may of course revisit item 3 with evidence. What they should not do is
 inherit the previous revision's conclusion, because the fact it was built on turned out
 to describe a controller that is not on this machine.
@@ -346,16 +377,32 @@ It should not be allowed to stay invisible.
 
 ## 4. ECU pin map
 
+**Since 8 Nov 2026 the pin map is Bosch's terminal diagram for this ECU**
+(`refs/bosch-pinout-md1cs162.md`, 46 pins, decisions log §18). It replaced the KOEL wiring
+diagram below where they disagree, and they disagree on power. The tables in this section
+are kept as written, with the Bosch changes in this table:
+
+| Pin | Bosch | What the board does |
+|---|---|---|
+| 21 | `I_S_WFLS`, water in fuel | Switch input, active high. **Not** a battery feed: there is none |
+| 04 / 06 | `V_V_BAT_1R/2R`, main relay contact | The board's only supply. 04 feeds the electronics chain (5 A fuse, EMI filter, TVS, reverse FET, buck) and the injectors; 06 the EGR |
+| 50 | `O_S_MRLY` | Closes the board's own supply relay; held through the after-run |
+| 71 | `I_S_T15` | Ignition, and wakes the board: a second FET on pin 50 |
+| 01 / 02 | `G_G_BAT1/2` | Power ground |
+| 09 | `I_A_SYNC` | GCU synchronisation input, 0–10 V divider to ADC |
+| 14 | `I_S_DIA` | Diagnosis request, contact to ground |
+| 25 | `I_S_STST` | Stop / emergency switch, contact to ground: SHUTDOWN |
+
 Confirmed pins from the wiring diagram. **44 of 94.** See §8 for the remaining 50.
 
 ### Power
 
 | Pin | Signal | Front-end |
 |---|---|---|
-| 21 | Battery + feed | Main input: EMI filter → fuse → TVS → reverse-battery FET |
-| 04 | `V_V_BAT_1R` (10 A fused) | **120 k / 10 k** divider → ADC; **injector feed `VBAT_INJ`** since 8 Oct 2026 (POWER-PATH, decisions log §2a, §5) |
+| 21 | ~~Battery + feed~~ **Water in fuel (Bosch)** | ~~Main input: EMI filter → fuse → TVS → reverse-battery FET~~ That chain now takes pin 04 |
+| 04 | `V_V_BAT_1R` (10 A fused) | **120 k / 10 k** divider → ADC; **injector feed `VBAT_INJ`** since 8 Oct 2026 (POWER-PATH, decisions log §2a, §5); **the electronics feed** since 8 Nov 2026 |
 | 06 | `V_V_BAT_2R` (10 A fused) | **120 k / 10 k** divider → ADC; **EGR feed `VBAT_EGR`** since 8 Oct 2026 (POWER-PATH, decisions log §2a, §5) |
-| 09 | `SYNCHRONIZATION GROUND` | Function unresolved — see §8 |
+| 09 | ~~`SYNCHRONIZATION GROUND`~~ `I_A_SYNC` (Bosch) | Analog input from the GCU |
 
 The battery-sense divider is **120 k / 10 k, not the 75 k / 10 k** inherited from
 the earlier artifacts. That value was sized for a 5 V ADC and delivers 4.69 V at
@@ -873,6 +920,12 @@ Unchanged from the artifacts in topology; the reasoning there is sound.
 
 Input range 6–40 V: 6 V covers the cranking dip on a 12 V system, 40 V bounds the
 clamped load-dump transient.
+
+**Bosch wiring, 8 Nov 2026:** there is no permanent battery feed. The chain above starts at
+pin 04, the main relay's contact. Pin 71 (ignition) closes the relay through a wake FET on
+pin 50, and the MCU holds it through the after-run: it stops the engine, writes the fault
+memory, then releases it. Pin 50's turn-off clamp is a TVS to ground. A diode to the
+board's supply would feed the board through the always-live coil (`sim/blocks/main_relay.cir`).
 
 **Injector boost rail** is new relative to the power chain as drawn: a separate boost
 stage generating the injector opening voltage, with its own reservoir bank sized for

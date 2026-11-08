@@ -73,7 +73,7 @@ GAP = 0.5                            # between courtyards, mm
 # Parts the schematic leaves without a footprint, until they are known.
 PLACEHOLDER = {
     "J1001": "ecu25kva:Bosch_94_PLACEHOLDER",   # header not yet measured
-    "D806": "Diode_SMD:D_SMA",                  # waits on the trip-loop pin
+    # (D806, the trip loop's clamp, went with the loop on 8 Nov 2026.)
 }
 LIB_DIRS = {"ecu25kva": os.path.join(HW, "lib", "ecu25kva.pretty")}
 # Footprints the schematic names that KiCad 10's library dropped,

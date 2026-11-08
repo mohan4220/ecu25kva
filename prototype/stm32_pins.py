@@ -45,7 +45,7 @@ ASSIGN = {
     "RAIL_P":        ("PC5", "ADC2_IN11"),
     "BARO":          ("PB0", "ADC1_IN15"),
     "SENSOR_5V_MON": ("PB1", "ADC1_IN12"),
-    "TRIP_SENSE":    ("PB2", "ADC2_IN12"),
+    "SYNC":          ("PB2", "ADC2_IN12"),   # pin 09, Bosch I_A_SYNC (was TRIP_SENSE)
     "BOOST_MON":     ("PB11", "ADC1_IN14"),
     "VBAT_MON":      ("PB12", "ADC1_IN11"),
     # --- crank and cam: one 32-bit timer's input capture ---
@@ -70,6 +70,10 @@ ASSIGN = {
     "IN_AUDIO_ABORT": ("PE6", "GPIO_Input"),
     "IN_OVERRIDE_SS": ("PE0", "GPIO_Input"),
     "IN_IGNITION":   ("PC10", "GPIO_Input"),
+    # Bosch pins, 8 Nov 2026 (decisions log 18): beside PE4-PE6
+    "IN_WIF":        ("PE7", "GPIO_Input"),    # pin 21, water in fuel
+    "SW_DIAG":       ("PE8", "GPIO_Input"),    # pin 14, diagnosis request
+    "SW_STOP":       ("PE9", "GPIO_Input"),    # pin 25, stop switch
     "RLY_MAIN":      ("PD5", "GPIO_Output"),
     "RLY_BUZZER":    ("PD15", "GPIO_Output"),
     "WDT_KICK":      ("PC11", "GPIO_Output"),

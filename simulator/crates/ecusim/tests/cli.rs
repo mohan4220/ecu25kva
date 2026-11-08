@@ -70,7 +70,7 @@ fn run_folder_files() {
     let s = sim::seq::parse("events", &events).unwrap();
     assert_eq!(s.end_us, 5_000_000);
     let fw = std::fs::read_to_string(run.join("firmware.txt")).unwrap();
-    assert!(fw.contains("bundled") && fw.contains("ABI 1"), "{fw}");
+    assert!(fw.contains("bundled") && fw.contains("ABI 2"), "{fw}");
     let can = std::fs::read_to_string(run.join("can.csv")).unwrap();
     assert!(can.lines().any(|l| l.ends_with(",EEC1")), "no EEC1 in can.csv");
 }

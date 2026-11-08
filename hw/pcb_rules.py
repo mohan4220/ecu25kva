@@ -100,7 +100,7 @@ _NETS = {
     "RTN": "GND /injector/ISNS_INJ_A_SENSE /injector/ISNS_INJ_B_SENSE",
     "PWR_LOOM": """/V_BAT_2R /power_input/VBAT_EGR_IN /VBAT_EGR /EGR_HIGH_59
         /EGR_LOW_81 /metering_egr/EGR_ISNS""",
-    "PWR": """/VBAT_IN Net-(F101-Pad2) /power_input/VBAT_EMI1
+    "PWR": """Net-(F101-Pad2) /power_input/VBAT_EMI1
         /power_input/VBAT_CLAMPED /VBAT_PROT /MU_RETURN
         /metering_egr/ISNS_MU_SENSE /injector/VDD_BAT /rails/SW /rails/VSNS
         /12V_GATE /mcu/BULK_RTN""",

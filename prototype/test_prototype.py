@@ -59,7 +59,7 @@ def test_stock_pins():
 def test_mcu_labels():
     import gen_sheet_mcu_stm32
     prod = _hlabels(open(os.path.join(HERE, "..", "hw", "mcu.kicad_sch")).read())
-    assert len(prod) == 42
+    assert len(prod) == 45                     # Bosch pinout: +IN_WIF, SW_DIAG, SW_STOP
     got = _hlabels(gen_sheet_mcu_stm32.build().render())
     assert got == prod | {"BOOST_MON"}, (got ^ (prod | {"BOOST_MON"}))
 
@@ -106,9 +106,9 @@ def test_lab_labels():
     import gen_sheet_lab_io
     prod = _hlabels(open(os.path.join(HERE, "..", "hw",
                                       "connector.kicad_sch")).read())
-    assert len(prod) == 40
+    assert len(prod) == 43                     # Bosch pinout, 8 Nov 2026
     got = _hlabels(gen_sheet_lab_io.build().render())
-    assert got == prod | {"TRIP_LOOP"}, got ^ (prod | {"TRIP_LOOP"})
+    assert got == prod, got ^ prod             # every Bosch net, nothing else
 
 
 def test_lab_power_ground():

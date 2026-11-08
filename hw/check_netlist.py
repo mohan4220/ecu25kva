@@ -36,22 +36,18 @@ EXPECTED_OPEN = {
     #  passive gate network, Q2 a TLV3201-Q1 + UCC27517A-Q1 pair.)
     # (The EGR bridge's five ends closed 22 Sep 2026: discrete, two
     #  AUIRS2184S, coast asserted by copper on a shared shutdown.)
-    # -- no part, and no pin --
-    "/TRIP_LOOP": "no connector pin -- not on the OEM diagram, needs one "
-                  "of the 50 unconfirmed",
+    # (/TRIP_LOOP closed 8 Nov 2026: the trip loop had no Bosch pin and
+    #  was removed; the trip module opens the main relay's coil feed.)
 }
 
-# Open items at the connector that no single-pin rule can see: a net can
-# have many pins and still be missing the one that matters. GND reaches
-# the connector only through these sensor-ground pins -- none of which is
-# a power return. Field brief tasks 1.1 and 5.1 settle it; when a power
-# ground pin joins GND this exemption goes stale and the check fails.
+# Open items at the connector that no single-pin rule can see. The power
+# ground was one until 8 Nov 2026, when Bosch's terminal diagram put it
+# on pins 01/02 (G_G_BAT1/2); POWER_GROUND below now checks it is there.
 GND_SENSOR_ONLY = {"8", "30", "44"}
-BOUNDARY_OPEN = {
-    "power ground": "GND leaves the board only through sensor-ground pins "
-                    "8/30/44; the 18 A injector return has no pin. Field "
-                    "brief 1.1 / 5.1",
-}
+BOUNDARY_OPEN = {}
+
+# Bosch's power scheme (refs/bosch-pinout-md1cs162.md, decisions log 18).
+POWER_GROUND = {"1", "2"}
 
 # Nets that must span more than one sheet, because a rail that does not
 # is a rail that got disconnected by a rename.
@@ -135,7 +131,7 @@ def root_pins(root=ROOT):
 
 
 def main(root=ROOT, expected_open=None, boundary_open=None,
-         connector_ref="J1001"):
+         connector_ref="J1001", bosch_power=True, bosch_pins=None):
     """Defaults are production's. The prototype passes its own root and
     open items; the power-ground boundary check runs only while a
     boundary item is open."""
@@ -237,14 +233,20 @@ def main(root=ROOT, expected_open=None, boundary_open=None,
     # undecoupled supply pins on the board, and invisible to every
     # simulation block because sensor_differential.cir models an ideal
     # amplifier with no supply pin at all.
-    starts = [m.start() for m in re.finditer(r'    \(libpart \(lib ', text)]
+    # Whitespace-tolerant: KiCad 10's kicad-cli writes each element on
+    # its own tab-indented line, KiCad 7 wrote them inline. The inline-only
+    # pattern found no parts under KiCad 10 and passed on "0 pins" -- a
+    # check that cannot see anything must fail, so supplies > 0 is part of
+    # it now (8 Nov 2026).
+    starts = [m.start() for m in re.finditer(r'\(libpart\s+\(lib ', text)]
     starts.append(text.index("(nets"))
     lib = {}
     for a, b in zip(starts, starts[1:]):
         chunk = text[a:b]
         part = re.search(r'\(part "([^"]+)"\)', chunk).group(1)
         lib[part] = dict((n, (nm, ty)) for n, nm, ty in re.findall(
-            r'\(pin \(num "([^"]+)"\) \(name "([^"]*)"\) \(type "([^"]+)"\)',
+            r'\(pin\s+\(num "([^"]+)"\)\s+\(name "([^"]*)"\)\s+'
+            r'\(type "([^"]+)"\)',
             chunk))
     part_of = dict(re.findall(
         r'\(comp\s+\(ref "([^"]+)"\).*?\(libsource\s+\(lib "[^"]*"\)\s*'
@@ -267,7 +269,9 @@ def main(root=ROOT, expected_open=None, boundary_open=None,
             if net not in cap_nets:
                 undecoupled.append(f"{ref} pin {num} ({pname}) on {net}")
     check(f"every supply pin has a capacitor on its net ({supplies} pins)",
-          not undecoupled, f"undecoupled: {undecoupled}")
+          supplies > 0 and not undecoupled,
+          f"undecoupled: {undecoupled}" if supplies else
+          "no power_in pins parsed -- the netlist format changed")
 
     # Two open-drain outputs on one net is a wired-OR nobody chose. The
     # supervisor's RESET and WDO were exactly that until 15 Oct 2026:
@@ -321,6 +325,48 @@ def main(root=ROOT, expected_open=None, boundary_open=None,
     check("VBAT_PROT no longer feeds the EGR bridge or the injector power "
           "stage", not egr_on_prot and not inj_on_prot,
           f"EGR FETs {egr_on_prot}, injector parts {inj_on_prot}")
+
+    # -- Bosch power (8 Nov 2026, decisions log 18) --------------------
+    # No permanent feed: pin 71 wakes, pin 50 closes the main relay, the
+    # relay feeds 04/06, 01/02 are ground. Each line below is a way the
+    # schematic could quietly keep the old KOEL wiring.
+    if bosch_power:
+        # Bosch pin -> (ref, pad). Production: the 94-way itself. The
+        # prototype passes its screw-terminal positions.
+        where = bosch_pins or {p: (connector_ref, p) for p in
+                               ("1", "2", "4", "21", "50", "71")}
+        jnet = {pin: net_of.get(where[pin]) for pin in where}
+        check("power ground: GND reaches connector pins 01 and 02 "
+              "(G_G_BAT1/2)", all(jnet[p] == "GND" for p in POWER_GROUND),
+              f"pins 01/02 on {jnet['1']} / {jnet['2']}")
+        feed = pins_of.get(jnet["4"], [])
+        # The 5 A fuse is the only fuse on power_input (its value field
+        # carries the MPN once assign_passives has run).
+        fuse = [r for r, _ in feed if r.startswith("F")
+                and sheet_of.get(r) == "power_input"]
+        check("the electronics feed (5 A fuse) runs from pin 04, the main "
+              "relay's contact", len(fuse) == 1, f"pin 04 net {jnet['4']}: "
+              f"fuses {fuse}")
+        p21 = pins_of.get(jnet["21"], [])
+        power21 = [r for r, _ in p21 if r[0] in "FLQ"
+                   or sheet_of.get(r) == "power_input"]
+        check("pin 21 is an input (water in fuel), not a supply",
+              jnet["21"] == "/IN_WIF_H" and not power21,
+              f"pin 21 net {jnet['21']}, power parts {power21}")
+        p50 = pins_of.get(jnet["50"], [])
+        sneak = [r for r, _ in p50 if r.startswith("D") and any(
+            net_of.get((r, k)) not in (jnet["50"], "GND") for k in ("1", "2"))]
+        check("no diode from pin 50 to a supply: its coil is on Term. 30, "
+              "so one would power the board through it", not sneak,
+              f"diodes {sneak}")
+        fets = [r for r, k in p50 if r.startswith("Q") and k == "3"]
+        wake = [r for r in fets if any(
+            rr.startswith("R") and net_of.get((rr, other)) == jnet["71"]
+            for rr, kk in pins_of.get(net_of.get((r, "1")), [])
+            for other in ("1", "2") if other != kk)]
+        check("pin 50 has two drivers, one gated from pin 71 (wake)",
+              len(fets) == 2 and len(wake) == 1,
+              f"FETs on pin 50 {fets}, gated from pin 71 {wake}")
 
     # Every chip R and C is packaged by assign_passives.py. One without a
     # footprint is a part added or re-valued since the map was built.

@@ -1,0 +1,90 @@
+* ============================================================
+* Main relay -- ECU pins 50 (coil) and 71 (ignition wake)
+* Bosch terminal diagram 0 462 YU4 15D (refs/bosch-pinout-md1cs162.md)
+* ============================================================
+* Under Bosch's wiring the ECU has NO permanent battery feed. The
+* main relay's coil sits between Term. 30 (always live) and pin 50;
+* its contact feeds pins 04/06, which are the board's only supply.
+* So the ECU must close its own supply relay, and it must be able
+* to do that while it is still unpowered.
+*
+* WAKE (part A). Pin 71 (ignition, from a GCU relay on Term. 30)
+* turns on a second N-FET in parallel with the MCU-driven one on
+* pin 50, through a 10k / 22k divider with a 12 V gate zener.
+* Ignition on -> relay closes in hardware -> 04/06 come up -> the
+* board boots. Ignition off -> the wake FET lets go and the relay
+* stays closed only while the MCU holds RLY_MAIN (after-run: stop
+* the engine, save fault memory, then release).
+*
+* SNEAK PATH (part B). The relay driver used to carry a flyback
+* diode from the drain to VBAT_PROT. Under Bosch's wiring that diode
+* runs from a node held at battery through the coil (pin 50, FET
+* off) into the board's supply, which the relay is supposed to have
+* cut. The board then runs through the relay coil, and the coil
+* carries whatever the board draws. Bosch's drawing marks pin 50
+* "not equipped with freewheeling diode -- the diode belongs in the
+* relay". The diode goes; a TVS from drain to ground replaces it.
+*
+* CLAMP (part C). With the diode gone, the coil's turn-off energy
+* goes into a TVS at about 53-59 V, under the FET's 100 V. The TVS
+* standoff (48 V) clears the 40 V clamped load dump, so it never
+* conducts in normal service. If the fitted relay carries its own
+* suppressor (Bosch's relay symbol shows one), the TVS sees nothing.
+* ============================================================
+
+.model DZ12  D(Is=1e-14 N=1 Rs=5 BV=12 IBV=5m)
+.model DFLY  D(Is=1e-14 N=1 Rs=0.05 BV=600 IBV=1e-6)
+* SMAJ48CA (already on the BOM, speed_inputs): VBR 53.3 V min,
+* 58.9 V max at 1 mA; VC 77.4 V at 5.2 A, so (77.4 - 58.9) / 5.2 =
+* 3.6 ohm dynamic. Bidirectional; the drain never goes negative past
+* the FET's body diode, so only the positive side ever works.
+.model TVSMIN D(Is=1e-12 N=1 Rs=3.6 BV=53.3 IBV=1m)
+.model TVSMAX D(Is=1e-12 N=1 Rs=3.6 BV=58.9 IBV=1m)
+.model NSW   SW(Ron=0.432 Roff=1e9 Vt=2.5 Vh=0.2)
+
+* ---- A. wake gate, swept over the whole pin-71 range ----
+Vt15 t15 0 DC 0
+Rs   t15 g  10k
+Rg   g   0  22k
+Dz   0   g  DZ12
+
+* ---- B. relay off, FET off: old topology, flyback to the board ----
+* Rbrd is the board on VBAT_PROT with its supply relay open. 400 ohm
+* is 34 mA at 13.5 V: the MCU, rails and transceivers idling.
+Vb1  b1   0    DC 13.5
+Lo   b1   o1   1.2
+Ro   o1   p50o 160
+Do   p50o prot DFLY
+Rbrd prot 0    400
+* ---- B'. the same with the diode replaced by the TVS ----
+Vb2  b2   0    DC 13.5
+Ln   b2   n1   1.2
+Rn   n1   p50n 160
+Dn   0    p50n TVSMIN
+Rlk  p50n 0    10meg
+
+* ---- C. turn-off into the TVS, both breakdown corners, 14.4 V ----
+Vgc  gc 0 PWL(0 0  0.999m 0  1m 5  6m 5  6.0001m 0  12m 0)
+Vb3  b3 0 DC 14.4
+L3   b3 c1 1.2
+R3   c1 d3 160
+S3   d3 0  gc 0 NSW
+D3   0  d3 TVSMIN
+Vb4  b4 0 DC 14.4
+L4   b4 c2 1.2
+R4   c2 d4 160
+S4   d4 0  gc 0 NSW
+D4   0  d4 TVSMAX
+
+.control
+dc Vt15 -24 73.3 0.1
+wrdata main_relay_wake.dat v(g) i(Vt15)
+dc Vb1 6 16 0.5
+wrdata main_relay_sneak_old.dat i(Vb1) v(prot)
+dc Vb2 6 16 0.5
+wrdata main_relay_sneak_new.dat i(Vb2) v(p50n)
+tran 1u 12m uic
+wrdata main_relay_clamp.dat v(d3) v(d4) i(Vb3)
+.endc
+
+.end

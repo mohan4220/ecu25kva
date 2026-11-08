@@ -76,64 +76,48 @@ def discrete_input(d):
     return "Discrete switch input -- pins 20 / 24 / 71"
 
 
-def trip_module_sense(d):
-    """NEW pin -- three-state supervised trip-module sense loop.
+def main_relay(d):
+    """ECU pins 50 / 71 under Bosch's wiring -- main_relay.cir.
 
-    Rt and the NC aux contact live AT THE TRIP MODULE, physically at
-    the far end of a new harness run -- labelled, not boxed, to avoid
-    this file's own rotated/multi-anchor label traps. That placement
-    is the detail that makes "wire cut" distinguishable from "Rt is
-    the only path": a break anywhere between the module and the ECU
-    removes both the contact and Rt from the circuit the same way.
-    R5/R6/zener/C1 are discrete_input.cir's own divider, reused
-    unchanged -- drawn solid, not dashed, because they ARE this
-    netlist's elements, just fed from a new source topology."""
-    d += elm.Dot(open=True).label("BATT +\n(switched)", "left")
+    The coil sits on Term. 30; two FETs in parallel pull pin 50: the
+    MCU's, and the WAKE FET gated from pin 71 through 10k / 22k with a
+    12 V zener. The turn-off clamp is a TVS to ground, NOT a diode to
+    the board's supply -- that diode was a sneak path (part B)."""
+    d += elm.Dot(open=True).label("Term. 30  (always live)", "top")
     d += elm.Line().right().length(0.6)
-    d += (left := elm.Dot())
-    d += elm.Resistor().right().at(left.center).label("Rt\n1.2M", loc="bottom")
-    d += (right := elm.Dot())
+    d += (coil := elm.Inductor().down())
+    d += (drain := elm.Dot())
+    d += elm.Label().at((coil.center[0] - 1.6, coil.center[1])).label(
+        "main relay\ncoil, 1.2 H\n160R")
+    d += elm.Label().at((drain.center[0] - 1.4, drain.center[1] + 0.3)).label(
+        "pin 50")
 
-    d.push()
-    d += elm.Line().up().at(left.center).length(1.0)
-    d += elm.Switch().right().length(2.2).label(
-        "NC aux contact\nclosed = healthy", loc="top")
-    d += elm.Line().down().toy(right.center[1])
-    d.pop()
-
-    d += elm.Label().at((left.center[0] - 0.3, left.center[1] - 1.2)).label(
-        "-- at the trip module, remote (part TBD) --")
-
-    d += elm.Line().right().at(right.center).length(1.2).linestyle("--")
-    d += elm.Label().at((right.center[0] + 0.6, right.center[1] + 0.5)).label(
-        "new harness run\n(not on this board)")
-
-    # ECU-side divider: discrete_input.cir's own R5/R6/zener/C1, reused
-    d += elm.Resistor().right().label("R5\n47k")
-    d += (node := elm.Dot())
-    d += elm.Line().right().length(3.0)
-    d += elm.Dot(open=True).label("MCU ADC\n(3-band read)", "right")
-
-    d += elm.Resistor().down().at(node.center).label("R6\n68k", loc="bottom")
+    # TVS straight down from pin 50
+    d += elm.Zener().down().at(drain.center).label("SMAJ48CA\nTVS", loc="bottom")
     d += elm.Ground()
 
-    d.push()
-    d += elm.Line().right().at(node.center).length(1.2)
-    d += elm.Dot()
-    d += elm.Capacitor().down().label("C1\n220n", loc="bottom")
-    d += elm.Ground()
-    d.pop()
+    # MCU FET on the drain rail, placed like the wake FET below
+    d += elm.Line().right().at(drain.center).length(1.5)
+    d += (d1 := elm.Dot())
+    d += (q1 := elm.NFet(bulk=False).at(d1.center).anchor("drain"))
+    d += elm.Ground().at(q1.source)
+    d += elm.Line().right().at(q1.gate).length(0.5).label(
+        "MCU\nRLY_MAIN", loc="bottom")
 
-    d += elm.Line().right().at(node.center).length(2.4)
-    d += elm.Dot()
-    d += elm.Zener().down().label("D1\n3.0 V", loc="bottom")
+    # WAKE FET at the end of the rail
+    d += elm.Line().right().at(d1.center).length(4.0)
+    d += (d2 := elm.Dot())
+    d += (q2 := elm.NFet(bulk=False).at(d2.center).anchor("drain"))
+    d += elm.Ground().at(q2.source)
+    d += elm.Line().right().at(q2.gate).length(0.6)
+    d += (g := elm.Dot())
+    d += elm.Zener().down().at(g.center).reverse().label("12 V", loc="right")
     d += elm.Ground()
-
-    d += elm.Label().at((0.0, -4.2)).label(
-        "healthy 2.86-2.95 V (clamped, flat) -- tripped 0.31-2.07 V\n"
-        "(linear, Rt in circuit, never reaches the zener knee) -- wire\n"
-        "fault ~0 V (neither Rt nor battery reaches the divider at all)")
-    return "Trip-module sense -- new pin, three-state supervised loop"
+    d += elm.Resistor().right().at(g.center).label("10k", loc="top")
+    d += elm.Dot(open=True).label("pin 71\nignition", "right")
+    d += elm.Label().at((g.center[0] + 0.2, g.center[1] - 2.6)).label(
+        "22k gate-to-ground\nin parallel (not drawn)")
+    return "Main relay -- pin 71 wakes, pin 50 holds, TVS clamp"
 
 
 def sensor_ratiometric(d):
@@ -1009,7 +993,7 @@ def supervisor(d):
 BLOCKS = {
     "battery_sense": battery_sense,
     "discrete_input": discrete_input,
-    "trip_module_sense": trip_module_sense,
+    "main_relay": main_relay,
     "sensor_ratiometric": sensor_ratiometric,
     "transient_clamp": transient_clamp,
     "load_dump": load_dump,

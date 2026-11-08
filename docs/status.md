@@ -902,6 +902,20 @@ Two more readings:
 
 **Applied the same day with the owner's go-ahead** (decisions log §14): normally-open valve, measured injector law, and timing and rail tables. 80 unit tests and 15/15 scenarios pass. **Still open: the trip module has to cut the injector feed, pin 04**, not the valve. That is written up in spec §3 item 6, with the field survey in brief Group 7. It is external wiring, and not yet done.
 
+**The Bosch pinout becomes the master, 7–8 November 2026** (decisions log §18). The owner sent Bosch's terminal diagram for the MD1CS162 (`refs/T4.435.04.0.PR-terminal-diagram-MD1CS162.pdf`, pin list `refs/bosch-pinout-md1cs162.md`). The owner's ruling: we replicate this ECU, the drawing applies to our engine, and we use only Bosch pins. It disagrees with KOEL's harness diagram on power:
+- **No permanent battery feed.** Pin 71 (ignition) closes the main relay in hardware, through a new wake FET on pin 50. The relay feeds pins 04/06, the board's only supply. The electronics chain moved from pin 21 to pin 04.
+- **Pin 21 is the water-in-fuel input.** Pins 01/02 are the power ground, which closes the gap open since 19 September. Pin 09 is the GCU's analog sync input. Pin 14 is the diagnosis request and pin 25 the stop switch.
+- **A latch bug found and fixed.** Pin 50's flyback diode to the board's supply would have fed the board through the always-live relay coil and held the relay in for good (22.8 mA, 2.7 times its release current). It is now a TVS to ground. `sim/blocks/main_relay.cir` shows both.
+- **The trip loop is gone.** It had no Bosch pin. The trip module now opens the main relay's coil feed (spec §3 item 7).
+- **Firmware, ABI 2:**
+  - After-run: the relay is held until the engine has stopped and the fault memory is written, at most 60 s.
+  - Pin 25 latches SHUTDOWN, like the ignition.
+  - Water in fuel raises an amber SPN 97.
+  - The service link runs at 1000 kbit/s, Bosch's rate for 87/86.
+- **The netlist check had been passing its decoupling check on nothing** under KiCad 10. It now parses KiCad 10's netlist and checks 50 supply pins.
+
+Every check passes on this Windows machine: 26/26 circuit blocks; the netlist with **0 open items**; the firmware unit tests, the boot tests, 16/16 scenarios and the service tool; and the board check. The exception is KiCad's schematic parity, which fails the same way on the unchanged board here and is down to the KiCad build. **The prototype is now stale**, and **the Rust simulator is updated but unbuilt**: there was no Rust toolchain here.
+
 ---
 
 ## 8. Work at the machine
@@ -916,8 +930,10 @@ whoever is at the machine.
 
 | Task | Closes | Unblocks |
 |---|---|---|
-| **Continuity from every populated cavity to chassis — where is the power ground?** | — | **The board, outright.** 94 pins and no identified battery negative; the injector low sides put 18 A into a net with nowhere to land |
-| Cavity census: populated, contact-only, empty | — | A pin **and a wire** for `TRIP_LOOP`, which is not on the OEM diagram at all |
+| ~~Continuity from every populated cavity to chassis — where is the power ground?~~ | — | **Closed 8 Nov 2026 by Bosch's drawing: pins 01/02.** A continuity check still confirms it |
+| ~~Cavity census~~ | — | ~~A pin for `TRIP_LOOP`~~ The loop is gone (no Bosch pin) |
+| **Pin 25's polarity; what the GCU puts on 09 and 14; whether the main relay has its own suppressor** | — | The stop switch's sense; firmware functions for 09 and 14; nothing for the third (the board's TVS covers both cases) |
+| **Pin 21 with the ignition off** (the 2-minute check from the harness sheet) | — | Confirms the harness matches Bosch's drawing. The input survives battery either way |
 | Trace who switches the heater feed | **U14** | Whether a heater output is in scope — **can make the board bigger** |
 | Follow the throttle's 6-pin cable to where it ends | **U8** | Whether a throttle driver exists at all — **can make the board bigger** |
 | Injector part number from the body | **U5** | The boost rail's 100 V target and the 18 A threshold, both currently a family envelope |
@@ -935,32 +951,37 @@ value or closes a register entry; those two change the output count.
 
 ## 9. Resume here — next session
 
-Rewritten 15 October 2026. **The tree is clean and pushed. Every check passes:**
+Updated 8 November 2026, after the Bosch pinout (decisions log §18). Every check passes:
 - 26/26 circuit simulations
-- the netlist gate, with its 2 named open items
-- 101 firmware unit tests, 7 bootloader tests, 16/16 engine scenarios and the service tool end to end
+- the netlist gate, with **0 open items**
+- the firmware unit tests, 7 bootloader tests, 16/16 engine scenarios and the service tool end to end
 - the PCB rules and generator self-tests
-- the board check, including the schematic links
+- the board check, including the schematic links. The exception is KiCad's parity on the Windows machine, which fails the same on the unchanged board
+
+**On Windows** these all run with KiCad 10's bundled Python and ngspice, plus `zig cc` (pip `ziglang`) for the firmware. See HANDOFF §2.
 
 ### Where it stands
-- **Schematic:** complete, 380 parts (D302 added 19 Oct). Regenerating it is now deterministic.
+- **Schematic:** complete, 405 parts, **on Bosch's pinout** since 8 Nov (decisions log §18). Regenerating it is deterministic.
 - **PCB:** prepared for hand routing, not routed (decisions log §13).
 - **Prototype board (17 October):** routed and fab-ready in `prototype/`: the full production circuit with an STM32G474, screw terminals, 300 × 200 mm, 4 layers. 0 DRC errors, nothing unconnected, schematic parity clean. Gerbers, drill, positions and BOM in `prototype/fab/`; bring-up guide `prototype/docs/bring-up.md` (decisions log §15). **Reviewed 19 October:** the review found the watchdog kill path lost by the 15 October supervisor fix. D302 (BAT54Q) restores it, in production too. The 5 V buck's output and switch node now run on the outer layers, sized for its 1 A. The pour checks were made able to fail.
 - **Firmware:** runs on the PC, calibrated from the old ECU's own recording (§14). **Service link (20 October):** a bootloader with the image header written last, the end-of-line record with its analog trims, an underspeed warning (SPN 190 FMI 18, amber, no shutdown), and a laptop tool (`firmware/tools/ecu_service.py`) over USB or CAN channel 2, all proven on the PC (decisions log §16, firmware guide §16). The chip layers (flash, CAN, USB, reset) are still to write.
 - **Simulator (20 October):** `simulator/`, mode 1 (firmware only). `ecusim` is a single Rust program. It runs the unchanged firmware against the engine model, live or from `.seq` scripts, at 1× to about 100×, and traces everything in a browser. Firmware builds load from the UI. The 16 SIL scenarios pass as scripts. Guide `simulator/README.md`; decisions log §17. Modes 2 (board fed over USB) and 3 (bench rig) are next.
-- **Safety change written up, not yet wired:** the overspeed trip moves to the injector feed, pin 04 (spec §3 item 6).
+- **Safety change written up, not yet wired:** the overspeed trip opens the main relay's coil feed (spec §3 item 7, which supersedes item 6's pin 04).
+- **Stale since 8 Nov:** the prototype's routed board, and the Rust simulator's build (its source is updated to ABI 2).
 
 ### Waiting on the machine (inspection brief)
 1. **7.1, the metering valve's part number.** It confirms "normally open", which the firmware and the trip design now assume.
 2. **Group 6, the old ECU's measurements:** housing, board, and the J1001 header. Until then, no board can be ordered.
-3. **5.1 / 6.4, which pins are battery ground.**
+3. ~~5.1 / 6.4, which pins are battery ground.~~ Bosch's drawing: 01/02. Now: pin 25's polarity, and what the GCU puts on 09 and 14.
 4. **A running-engine J1939 trace on the DSE's CAN** (U4). The 14 Oct file was an XCP recording, not a bus trace.
-5. **7.2–7.4, the pin 04 fuse, any existing trip module, and room for a relay:** needed when the trip is fitted.
+5. **7.2–7.4, any existing trip module and the main relay's coil feed:** needed when the trip is fitted.
 
 ### Needs a person
 - **Routing the PCB:** `docs/layout-guide.md`, once Group 6 replaces the placeholders.
 - **MC33816AE last-time-buy:** a distributor question (fallback path only).
 
 ### Next that needs neither
+- **Re-place and re-route the prototype** from the Bosch sheets (`prototype/gen_prototype.py`, `gen_board.py`).
+- **Build the Rust simulator** at ABI 2 (`cargo test`), and rebuild the committed Windows `.exe`.
 - **Quote and build the prototype:** 2 oz outer copper, 300 × 200 mm, 95 pin necks at 0.15 mm (decisions log §15, "The cost to know before quoting").
 - **The S32K148 port:** running the firmware core on NXP's evaluation board, with the engine signals simulated on the bench. It needs the board, a debugger and a toolchain on this machine.

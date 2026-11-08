@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 
-pub const ABI_VERSION: u32 = 1; // ecu.h ECU_ABI_VERSION
+pub const ABI_VERSION: u32 = 2; // ecu.h ECU_ABI_VERSION
 pub const NCYL: usize = 3;
 pub const CANQ: usize = 16;
 
@@ -68,6 +68,13 @@ pub struct EcuIo {
     pub boot_req: u8,
     pub reset_req: u8,
     pub session: u8,
+    // Bosch pinout, ABI 2 (decisions log 18)
+    pub stop_sw: u8,
+    pub wif: u8,
+    pub diag_sw: u8,
+    pub v_sync: f32,
+    pub main_relay: u8,
+    pub afterrun: u8,
 }
 
 impl EcuIo {

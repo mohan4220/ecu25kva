@@ -63,7 +63,7 @@
 | `PWR_LOOM` | pin 6 → VBAT_EGR → EGR bridge and its shunt. Protected only by the 10 A loom fuse, so sized for 135 % of it (ISO 8820-3) | 13.5 A | 3.6 mm | 0.3 mm |
 | `HV100` | boost rail, bank nodes (pins 3, 5), low-side drains (pins 73, 29, 7), boost switch node | 18 A, up to ~116 V | 5.35 mm | 0.6 mm |
 | `HV100_SIG` | injector high-side gates and bootstraps, divider midpoints, PZTA42 collectors, VDD_REF; the EGR high-side gates and bootstraps (VBAT + 12 V: ~27 V running, 52 V on a 40 V load dump) | small, 31–116 V | 0.2 mm | 0.6 mm |
-| `PWR` | pin 21 path behind the 5 A fuse F101, VBAT_PROT, metering valve, buck switch node, 12V_GATE | 6.4 A | 1.3 mm | 0.3 mm |
+| `PWR` | the electronics path behind the 5 A fuse F101 (from pin 04 since the Bosch pinout, 8 Nov), VBAT_PROT, metering valve, buck switch node, 12V_GATE | 6.4 A | 1.3 mm | 0.3 mm |
 | `PWR_LV` | 3V3_MCU, 5V_MAIN, the boost controller's VDD and current sense: low voltage on 0.5 mm-pitch pins | 6.4 A | 1.3 mm | 0.15 mm |
 | `CAN` | CAN1/CAN2 H and L | — | 0.2 mm, gap 0.25 (set from the fab's stack-up) | 0.2 mm |
 | `ANALOG` | sensor inputs, clamps, ADC nets, VR pair | — | 0.25 mm | 0.2 mm |
@@ -137,7 +137,7 @@
 **Rules:**
 - Place it in **the stage order**, input to output, with the pin side nearest J1001. A filter only works if its input and output copper don't couple around it.
 - **Keep the dampers** (R110–R113 with C113/C114/C117/C118) **next to the bulk capacitors**. `feed_emi.cir` needs them for stability against the boost converter's negative input resistance; they are not optional EMI decoration.
-- **The common-mode choke** that spec §6 calls for **is not on the schematic.** `emi_filter.cir` says it can only be modelled once a layout gives it a chassis return. Leave space at pin 21's entry for a common-mode choke and its chassis connection. **CISPR 25 Class 5 is the target** (owner, 12 Oct).
+- **The common-mode choke** that spec §6 calls for **is not on the schematic.** `emi_filter.cir` says it can only be modelled once a layout gives it a chassis return. Leave space at the electronics feed's entry (pin 04, Bosch pinout) for a common-mode choke and its chassis connection. **CISPR 25 Class 5 is the target** (owner, 12 Oct).
 - **Q101's gate is passive:** R103 to ground with the zener D102. There is no controller (decisions log §5b), and the same goes for Q103/Q104.
 - **Q102, the negative clamp, has a driven gate:** comparator U101 → gate driver U102 (UCC27517A) → Q102. Keep U102 at Q102's gate, with its return taken straight to Q102's source (ground), so the gate loop is small.
 - **Heat:** Q103 and Q104 carry the feeds continuously. The sheet note gives Q103 "Tj 117 C at a 105 C board" and Q104 (EGR, 6.4 A stall) "Tj 139 C at a 105 C board, 155 C while cranking". Give both tabs large L1 pours stitched to L4, and put them on the housing contact area if the measured housing allows.

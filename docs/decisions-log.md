@@ -1366,6 +1366,90 @@ easy setup for him too".
 
 Guide: `simulator/README.md`. Spec and plan: `simulator/docs/`.
 
+## 18. The Bosch pinout becomes the master (7–8 November)
+
+**Asked for:** the board had been designed from KOEL's harness diagram
+(GP3.8703.C4). The owner sent Bosch's terminal diagram for the ECU itself
+(`T4.435.04.0.PR`, Bosch drawing 0 462 YU4 15D, "MD1CS162 KOEL CPCB4+ 3 cyl"),
+and the two disagree on power. The owner's answers (7 November): this
+project replicates the MD1CS162. The Bosch drawing applies to our
+3GK550ETA4SR1, because the models it lists share the same sensors and
+ratings. The "0 281 …" number on the old ECU is an access code and does
+not matter. Then: **"use only Bosch pins"**, and **"go with Bosch"**.
+The pin list is `refs/bosch-pinout-md1cs162.md`, read off a 400 dpi
+render.
+
+| Pin | KOEL diagram (what the board did) | Bosch (what it does now) |
+|---|---|---|
+| 21 | Permanent battery feed for the electronics | `I_S_WFLS`, the **water-in-fuel** switch, active high |
+| 04 / 06 | Injector and EGR feeds, plus voltage sense | `V_V_BAT_1R/2R`, the main relay's contact, the board's **only supply**. 04 now also feeds the electronics chain |
+| 50 | Main relay output, no special role | Closes the board's **own supply** relay |
+| 71 | Ignition input | Ignition, and the **wake**: it closes the relay in hardware |
+| 01 / 02 | Unknown, no power ground anywhere | `G_G_BAT1/2`, the **power ground** |
+| 09 | "Synchronization ground", unassigned | `I_A_SYNC`, an analog input from the GCU |
+| 14, 25 | Not shown | Diagnosis request; **stop / emergency switch** |
+| CAN | 55/77 "channel 1" | 87/86 is Bosch's CAN 1 (1000 kbit/s, flashing and UDS); 55/77 is CAN 2 (250 kbit/s, J1939) |
+
+| Question | Answer | Why |
+|---|---|---|
+| How the board comes up | **Pin 71 turns on a second FET on pin 50** (10k / 22k, 12 V zener): the relay closes in hardware, 04/06 come up, the MCU boots and holds the relay itself | With no permanent feed nothing else can close the relay before the MCU has power. Vgs 5.5 V at 8 V in, 12.0 V on pulse 2a, -0.7 V reversed (`main_relay.cir` A) |
+| Where the electronics feed comes from | **Pin 04**, ahead of its own protection, beside the injector feed | 2.95 A of electronics plus 3.8 A RMS of injector stays under the 10 A loom fuse. A blown 04 fuse also stops injection, so losing the ECU with it costs nothing extra |
+| Pin 50's turn-off clamp | **A TVS to ground** (SMAJ48CA), not a diode to VBAT_PROT | See "Found on the way" |
+| The after-run | Ignition off: the firmware stops the engine, asks for a save, and **releases the relay only once the engine has stopped and the save is written**, at most 60 s | The board drops its own supply. Releasing early would lose the stop's record. The save goes through the 10 s rate limit, and the relay waits for it, so a flapping ignition costs no extra flash writes |
+| The trip loop | **Removed.** The overspeed trip module opens the main relay's coil feed | It had no Bosch pin. Opening the coil drops the ECU, the injectors and the metering unit together, and the GCU sees the CAN go quiet |
+| Pin 25 | An operator stop: SHUTDOWN, no DTC, no red lamp, latched until an ignition cycle | Like the ignition. Its polarity (stop on closed) is to confirm at the machine |
+| Pin 21 | Amber DTC, SPN 97 FMI 31, after 2 s; clears after 2 s dry | A warning, never a stop. 2 s each way so fuel sloshing past the probe does nothing |
+| Pins 09 and 14 | Read and passed to the firmware; **no function yet** | Bosch's drawing names them but does not say what the GCU sends. 09 reads 0–10 V |
+| CAN | Net names kept; the service link moves to **1000 kbit/s** | Renaming nets churns three sheets for nothing. The mapping is written on the connector sheet |
+
+### Found on the way
+
+- **A sneak path that would have held the relay in forever.** The relay
+  driver had a flyback diode from the drain to VBAT_PROT. That was safe
+  while the coil was fed from the board's own battery feed. Under Bosch's
+  wiring the coil sits on Term. 30, always live. With the relay open, the
+  coil and diode fed the "unpowered" board: 22.8 mA through the coil, 2.7
+  times its release current, with the board at 9.1 V (`main_relay.cir` B).
+  The relay could never drop out. Bosch marks pin 50 "not equipped with
+  freewheeling diode": the diode belongs in the relay. The netlist check
+  now fails on any diode from pin 50 to a supply.
+- **The decoupling check had been passing on nothing.** KiCad 10's
+  `kicad-cli` writes the netlist one element per line. The check's pattern
+  expected KiCad 7's inline form, found no parts, and passed on "0 supply
+  pins". It now parses either form, and fails if it finds none. It checks
+  50 pins, all decoupled.
+- **Two open items closed.** The power ground (since 19 September) and
+  the trip loop's missing pin. The netlist check reports none open.
+
+### Proof
+
+- `run_sim.py`: 26/26 blocks. `main_relay` is new; `trip_module_sense`
+  is retired with the loop.
+- `check_netlist.py`: connectivity OK, 0 open items. Five new checks:
+  GND on pins 01/02, the 5 A fuse on pin 04, pin 21 an input, no diode
+  from pin 50 to a supply, and two drivers on pin 50 with one woken from
+  pin 71.
+- Firmware: the unit tests pass (seven new), as do the boot tests,
+  16/16 SIL scenarios and the service tool. Scenario 7 now checks that the
+  relay opens 22.6 s after ignition off: after the engine has stopped,
+  and after the stop is saved. `ECU_ABI_VERSION` is 2.
+- `check_pcb.py`: footprints, links, nets, classes, widths and DRC pass
+  after `gen_pcb.py`. Schematic parity fails on the Windows machine this
+  was done on, 198 entries, almost all pins with no net. It fails the
+  same on the unchanged board (199), so it is the KiCad build, not this
+  change. It passed on the macOS setup.
+
+### Still open
+
+- **The prototype** (`prototype/`) regenerates its sheets from these
+  generators, so its routed board is now stale: re-place and re-route.
+- **The Rust simulator** mirrors `ecu_io`. Its fields and ABI are
+  updated, but there was no Rust toolchain on this machine to build it.
+  CI will build it, and so will a `cargo` on any of the three OSes. The
+  committed Windows `.exe` is the old build until then.
+- At the machine: pin 25's polarity; what the GCU puts on 09 and 14;
+  whether the fitted main relay carries its own suppressor.
+
 ---
 
 ## Where these came from

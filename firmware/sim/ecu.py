@@ -8,6 +8,7 @@ import zlib
 HERE = pathlib.Path(__file__).resolve().parent
 NCYL, CANQ = 3, 16
 USB_IN, USB_OUT = 64, 512
+AFTERRUN_MAX_MS = 60000                 # ecu.h
 EOL_FMT = "<HH16sHxxI6f6fBBBB"          # eol.h's eol_record, before its crc
 
 
@@ -47,6 +48,10 @@ class IO(C.Structure):
         ("can2", Can * CANQ), ("can2_n", C.c_uint8),
         ("eol_save", C.c_uint8), ("boot_req", C.c_uint8), ("reset_req", C.c_uint8),
         ("session", C.c_uint8),
+        # Bosch pinout, ABI 2 (decisions log 18)
+        ("stop_sw", C.c_uint8), ("wif", C.c_uint8), ("diag_sw", C.c_uint8),
+        ("v_sync", C.c_float),
+        ("main_relay", C.c_uint8), ("afterrun", C.c_uint8),
     ]
 
 
@@ -55,7 +60,7 @@ OFF, WAIT, CRANK, RUN, SHUTDOWN = range(5)
 
 class Ecu:
     def __init__(self):
-        ext = "dylib" if sys.platform == "darwin" else "so"
+        ext = {"darwin": "dylib", "win32": "dll"}.get(sys.platform, "so")
         self.lib = C.CDLL(str(HERE / "build" / f"libecu.{ext}"))
         self.lib.ecu_io_size.restype = C.c_size_t
         self.lib.ecu_nvm_image.restype = C.c_void_p
@@ -136,7 +141,7 @@ class Unit:
     not). request() takes one UDS request and returns its response."""
 
     def __init__(self, app_size=0x40000):
-        ext = "dylib" if sys.platform == "darwin" else "so"
+        ext = {"darwin": "dylib", "win32": "dll"}.get(sys.platform, "so")
         self.boot = C.CDLL(str(HERE / "build" / f"libboot.{ext}"))
         self.boot.boot_state_size.restype = C.c_size_t
         self.boot.boot_handle.restype = C.c_uint16

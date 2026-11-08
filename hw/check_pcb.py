@@ -17,10 +17,10 @@ import pcb_rules as pr  # noqa: E402
 
 DRC_NAMED = ("clearance", "courtyards_overlap", "copper_edge_clearance",
              "hole_clearance")
-# Schematic-parity differences that are expected: the two parts whose
+# Schematic-parity differences that are expected: the part whose
 # footprint comes from gen_pcb's PLACEHOLDER map, not the schematic.
-PARITY_OK = {("footprint_symbol_mismatch", "J1001"),
-             ("footprint_symbol_mismatch", "D806")}
+# (D806, the trip loop's clamp, left with the loop on 8 Nov 2026.)
+PARITY_OK = {("footprint_symbol_mismatch", "J1001")}
 
 
 def read_board(path):
@@ -55,7 +55,7 @@ def drc(board):
 
 
 def main(board=None, rules=pr, parity_ok=PARITY_OK,
-         placeholders=("J1001", "D806"), require_routed=False):
+         placeholders=("J1001",), require_routed=False):
     """Defaults are production's. `rules` is a pcb_rules-shaped module
     (the prototype passes proto_rules). Returns the number of FAILs."""
     if board is None:

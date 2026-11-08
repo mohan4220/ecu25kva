@@ -534,7 +534,7 @@ prototype for quick iterations, **CAN channel 2** in production (ECU pins
 
 | Link | Framing |
 |---|---|
-| CAN channel 2 | ISO-TP, 11-bit: request `0x7E0`, response `0x7E8`, 500 kbit/s, frames padded with `0xAA`, block size 0, STmin 0, up to 4095 bytes |
+| CAN channel 2 | ISO-TP, 11-bit: request `0x7E0`, response `0x7E8`, 1000 kbit/s (Bosch's application CAN, pins 87/86), frames padded with `0xAA`, block size 0, STmin 0, up to 4095 bytes |
 | USB (virtual serial) | `0x55`, length (2 bytes LE), payload, CRC-16/CCITT of the payload (2 bytes LE). A bad CRC or a length over 4095 drops the message |
 
 **Services:**

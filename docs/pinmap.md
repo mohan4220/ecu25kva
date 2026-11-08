@@ -5,6 +5,18 @@
 and the two Phase-2 items memo 05 §7 left open (how many ADC/FTM channels the 144-pin
 package actually breaks out; per-pin reset defaults for the six gate pins).
 
+> **Bosch pinout, 8 November 2026** (decisions log §18). The connector pins below are
+> now Bosch's terminal diagram for this ECU (`refs/bosch-pinout-md1cs162.md`), which
+> replaced KOEL's harness diagram where they disagreed. The changes are marked
+> **BOSCH** in the tables:
+> - Pin 21 is the water-in-fuel input, not battery.
+> - Pins 04/06 are the board's only supply, from the main relay, which pin 71 wakes.
+> - Pins 01/02 are the power ground.
+> - Pins 09, 14 and 25 are new inputs.
+> - The trip loop is gone.
+>
+> 45 MCU pins are committed, against 42 before.
+
 ---
 
 ## 0. Preamble — package, sources, method
@@ -84,10 +96,10 @@ connector pins is accounted for, not silently dropped.
 
 | ECU pin | Signal | Front-end | `PTxx` | Peripheral | Reset pull | Note |
 |---|---|---|---|---|---|---|
-| 21 | Battery + | Reverse-battery FET → buck | — | — | — | Power input net, not an MCU signal |
-| 04 | `V_BAT_1R` sense | 120k/10k divider (spec §4) | `PTA0` | ADC0_SE0 | Hi-Z, no pull | Free choice; paired with pin 06 on the *other* ADC instance (below) so both battery rails sample simultaneously |
-| 06 | `V_BAT_2R` sense | 120k/10k divider | `PTA2` | ADC1_SE0 | Hi-Z, no pull | Paired with 04 for simultaneity — a real S32K148 property (two independent SAR ADCs), not decorative |
-| 09 | `SYNCHRONIZATION GROUND` | — | — | — | — | **U6 open.** Function unconfirmed; likely a ground per its own name despite being drawn red. No MCU pin assigned — assigning one would be guessing a signal that may not exist |
+| 04 | `V_V_BAT_1R`, **BOSCH: the board's supply** | 5 A fuse → EMI filter → TVS → reverse FET → buck; also the injector feed; and a 120k/10k sense divider | `PTA0` | ADC0_SE0 | Hi-Z, no pull | The main relay's contact. Paired with pin 06 on the *other* ADC instance so both rails sample simultaneously |
+| 06 | `V_V_BAT_2R`, the EGR feed | 120k/10k divider | `PTA2` | ADC1_SE0 | Hi-Z, no pull | Paired with 04 for simultaneity — a real S32K148 property (two independent SAR ADCs), not decorative |
+| 01 / 02 | `G_G_BAT1/2`, **BOSCH: power ground** | GND | — | — | — | Closes the "no power ground" item open since 19 Sep |
+| 21 | **BOSCH:** `I_S_WFLS`, water in fuel | see §1.4 | | | | Was "Battery +" from KOEL's diagram. There is no permanent feed |
 
 ### 1.2 Analog sensors
 
@@ -106,6 +118,7 @@ connector pins is accounted for, not silently dropped.
 | 32 | Rail pressure 5V excitation | `5V_SENSOR` distribution | — | — | — | Power net |
 | 35 | Rail pressure | Single-ended (dedicated gnd 08) | `PTA16` | ADC1_SE13 | Hi-Z, no pull | |
 | 08 | Sensor ground (rail, dedicated) | — | — | — | — | Analog ground-plane net |
+| 09 | **BOSCH:** `I_A_SYNC`, GCU synchronisation input | 22k/10k divider, 0–10 V → 0–3.125 V, ADC tail | `PTB0` | ADC0_SE4 | Hi-Z, no pull | The trip sense's old channel. The GCU's range and meaning are not on the drawing; read, no function yet |
 | — | `5V_SENSOR` rail monitor | Divider → ADC (spec §4's ratiometric-correction channel) | `PTC14` | ADC0_SE12 | Hi-Z, no pull | No connector pin — internal PCB net, required by the firmware ratiometric-correction scheme spec §4 already specifies |
 | — | Onboard barometric sensor | New, per spec §7 deviation #2 | `PTD18` | ADC1_SE16 | Hi-Z, no pull | No connector pin — this is the 8th "sensor input" in memo 05's 14-channel ADC budget |
 
@@ -126,12 +139,13 @@ connector pins is accounted for, not silently dropped.
 |---|---|---|---|---|---|---|
 | 43 | Coolant switch | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD5` | GPIO input | Hi-Z, no pull | Pad LOW = contact OPEN. See discrete_input.cir |
 | 23 | Droop switch | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD7` | GPIO input | Hi-Z, no pull | Pad LOW = contact OPEN |
-| 01 | `G_G_B AT1` | — | — | — | — | **Unresolved per spec §4's own note** — memo 03 suspects this is a power ground, not a switch-return leg. No MCU pin assigned either way: if it's a ground it needs none, and if it is a signal, guessing which one would violate this project's own "nothing guessed into copper" rule |
-| 02 | `G_G_B AT2` | — | — | — | — | Same as 01 |
+| 21 | **BOSCH:** water in fuel, active high | Same NPN buffer, **inverted**, no pull-up (open = no water) | `PTD6` | GPIO input | Hi-Z, no pull | From the main-relay line through the sensor's switch |
+| 14 | **BOSCH:** diagnosis request, contact to ground | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD8` | GPIO input | Hi-Z, no pull | GCU relay contact |
+| 25 | **BOSCH:** stop / emergency switch, contact to ground | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD9` | GPIO input | Hi-Z, no pull | GCU relay contact. Polarity (stop on closed) to confirm at the machine |
 | 20 | Audio abort (active-high) | 10k/4.7k/4.7 µF + NPN buffer, **inverted** | `PTD11` | GPIO input | Hi-Z, no pull | Pad LOW = input active. Was a 3.0 V zener clamp until 22 Sep 2026 |
 | 24 | Override SS (active-high) | Same NPN buffer, **inverted** | `PTD12` | GPIO input | Hi-Z, no pull | Pad LOW = input active |
-| 71 | Ignition (active-high) | Same NPN buffer, **inverted** | `PTD16` | GPIO input | Hi-Z, no pull | Pad LOW = input active |
-| — | Trip-module sense (new) | `trip_module_sense.cir` — 47k/68k/220nF/3.0 V, same chain as the rows above | `PTB0` | **ADC0_SE4** | Hi-Z, no pull | **CORRECTED 20 Sep 2026, during schematic capture — was `PTD6` GPIO.** See below |
+| 71 | Ignition (active-high) | Same NPN buffer, **inverted**; **BOSCH:** also gates the wake FET on pin 50 | `PTD16` | GPIO input | Hi-Z, no pull | Pad LOW = input active |
+| — | ~~Trip-module sense~~ | **Removed 8 Nov 2026**: no Bosch pin. `PTB0` now reads pin 09 | | | | The history below is kept |
 
 **CORRECTION, 20 September 2026 — the trip sense needs an ADC, not a GPIO.**
 
@@ -180,7 +194,7 @@ for the EGR bridge's shared shutdown (§1.5).
 | 59 | EGR High (bridge IN1) | H-bridge | `PTB8` | FTM3_CH0 | Hi-Z, no pull | Not one of the six — see §2's scope note |
 | 81 | EGR Low (bridge IN2) | H-bridge | `PTB9` | FTM3_CH1 | Hi-Z, no pull | Not one of the six |
 | — | EGR bridge enable (shared SD̄) | Pulled LOW on the sheet — **coast** at reset | `PTB10` | FTM3_CH2 | Hi-Z, no pull | **ADDED 22 Sep 2026.** The bridge is two AUIRS2184S, one input per leg; coast needs both shutdowns asserted, and they default asserted by copper. Same timer as IN1/IN2 |
-| 50 | Main relay | Low-side FET + flyback | `PTD13` | GPIO output | Hi-Z, no pull | |
+| 50 | Main relay, **BOSCH: the board's own supply** | Low-side FET, a second FET woken from pin 71, **SMAJ48CA to ground, no flyback diode** | `PTD13` | GPIO output | Hi-Z, no pull | Held through the after-run. A diode to VBAT_PROT fed the board through the coil (decisions log §18) |
 | 69 | Buzzer relay | Low-side FET + flyback | `PTD14` | GPIO output | Hi-Z, no pull | |
 
 **ADDED 21 September 2026 — a peak-and-hold stage needs two high-side switches per bank,
@@ -224,6 +238,10 @@ ECU pin — but they need an MCU `PTxx` and are placed here for completeness.
 | EGR bridge current sense (pins 59/81) | `PTD22` | ADC1_SE18 | Hi-Z, no pull | |
 
 ### 1.7 CAN
+
+**BOSCH (8 Nov 2026):** 87/86 is Bosch's CAN 1, the application line at 1000 kbit/s for
+flashing and UDS (the service link); 55/77 is CAN 2, the PT line at 250 kbit/s for J1939
+and OBD. The channel numbers below are this project's, kept to avoid renaming nets.
 
 Both channels are real (spec §2.5). The S32K148 has three FlexCAN instances; this design
 needs two, exactly as memo 05 notes ("1 spare instance"). CAN0/CAN1 are used, CAN2 is

@@ -560,10 +560,6 @@
         "pattern": "/VBAT_EGR"
       },
       {
-        "netclass": "PWR",
-        "pattern": "/VBAT_IN"
-      },
-      {
         "netclass": "PWR_HI",
         "pattern": "/VBAT_INJ"
       },

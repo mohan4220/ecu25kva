@@ -17,10 +17,13 @@
 #define ECU_STOPPED_MS 1000          /* no crank tooth this long (and OFF, WAIT or SHUTDOWN): stopped */
 #define ECU_CAN2_REQ 0x7E0u          /* service link on CAN channel 2, 11-bit */
 #define ECU_CAN2_RESP 0x7E8u
+#define AFTERRUN_MAX_MS 60000u        /* after-run cap: release the main relay even if not done;
+                                      * covers the 25 kVA set's ~25 s run-down with margin */
+#define WIF_MS 2000                  /* water in fuel held this long (or clear this long) to change */
 #define ECU_USB_IN 64
 #define ECU_USB_OUT 512
 #ifndef ECU_ABI_VERSION
-#define ECU_ABI_VERSION 1u           /* bump whenever ecu_io or an entry point changes */
+#define ECU_ABI_VERSION 2u           /* bump whenever ecu_io or an entry point changes */
 #endif
 
 /* Exported from a Windows DLL (the simulator's loadable firmware) */
@@ -69,6 +72,17 @@ typedef struct {
     uint8_t boot_req;                /* set the "stay" flag and reset into the bootloader */
     uint8_t reset_req;               /* a plain reset (UDS 0x11) */
     uint8_t session;                 /* status: UDS session, 1 default, 2 programming, 3 extended */
+    /* Bosch pinout (refs/bosch-pinout-md1cs162.md, decisions log 18), ABI 2.
+     * Inputs are LOGICAL: the host applies each contact's polarity. */
+    uint8_t stop_sw;                 /* input: pin 25, 1 = stop requested: latches SHUTDOWN */
+    uint8_t wif;                     /* input: pin 21, 1 = water in fuel: amber DTC after WIF_MS */
+    uint8_t diag_sw;                 /* input: pin 14, diagnosis request: read, no function yet */
+    float v_sync;                    /* input: pin 09 volts, GCU sync: read, no function yet */
+    uint8_t main_relay;              /* output: hold the main relay (pin 50, PTD13) -- the
+                                      * board's own supply. Pin 71 closes it in hardware; this
+                                      * keeps it through the after-run */
+    uint8_t afterrun;                /* status: ignition off, still holding the relay to stop
+                                      * the engine and write the fault memory */
 } ecu_io;
 
 ECU_API void ecu_init(ecu_io *io);

@@ -523,7 +523,7 @@ not constraints.
 | Current-sense amplifiers | **INA181A1QDBVRQ1** ×3 | VCM reaches −0.2 V, so it sits across a ground-referenced shunt; supplied from 3V3_MCU so its output is ADC-safe by construction. |
 | Kill FETs and reset inverter | **2N7002BK** ×10 | 60 V, ±20 V Vgs, Vth 1.1–2.1 V, 2 Ω max at Vgs 5 V against the 5 Ω `supervisor.cir` assumes. AEC-Q101. Needs `GATE-KILL-CLAMP`. |
 | GATE_KILL clamp | **BZX84-C12-Q** | 11.4–12.7 V at 5 mA, +10 mV/K max. AEC-Q101. The plain BZX84 series is no longer automotive-qualified; the `-Q` suffix is. |
-| Relay FETs | **PMV280ENEA** ×2 | 100 V, ±20 V Vgs, 432 mΩ max at Vgs 4.5 V. AEC-Q101. Driven through a buffer — see `RELAY-GATE`. |
+| Relay FETs | **PMV280ENEA** ×3 | 100 V, ±20 V Vgs, 432 mΩ max at Vgs 4.5 V. AEC-Q101. Driven through a buffer — see `RELAY-GATE`. The third is the main relay's **wake** FET, gated from pin 71 through 10k / 22k and a BZX84-C12-Q (Bosch pinout, 8 Nov). |
 | Relay gate buffers | **CAHCT1G125QDBVRQ1** ×2 | SN74AHCT1G125-Q1 on 5V_MAIN: VIH 2 V reads a 3.3 V GPIO, VOH 4.4 V min drives the FET. AEC-Q100. |
 | Reverse-battery FET | **SQD50P08-25L** | −80 V P-channel, ±20 V Vgs, 31 mΩ max at −4.5 V against a 40 mΩ ceiling. AEC-Q101, TO-252. |
 | Pin 21 filter inductor L101 | **7447709220** | Würth WE-PD 1210, 22 µH ±20%, IR 5.3 A, Isat 6.5 A typ, RDC 28 mΩ max, SRF 10 MHz typ, 120 V, AEC-Q200 Grade 1, −40 to +125 °C. Datasheet rev 003.001 (2024-05-08). |
@@ -543,8 +543,8 @@ not constraints.
 | Metering freewheel | **VS-3ECH02HM3** | 200 V, 3 A, 130 A surge, AEC-Q101, SMC. |
 | Negative-clamp backstop Schottky | **SS20PH102HM3** | 100 V, 20 A, 310 A surge, AEC-Q101, TO-277A. Stock footprint puts the cathode on pad 3; the project's `TO-277A_K1_A2` renumbers it (`hw/gen_footprints.py`). |
 | Battery TVS | **SMCJ43CA-HM3** | 43 V standoff, 47.8–52.8 V breakdown, 69.4 V clamping at 21.6 A, 1500 W, AEC-Q101. |
-| Crank-pair TVS | **SMAJ48CA-HE3** | 48 V standoff, 53.3–58.9 V breakdown, 400 W, AEC-Q101. |
-| 12 V clamps | **BZX84-C12-Q** ×2, **BZX84-C13-Q** | GATE_KILL, reverse-FET gate, 12V_GATE reference. SOT-23 with pin 3 as the cathode, so the project's `SOT-23_Zener_K1_A2` footprint is used. The GATE_KILL zener's first footprint, the stock SOT-23, had its anode where the symbol puts the cathode. |
+| Crank-pair TVS | **SMAJ48CA-HE3** | 48 V standoff, 53.3–58.9 V breakdown, 400 W, AEC-Q101. One more clamps pin 50's drain in place of its flyback diode (`main_relay.cir`, 8 Nov). |
+| 12 V clamps | **BZX84-C12-Q** ×3, **BZX84-C13-Q** | GATE_KILL, reverse-FET gate, 12V_GATE reference. SOT-23 with pin 3 as the cathode, so the project's `SOT-23_Zener_K1_A2` footprint is used. The GATE_KILL zener's first footprint, the stock SOT-23, had its anode where the symbol puts the cathode. |
 | VDD clamp | **BZG03C36-HM3** | See `BOOST-VDD-CLAMP`: it replaced a 43 V clamp that did not clamp. |
 | Buck inductor | **Würth 7447714330** | WE-PD 1050, 33 µH, Isat 2.9 A typ against a 1.18 A worst peak (1.72× after a −30% hot derate), 79 mΩ, AEC-Q200 Grade 1. This closes the Isat gap `buck_preregulator.cir` left open. Land pattern drawn from the Würth drawing (`gen_footprints.py`). |
 | 12V_GATE pass / limit | **PZTA42-Q**, **PMBT3904-Q** | See `GATE-RAIL`. PMBT3904-Q is SOT-23 B-E-C, so it uses the `Q_NPN_BEC` symbol. |
@@ -660,6 +660,10 @@ own loads, and that VBAT_PROT no longer reaches either power stage.
   −0.5 V on pulse 1. The Schottky holds the rail there, and there is no
   active clamp on these rails. The present loads are switch and bridge
   FETs, a diode and an inductor, and all of them do.
+
+**Bosch pinout, 8 November 2026** (decisions log §18): pin 21 is the water-in-fuel input,
+not a battery feed. The electronics chain (F101, L101, L102, the TVS, Q101) now takes
+**pin 04**, beside the injector feed. Its load is unchanged, so the parts are too.
 
 The original requirement follows.
 

@@ -46,7 +46,7 @@ SHEETS = [
      "vr_conditioner, cam_frontend",
      ""),
     ("discrete_io", "Switch inputs, trip-module sense, relay drivers",
-     "discrete_input, trip_module_sense, relay_driver",
+     "discrete_input, relay_driver, main_relay",
      ""),
     ("can", "Dual CAN, J1939 250 kbit/s",
      "can_termination",
@@ -187,31 +187,16 @@ OPEN_ITEMS = """WHAT THIS SHEET IS FOR, AND WHAT IT LEAVES OPEN
 
 This page is the only place the ten sheets are joined. Each sheet symbol carries one hierarchical pin per net its
 child exports, and each pin carries a stub with a label: two labels anywhere on this page with the same name are
-one net. Until 21 September 2026 the symbols carried no pins at all, which meant every sheet's own netlist was
-correct and the project had none -- a name on two sheets was two nets and nothing compared them. hw/check_netlist.py
-now exports the whole hierarchy and checks it, the way sim/run_sim.py checks the component values.
+one net. hw/check_netlist.py exports the whole hierarchy and checks it, the way sim/run_sim.py checks the values.
 
-113 named nets carry two or more pins. EIGHTEEN reach exactly one, every one of them a recorded open item:
+THE PINOUT IS BOSCH'S (8 Nov 2026, refs/bosch-pinout-md1cs162.md, decisions log 18). No permanent battery feed:
+pin 71 (ignition) closes the main relay through a wake FET, the relay's contact feeds pins 04/06 -- the board's
+only supply -- and the MCU holds pin 50 through the after-run. Pins 01/02 are the power ground. Pin 21 is the
+water-in-fuel input, 09 the GCU sync input, 14 diagnosis request, 25 the stop switch.
 
-  DRIVERS AND AMPLIFIERS NOT CHOSEN (9)   INJ_HS_A  INJ_HS_B  INJ_LS_1  INJ_LS_2  INJ_LS_3  MU_PWM
-                                          ISNS_INJ_A  ISNS_INJ_B  ISNS_MU
-      The far end of each is a gate driver or a current-sense amplifier. Requirements are drawn on the sheets that
-      own them -- output impedance <= 25 ohm, ground-referenced sense, 73.3 V rail rating -- and no part is guessed.
-
-  POWER INPUT'S TWO CONTROLLER GATES (2)  VBAT_REV_GATE  NCLAMP_GATE
-      Ideal-diode controller and negative-clamp comparator. The comparator's propagation delay is the last
-      unmodelled term in the negative-pulse chain.
-
-  THE EGR BRIDGE (5)                      EGR_IN1  EGR_IN2  ISNS_EGR  EGR_HIGH_59  EGR_LOW_81
-      Blocked on a rail rating, not a missing idea: VBAT_PROT reaches 73.3 V on ISO 7637-2 pulse 2a and integrated
-      automotive H-bridges cap out at 40-45 V as a class. Needs a bridge gate driver above 73.3 V that still decodes
-      DIR/PWM. Connector pins 59 and 81 are real and wired; the driver is not chosen.
-
-  NO PART, AND NO PIN (2)                 BARO  TRIP_LOOP
-      BARO is an onboard barometric sensor with no part chosen. TRIP_LOOP is a NEW signal -- not on the OEM wiring
-      diagram at all -- so it needs one of the 50 unconfirmed connector pins. So does GND: the diagram shows pin 21
-      as the battery positive feed and no battery negative anywhere. Both wait on the connector part number and the
-      OEM pin list, or on continuity measurement at the machine."""
+No net reaches exactly one pin: every single-pin net that was recorded here has closed, the last two (the power
+ground and the trip loop) with the Bosch pinout. What is still open lives off this page: the connector's land
+pattern and the housing (field brief Group 6), and the trip module's wiring to the main relay's coil feed."""
 
 
 def _text_block(body, x, y, size=1.6):

@@ -77,9 +77,12 @@ NETS = {
     "PTD5":  ("SW_COOLANT", "input"),     "PTD7":  ("SW_DROOP", "input"),
     "PTD11": ("IN_AUDIO_ABORT", "input"), "PTD12": ("IN_OVERRIDE_SS", "input"),
     "PTD16": ("IN_IGNITION", "input"),
-    # Trip sense moved PTD6 -> PTB0 on 20 Sep 2026: the loop is
-    # three-state and a GPIO reads two. See pinmap.md sec.1.4.
-    "PTB0":  ("TRIP_SENSE", "input"),
+    # Bosch pins, 8 Nov 2026 (decisions log sec.18). The trip loop had no
+    # Bosch pin and is gone; its ADC channel PTB0 reads pin 09, the GCU's
+    # analog sync input, and PTD6 returns from the spare pool for pin 21.
+    "PTB0":  ("SYNC", "input"),
+    "PTD6":  ("IN_WIF", "input"),         "PTD8":  ("SW_DIAG", "input"),
+    "PTD9":  ("SW_STOP", "input"),
     # --- discrete out ---
     "PTD13": ("RLY_MAIN", "output"),      "PTD14": ("RLY_BUZZER", "output"),
     # --- CAN ---

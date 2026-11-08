@@ -93,13 +93,38 @@ The PDFs come out two pages shorter on this Chrome (326, not 328) with
 no source change — font metrics, not content. Don't commit a rebuild
 for that alone.
 
+**On Windows** (set up 8 November 2026, KiCad 10.0.6), nothing beyond KiCad is
+installed. KiCad's bundled Python makes the venv
+(`…/KiCad/10.0/bin/python.exe -m venv .venv`, then `.venv/Scripts/python.exe`). It
+also runs `gen_pcb.py`, because it has `pcbnew`. Its `ngspice.dll` runs the
+simulations, and `pip install ziglang` into the venv gives a C compiler
+(`.venv/Scripts/python.exe -m ziglang cc`) for the firmware, which has no `make`
+here: `run_sil.py` then uses the libraries already in `firmware/sim/build/`. Set:
+
+```bash
+export PATH="/c/Users/<you>/AppData/Local/Programs/KiCad/10.0/bin:$PATH"
+export NGSPICE_LIB="C:/Users/<you>/AppData/Local/Programs/KiCad/10.0/bin/ngspice.dll"
+export KICAD_SYMBOL_DIR="C:/Users/<you>/opt/kicad7-libs/kicad-symbols-7.0.11"
+export PYTHONUTF8=1       # several files are UTF-8; Windows defaults to cp1252
+```
+
+Two traps:
+- **Write Python patches with `chr(92)` for a backslash.** The shell
+  wrapper halves doubled backslashes before Python sees them, so a
+  `"\\n"` written into a heredoc arrives as `"\n"`, a real newline.
+- **KiCad's schematic parity fails here on the unchanged board** (199
+  entries, nearly all pins with no net). That is the KiCad build, not
+  the design, and every other `check_pcb.py` gate passes.
+
+There is no Rust toolchain on that machine, so the simulator was not rebuilt.
+
 Verify the whole project in one go:
 
 ```bash
 set -o pipefail
 .venv/bin/python sim/run_sim.py | tail -3        # expect 26/26 blocks pass
-.venv/bin/python hw/check_netlist.py | tail -6   # expect "schematic connectivity OK", 2 open items
-.venv/bin/python hw/assign_passives.py           # expect 236 packaged, 0 unresolved
+.venv/bin/python hw/check_netlist.py | tail -6   # expect "schematic connectivity OK", 0 open items
+.venv/bin/python hw/assign_passives.py           # expect 253 packaged, 0 unresolved
 .venv/bin/python docs/build_pdf.py | tail -1     # rebuilds docs/pdf/ECU-Bible.pdf
 ```
 
@@ -147,9 +172,9 @@ terminals, 300 × 200 mm, 0 DRC errors, nothing unconnected. Fab files in
 | Gate | State |
 |---|---|
 | Simulation blocks | **26 of 26 pass** |
-| Netlist connectivity | **passes**, with 2 named open items |
-| Footprints | **378 of 380** components |
-| Chip R and C packaged | **236 of 236** |
+| Netlist connectivity | **passes**, with **0** open items (Bosch pinout, 8 Nov) |
+| Footprints | **404 of 405** components |
+| Chip R and C packaged | **253 of 253** |
 
 **Verified part numbers** are in `docs/bom_requirements.md` under
 "Chosen parts" — every one against a datasheet that was actually
@@ -225,13 +250,12 @@ C401 + C420 are two HXC 82 µF 80 V cans in series, balanced by the
 
 ### 4.3 Blocked on the machine or a supplier
 
-- **The power ground.** GND reaches the connector only through
-  sensor-ground pins 8/30/44. The 18 A injector return has no pin. The
-  netlist gate now counts this as an open item rather than passing
-  silently. Field brief tasks 1.1 and 5.1 settle it — pins 01/02
-  (`G_G_B AT1/AT2`) are the hypothesis.
-- **`TRIP_LOOP` has no connector pin** — it is not on the OEM diagram
-  and needs one of the 50 unconfirmed pins.
+- ~~**The power ground.**~~ Closed 8 Nov 2026: Bosch's terminal
+  diagram puts it on pins 01/02, and the netlist check now requires it.
+- ~~**`TRIP_LOOP` has no connector pin**~~ Removed 8 Nov 2026: no Bosch
+  pin. The trip module opens the main relay's coil feed (spec §3 item 7).
+- **At the machine (Bosch pinout):** pin 25's polarity, and what the GCU
+  puts on 09 (analog) and 14.
 - **The Bosch 94-way land pattern** — needs a distributor drawing for
   1 928 405 192 / 194, code C. The board carries the OEM connector
   (spec §7 deviation 1 reversed), so this is the board's own header.
@@ -243,12 +267,12 @@ C401 + C420 are two HXC 82 µF 80 V cans in series, balanced by the
   item is closed: the owner supplied ST's data brief on 8 October,
   confirming its 80 V tank ceiling.)
 
-### 4.4 The 2 components still without a footprint
+### 4.4 The component still without a footprint
 
 | Parts | Why |
 |---|---|
 | J1001 | the Bosch 94-way header: no public drawing. The harness mate is Bosch 1 928 405 063 (code C); the likely header is TE 936524-2 (154 = 60 + 94, 2.5 mm, restricted by TE). Ask the distributor, or buy and measure (memo 03 addendum). On the board as `Bosch_94_PLACEHOLDER` (6 large + 4 × 22, read off the old ECU); measure it from the old ECU (brief 6.3) |
-| D806 | the trip-loop clamp, the LOWV-CLAMP residual. On the board as an assumed SMA |
+| ~~D806~~ | the trip-loop clamp. Gone with the loop, 8 Nov 2026 |
 
 `hw/gen_footprints.py` holds the project footprints. It derives two from
 stock by renumbering pads: a TO-277A and a SOT-23 zener, whose stock pad

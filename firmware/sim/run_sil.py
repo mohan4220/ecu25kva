@@ -7,6 +7,7 @@ Each scenario is a claim from the spec (section 7) that must hold.
     .venv/bin/python firmware/sim/run_sil.py runaway   # run matching scenarios
 """
 import pathlib
+import shutil
 import statistics
 import struct
 import subprocess
@@ -15,9 +16,12 @@ import sys
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1] / "sim"))
-subprocess.run(["make", "-s", "-C", str(HERE)], check=True)
+if shutil.which("make"):
+    subprocess.run(["make", "-s", "-C", str(HERE)], check=True)
+else:   # e.g. Windows with zig cc: build/libecu.dll is built by hand first
+    print("  (no make: using the libraries already in build/)")
 
-from ecu import Ecu, RUN, SHUTDOWN, NCYL, eol_record  # noqa: E402
+from ecu import Ecu, RUN, SHUTDOWN, NCYL, AFTERRUN_MAX_MS, eol_record  # noqa: E402
 from engine import Engine  # noqa: E402
 from run_sim import Checks, PASS, FAIL  # noqa: E402
 
@@ -299,7 +303,13 @@ def ignition_off():
     c = Checks("7  ignition off: stop, no fault")
     sim = Sim().start(6.0)
     sim.io.ignition = 0
-    sim.run(36.0)
+    saves0 = sim.saves
+    drop = []                                 # (ms the main relay opened, saves by then)
+
+    def relay(s):
+        if not drop and not s.io.main_relay:
+            drop.append((s.next_ms, s.saves))
+    sim.run(70.0, each_ms=relay)
     tr = sim.trip(6.0)
     c.that("SHUTDOWN", "yes" if tr else "no", 0, ok=tr is not None)
     dm = sim.dm1_after(6 * S + 1)
@@ -307,6 +317,16 @@ def ignition_off():
     stop = next((t for t, r, *_ in sim.trace if t > 6 * S and r < 50), None)
     c.that("engine below 50 rpm, s after stop", ((stop or 99 * S) - 6 * S) / S, 30,
            ok=stop is not None, unit="s")
+    # Bosch wiring: the main relay is the board's own supply. It must stay
+    # closed through the run-down and open only once the stop is written.
+    still = next((t for t, r, *_ in sim.trace if t > 6 * S and r < 1), None)
+    t_drop, saves = drop[0] if drop else (None, 0)
+    c.that("main relay opens, s after ignition off", ((t_drop or 99 * S) - 6 * S) / S,
+           AFTERRUN_MAX_MS / 1000, ok=t_drop is not None, unit="s")
+    c.that("  ... not before the engine stopped", "yes" if t_drop and still and t_drop > still
+           else "no", 0, ok=bool(t_drop and still and t_drop > still))
+    c.that("  ... and not before the stop was saved", saves - saves0, 1,
+           ok=saves > saves0)
     return c
 
 

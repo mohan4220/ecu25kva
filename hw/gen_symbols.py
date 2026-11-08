@@ -437,33 +437,26 @@ COMPARATOR = dict(
 
 
 # --- The 94-way ECU connector ----------------------------------------
-# The part number is NOT known. refs/ecu-pinout-extracted.md records the
-# connector as 94-pin from GP3.8703.C4.pdf page 4 and nothing more --
-# no Bosch part number, no keying, no mating half. So this symbol
-# carries pin COUNT and pin NUMBERS, which are facts, and no footprint,
-# which would be a guess.
-#
-# Pin NAMES come from the wiring diagram where it shows the pin and are
-# "~" (KiCad's blank) where it does not. 44 of the 94 are shown; the
-# diagram is a field-troubleshooting document and explicitly omits
-# "power grounds, unused pins and internal-only pins". Naming a pin this
-# project has not seen would put a guess in the one place a connector
-# symbol must not have one.
+# Pin NAMES are Bosch's own, off the ECU's terminal diagram
+# (refs/bosch-pinout-md1cs162.md, 0 462 YU4 15D), the master pinout since
+# 8 Nov 2026. It shows 46 of the 94 positions; the rest are "~" (KiCad's
+# blank), because naming a pin nobody has documented would put a guess in
+# the one place a connector symbol must not have one.
 CONN94_PINS = {
-    "1": "G_G_B_AT1", "2": "G_G_B_AT2", "3": "INJ_HS_A", "4": "V_BAT_1R",
-    "5": "INJ_HS_B", "6": "V_BAT_2R", "7": "INJ_LS_CYL3",
-    "8": "SGND_RAIL", "9": "SYNC_GND", "11": "EXC_BOOST",
-    "15": "EXC_EGR", "20": "AUDIO_ABORT", "21": "BATT_PLUS",
-    "23": "SW_DROOP", "24": "OVERRIDE_SS", "29": "INJ_LS_CYL2",
-    "30": "SGND_CRANK", "32": "EXC_RAIL", "33": "COOLANT_T",
-    "34": "SGND_BOOST_COOLANT", "35": "RAIL_P", "36": "SGND_EGR_OIL",
-    "37": "EGR_POS", "39": "EXC_OIL", "41": "BOOST_P", "43": "SW_COOLANT",
-    "44": "SGND_CAM", "45": "EXC_CAM", "46": "CAM_FREQ",
-    "50": "MAIN_RELAY", "52": "CRANK_HI", "55": "CAN1_H",
-    "59": "EGR_HIGH", "69": "BUZZER_RELAY", "71": "IGNITION",
-    "73": "INJ_LS_CYL1", "74": "CRANK_LO", "77": "CAN1_L",
-    "79": "BOOST_T", "80": "OIL_P", "81": "EGR_LOW", "86": "CAN2_L",
-    "87": "CAN2_H", "88": "MU_PWM",
+    "1": "G_G_BAT1", "2": "G_G_BAT2", "3": "O_P_INJVH1", "4": "V_V_BAT_1R",
+    "5": "O_P_INJVH2", "6": "V_V_BAT_2R", "7": "O_P_INJVL2",
+    "8": "G_R_RAILPS", "9": "I_A_SYNC", "11": "O_V_5VBPS", "14": "I_S_DIA",
+    "15": "O_V_5VEGR", "20": "I_S_AAS", "21": "I_S_WFLS",
+    "23": "I_S_DROOP", "24": "I_S_OS", "25": "I_S_STST",
+    "29": "O_P_INJVL3", "30": "G_R_CRS", "32": "O_V_5VRAILPS",
+    "33": "I_A_CTS", "34": "G_R_BPS", "35": "I_A_RAILPS", "36": "G_R_EGR",
+    "37": "I_A_EGR", "39": "O_V_5VOPS", "41": "I_A_BPS", "43": "I_S_CLS",
+    "44": "G_R_CAS", "45": "O_V_5VCAS", "46": "I_F_CAS",
+    "50": "O_S_MRLY", "52": "I_F_CRSPOS", "55": "B_D_CANH2",
+    "59": "O_T_EGRPOS", "69": "O_T_BUZZ", "71": "I_S_T15",
+    "73": "O_P_INJVL1", "74": "I_F_CRSNEG", "77": "B_D_CANL2",
+    "79": "I_A_BTS", "80": "I_A_OPS", "81": "O_T_EGRNEG", "86": "B_D_CANL1",
+    "87": "B_D_CANH1", "88": "O_T_MEU",
 }
 
 

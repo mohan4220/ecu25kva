@@ -75,7 +75,11 @@ NET_V = {
     "/power_input/VBAT_INJ_D1": BAT, "/power_input/VBAT_INJ_D2": BAT,
     "/power_input/VBAT_EGR_D1": BAT, "/power_input/VBAT_EGR_D2": BAT,
     "/power_input/VBAT_INJ_GATE": BAT, "/power_input/VBAT_EGR_GATE": BAT,
-    "/V_BAT_2R": HARNESS, "/TRIP_LOOP": HARNESS,
+    "/V_BAT_2R": HARNESS,
+    # Bosch pins, 8 Nov 2026 (decisions log 18)
+    "/IN_WIF_H": HARNESS, "/SW_DIAG_C": HARNESS, "/SW_STOP_C": HARNESS,
+    "/SYNC_IN_09": HARNESS,
+    "/discrete_io/RLY_MAIN_WAKE": (12.7, 12.7),   # BZX84-C12 max
     "/IN_AUDIO_ABORT_H": HARNESS, "/IN_OVERRIDE_SS_H": HARNESS,
     "/IN_IGNITION_H": HARNESS, "/SW_COOLANT_C": HARNESS,
     "/SW_DROOP_C": HARNESS, "/EGR_HIGH_59": BAT, "/EGR_LOW_81": BAT,
@@ -147,11 +151,11 @@ NET_V = {
 # Nets at MCU logic level, by name pattern.
 LOGIC3_RE = re.compile(
     r"^/(IN_AUDIO_ABORT|IN_OVERRIDE_SS|IN_IGNITION|SW_COOLANT|SW_DROOP|"
-    r"TRIP_SENSE|RLY_MAIN|RLY_BUZZER|EGR_EN|CAM_EDGE|CRANK_EDGE|"
+    r"IN_WIF|SW_DIAG|SW_STOP|RLY_MAIN|RLY_BUZZER|EGR_EN|CAM_EDGE|CRANK_EDGE|"
     r"INJ_HS_[AB](_BAT)?|can/CAN[12]_STB|mcu/WDT_FAULT|mcu/~\{RESET\}|"
     r"metering_egr/EGR_SD|injector/U[AB][12]_HIN)$|^Net-\(U302-")
 LOGIC5_RE = re.compile(
-    r"^/(BARO|BOOST_P|BOOST_T|COOLANT_T|EGR_POS|OIL_P|RAIL_P)$|"
+    r"^/(BARO|BOOST_P|BOOST_T|COOLANT_T|EGR_POS|OIL_P|RAIL_P|SYNC)$|"
     r"^Net-\(U60[1-6]-(OUT|VOUT)\)$")
 
 # Bootstrap domains: every net in one domain rides on the first, and a

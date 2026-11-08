@@ -18,6 +18,8 @@
 
 #define SPN_PROGRAM 628u             /* program memory */
 #define FMI_CALIBRATION 13u          /* out of calibration: no end-of-line record */
+#define SPN_WIF 97u                  /* water in fuel indicator (pin 21, Bosch I_S_WFLS) */
+#define FMI_WIF 31u                  /* condition exists: amber, never a shutdown */
 
 #define RUN_RPM 400.0f               /* CRANK -> RUN once phased and above this */
 #define WDG_TOGGLE_MS 5              /* WDI falling edge every 10 ms */
@@ -55,6 +57,8 @@ static uint8_t svc_req[ISOTP_MAX], svc_rsp[SVC_RESP_MAX];
 static uint8_t stopped;              /* engine stopped, as the service link means it */
 static uint16_t tooth_ms;            /* ms since the last crank tooth, saturating */
 static uint32_t now_us;              /* the last tick's time */
+static uint16_t afterrun_ms;         /* ms since the ignition went off with the relay held */
+static uint16_t wif_on_ms, wif_off_ms;   /* water in fuel: debounce, both ways */
 
 static void event(ecu_io *io, uint8_t code, uint16_t arg)
 {
@@ -143,6 +147,8 @@ void ecu_init(ecu_io *io)
     sens_trim(eol.gain, eol.offset);
     stopped = 1;
     tooth_ms = ECU_STOPPED_MS;          /* no tooth yet: as long ago as counts */
+    io->main_relay = io->afterrun = 0;  /* set on the first tick with the ignition on */
+    afterrun_ms = wif_on_ms = wif_off_ms = 0;
     now_us = 0;
     io->usb_in_n = 0;
     io->usb_out_n = 0;
@@ -180,8 +186,56 @@ static void trip(ecu_io *io, int why)
 static void check(ecu_io *io, float rpm)
 {
     int why = safety_check(rpm, crank_fault(&crank), io->ignition, io->state == ECU_RUN);
-    if (why != TRIP_NONE && !(why == TRIP_IGN && io->state == ECU_SHUTDOWN))
+    /* pin 25: an operator stop, not a fault -- no DTC, no red lamp, and
+     * like the ignition it latches until a real ignition cycle */
+    if (why == TRIP_NONE && io->stop_sw)
+        why = TRIP_STOP;
+    if (why != TRIP_NONE && !((why == TRIP_IGN || why == TRIP_STOP) && io->state == ECU_SHUTDOWN))
         trip(io, why);
+}
+
+/* Pin 21: water in fuel. A warning (amber), never a stop; WIF_MS each way
+ * so fuel sloshing past the probe neither sets nor clears it. */
+static void water_in_fuel(ecu_io *io)
+{
+    wif_on_ms = io->wif ? (uint16_t)(wif_on_ms + (wif_on_ms < WIF_MS)) : 0;
+    wif_off_ms = io->wif ? 0 : (uint16_t)(wif_off_ms + (wif_off_ms < WIF_MS));
+    if (wif_on_ms >= WIF_MS)
+        fault_raise(io, SPN_WIF, FMI_WIF);
+    else if (wif_off_ms >= WIF_MS)
+        fault_drop(io, SPN_WIF, FMI_WIF);
+}
+
+/* The main relay is the board's own supply (Bosch wiring, decisions log
+ * 18): pin 71 closes it in hardware, and this holds it. With the ignition
+ * off it stays closed -- the after-run -- until the engine has stopped AND
+ * the fault memory is written, so a stop is never lost to the board
+ * dropping its own power. AFTERRUN_MAX_MS bounds it: a save that never
+ * completes must not flatten the battery through the relay coil. */
+static void main_relay(ecu_io *io)
+{
+    if (io->ignition) {
+        io->main_relay = 1;
+        io->afterrun = 0;
+        afterrun_ms = 0;
+        return;
+    }
+    if (!io->main_relay)
+        return;
+    if (!io->afterrun) {
+        io->afterrun = 1;
+        /* through the rate limit, not around it: the relay waits for the
+         * save instead, at most SAVE_GAP_S, so a flapping ignition costs
+         * no extra flash writes (test_ecu_save_rate) */
+        save_req = 1;
+    }
+    if (afterrun_ms < AFTERRUN_MAX_MS)
+        afterrun_ms++;
+    int written = !save_now && !save_req && !io->nvm_save;
+    if ((stopped && written) || afterrun_ms >= AFTERRUN_MAX_MS) {
+        io->main_relay = 0;             /* the board loses its supply here */
+        io->afterrun = 0;
+    }
 }
 
 /* Armed in RUN once the setpoint ramp from the start has finished. A
@@ -568,6 +622,7 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     stopped = (io->state == ECU_OFF || io->state == ECU_WAIT || io->state == ECU_SHUTDOWN)
               && tooth_ms >= ECU_STOPPED_MS;
     svc_tick(&svc, ms, stopped);
+    main_relay(io);
     usb_poll(io);                       /* at tick priority: it shares state with the ISRs */
     if (eol_dirty && !io->eol_save) {   /* never change the copy the host is writing */
         eol_out = eol;
@@ -601,6 +656,7 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     const float v[S_N] = { io->v_clt, io->v_oil, io->v_rail, io->v_boost, io->v_egr };
     sens_step_1ms(&sens, v, io->v_5v);
     mirror_sensor_faults(io);
+    water_in_fuel(io);
 
     io->rpm = rpm;
     check(io, rpm);

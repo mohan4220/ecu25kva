@@ -19,6 +19,12 @@ BOTH GATES ARE DRIVEN (this docstring said otherwise until 15 Oct 2026):
 
 The same passive P-FET topology protects the pin 04 and pin 06 feeds
 (Q103, Q104; decisions log 5b).
+
+SINCE 8 NOV 2026 (Bosch pinout, decisions log 18) the electronics chain
+takes PIN 04, not pin 21: Bosch's wiring has no permanent battery feed,
+and 04/06 come from the main relay, which the board closes itself
+(discrete_io's wake FET, from pin 71). Pin 04 feeds both this chain and
+the injector feed; each keeps its own protection after the pin.
 """
 import os
 import sys
@@ -246,7 +252,7 @@ def power_feed(sh, ry, pin_net, rail_net, title, load_note):
 
     rail.to(60.0, tap=True)
     vshunt("Device:D_TVS", "D", 60.0, "SMCJ43CA",
-           {"Source": "transient_clamp.cir, load_dump.cir -- the pin-21 "
+           {"Source": "transient_clamp.cir, load_dump.cir -- the electronics-feed "
                       "TVS, same pulses on this pin",
             "Rotation": "bidirectional -- orientation not significant"}, 90)
 
@@ -259,7 +265,7 @@ def power_feed(sh, ry, pin_net, rail_net, title, load_note):
                  "MPN": "SQM120P10-10m1L",
                  "Source": "power_path.cir -- Vishay doc 76943 Rev. A",
                  "Note": "Reverse-battery block, passive gate as Q1 on "
-                         "pin 21. " + load_note,
+                         "the electronics feed. " + load_note,
                  "Rds_on": "10.1 mOhm max at -10 V, 20.5 mOhm at 175 C, "
                            "15.0 mOhm at -4.5 V; RthJA 40 C/W"})
     qd = pin_xy(*qp["2"], qx, qy, 90)
@@ -296,7 +302,7 @@ def power_feed(sh, ry, pin_net, rail_net, title, load_note):
 
     out.to(150.0, tap=True)
     vshunt("Device:D_Schottky", "D", 150.0, "100V 20A",
-           {"Source": "negative_pulses.cir Dneg1 -- pin 21's backstop, "
+           {"Source": "negative_pulses.cir Dneg1 -- the electronics feed's backstop, "
                       "the same pulse 1 on this pin",
             "Note": "Cathode to the rail, anode to ground. Holds the rail "
                     "at about -0.5 V while the FET turns off."}, 270)
@@ -374,8 +380,13 @@ def build():
                ],
                ref_base=schlib.REF_BASE["power_input"])
 
-    # ---- input from the connector sheet ----
-    sh.hlabel("VBAT_IN", 30, RAIL, shape="input")
+    # ---- input from the connector sheet: PIN 04, since 8 Nov 2026 ----
+    # Bosch's wiring has no permanent battery feed. Pin 21 was KOEL's
+    # "battery +"; on Bosch's diagram it is the water-in-fuel switch. The
+    # electronics now run from pin 04 (V_V_BAT_1R), the main relay's
+    # contact, the same pin as the injector feed below: 2.95 A here plus
+    # 3.8 A RMS injector, under its 10 A loom fuse (decisions log 18).
+    sh.hlabel("V_BAT_1R", 30, RAIL, shape="input")
     sh.wire(30, RAIL, 48.19, RAIL)
 
     # ---- fuse ----
@@ -383,7 +394,7 @@ def build():
     # 8F1 class", while every load on the board ran through it; POWER-PATH
     # left it the electronics only, 2.95 A as an upper bound.
     _, _, f_r = series(sh, "Device:Fuse", "F", 52, "5A",
-                       {"Source": "run_sim.py emi_filter (pin 21 load), "
+                       {"Source": "run_sim.py emi_filter (electronics load), "
                                   "transient_clamp and negative_pulses "
                                   "(pulse I2t)",
                        })

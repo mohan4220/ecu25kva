@@ -297,7 +297,7 @@ without it." Two of them block the board outright.
 Priority order is the order below. **5.1 is the blocker** — nothing about the board's
 ground plane, its connector footprint or its power path can be finished without it.
 
-- [ ] **5.1 — WHERE IS THE POWER GROUND? (blocks the board, no workaround)**
+- [x] **5.1 — WHERE IS THE POWER GROUND?** **Answered 8 Nov 2026 by Bosch's terminal diagram: pins 01/02 (`G_G_BAT1/2`).** A continuity check from 01/02 to battery negative still confirms the harness. The original task follows.
   Battery disconnected, connector **unmated**. Working on the **harness side** plug,
   probe every populated cavity for continuity to **chassis ground**. Write down every
   cavity number that beeps, and its resistance.
@@ -325,6 +325,9 @@ ground plane, its connector footprint or its power path can be finished without 
   Same session as 5.1, connector unmated. Photograph the mating face square-on with
   good light, then list: which cavity numbers have a **wire crimped in**, which have a
   **contact but no wire**, and which are **empty**.
+
+  **No longer needed, 8 Nov 2026:** the trip loop is removed (no Bosch pin). The trip
+  module opens the main relay's coil feed instead (spec §3 item 7).
 
   *Why:* the wiring diagram accounts for 44 of 94 pins. The new design needs one more
   signal than the OEM harness carries — `TRIP_LOOP`, the supervised trip-module loop,

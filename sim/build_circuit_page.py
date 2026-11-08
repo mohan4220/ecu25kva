@@ -252,39 +252,19 @@ BLOCKS = {
          "The debounce capacitor went from 100 nF to 220 nF after simulation showed the smaller value "
          "let two threshold crossings through a bouncing contact — which firmware would have read as "
          "two separate presses."),
-        ("trip_module_sense", "Trip-module sense", "new pin, no OEM harness",
-         "A three-state supervised loop reading whether the mandatory standalone overspeed trip module's "
-         "contacts are open or closed — not a copy of the input above, on purpose.",
-         "Spec §3: U12 closed badly on 18 Sep 2026 — the fitted DSE4522's fuel relay only signals, it "
-         "does not remove power, so a standalone trip module in series with the fuel metering unit's own "
-         "battery feed (fuse 8F1) is mandatory again, and this ECU must sense its state rather than read "
-         "a trip as a fuelling anomaly. discrete_input.cir's own accepted limitation — an open wire reads "
-         "identically to 'not asserted', accepted there because changing the sense would break OEM "
-         "harness compatibility — does not carry over: this pin has no OEM harness to stay compatible "
-         "with, and an undetectable broken wire here would read 'not tripped' at the exact moment a trip "
-         "occurs, which is the one failure spec §3 exists to catch. So this block adds an end-of-line "
-         "resistor (Rt, 1.2 MΩ) in parallel with the module's own auxiliary contact, physically at the "
-         "module end of the new harness run, giving three distinguishable ADC bands on the same R5/R6/"
-         "zener front end discrete_input.cir already validates: healthy (contact closed, Rt shorted) "
-         "clamps to 2.86–2.95 V exactly as that file's input does; tripped (contact open, Rt in circuit) "
-         "is a plain, unclamped linear divider that stays 0.31–2.07 V across 6–40 V, never reaching the "
-         "zener's knee; wire fault (a break anywhere in the run removes both the contact and Rt the same "
-         "way) reads ~0 V. A contact-bounce transient, reusing discrete_input.cir's own nasty bounce "
-         "profile inverted, shows the reading never leaves the healthy band during the bounce itself — "
-         "C1's time constant on this branch is long enough to filter chatter shorter than a few hundred "
-         "microseconds — and settles cleanly into the tripped band only once the contact stays open.",
-         "No trip module is chosen (memo 02's costed GAC SSW675 / Murphy HD9063 candidates survive "
-         "costing but neither's aux-contact rating is pulled), so Rt=1.2 MΩ is this file's own INFERRED "
-         "choice with no datasheet or industry EOL-loop convention behind it. The loop is high impedance "
-         "(the same few-hundred-microamp class discrete_input.cir's divider runs at), not the low-Z, "
-         "milliamp-class loop industrial supervised-contact practice normally uses — chosen to reuse the "
-         "existing front-end rather than build a new one, and the cost is a genuinely tight margin: at "
-         "the 6 V cranking dip with Rt at +5% tolerance, the tripped band's floor sits only 0.147 V above "
-         "the wire-fault threshold, about half the nominal-case margin, before any harness leakage is "
-         "stacked on top. This pin also needs to land on an ADC-capable channel, not a bare GPIO — a "
-         "pin-mux consideration for whoever assigns the physical PTxx map."),
-    ]),
-    "speed": ("03", "Speed and position", "The most safety-critical input on the board.", [
+        ("main_relay", "Main relay and ignition wake", "pins 50, 71",
+         "Bosch's wiring gives the ECU no permanent battery feed: the main relay's contact feeds pins 04/06, "
+         "and the ECU must close that relay before it has any power. Pin 71 does it in hardware, through a "
+         "second FET on pin 50 gated by a 10k / 22k divider and a 12 V zener.",
+         "The wake gate reaches 5.5 V at 8 V on pin 71 (the relay's pull-in) and stays at 12.0 V on pulse "
+         "2a's 73.3 V, under the FET's 20 V rating. The same block found a sneak path in the old relay "
+         "driver: its flyback diode ran from pin 50 to the board's supply, and with the coil on Term. 30 "
+         "that put 22.8 mA through the coil with the relay OFF, 2.7 times its release current, with the "
+         "board sitting at 9.1 V. The relay could never drop out.",
+         "Bosch's drawing marks pin 50 'not equipped with freewheeling diode' -- the diode belongs in the "
+         "relay. The board now clamps the drain with an SMAJ48CA to ground: 1.6 uA leakage with the relay "
+         "off, and a 53-59 V turn-off peak against the FET's 100 V. Its 48 V standoff clears the 40 V "
+         "clamped load dump, so it never conducts in service."),
         ("vr_conditioner", "Crank speed conditioner", "pins 52, 74, 30",
          "A variable-reluctance sensor into a zero-crossing comparator, run at both running speed and "
          "cranking speed.",

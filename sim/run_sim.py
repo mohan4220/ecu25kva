@@ -170,77 +170,6 @@ def check_discrete_input():
     return c
 
 
-def check_trip_module_sense():
-    c = Checks("trip_module_sense -- NEW pin, three-state supervised trip loop")
-    d = sim("trip_module_sense", {
-        "trip_healthy.dat": ["sweep", "nh"],
-        "trip_tripped.dat": ["sweep", "nt"],
-        "trip_wirefault.dat": ["sweep", "nc"],
-        "trip_bounce.dat": ["t", "nd", "vb"],
-    })
-    nh = d["trip_healthy.dat"]["nh"]
-    nt = d["trip_tripped.dat"]["nt"]
-    nc = float(d["trip_wirefault.dat"]["nc"][0])
-    t, nd = d["trip_bounce.dat"]["t"], d["trip_bounce.dat"]["nd"]
-
-    WIREFAULT_HI = 0.15
-    TRIPPED_HI = 2.5
-
-    # ---- three bands, each swept 6-40 V (op point for wire fault) ----
-    c.that("healthy (contact closed) band floor", float(nh.min()), 2.863,
-           tol=0.02, unit="V")
-    c.that("healthy band ceiling", float(nh.max()), 2.954, tol=0.02, unit="V")
-    c.that("tripped (Rt in circuit) band floor, at 6V cranking dip",
-           float(nt.min()), 0.310, tol=0.02, unit="V")
-    c.that("tripped band ceiling, at 40V", float(nt.max()), 2.068, tol=0.02,
-           unit="V")
-    c.that("wire fault reads near zero", nc, 0.0, tol=None, ok=abs(nc) < 1e-3,
-           unit="V")
-
-    # The zener must never conduct in the tripped branch -- if it did, the
-    # band would flatten toward ~3.0V like the healthy branch and lose its
-    # separation. Confirmed by the ceiling (2.068 V) staying well under the
-    # 3.0 V knee.
-    c.that("tripped band never reaches the zener's 3.0V knee",
-           float(nt.max()), 3.0, tol=None, ok=float(nt.max()) < 3.0, unit="V")
-
-    # ---- band separation margins, the falsifiable core of this design ----
-    wf_margin = float(nt.min()) - WIREFAULT_HI
-    trip_margin = float(nh.min()) - float(nt.max())
-    c.that("margin: wire-fault threshold to tripped floor (nominal Rt)",
-           wf_margin, 0.160, tol=0.02, unit="V")
-    c.that("margin: tripped ceiling to healthy floor (nominal Rt)",
-           trip_margin, 0.795, tol=0.02, unit="V")
-    c.that("  ... both bands separated with real margin, not touching",
-           f"wire-fault margin {wf_margin:.3f} V, tripped margin "
-           f"{trip_margin:.3f} V, both positive", None,
-           ok=wf_margin > 0 and trip_margin > 0)
-
-    # ---- contact bounce: never dips toward wire-fault, settles correctly ----
-    before = nd[t < 4.5e-3]
-    c.that("during bounce (t<4.5ms), reading never leaves the healthy band",
-           float(before.min()), TRIPPED_HI, tol=None,
-           ok=float(before.min()) > TRIPPED_HI, unit="V")
-
-    # Hand asymptote: fixed Vbat=12V, node -> Vbat*68k/(Rt+115k) = 0.6206 V.
-    c.that("settled value (t=100ms) approaches the DC asymptote (hand: 0.6206 V)",
-           float(nd[-1]), 0.6206, tol=0.02, unit="V")
-    c.that("  ... which sits inside the tripped band, not wire-fault or healthy",
-           float(nd[-1]), TRIPPED_HI, tol=None,
-           ok=WIREFAULT_HI < float(nd[-1]) < TRIPPED_HI, unit="V")
-    c.that("  ... global minimum over the whole run stays clear of wire-fault",
-           float(nd.min()), WIREFAULT_HI, tol=None,
-           ok=float(nd.min()) > WIREFAULT_HI, unit="V")
-
-    # ---- why discrete_input.cir's own accepted limitation does not apply
-    # here, stated as a claim rather than left as prose only ----
-    c.that("open-wire detection: needed here, unlike pins 20/24/71",
-           "no OEM harness to stay compatible with, and an undetectable "
-           "open reads 'not tripped' at the exact moment a trip occurs",
-           None, ok=True)
-    return c
-
-
 def check_sensor_ratiometric():
     c = Checks("sensor_ratiometric -- Group A, pins 41/35/80/37, 0.5-4.5 V into a 3.3 V ADC")
     d = sim("sensor_ratiometric", {
@@ -1024,6 +953,71 @@ def check_injector_turnoff():
            "not modelled here (ideal switches) -- memo 10's own ~2.8 V/us "
            "estimate is carried as a comparison, not simulated", None,
            ok=True)
+    return c
+
+
+def check_main_relay():
+    """Pins 50 and 71 under Bosch's wiring: the ECU closes its own supply
+    relay (refs/bosch-pinout-md1cs162.md, decisions log sec.18)."""
+    c = Checks("main_relay -- pin 71 wakes, pin 50 holds, no sneak path")
+    r = sim("main_relay", {
+        "main_relay_wake.dat": ["vt15", "vg", "it15"],
+        "main_relay_sneak_old.dat": ["vbat", "i_old", "v_prot"],
+        "main_relay_sneak_new.dat": ["vbat", "i_new", "v_p50"],
+        "main_relay_clamp.dat": ["time", "d_min", "d_max", "i_coil"]})
+    w = r["main_relay_wake.dat"]
+    vt, vg, it = w["vt15"], w["vg"], -w["it15"]
+
+    def at(v):
+        return float(np.interp(v, vt, vg))
+
+    # Wake FET PMV280ENEA: Vth 2.7 V max, Rds(on) specified at 4.5 V.
+    # A 12 V relay pulls in at about 8 V, so the gate must reach the
+    # 4.5 V point by then; below Vth with the ignition floating (22k
+    # holds it); never past 12.x V (+/-20 V rating) on pulse 2a; never
+    # below -1 V reversed.
+    c.that("wake Vgs at pin 71 = 8 V (relay pull-in)", at(8.0), 4.5,
+           tol=None, ok=at(8.0) >= 4.5, unit="V")
+    c.that("wake Vgs at pin 71 = 6 V (cranking dip)", at(6.0), 2.7,
+           tol=None, ok=at(6.0) > 2.7, unit="V")
+    c.that("wake Vgs at 14.4 V: zener idle (under 11 V)", at(14.4), 11.0,
+           tol=None, ok=at(14.4) < 11.0, unit="V")
+    c.that("wake Vgs at 73.3 V (pulse 2a), under the 20 V rating",
+           at(73.3), 13.5, tol=None, ok=at(73.3) < 13.5, unit="V")
+    c.that("wake Vgs at -24 V (reverse battery), above -1 V", at(-24.0),
+           -1.0, tol=None, ok=at(-24.0) > -1.0, unit="V")
+    i40 = float(np.interp(40.0, vt, it))
+    p10k = (40.0 - at(40.0)) ** 2 / 10e3
+    c.that("  10k on the 40 V clamped dump (0805 is 125 mW)", p10k * 1e3,
+           125.0, tol=None, ok=p10k < 0.125 * 0.8, unit="mW")
+    c.that("  pin 71 current at 40 V", i40 * 1e3, 4.0, tol=None,
+           ok=i40 < 4e-3, unit="mA")
+
+    # The sneak path. A 12 V relay releases at about 10 % of its 84 mA
+    # coil current. Old topology: the board's own idle draw comes
+    # through the coil and the flyback diode.
+    o, n = r["main_relay_sneak_old.dat"], r["main_relay_sneak_new.dat"]
+    REL = 0.1 * 13.5 / 160.0
+    i_old = float(np.interp(13.5, o["vbat"], -o["i_old"]))
+    v_prot = float(np.interp(13.5, o["vbat"], o["v_prot"]))
+    i_new = float(np.interp(16.0, n["vbat"], -n["i_new"]))
+    c.that("OLD flyback to VBAT_PROT, relay off: coil current (was)",
+           i_old * 1e3, REL * 1e3, tol=None, ok=i_old > REL, unit="mA")
+    c.that("  ... and the 'unpowered' board sits at", v_prot, 8.0,
+           tol=None, ok=v_prot > 5.0, unit="V")
+    c.that("TVS to ground, relay off: coil current at 16 V (is)",
+           i_new * 1e6, 10.0, tol=None, ok=i_new < 10e-6, unit="uA")
+
+    # Turn-off into the TVS at a charging 14.4 V, both breakdown corners.
+    k = r["main_relay_clamp.dat"]
+    pmin, pmax = float(k["d_min"].max()), float(k["d_max"].max())
+    c.that("drain peak at turn-off, TVS at VBR min (over the 40 V dump)",
+           pmin, 53.0, tol=None, ok=pmin > 40.0, unit="V")
+    c.that("drain peak at turn-off, TVS at VBR max (FET is 100 V)", pmax,
+           80.0, tol=None, ok=pmax < 80.0, unit="V")
+    e = 0.5 * 1.2 * (14.4 / 160.0) ** 2
+    c.that("  coil energy per release, into the TVS (400 W SMA)", e * 1e3,
+           10.0, tol=None, ok=e < 10e-3, unit="mJ")
     return c
 
 
@@ -2951,7 +2945,6 @@ def check_supervisor():
 CHECKS = {
     "battery_sense": check_battery_sense,
     "discrete_input": check_discrete_input,
-    "trip_module_sense": check_trip_module_sense,
     "sensor_ratiometric": check_sensor_ratiometric,
     "transient_clamp": check_transient_clamp,
     "load_dump": check_load_dump,
@@ -2959,6 +2952,7 @@ CHECKS = {
     "injector_boost": check_injector_boost,
     "injector_turnoff": check_injector_turnoff,
     "relay_driver": check_relay_driver,
+    "main_relay": check_main_relay,
     "egr_hbridge": check_egr_hbridge,
     "emi_filter": check_emi_filter,
     "reverse_battery": check_reverse_battery,

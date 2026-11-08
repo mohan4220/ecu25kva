@@ -1,5 +1,10 @@
 # Prototype board: design
 
+> **Bosch pinout, 8 November 2026** (decisions log §18): the power and switch terminals changed.
+> Pin 21 is no longer a logic feed. J1001 carries pins 04/06, which feed everything, and J1007 carries
+> pins 21/14/25/09 instead of `TRIP_LOOP`. The bring-up order is `docs/bring-up.md`'s. This spec
+> is kept as written otherwise.
+
 **Date:** 2026-10-15
 
 **Status:** design agreed in conversation; written for the owner's review.

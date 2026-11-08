@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """lab_io sheet: pluggable screw terminals in place of the Bosch 94-way.
 
-Exports the production connector sheet's 40 nets, each on a 5.08 mm
-Phoenix MSTBA terminal grouped by job, plus TRIP_LOOP (production open
-item 5.2) and two power-ground positions (open item 5.1). Pin 08, the
+Exports the production connector sheet's nets, each on a 5.08 mm
+Phoenix MSTBA terminal grouped by job. Since 8 Nov 2026 they are Bosch's
+pins (refs/bosch-pinout-md1cs162.md, decisions log 18): power on 04/06
+from the main relay, ground on 01/02, and pins 21/14/25/09 as inputs.
+There is no trip loop and no pin-21 battery feed any more. Pin 08, the
 rail sensor's dedicated return, is GND here as on the production sheet;
 CAM_GND_44 and SHIELD_30 stay labels, grounded where production grounds
 them (speed_inputs).
@@ -29,7 +31,7 @@ SENSORS_IN = ["BOOST_P_IN", "BOOST_T_IN", "COOLANT_T_IN", "EGR_POS_IN",
 
 # ref -> nets by position; (job, production pin per position)
 TERMINALS = {
-    "J1001": ["VBAT_IN", "V_BAT_1R", "V_BAT_2R", "GND"],
+    "J1001": ["V_BAT_1R", "V_BAT_2R", "GND", "GND"],
     "J1002": ["GND", "GND"],
     "J1003": ["INJ_A_03", "INJ_B_05", "INJ_LS1_73", "INJ_LS2_29",
               "INJ_LS3_07"],
@@ -40,18 +42,19 @@ TERMINALS = {
     "J1006": ["CRANK_HI_52", "CRANK_LO_74", "CAM_FREQ_46", "CAM_GND_44",
               "SHIELD_30", "GND"],
     "J1007": ["SW_COOLANT_C", "SW_DROOP_C", "IN_AUDIO_ABORT_H",
-              "IN_OVERRIDE_SS_H", "IN_IGNITION_H", "TRIP_LOOP"],
+              "IN_OVERRIDE_SS_H", "IN_IGNITION_H", "IN_WIF_H",
+              "SW_DIAG_C", "SW_STOP_C", "SYNC_IN_09"],
     "J1008": ["CAN1_H", "CAN1_L", "GND", "CAN2_H", "CAN2_L", "GND"],
 }
 JOB = {
-    "J1001": ("power", "21 logic feed, 04 injector feed, 06 EGR feed, GND"),
-    "J1002": ("power ground", "none on the OEM diagram (open item 5.1)"),
+    "J1001": ("power", "04 supply (electronics + injectors), 06 EGR feed, GND, GND"),
+    "J1002": ("power ground", "01, 02 (Bosch G_G_BAT1/2)"),
     "J1003": ("injectors", "03, 05, 73, 29, 07"),
     "J1004": ("actuators", "88, 59, 81, 50, 69"),
     "J1005": ("sensors", "11, 15, 39, 32, 45, 41, 79, 33, 37, 80, 35, 34, "
                          "36, 08 (rail sensor return)"),
     "J1006": ("speed", "52, 74, 46, 44, 30, GND"),
-    "J1007": ("switches", "43, 23, 20, 24, 71, trip loop (open item 5.2)"),
+    "J1007": ("switches", "43, 23, 20, 24, 71, 21, 14, 25, 09 (GCU sync, analog)"),
     "J1008": ("CAN", "55, 77, GND, 87, 86, GND"),
 }
 # The bridge header: odd pins the signals a simulator drives, even pins GND

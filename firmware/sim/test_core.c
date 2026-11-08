@@ -1675,6 +1675,128 @@ static void test_io_size(void)
     CHECK(io.state == ECU_OFF);
 }
 
+/* ---- Bosch pinout (decisions log 18): main relay, stop, water in fuel ---- */
+
+static void test_main_relay_held_with_ignition(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    CHECK(io.main_relay == 0);                 /* nothing until the first tick */
+    ticks(&io, 1, 1);
+    CHECK(io.main_relay == 1 && io.afterrun == 0);
+}
+
+/* Ignition off with the engine running: the relay stays closed while the
+ * engine runs down, and opens only once it has stopped AND the fault
+ * memory is written. */
+static void test_afterrun_waits_for_stop_and_save(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    ecu_hold(&io, 1500, (SAVE_GAP_S + 1) * 1000, &t, &tooth);   /* past the save gap */
+    tick_t = t;
+    int before = seals;
+    io.ignition = 0;
+    ecu_hold(&io, 1200, 2000, &t, &tooth);     /* still turning, 2 s */
+    CHECK(io.state == ECU_SHUTDOWN);
+    CHECK(io.main_relay == 1 && io.afterrun == 1);
+    CHECK(seals > before);                     /* the gap had passed: written at once */
+    ticks(&io, ECU_STOPPED_MS - 2, 1);         /* stopped, but not yet for long enough */
+    CHECK(io.main_relay == 1);
+    ticks(&io, 3, 1);
+    CHECK(io.main_relay == 0 && io.afterrun == 0);
+}
+
+/* Stopped at once after a recent save: the relay waits out the save gap
+ * rather than dropping the board with the stop unwritten. */
+static void test_afterrun_waits_for_save_gap(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    io.wif = 1;
+    ticks(&io, WIF_MS + 5, 1);                 /* a new DTC: saved at once */
+    CHECK(seals >= 1);
+    int before = seals;
+    io.ignition = 0;
+    ticks(&io, ECU_STOPPED_MS + 100, 1);       /* stopped, inside the gap */
+    CHECK(io.main_relay == 1 && seals == before);
+    ticks(&io, SAVE_GAP_S * 1000, 1);
+    CHECK(seals == before + 1 && io.main_relay == 0);
+}
+
+/* Storage that never completes: the relay still opens at the cap. */
+static void test_afterrun_cap(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    ticks(&io, 5, 1);
+    host_dead = 1;
+    io.ignition = 0;
+    ticks(&io, AFTERRUN_MAX_MS - 2, 1);
+    CHECK(io.main_relay == 1);
+    ticks(&io, 2, 1);
+    CHECK(io.main_relay == 0);
+}
+
+static void test_afterrun_cancelled_by_ignition(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    ticks(&io, 5, 1);
+    host_dead = 1;                             /* the after-run cannot finish */
+    io.ignition = 0;
+    ticks(&io, 200, 1);
+    CHECK(io.afterrun == 1);
+    io.ignition = 1;
+    ticks(&io, 1, 1);
+    CHECK(io.main_relay == 1 && io.afterrun == 0);
+}
+
+/* Pin 25: an operator stop. SHUTDOWN, no DTC, no red lamp, and it holds
+ * after the switch is released, until a real ignition cycle. */
+static void test_stop_switch(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    tick_t = t;
+    io.stop_sw = 1;
+    ticks(&io, 1, 1);
+    CHECK(io.state == ECU_SHUTDOWN && io.meter_duty == METER_CLOSED);
+    CHECK(io.fault_n == 0);
+    CHECK(dm1_first_spn(&io, 0));
+    CHECK(!(dm1_lamps & (LAMP_RED | LAMP_PROTECT)));
+    io.stop_sw = 0;
+    ticks(&io, IGN_OFF_MS + 10, 1);
+    CHECK(io.state == ECU_SHUTDOWN);           /* released: still latched */
+    CHECK(io.main_relay == 1);                 /* ignition on: supply held */
+    io.ignition = 0;
+    ticks(&io, IGN_OFF_MS, 1);
+    io.ignition = 1;
+    ticks(&io, 1, 1);
+    CHECK(io.state == ECU_WAIT);
+}
+
+/* Pin 21: water in fuel. Amber after WIF_MS, never a stop; a blip shorter
+ * than WIF_MS does nothing; clears after WIF_MS dry. */
+static void test_water_in_fuel(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    io.wif = 1;
+    ticks(&io, WIF_MS - 10, 1);
+    io.wif = 0;
+    ticks(&io, 20, 1);
+    CHECK(io.fault_n == 0);                    /* a slosh, not water */
+    io.wif = 1;
+    ticks(&io, WIF_MS, 1);
+    CHECK(io.fault_n == 1 && io.state != ECU_SHUTDOWN);
+    CHECK(dm1_first_spn(&io, 97) && dm1_fmi == 31);
+    CHECK(dm1_lamps == LAMP_AMBER);
+    io.wif = 0;
+    ticks(&io, WIF_MS, 1);
+    CHECK(io.fault_n == 0);
+}
+
 int main(void)
 {
     test_io_size();
@@ -1758,6 +1880,13 @@ int main(void)
     test_ecu_wdg_reset_saved();
     test_ecu_bam_dt_not_dropped();
     test_underspeed();
+    test_main_relay_held_with_ignition();
+    test_afterrun_waits_for_stop_and_save();
+    test_afterrun_waits_for_save_gap();
+    test_afterrun_cap();
+    test_afterrun_cancelled_by_ignition();
+    test_stop_switch();
+    test_water_in_fuel();
     test_isotp_roundtrip();
     test_isotp_lost_cf();
     test_link_roundtrip();

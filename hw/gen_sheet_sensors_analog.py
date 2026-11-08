@@ -102,7 +102,13 @@ def adc_tail(sh, node, x, y, out_net):
     sh.hlabel(out_net, x + 44.0, y, shape="output")
 
 
-def divider_channel(sh, x0, y, in_net, out_net, rtop, rbot, label, src):
+BAT_DIV_NOTE = ("120k/10k puts 40 V at 3.077 V, inside VREFH. The 75k/10k "
+                "version reaches 4.7 V at the same input -- battery_sense.cir "
+                "draws it as the rejected one.")
+
+
+def divider_channel(sh, x0, y, in_net, out_net, rtop, rbot, label, src,
+                    note=BAT_DIV_NOTE):
     """A resistive divider straight off a harness line."""
     sh.text(label, x0, y - 9.0, size=1.6)
     sh.hlabel(in_net, x0, y, shape="input")
@@ -110,11 +116,7 @@ def divider_channel(sh, x0, y, in_net, out_net, rtop, rbot, label, src):
     chain.to(x0)
     sx = x0 + 30.0
     sh.place("Device:R", "R", sx, y, rtop, rot=90,
-             fields={"Source": src,
-                     "Note": "120k/10k puts 40 V at 3.077 V, inside VREFH. "
-                             "The 75k/10k version reaches 4.7 V at the same "
-                             "input -- battery_sense.cir draws it as the "
-                             "rejected one."})
+             fields={"Source": src, "Note": note})
     ra = pin_xy(*PINS["Device:R"]["1"], sx, y, 90)
     rb = pin_xy(*PINS["Device:R"]["2"], sx, y, 90)
     r_in, r_out = (ra, rb) if ra[0] < rb[0] else (rb, ra)
@@ -416,6 +418,20 @@ def build():
 
     excitation(sh)
     baro(sh)
+    # Pin 09, Bosch I_A_SYNC (8 Nov 2026): an analog synchronisation input
+    # from the GCU. Its range is not on the drawing, so the divider reads
+    # 0-10 V into 0-3.125 V -- the same ADC tail and clamp as every other
+    # channel, and a 0-5 V source still gets 11 bits. Placed last so the
+    # existing references keep their numbers.
+    divider_channel(sh, 330.0, 325.0, "SYNC_IN_09", "SYNC", "22k", "10k",
+                    "ECU pin 09 -- GCU synchronisation input (I_A_SYNC) -> "
+                    "PTB0 (ADC0_SE4)",
+                    "Bosch 0 462 YU4 15D, pin 09",
+                    note="22k/10k reads 0-10 V as 0-3.125 V. The GCU's "
+                         "range is not on Bosch's drawing; 32k is a light "
+                         "load on any analog output. A 40 V short puts "
+                         "12.5 V on the node, which the ADC tail's clamp "
+                         "and 1k take.")
     notes(sh)
     # The sheet's one HIERARCHICAL 3V3_MCU, for the BAV199-Q clamps --
     # every clamp names the rail with a local label, which alone would

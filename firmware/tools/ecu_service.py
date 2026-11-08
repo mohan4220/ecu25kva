@@ -133,12 +133,16 @@ class UsbLink:
 
 
 class CanLink:
-    """CAN channel 2 through python-can and can-isotp, 11-bit 0x7E0/0x7E8."""
+    """CAN channel 2 through python-can and can-isotp, 11-bit 0x7E0/0x7E8.
+
+    Pins 87/86: Bosch's CAN 1, the application line, 1000 kbit/s for
+    flashing and UDS (refs/bosch-pinout-md1cs162.md). It was 500 kbit/s
+    until the Bosch pinout (8 Nov 2026)."""
 
     def __init__(self, interface, channel, timeout=2.0):
         import can                       # python-can and can-isotp, only for this link
         import isotp
-        self.bus = can.Bus(interface=interface, channel=channel, bitrate=500000)
+        self.bus = can.Bus(interface=interface, channel=channel, bitrate=1000000)
         addr = isotp.Address(isotp.AddressingMode.Normal_11bits, txid=CAN_REQ, rxid=CAN_RESP)
         self.stack = isotp.CanStack(self.bus, address=addr, params={"tx_padding": 0xAA})
         self.timeout = timeout

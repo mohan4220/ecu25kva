@@ -31,8 +31,9 @@ OPEN_ITEMS = """PROTOTYPE ROOT SHEET
 
 The eight production sheets are built by their own generators in hw/; this project only adds test points and the
 BOOST_MON divider (prototype/additions.py). mcu is replaced by mcu_stm32 (STM32G474VET6) and connector by lab_io
-(screw terminals). Production open items 5.1 (power ground) and 5.2 (TRIP_LOOP) are closed here by terminals
-J1002 and J1007, so prototype/check_prototype.py expects no open items at all."""
+(screw terminals) carrying Bosch's pins since 8 Nov 2026: power on 04/06 (J1001), ground 01/02 (J1002), and
+pins 21/14/25/09 on J1007. On the bench, feed pin 04 and 06 directly, or drive a real main relay from pin 50
+(J1004) the way the engine does. prototype/check_prototype.py expects no open items at all."""
 
 
 def lib_tables():

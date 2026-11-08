@@ -1,5 +1,11 @@
 # Kirloskar ECU — pinout extracted from GP3.8703.C4.pdf
 
+> **Superseded where it disagrees, 8 November 2026.** Bosch's terminal diagram for
+> this ECU (`bosch-pinout-md1cs162.md`) is the master pinout. It disagrees on power:
+> pin 21 is the water-in-fuel switch, not battery; 01/02 are the power ground; 09 is an
+> analog sync input, not a ground; 87/86 is the 1000 kbit/s CAN. Kept as the record of
+> what the KOEL harness diagram shows (decisions log §18).
+
 Source: Kirloskar Oil Engines troubleshooting wiring diagram, manual `08-GP3-60-001`,
 retrieved from `ikonnect.kirloskar.com`. PDF dated 2026-09-04.
 
