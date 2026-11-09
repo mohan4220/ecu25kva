@@ -114,7 +114,13 @@ Two traps:
   `"\\n"` written into a heredoc arrives as `"\n"`, a real newline.
 - **KiCad's schematic parity fails here on the unchanged board** (199
   entries, nearly all pins with no net). That is the KiCad build, not
-  the design, and every other `check_pcb.py` gate passes.
+  the design, and every other `check_pcb.py` gate passes. The prototype
+  shows the same thing: 98 "no corresponding pin" entries, identical on
+  the committed board (9 Nov). They are on unconnected pins and on
+  auto-named nets of parts with stacked pins. The netlist this same
+  KiCad exports agrees with the board's pad nets. So `test_placement_clean`
+  and `test_routed` fail here on parity alone. Every other gate passes:
+  0 DRC errors, 0 unconnected.
 
 There is no Rust toolchain on that machine, so the simulator was not rebuilt.
 
@@ -337,7 +343,17 @@ These each cost a debugging session already:
 - **A symbol added ahead of others on a sheet renumbers them,** and the
   symbol UUIDs follow the references. On a routed prototype board, run
   `gen_board.py sync`: it matches footprints to parts by value and pad
-  nets, renames them and places only what is new.
+  nets, renames them, refreshes their fields and places only what is new.
+  A circuit change that renames nets or moves pins goes through
+  `migrate` first (`BOSCH_MIGRATE` is the worked example). Then come
+  `sync`, `finish`, `gnd_stitch` (ground vias for the new parts) and
+  `tidy`. To move an MCU pin, `rip` its nets before `migrate` refits the
+  pads.
+- **The router walls in a pin between two busy neighbours.** Bosch's
+  three new inputs on PE7–PE9 (bottom row, the CAN corridor) blocked
+  PE8 and three CAN lines through two passes and a rip-up. On PD8–PD10,
+  free pins facing J1007, they routed in one pass. Pick a pin facing its
+  circuit before rip-up rounds.
 - **The simulator's `EcuIo` copies `ecu_io` by hand.** Change the struct
   or an entry point, bump `ECU_ABI_VERSION` (`ecu.h`) and `ABI_VERSION`
   (`simulator/crates/sim/src/fw.rs`); `io_size_matches` catches a

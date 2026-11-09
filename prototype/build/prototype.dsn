@@ -333,7 +333,7 @@
             168325 -160892  168325 -159108  167217 -158000  168325 -156892
             168325 -155325  168723 -155325  168706 -154949  170342 -154875
             171500 -153717  172557 -154774))
-    (plane /VBAT_IN (polygon F.Cu 0  147406 -43643.6  147856 -44093.7  148100 -44681.7  148100 -44781.1
+    (plane /V_BAT_1R (polygon F.Cu 0  147406 -43643.6  147856 -44093.7  148100 -44681.7  148100 -44781.1
             149877 -45288.9  150151 -45093.3  150397 -45437.4  150804 -45553.6
             150711 -45877.2  152835 -48850  156650 -48850  156650 -50150
             152708 -50150  152349 -50406.7  152165 -50150  151850 -50150
@@ -482,7 +482,7 @@
             110691 -36564.2  111089 -36444.7  111320 -36098.6  111606 -36289.5
             124900 -32301.4  124900 -32181.7  125144 -31593.7  125594 -31143.6
             126182 -30900  126818 -30900  127406 -31143.6))
-    (plane /VBAT_IN (polygon B.Cu 0  61776.2 -21850  62150 -21850  62150 -22237.7  75276.2 -35850
+    (plane /V_BAT_1R (polygon B.Cu 0  61776.2 -21850  62150 -21850  62150 -22237.7  75276.2 -35850
             104820 -35850  105900 -35202  105900 -34681.7  106144 -34093.7
             106594 -33643.6  107182 -33400  107818 -33400  108406 -33643.6
             108856 -34093.7  109100 -34681.7  109100 -35318.3  108856 -35906.3
@@ -691,7 +691,7 @@
             46962.3 -174495  44118.7 -170737  40471.5 -167753  41193.1 -166871
             31339.4 -153850  28650 -153850  28650 -150296  26850.5 -147918
             22956.2 -144580  29919.7 -136456  35979.1 -141650))
-    (plane /VBAT_IN (polygon In2.Cu 0  108406 -33643.6  108496 -33733.6  121480 -34181.3  122000 -33661.5
+    (plane /V_BAT_1R (polygon In2.Cu 0  108406 -33643.6  108496 -33733.6  121480 -34181.3  122000 -33661.5
             122557 -34218.4  123344 -34245.6  123319 -34980.2  123787 -35448.4
             134449 -41264  145839 -43542  146182 -43400  146818 -43400  147406 -43643.6
             147671 -43908.5  148030 -43980.2  147958 -44338.9  148100 -44681.7
@@ -4024,11 +4024,8 @@
     (net /injector/UB1_HIN
       (pins R412-2 Q404-3 U404-1)
     )
-    (net /VBAT_IN
-      (pins J1001-1 F101-1)
-    )
     (net /V_BAT_1R
-      (pins J1001-2 Q103-2 R601-1 D105-2)
+      (pins J1001-2 Q103-2 R601-1 D105-2 J1001-1 F101-1)
     )
     (net /V_BAT_2R
       (pins J1001-3 D108-2 Q104-2 R604-1)
@@ -4726,7 +4723,7 @@
         (clearance 150)
       )
     )
-    (class PWR,Default /12V_GATE /MU_RETURN /VBAT_IN /VBAT_PROT /injector/VDD_BAT
+    (class PWR,Default /12V_GATE /MU_RETURN /VBAT_PROT /injector/VDD_BAT
       /mcu_stm32/BULK_RTN /metering_egr/ISNS_MU_SENSE /power_input/VBAT_CLAMPED
       /power_input/VBAT_EMI1 /rails/SW /rails/VSNS "Net-(F101-Pad2)"
       (circuit
@@ -4938,34 +4935,34 @@
     (wire (path B.Cu 1300  269882 -25054.5  269500 -25000)(net /VBAT_PROT)(type fix))
     (wire (path B.Cu 400  273000 -25500  269500 -25000)(net /VBAT_PROT)(type fix))
     (wire (path F.Cu 400  275000 -25500  273000 -25500)(net /VBAT_PROT)(type fix))
-    (wire (path F.Cu 3262.69  146490 -45000  146510 -45000)(net /VBAT_IN)(type fix))
-    (wire (path In2.Cu 3262.69  146490 -45000  146510 -45000)(net /VBAT_IN)(type fix))
-    (wire (path In2.Cu 3262.69  107490 -35000  107510 -35000)(net /VBAT_IN)(type fix))
-    (wire (path B.Cu 3262.69  107490 -35000  107510 -35000)(net /VBAT_IN)(type fix))
-    (wire (path F.Cu 1300  152500 -49500  152850 -49500)(net /VBAT_IN)(type fix))
-    (wire (path F.Cu 400  152500 -49500  156000 -49500)(net /VBAT_IN)(type fix))
-    (wire (path F.Cu 1300  150000 -46000  152500 -49500)(net /VBAT_IN)(type fix))
-    (wire (path F.Cu 400  150000 -46000  152500 -49500)(net /VBAT_IN)(type fix))
-    (wire (path F.Cu 1300  146500 -45000  150000 -46000)(net /VBAT_IN)(type fix))
-    (wire (path F.Cu 400  146500 -45000  150000 -46000)(net /VBAT_IN)(type fix))
-    (wire (path In2.Cu 2600  134000 -42500  146500 -45000)(net /VBAT_IN)(type fix))
-    (wire (path In2.Cu 400  134000 -42500  146500 -45000)(net /VBAT_IN)(type fix))
-    (wire (path In2.Cu 2600  123000 -36500  134000 -42500)(net /VBAT_IN)(type fix))
-    (wire (path In2.Cu 400  123000 -36500  134000 -42500)(net /VBAT_IN)(type fix))
-    (wire (path In2.Cu 2600  122000 -35500  123000 -36500)(net /VBAT_IN)(type fix))
-    (wire (path In2.Cu 400  122000 -35500  123000 -36500)(net /VBAT_IN)(type fix))
-    (wire (path In2.Cu 2600  107500 -35000  122000 -35500)(net /VBAT_IN)(type fix))
-    (wire (path In2.Cu 400  107500 -35000  122000 -35500)(net /VBAT_IN)(type fix))
-    (wire (path B.Cu 1300  105000 -36500  107500 -35000)(net /VBAT_IN)(type fix))
-    (wire (path B.Cu 400  105000 -36500  107500 -35000)(net /VBAT_IN)(type fix))
-    (wire (path B.Cu 1300  75000 -36500  105000 -36500)(net /VBAT_IN)(type fix))
-    (wire (path B.Cu 400  75000 -36500  105000 -36500)(net /VBAT_IN)(type fix))
-    (wire (path B.Cu 1300  61500 -22500  75000 -36500)(net /VBAT_IN)(type fix))
-    (wire (path B.Cu 400  61500 -22500  75000 -36500)(net /VBAT_IN)(type fix))
-    (wire (path B.Cu 1300  49000 -22500  61500 -22500)(net /VBAT_IN)(type fix))
-    (wire (path B.Cu 400  49000 -22500  61500 -22500)(net /VBAT_IN)(type fix))
-    (wire (path B.Cu 1300  34326.6 -30828.1  49000 -22500)(net /VBAT_IN)(type fix))
-    (wire (path B.Cu 400  30500 -33000  49000 -22500)(net /VBAT_IN)(type fix))
+    (wire (path F.Cu 3262.69  146490 -45000  146510 -45000)(net /V_BAT_1R)(type fix))
+    (wire (path In2.Cu 3262.69  146490 -45000  146510 -45000)(net /V_BAT_1R)(type fix))
+    (wire (path In2.Cu 3262.69  107490 -35000  107510 -35000)(net /V_BAT_1R)(type fix))
+    (wire (path B.Cu 3262.69  107490 -35000  107510 -35000)(net /V_BAT_1R)(type fix))
+    (wire (path F.Cu 1300  152500 -49500  152850 -49500)(net /V_BAT_1R)(type fix))
+    (wire (path F.Cu 400  152500 -49500  156000 -49500)(net /V_BAT_1R)(type fix))
+    (wire (path F.Cu 1300  150000 -46000  152500 -49500)(net /V_BAT_1R)(type fix))
+    (wire (path F.Cu 400  150000 -46000  152500 -49500)(net /V_BAT_1R)(type fix))
+    (wire (path F.Cu 1300  146500 -45000  150000 -46000)(net /V_BAT_1R)(type fix))
+    (wire (path F.Cu 400  146500 -45000  150000 -46000)(net /V_BAT_1R)(type fix))
+    (wire (path In2.Cu 2600  134000 -42500  146500 -45000)(net /V_BAT_1R)(type fix))
+    (wire (path In2.Cu 400  134000 -42500  146500 -45000)(net /V_BAT_1R)(type fix))
+    (wire (path In2.Cu 2600  123000 -36500  134000 -42500)(net /V_BAT_1R)(type fix))
+    (wire (path In2.Cu 400  123000 -36500  134000 -42500)(net /V_BAT_1R)(type fix))
+    (wire (path In2.Cu 2600  122000 -35500  123000 -36500)(net /V_BAT_1R)(type fix))
+    (wire (path In2.Cu 400  122000 -35500  123000 -36500)(net /V_BAT_1R)(type fix))
+    (wire (path In2.Cu 2600  107500 -35000  122000 -35500)(net /V_BAT_1R)(type fix))
+    (wire (path In2.Cu 400  107500 -35000  122000 -35500)(net /V_BAT_1R)(type fix))
+    (wire (path B.Cu 1300  105000 -36500  107500 -35000)(net /V_BAT_1R)(type fix))
+    (wire (path B.Cu 400  105000 -36500  107500 -35000)(net /V_BAT_1R)(type fix))
+    (wire (path B.Cu 1300  75000 -36500  105000 -36500)(net /V_BAT_1R)(type fix))
+    (wire (path B.Cu 400  75000 -36500  105000 -36500)(net /V_BAT_1R)(type fix))
+    (wire (path B.Cu 1300  61500 -22500  75000 -36500)(net /V_BAT_1R)(type fix))
+    (wire (path B.Cu 400  61500 -22500  75000 -36500)(net /V_BAT_1R)(type fix))
+    (wire (path B.Cu 1300  49000 -22500  61500 -22500)(net /V_BAT_1R)(type fix))
+    (wire (path B.Cu 400  49000 -22500  61500 -22500)(net /V_BAT_1R)(type fix))
+    (wire (path B.Cu 1300  34326.6 -30828.1  49000 -22500)(net /V_BAT_1R)(type fix))
+    (wire (path B.Cu 400  30500 -33000  49000 -22500)(net /V_BAT_1R)(type fix))
     (wire (path F.Cu 3262.69  167490 -49500  167510 -49500)(net /MU_RETURN)(type fix))
     (wire (path In2.Cu 3262.69  167490 -49500  167510 -49500)(net /MU_RETURN)(type fix))
     (wire (path F.Cu 1300  191500 -27000  191565 -27075.9)(net /MU_RETURN)(type fix))
@@ -6335,14 +6332,14 @@
     (via "Via[0-3]_800:400_um"  84200 -127600 (net /INJ_B_05)(type fix))
     (via "Via[0-3]_800:400_um"  44900 -141400 (net /INJ_B_05)(type fix))
     (via "Via[0-3]_800:400_um"  80900 -127600 (net /INJ_B_05)(type fix))
-    (via "Via[0-3]_800:400_um"  107500 -33900 (net /VBAT_IN)(type fix))
-    (via "Via[0-3]_800:400_um"  108600 -35000 (net /VBAT_IN)(type fix))
-    (via "Via[0-3]_800:400_um"  146500 -43900 (net /VBAT_IN)(type fix))
-    (via "Via[0-3]_800:400_um"  107500 -35000 (net /VBAT_IN)(type fix))
-    (via "Via[0-3]_800:400_um"  145400 -45000 (net /VBAT_IN)(type fix))
-    (via "Via[0-3]_800:400_um"  147600 -45000 (net /VBAT_IN)(type fix))
-    (via "Via[0-3]_800:400_um"  106400 -35000 (net /VBAT_IN)(type fix))
-    (via "Via[0-3]_800:400_um"  146500 -45000 (net /VBAT_IN)(type fix))
+    (via "Via[0-3]_800:400_um"  107500 -33900 (net /V_BAT_1R)(type fix))
+    (via "Via[0-3]_800:400_um"  108600 -35000 (net /V_BAT_1R)(type fix))
+    (via "Via[0-3]_800:400_um"  146500 -43900 (net /V_BAT_1R)(type fix))
+    (via "Via[0-3]_800:400_um"  107500 -35000 (net /V_BAT_1R)(type fix))
+    (via "Via[0-3]_800:400_um"  145400 -45000 (net /V_BAT_1R)(type fix))
+    (via "Via[0-3]_800:400_um"  147600 -45000 (net /V_BAT_1R)(type fix))
+    (via "Via[0-3]_800:400_um"  106400 -35000 (net /V_BAT_1R)(type fix))
+    (via "Via[0-3]_800:400_um"  146500 -45000 (net /V_BAT_1R)(type fix))
     (via "Via[0-3]_800:400_um"  68400 -41600 (net /V_BAT_2R)(type fix))
     (via "Via[0-3]_800:400_um"  69500 -40500 (net /V_BAT_2R)(type fix))
     (via "Via[0-3]_800:400_um"  70600 -40500 (net /V_BAT_2R)(type fix))

@@ -9,6 +9,7 @@ Uses hw/gen_pcb.py's helpers unchanged, with its rules module pointed at
 proto_rules (production classes plus the prototype's), the same way
 gen_prototype.py points hw/gen_project.py at prototype/.
 """
+import collections
 import math
 import os
 import sys
@@ -351,19 +352,80 @@ def sync(path=pr.BOARD):
             print(f"  {fp.GetReference()} -> {ref}", flush=True)
             fp.SetReference(ref)
         fp.SetPath(pcbnew.KIID_PATH(comps[ref]["path"]))
+        # its fields too: parity compares them, and a kept part's notes
+        # change with the circuit (8 Nov: D105's "the pin-21 TVS")
+        for k, v in comps[ref]["fields"].items():
+            if fp.HasField(k):
+                if fp.GetField(k).GetText() != v:
+                    fp.GetField(k).SetText(v)
+            else:
+                fp.SetField(k, v)
+                fp.GetField(k).SetVisible(False)
     if free:
         raise SystemExit(f"on the board, not in the schematic: {sorted(free)}")
 
     nets_first = set()
-    for ref in todo:
-        fp = make_fp(board, ref, comps[ref], pad_net)
-        mine = {p.GetNetname() for p in fp.Pads() if p.GetNetname()}
-        nets_first |= mine
+
+    def nets_of(f):
+        return {p.GetNetname() for p in f.Pads() if p.GetNetname()}
+
+    pending = {ref: make_fp(board, ref, comps[ref], pad_net) for ref in todo}
+    for fp in pending.values():
+        nets_first |= nets_of(fp)
+
+    def neighbour(fp, mine):
         # beside the part sharing most of its nets, not the nets' centroid:
-        # a reset line runs across the board
-        best = max((f for f in board.GetFootprints() if f.m_Uuid != fp.m_Uuid),
-                   key=lambda f: (len(mine & {p.GetNetname() for p in f.Pads()}),
-                                  -len(f.Pads())))     # a tie: the smaller part
+        # a reset line runs across the board. Only parts already in place.
+        cands = [f for f in board.GetFootprints()
+                 if f.GetReference() not in pending]
+        # a tie: one this sync placed (a new chain stays together: the
+        # wake FET's gate resistor went 20 mm off beside an old part on
+        # the ignition line), then the smaller part
+        best = max(cands, key=lambda f: (len(mine & nets_of(f)),
+                                         f.GetReference() in todo, -len(f.Pads())))
+        return best, len(mine & nets_of(best))
+
+    # GND and the supply rails reach everywhere: sharing one says nothing
+    # about where a part belongs. Counting them put new input buffers
+    # beside a ground test point, and the Bosch sync divider beside the
+    # 3V3 test point 160 mm from its terminal (8 Nov)
+    pads_on = collections.Counter(p.GetNetname() for f in board.GetFootprints()
+                                  for p in f.Pads() if p.GetNetname())
+    common = {n for n, k in pads_on.items() if k > 12} | {"GND"}
+
+    # Hops from a connector, through the new parts' signal nets. An
+    # input's protection and divider belong at its terminal, so a chain
+    # grows inward from it and leaves the one long run on the MCU side
+    # (8 Nov: grown from the MCU end, three Bosch inputs ran 90-150 mm on
+    # the harness side). A chain no connector reaches keeps the old order.
+    hops, level = {}, {n for f in board.GetFootprints()
+                       if f.GetReference().startswith("J") and f.GetReference() not in pending
+                       for n in nets_of(f)} - common
+    k = 0
+    while level:
+        step = [r for r in pending if r not in hops and nets_of(pending[r]) & level]
+        for r in step:
+            hops[r] = k
+        level = {n for r in step for n in nets_of(pending[r])} - common
+        k += 1
+
+    while pending:
+        # A part whose signal nets reach only other new parts waits a
+        # round, so a new chain grows out from what is already placed.
+        ready = None
+        for ref in sorted(pending, key=lambda r: (hops.get(r, 99), r)):
+            mine = nets_of(pending[ref]) - common
+            best, share = neighbour(pending[ref], mine)
+            if share:
+                ready = (ref, mine, best)
+                break
+        if ready is None:                     # only GND left in common
+            ref = sorted(pending)[0]
+            mine = nets_of(pending[ref])
+            best, _ = neighbour(pending[ref], mine)
+            ready = (ref, mine, best)
+        ref, mine, best = ready
+        fp = pending.pop(ref)
         mates = [p.GetPosition() for p in best.Pads() if p.GetNetname() in mine]
         print(f"  {ref}: beside {best.GetReference()}", flush=True)
         cx = sum(q.x for q in mates) / len(mates)
@@ -376,6 +438,160 @@ def sync(path=pr.BOARD):
     pcbnew.SaveBoard(path, board, True)
     refill(path)
     json.dump(sorted(nets_first), open(os.path.join(HERE, "build", "finish_first.json"), "w"))
+    os._exit(0)
+
+
+# The Bosch pinout (8 Nov 2026, decisions log 18), as a routed-board
+# migration: what sync cannot decide on its own.
+BOSCH_MIGRATE = dict(
+    # the old pin-21 feed's copper joins pin 04 (J1001-1 is pin 04 now)
+    renames={"/VBAT_IN": "/V_BAT_1R"},
+    # the trip loop's front end, and pin 50's flyback diode (now a TVS)
+    drop=("C806", "D806", "R818", "R819", "D807"),
+    # same part and place, new pad nets; J1007 also grows 6 -> 9 positions
+    refit=("U301", "J1007", "J1001", "F101"),
+    # pin 04 is on J1001-1 and -2 (bring-up: use both above 5 A). Their
+    # pours were two nets' (the F.Cu one stops short of pad 1, the B.Cu
+    # one reaches only pad 1): one link carries either position alone
+    links=(("J1001", "1", "2", 2.5),),
+)
+
+
+def migrate_inputs(renames):
+    """The same renames in the committed router inputs the board tests
+    read: the power router's runs (build/power.json: the old net's runs
+    join the new net's) and Freerouting's input (build/prototype.dsn: the
+    old net's pins join the new net's, and it leaves its class). Neither
+    is regenerated: route() would rebuild the board from its pours."""
+    import json
+    import re
+    pj = os.path.join(HERE, "build", "power.json")
+    dj = os.path.join(HERE, "build", "prototype.dsn")
+    power = json.load(open(pj))
+    dsn = open(dj).read()
+    for old, new in renames.items():
+        if old in power["routes"]:
+            r = power["routes"].pop(old)
+            into = power["routes"].setdefault(new, {k: [] for k in r})
+            for k, v in r.items():
+                into[k] = into.get(k, []) + v
+        o, n = re.escape(old), re.escape(new)
+        m = re.search(r"\n    \(net " + o + r"\n      \(pins ([^)]*)\)\n    \)", dsn)
+        if m:
+            dsn = dsn[:m.start()] + dsn[m.end():]
+            dsn = re.sub(r"(\n    \(net " + n + r"\n      \(pins [^)]*)\)",
+                         lambda q: q.group(1) + " " + m.group(1) + ")", dsn, count=1)
+            dsn = re.sub(r"(\(class [^\n]*?) " + o + r"(?=[\s)])", r"\1", dsn)
+        dsn = re.sub(o + r"(?![\w/])", new, dsn)
+    json.dump(power, open(pj, "w"))
+    with open(dj, "w", newline="") as f:
+        f.write(dsn)
+
+
+def migrate(path, renames, drop, refit, links=()):
+    """Before sync, on a routed board: rename nets (their copper kept),
+    remove dropped parts, remove copper on nets the schematic no longer
+    has, and give `refit` parts the schematic's pad nets, swapping the
+    footprint (pin 1 kept in place) where the schematic names another."""
+    with tempfile.TemporaryDirectory() as d:
+        comps, nets = pr.read_netlist(pr.export_netlist(d, pr.ROOT_SCH))
+    board = pcbnew.LoadBoard(path)
+
+    def net(name):
+        ni = board.FindNet(name)
+        if ni is None:
+            ni = pcbnew.NETINFO_ITEM(board, name)
+            board.Add(ni)
+        return ni
+
+    def items():
+        for fp in board.GetFootprints():
+            yield from fp.Pads()
+        yield from board.GetTracks()
+        yield from board.Zones()
+
+    migrate_inputs(renames)
+    for old, new in renames.items():
+        o = board.FindNet(old)
+        if o is None:
+            continue
+        n, k = net(new), 0
+        for it in list(items()):
+            if it.GetNetCode() == o.GetNetCode():
+                it.SetNet(n)
+                k += 1
+        print(f"  net {old} -> {new}: {k} items", flush=True)
+
+    pad_net = {}
+    for name, nodes in nets.items():
+        for r, pin, _ in nodes:
+            pad_net[(r, pin)] = net(name)
+
+    fps = {fp.GetReference(): fp for fp in board.GetFootprints()}
+    for ref in drop:
+        fp = fps.get(ref)
+        if fp is None:
+            continue
+        # a reference the schematic reused is fine; the same PART is not
+        same = ref in comps and fp.GetValue() == comps[ref]["value"] and all(
+            pad_net.get((ref, p.GetNumber())) is not None
+            and pad_net[(ref, p.GetNumber())].GetNetname() == p.GetNetname()
+            for p in fp.Pads() if p.GetNetname())
+        if same:                 # already migrated: the new part, kept
+            print(f"  {ref} is this part in the schematic: kept", flush=True)
+            continue
+        board.Remove(fps.pop(ref))
+        print(f"  removed {ref} ({fp.GetValue()})", flush=True)
+    for ref in refit:
+        old = fps[ref]
+        want = comps[ref]["footprint"].split(":")[-1]
+        if old.GetFPID().GetUniStringLibItemName() == want:
+            for pad in old.Pads():
+                ni = pad_net.get((ref, pad.GetNumber()))
+                if ni is not None:
+                    pad.SetNet(ni)
+            print(f"  {ref}: pad nets from the schematic", flush=True)
+            continue
+        p1 = next(p for p in old.Pads() if p.GetNumber() == "1")
+        new = make_fp(board, ref, comps[ref], pad_net)
+        new.SetOrientation(old.GetOrientation())
+        new.SetLayer(old.GetLayer())
+        q1 = next(p for p in new.Pads() if p.GetNumber() == "1")
+        d = p1.GetPosition() - q1.GetPosition()
+        new.SetPosition(new.GetPosition() + d)
+        board.Remove(old)
+        print(f"  {ref}: footprint {want}, pin 1 kept in place", flush=True)
+
+    # (ref, pad, pad, mm): an F.Cu link, locked, between two pads a rename
+    # put on one net whose pours do not meet
+    for ref, a, b, w in links:
+        fp = board.FindFootprintByReference(ref)
+        pa, pb = (next(p for p in fp.Pads() if p.GetNumber() == n) for n in (a, b))
+        ends = {(pa.GetPosition().x, pa.GetPosition().y), (pb.GetPosition().x, pb.GetPosition().y)}
+        if any(t.Type() == pcbnew.PCB_TRACE_T and t.GetLayer() == pcbnew.F_Cu and
+               {(t.GetStart().x, t.GetStart().y), (t.GetEnd().x, t.GetEnd().y)} == ends
+               for t in board.GetTracks()):
+            continue
+        t = pcbnew.PCB_TRACK(board)
+        t.SetStart(pa.GetPosition())
+        t.SetEnd(pb.GetPosition())
+        t.SetWidth(pcbnew.FromMM(w))
+        t.SetLayer(pcbnew.F_Cu)
+        t.SetNet(pa.GetNet())
+        t.SetLocked(True)
+        board.Add(t)
+        print(f"  {ref}: pads {a}-{b} joined on F.Cu, {w:g} mm", flush=True)
+
+    live = set(nets) | {""}
+    gone = 0
+    for t in list(board.GetTracks()) + list(board.Zones()):
+        if t.GetNetname() not in live:
+            board.Remove(t)
+            gone += 1
+    print(f"  removed {gone} tracks, vias and zones on nets the schematic dropped",
+          flush=True)
+    pcbnew.SaveBoard(path, board, True)
+    refill(path)
     os._exit(0)
 
 
@@ -1264,6 +1480,139 @@ def tidy(path):
     os._exit(10 if gone_total else 0)    # and pcbnew's teardown can segfault
 
 
+def gnd_stitch(path, dry=False):
+    """A ground via for each F.Cu SMD ground pad whose copper reaches no
+    via, plated hole or inner-layer pour: what pour()'s gnd_fanout gives
+    every part, and sync does not give the parts it adds (8 Nov: Q808's
+    emitter, and four islands of the F.Cu ground flood round the Bosch
+    input buffers). The via goes in the pad when it fits, else beside it
+    on a short F.Cu stub. Each clears every other net's track, via, pad
+    and pour fill on every layer, so it bites no pour; KiCad's DRC judges
+    the result."""
+    board = pcbnew.LoadBoard(path)
+    board.BuildConnectivity()
+    conn = board.GetConnectivity()
+    gnd = board.FindNet("GND")
+    nm = pcbnew.FromMM
+
+    def clr_of(name):
+        return nm(max(pr.CLASSES[pr.ASSIGN.get(name, "Default")]["clearance"],
+                      pr.CLASSES["RTN"]["clearance"]))
+
+    def reaches(pad):
+        for it in conn.GetConnectedItems(pad):
+            if it.Type() == pcbnew.PCB_VIA_T:
+                return True
+            if it.Type() == pcbnew.PCB_PAD_T and it.GetAttribute() == pcbnew.PAD_ATTRIB_PTH:
+                return True
+            if it.Type() == pcbnew.PCB_ZONE_T and it.GetFirstLayer() != pcbnew.F_Cu:
+                return True
+        return False
+
+    copper = list(board.GetEnabledLayers().CuStack())
+    others = [t for t in board.GetTracks() if t.GetNetCode() != gnd.GetNetCode()]
+    opads = [p for f in board.GetFootprints() for p in f.Pads()
+             if p.GetNetCode() != gnd.GetNetCode()]
+    ozones = [z for z in board.Zones() if z.GetNetCode() != gnd.GetNetCode()
+              and not z.GetIsRuleArea()]
+    holes = [(t.GetPosition(), t.GetDrill()) for t in board.GetTracks()
+             if t.Type() == pcbnew.PCB_VIA_T] + \
+            [(p.GetPosition(), max(p.GetDrillSize().x, p.GetDrillSize().y))
+             for f in board.GetFootprints() for p in f.Pads() if p.HasHole()]
+    vdia, vdrill, stub = nm(GND_VIA[0]), nm(GND_VIA[1]), nm(STUB)
+    hole_gap = nm(0.25)
+    placed = []
+
+    def free_at(pos, half, layers):
+        for t in others:
+            if (t.Type() == pcbnew.PCB_VIA_T or t.GetLayer() in layers) and \
+                    t.HitTest(pos, half + clr_of(t.GetNetname())):
+                return False
+        for p in opads:
+            if any(p.IsOnLayer(L) for L in layers) and p.HitTest(pos, half + clr_of(p.GetNetname())):
+                return False
+        for z in ozones:
+            for L in layers:
+                if z.IsOnLayer(L) and z.HitTestFilledArea(L, pos, half + clr_of(z.GetNetname())):
+                    return False
+        return True
+
+    def via_ok(pos):
+        if not free_at(pos, vdia // 2, copper):
+            return False
+        return all((pos - h).EuclideanNorm() >= (vdrill + d) // 2 + hole_gap
+                   for h, d in holes + placed)
+
+    def stub_ok(a, b):
+        n = max(1, int((b - a).EuclideanNorm() / nm(0.05)))
+        return all(free_at(pcbnew.VECTOR2I(a.x + (b.x - a.x) * k // n,
+                                           a.y + (b.y - a.y) * k // n),
+                           stub // 2, [pcbnew.F_Cu]) for k in range(n + 1))
+    added, missed = [], []
+    for fp in board.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetCode() != gnd.GetNetCode() or p.GetAttribute() != pcbnew.PAD_ATTRIB_SMD \
+                    or not p.IsOnLayer(pcbnew.F_Cu) or reaches(p):
+                continue
+            c = p.GetPosition()
+            bb = p.GetBoundingBox()
+            w, h = bb.GetWidth(), bb.GetHeight()
+            spots = [c] if min(w, h) >= nm(1.5) else []
+            for d in (0.15, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0):
+                for k in range(16):
+                    dx, dy = math.cos(k * math.pi / 8), math.sin(k * math.pi / 8)
+                    r = abs(dx) * w / 2 + abs(dy) * h / 2 + vdia / 2 + nm(d)
+                    spots.append(pcbnew.VECTOR2I(int(c.x + dx * r), int(c.y + dy * r)))
+            for s in spots:
+                inside = bb.Contains(s)
+                if via_ok(s) and (inside or stub_ok(c, s)):
+                    v = pcbnew.PCB_VIA(board)
+                    v.SetPosition(s)
+                    v.SetWidth(vdia)
+                    v.SetDrill(vdrill)
+                    v.SetNet(gnd)
+                    v.SetLocked(True)
+                    board.Add(v)
+                    placed.append((s, vdrill))
+                    if not inside:
+                        t = pcbnew.PCB_TRACK(board)
+                        t.SetStart(c)
+                        t.SetEnd(s)
+                        t.SetWidth(stub)
+                        t.SetLayer(pcbnew.F_Cu)
+                        t.SetNet(gnd)
+                        t.SetLocked(True)
+                        board.Add(t)
+                    added.append(f"{fp.GetReference()}.{p.GetNumber()}")
+                    break
+            else:
+                missed.append(f"{fp.GetReference()}.{p.GetNumber()}")
+    print(f"  gnd_stitch: vias for {added}; no spot for {missed}", flush=True)
+    if not dry and added:
+        pcbnew.SaveBoard(path, board, True)
+        refill(path)
+    os._exit(1 if missed else 0)
+
+
+def rip(path, nets):
+    """Rip the router's tracks and vias on `nets` (never locked pour
+    copper); finish then routes them first. For a pin moved on the MCU
+    (9 Nov: the Bosch inputs, PE7-PE9 to PD8-PD10), before migrate refits
+    its pads."""
+    import json
+    board = pcbnew.LoadBoard(path)
+    gone = 0
+    for t in list(board.GetTracks()):
+        if str(t.GetNetname()) in nets and not t.IsLocked():
+            board.Remove(t)
+            gone += 1
+    pcbnew.SaveBoard(path, board, True)
+    refill(path)
+    json.dump(sorted(nets), open(os.path.join(HERE, "build", "finish_first.json"), "w"))
+    print(f"  ripped {gone} items on {sorted(nets)}", flush=True)
+    os._exit(0)
+
+
 def turn(path, ref, deg):
     """Turn a placed part in place by `deg` and rip the router's copper on
     its pads; finish then routes its nets first. Run 12's R503 (U504's
@@ -1586,7 +1935,8 @@ def finish_pass(path, grid=0.05, margin=6.0):
     jobs.sort(key=lambda j: j["net"] not in first)          # stable: DRC order within
     jf, rf = os.path.join(work, "finish_jobs.json"), os.path.join(work, "finish_paths.json")
     json.dump(jobs, open(jf, "w"))
-    venv = os.path.join(HERE, "..", ".venv", "bin", "python")
+    venv = os.path.join(HERE, "..", ".venv", "Scripts" if os.name == "nt" else "bin",
+                        "python.exe" if os.name == "nt" else "python")
     subprocess.run([venv, os.path.join(HERE, "finish_router.py"), jf, rf], check=True)
     res = json.load(open(rf))
     added, vias_of = {}, {}
@@ -1718,7 +2068,8 @@ def pour(path=pr.BOARD):
     work = os.path.join(HERE, "build")
     os.makedirs(work, exist_ok=True)
     gj, rj = os.path.join(work, "geom.json"), os.path.join(work, "power.json")
-    venv = os.path.join(HERE, "..", ".venv", "bin", "python")
+    venv = os.path.join(HERE, "..", ".venv", "Scripts" if os.name == "nt" else "bin",
+                        "python.exe" if os.name == "nt" else "python")
     # where a pad or a layer hop has no room for the vias its current
     # needs, meet that pad on F.Cu, or hop elsewhere, and route again
     f_only, no_hop = set(), set()
@@ -1837,7 +2188,11 @@ def route(path=pr.BOARD, passes=30, fanout_passes=6):
     print(f"{n} pours; routing {dsn}", flush=True)
     # caffeinate: the first attempt took 9 h of wall clock for 12 min of
     # CPU because the machine slept
-    subprocess.run(["caffeinate", "-i", "java", "-jar", FREEROUTING,
+    # caffeinate is macOS's; elsewhere run java as is. JAVA picks a JDK
+    # (Freerouting 2.x needs 21+; Windows often has an older java first).
+    import shutil
+    awake = ["caffeinate", "-i"] if shutil.which("caffeinate") else []
+    subprocess.run(awake + [os.environ.get("JAVA", "java"), "-jar", FREEROUTING,
                     "-de", dsn, "-do", ses, "-mp", str(passes),
                     f"--router.fanout.max_passes={fanout_passes}",
                     # it narrows tracks at pins below 0.2 mm, the 2 oz minimum
@@ -1945,6 +2300,7 @@ if __name__ == "__main__":
     stage = sys.argv[1] if len(sys.argv) > 1 else "place"
     {"place": place, "pour": pour, "route": route, "setup": setup,
      "fab": fab, "sync": lambda: sync(BOARD),
+     "migrate": lambda: migrate(BOARD, **BOSCH_MIGRATE),
      "clusters": lambda: clusters(sys.argv[2]),
      "necks": lambda: print(necks(pcbnew.LoadBoard(BOARD)) or "no necks"),
      "finish": lambda: finish(BOARD),
@@ -1953,6 +2309,8 @@ if __name__ == "__main__":
      "tidy": lambda: tidy(BOARD),
      "rip_thin": lambda: rip_thin(BOARD),
      "turn": lambda: turn(BOARD, sys.argv[2], float(sys.argv[3])),
+     "gnd_stitch": lambda: gnd_stitch(BOARD, dry="dry" in sys.argv[2:]),
+     "rip": lambda: rip(BOARD, set(sys.argv[2:])),
      "ripup": lambda: ripup(BOARD, float(sys.argv[2]), len(sys.argv) > 3),
      "widen": lambda: (write_rules(),
                        print(f"pin necks kept narrow: {widen(pr.BOARD)}"))}[stage]()

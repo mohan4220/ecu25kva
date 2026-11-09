@@ -31,7 +31,10 @@ SENSORS_IN = ["BOOST_P_IN", "BOOST_T_IN", "COOLANT_T_IN", "EGR_POS_IN",
 
 # ref -> nets by position; (job, production pin per position)
 TERMINALS = {
-    "J1001": ["V_BAT_1R", "V_BAT_2R", "GND", "GND"],
+    # Pin 04 on two positions: it now carries the electronics AND the
+    # injectors (6.8 A RMS), and position 1 keeps the copper the old pin-21
+    # feed had, so the routed board keeps its tracks (gen_board migrate)
+    "J1001": ["V_BAT_1R", "V_BAT_1R", "V_BAT_2R", "GND"],
     "J1002": ["GND", "GND"],
     "J1003": ["INJ_A_03", "INJ_B_05", "INJ_LS1_73", "INJ_LS2_29",
               "INJ_LS3_07"],
@@ -47,7 +50,7 @@ TERMINALS = {
     "J1008": ["CAN1_H", "CAN1_L", "GND", "CAN2_H", "CAN2_L", "GND"],
 }
 JOB = {
-    "J1001": ("power", "04 supply (electronics + injectors), 06 EGR feed, GND, GND"),
+    "J1001": ("power", "04, 04 (electronics + injectors, two contacts), 06 EGR feed, GND"),
     "J1002": ("power ground", "01, 02 (Bosch G_G_BAT1/2)"),
     "J1003": ("injectors", "03, 05, 73, 29, 07"),
     "J1004": ("actuators", "88, 59, 81, 50, 69"),

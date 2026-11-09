@@ -43,11 +43,13 @@ ASSIGN = dict({n: c for n, c in _pr.ASSIGN.items()
                  "/injector/BOOST_MON_A": "HV100_SIG",
                  "/mcu_stm32/USB_DP": "USB", "/mcu_stm32/USB_DM": "USB"})
 
-# Parity differences that are expected: D806's footprint comes from the
-# placeholder map (production open item LOWV-CLAMP), and J302's shield
-# pads are renamed (below).
-PARITY_OK = {("footprint_symbol_mismatch", "D806")}
-PLACEHOLDER = {"D806": "Diode_SMD:D_SMA"}
+# Parity differences that are expected: none. D806 was production's
+# LOWV-CLAMP placeholder (a D_SMA from this map) until the Bosch pinout
+# (8 Nov 2026) removed the trip loop; the reference now names the
+# water-in-fuel input's BAV199, which has its own footprint. J302's
+# shield pads are renamed (below), which parity does not see.
+PARITY_OK = set()
+PLACEHOLDER = {}
 # KiCad 7's USB-C symbol calls the shield S1; KiCad 10's footprints SH.
 PAD_RENAME = {"J302": {"SH": "S1"}}
 
@@ -185,7 +187,9 @@ TRACK_AMPS = {
     "/injector/VDD_BAT": 0.1,
 }
 
-# KiCad's own Python, for checks that need pcbnew (the tests run under .venv)
+# KiCad's own Python, for checks that need pcbnew (the tests run under
+# .venv): beside kicad-cli on Windows, in the app bundle on macOS
 KICAD_PY = os.environ.get("KICAD_PY", os.path.join(
+    os.path.dirname(KICAD_CLI), "python.exe") if os.name == "nt" else os.path.join(
     os.path.dirname(KICAD_CLI), "..", "Frameworks", "Python.framework",
     "Versions", "3.9", "bin", "python3"))

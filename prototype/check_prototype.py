@@ -11,7 +11,7 @@ import check_netlist  # noqa: E402
 
 ROOT = os.path.join(HERE, "prototype.kicad_sch")
 # Bosch pin -> its terminal position (gen_sheet_lab_io.TERMINALS)
-BOSCH_PINS = {"1": ("J1002", "1"), "2": ("J1002", "2"), "4": ("J1001", "1"),
+BOSCH_PINS = {"1": ("J1002", "1"), "2": ("J1002", "2"), "4": ("J1001", "2"),
               "21": ("J1007", "6"), "50": ("J1004", "4"), "71": ("J1007", "5")}
 
 

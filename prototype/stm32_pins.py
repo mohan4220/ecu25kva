@@ -70,10 +70,13 @@ ASSIGN = {
     "IN_AUDIO_ABORT": ("PE6", "GPIO_Input"),
     "IN_OVERRIDE_SS": ("PE0", "GPIO_Input"),
     "IN_IGNITION":   ("PC10", "GPIO_Input"),
-    # Bosch pins, 8 Nov 2026 (decisions log 18): beside PE4-PE6
-    "IN_WIF":        ("PE7", "GPIO_Input"),    # pin 21, water in fuel
-    "SW_DIAG":       ("PE8", "GPIO_Input"),    # pin 14, diagnosis request
-    "SW_STOP":       ("PE9", "GPIO_Input"),    # pin 25, stop switch
+    # Bosch pins, 8 Nov 2026 (decisions log 18). On the right side, which
+    # faces J1007 and their input stages: PE7-PE9, in the bottom row, sat
+    # in the CAN lines' corridor and the router walled PE8 in (9 Nov).
+    # Lowest pin to the leftmost stage, so the three runs do not cross.
+    "IN_WIF":        ("PD8", "GPIO_Input"),    # pin 21, water in fuel
+    "SW_DIAG":       ("PD9", "GPIO_Input"),    # pin 14, diagnosis request
+    "SW_STOP":       ("PD10", "GPIO_Input"),   # pin 25, stop switch
     "RLY_MAIN":      ("PD5", "GPIO_Output"),
     "RLY_BUZZER":    ("PD15", "GPIO_Output"),
     "WDT_KICK":      ("PC11", "GPIO_Output"),

@@ -1439,10 +1439,32 @@ render.
   same on the unchanged board (199), so it is the KiCad build, not this
   change. It passed on the macOS setup.
 
+### The prototype, brought up to it (8–9 November)
+
+The routed prototype board was updated in place, not placed and routed
+again (`prototype/gen_board.py`):
+
+- **`migrate`** records what `sync` cannot decide on its own (`BOSCH_MIGRATE`):
+  - `/VBAT_IN` becomes `/V_BAT_1R` with its copper. The same rename goes into the committed router inputs `build/power.json` and `build/prototype.dsn`, which the board tests read.
+  - The trip loop's parts go.
+  - U301, J1001, J1007 and F101 take the new pad nets. J1007 grows from 6 to 9 positions, with pin 1 kept in place.
+  - **J1001-1 and -2 are joined by a 2.5 mm F.Cu link.** Both positions are pin 04 now, but their pours had belonged to two nets and did not meet.
+  - It is safe to run again.
+- **`sync` places the 30 new parts.** Grown from the MCU end, the first try put three inputs' front ends 90–150 mm from J1007. Placement now:
+  - starts from the connector and works inward
+  - ignores GND and the supply rails when choosing a neighbour
+  - on a tie, prefers a part placed in the same run
+
+  Every input's protection and divider now sits at J1007.
+- **The three new inputs moved on the MCU:** water in fuel, diagnosis request and the stop switch went from PE7–PE9 to **PD8–PD10** (`stm32_pins.py`). PE7–PE9 are three neighbours mid-way along the bottom row, in the CAN lines' corridor. Routed there, PE8 was walled in, and so were three CAN lines and SENSOR_5V_MON. PD8–PD10 are free pins on the side facing J1007. The firmware reads them through `ecu_io`, so it does not change.
+- **`gnd_stitch`** gives each new F.Cu ground pad that reached no via a via to the L2 plane. `pour()` does this for every part, but `sync` did not, so 5 pads lacked one (Q807, Q808, C808, D807, C616).
+- **D806 is no longer a placeholder** (`proto_rules.PLACEHOLDER` and `PARITY_OK` are empty). The reference now names the water-in-fuel clamp, a BAV199.
+- Routing: `finish` and `finish_pass` routed all 42 new connections. A `rip` stage clears a net's tracks before its pins move.
+
+  The result: **0 DRC errors, 0 unconnected items, schematic parity clean** (KiCad 10, this machine).
+
 ### Still open
 
-- **The prototype** (`prototype/`) regenerates its sheets from these
-  generators, so its routed board is now stale: re-place and re-route.
 - **The Rust simulator** mirrors `ecu_io`. Its fields and ABI are
   updated, but there was no Rust toolchain on this machine to build it.
   CI will build it, and so will a `cargo` on any of the three OSes. The

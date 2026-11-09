@@ -914,7 +914,12 @@ Two more readings:
   - The service link runs at 1000 kbit/s, Bosch's rate for 87/86.
 - **The netlist check had been passing its decoupling check on nothing** under KiCad 10. It now parses KiCad 10's netlist and checks 50 supply pins.
 
-Every check passes on this Windows machine: 26/26 circuit blocks; the netlist with **0 open items**; the firmware unit tests, the boot tests, 16/16 scenarios and the service tool; and the board check. The exception is KiCad's schematic parity, which fails the same way on the unchanged board here and is down to the KiCad build. **The prototype is now stale**, and **the Rust simulator is updated but unbuilt**: there was no Rust toolchain here.
+Every check passes on this Windows machine: 26/26 circuit blocks; the netlist with **0 open items**; the firmware unit tests, the boot tests, 16/16 scenarios and the service tool; and the board check. The exception is KiCad's schematic parity, which fails the same way on the unchanged board here and is down to the KiCad build. **The Rust simulator is updated but unbuilt**: there was no Rust toolchain here.
+
+**The prototype board was brought up to the Bosch pinout on 9 November** (decisions log §18, "The prototype, brought up to it"):
+- 30 new parts, each input's front end placed at J1007.
+- The three new inputs on PD8–PD10.
+- 0 DRC errors, nothing unconnected, and the fab files regenerated.
 
 ---
 
@@ -963,11 +968,12 @@ Updated 8 November 2026, after the Bosch pinout (decisions log §18). Every chec
 ### Where it stands
 - **Schematic:** complete, 405 parts, **on Bosch's pinout** since 8 Nov (decisions log §18). Regenerating it is deterministic.
 - **PCB:** prepared for hand routing, not routed (decisions log §13).
-- **Prototype board (17 October):** routed and fab-ready in `prototype/`: the full production circuit with an STM32G474, screw terminals, 300 × 200 mm, 4 layers. 0 DRC errors, nothing unconnected, schematic parity clean. Gerbers, drill, positions and BOM in `prototype/fab/`; bring-up guide `prototype/docs/bring-up.md` (decisions log §15). **Reviewed 19 October:** the review found the watchdog kill path lost by the 15 October supervisor fix. D302 (BAT54Q) restores it, in production too. The 5 V buck's output and switch node now run on the outer layers, sized for its 1 A. The pour checks were made able to fail.
+- **Prototype board (17 October; Bosch pinout 9 November):** routed and fab-ready in `prototype/`: the full production circuit with an STM32G474, screw terminals, 300 × 200 mm, 4 layers. 0 DRC errors, nothing unconnected, schematic parity clean. Gerbers, drill, positions and BOM in `prototype/fab/`; bring-up guide `prototype/docs/bring-up.md` (decisions log §15). **Reviewed 19 October:** the review found the watchdog kill path lost by the 15 October supervisor fix. D302 (BAT54Q) restores it, in production too. The 5 V buck's output and switch node now run on the outer layers, sized for its 1 A. The pour checks were made able to fail.
 - **Firmware:** runs on the PC, calibrated from the old ECU's own recording (§14). **Service link (20 October):** a bootloader with the image header written last, the end-of-line record with its analog trims, an underspeed warning (SPN 190 FMI 18, amber, no shutdown), and a laptop tool (`firmware/tools/ecu_service.py`) over USB or CAN channel 2, all proven on the PC (decisions log §16, firmware guide §16). The chip layers (flash, CAN, USB, reset) are still to write.
 - **Simulator (20 October):** `simulator/`, mode 1 (firmware only). `ecusim` is a single Rust program. It runs the unchanged firmware against the engine model, live or from `.seq` scripts, at 1× to about 100×, and traces everything in a browser. Firmware builds load from the UI. The 16 SIL scenarios pass as scripts. Guide `simulator/README.md`; decisions log §17. Modes 2 (board fed over USB) and 3 (bench rig) are next.
 - **Safety change written up, not yet wired:** the overspeed trip opens the main relay's coil feed (spec §3 item 7, which supersedes item 6's pin 04).
-- **Stale since 8 Nov:** the prototype's routed board, and the Rust simulator's build (its source is updated to ABI 2).
+- **Stale since 8 Nov:** the Rust simulator's build (its source is updated to ABI 2).
+- **The prototype is on the Bosch pinout as of 9 Nov.** Placement and routing were updated in place; decisions log §18.
 
 ### Waiting on the machine (inspection brief)
 1. **7.1, the metering valve's part number.** It confirms "normally open", which the firmware and the trip design now assume.
@@ -981,7 +987,6 @@ Updated 8 November 2026, after the Bosch pinout (decisions log §18). Every chec
 - **MC33816AE last-time-buy:** a distributor question (fallback path only).
 
 ### Next that needs neither
-- **Re-place and re-route the prototype** from the Bosch sheets (`prototype/gen_prototype.py`, `gen_board.py`).
 - **Build the Rust simulator** at ABI 2 (`cargo test`), and rebuild the committed Windows `.exe`.
 - **Quote and build the prototype:** 2 oz outer copper, 300 × 200 mm, 95 pin necks at 0.15 mm (decisions log §15, "The cost to know before quoting").
 - **The S32K148 port:** running the firmware core on NXP's evaluation board, with the engine signals simulated on the bench. It needs the board, a debugger and a toolchain on this machine.

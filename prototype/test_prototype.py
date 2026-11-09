@@ -193,7 +193,7 @@ def test_placement_clean():
     import proto_rules
     assert check_pcb.main(board=BOARD, rules=proto_rules,
                           parity_ok=proto_rules.PARITY_OK,
-                          placeholders=("D806",)) == 0
+                          placeholders=()) == 0
 
 
 # -- Task 6: routing --------------------------------------------------------
@@ -352,7 +352,7 @@ def test_routed():
     import proto_rules
     assert check_pcb.main(board=BOARD, rules=proto_rules,
                           parity_ok=proto_rules.PARITY_OK,
-                          placeholders=("D806",), require_routed=True) == 0
+                          placeholders=(), require_routed=True) == 0
 
 
 # -- Task 7: fab files ------------------------------------------------------

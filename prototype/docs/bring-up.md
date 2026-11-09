@@ -22,7 +22,7 @@ Expected values come from the production simulation blocks (`sim/blocks/`) and t
 
 | Terminal | Edge | Position: signal (production pin) |
 |---|---|---|
-| J1001 | left, top | 1: V_BAT_1R (04: electronics and injectors) · 2: V_BAT_2R (06, EGR) · 3, 4: GND |
+| J1001 | left, top | 1, 2: V_BAT_1R (04: electronics and injectors; use both above 5 A) · 3: V_BAT_2R (06, EGR) · 4: GND |
 | J1002 | left | 1, 2: GND, the power return (Bosch pins 01/02) |
 | J1003 | left | injectors: INJ_A_03, INJ_B_05, INJ_LS1_73, INJ_LS2_29, INJ_LS3_07 |
 | J1004 | top | MU_RETURN (88), EGR_HIGH_59, EGR_LOW_81, RLY_MAIN_OUT (50), RLY_BUZZER_OUT (69) |
@@ -61,7 +61,7 @@ Test points (TP1–TP24):
 
 ## 2. Pin 04: the electronics and the boost rail, limited to 1 A
 
-Supply **13.5 V on J1001-1**, with GND on J1002, at a **1 A** limit. Leave pin 06 (J1001-2) open. Put the HV probe on TP12 before you switch on.
+Supply **13.5 V on J1001-1**, with GND on J1002, at a **1 A** limit. Leave pin 06 (J1001-3) open. Put the HV probe on TP12 before you switch on.
 
 | Check | Expect | Source |
 |---|---|---|
@@ -89,7 +89,7 @@ Then connect the debugger to J301. **SWD must connect,** and the debugger should
 
 ## 4. Pin 06 (EGR), then firing the injectors
 
-**Pin 06:** connect 13.5 V to J1001-2 at a 1 A limit.
+**Pin 06:** connect 13.5 V to J1001-3 at a 1 A limit.
 - TP3 VBAT_EGR should read about 13.5 V.
 - Load the EGR outputs (J1004-2/-3) with a 10 Ω, 25 W resistor.
 - The EGR bridge stays coasting until firmware raises `EGR_EN`.
@@ -125,7 +125,7 @@ On the engine the board has no supply until **pin 71 (ignition)** closes the mai
 2. **Ignition off (J1007-5 open), firmware not yet holding the relay:** J1004-4 sits at **13.5 V**. No coil current flows, so the relay is open. This is the sneak path the TVS replaced the diode to remove: there must be no current here.
 3. **Ignition on (13.5 V on J1007-5):** J1004-4 falls to **under 0.1 V** and the relay pulls in. **Repeat with the MCU held in reset** (NRST to GND through the debugger): it must still pull in, because the wake FET closes it in hardware.
 4. **Ignition off with the firmware running:** the relay stays in. The firmware saves the fault memory, waits for the engine to be stopped (on the bench it already is), then releases it, within about 10 s. `afterrun` reads 1 until then.
-5. **Optional: a real main relay.** Wire its contact from the bench supply to J1001-1 and -2, the way the engine does, and repeat 3–4. The board should start on ignition, and switch itself off after ignition off.
+5. **Optional: a real main relay.** Wire its contact from the bench supply to J1001-1, -2 and -3, the way the engine does, and repeat 3–4. The board should start on ignition, and switch itself off after ignition off.
 6. **Inputs:** 13.5 V on J1007-6 (water in fuel) for over 2 s raises an amber DTC, SPN 97. Grounding J1007-8 (stop switch) shuts the firmware down. J1007-9 (GCU sync) reads 0–10 V as 0–3.125 V on PB2.
 
 **Pass:** all six steps within their ranges, and TP12 under 5 V before you disconnect. Record the readings in `docs/status.md` with the date and board serial.
