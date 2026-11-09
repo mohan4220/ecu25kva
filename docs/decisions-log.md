@@ -1437,7 +1437,11 @@ render.
   after `gen_pcb.py`. Schematic parity fails on the Windows machine this
   was done on, 198 entries, almost all pins with no net. It fails the
   same on the unchanged board (199), so it is the KiCad build, not this
-  change. It passed on the macOS setup.
+  change. It passed on the macOS setup. **Found 9 Nov:** KiCad 10.0.6
+  drops every pin on an auto-named net (`Net-(...)`, `unconnected-(...)`)
+  from parity, and only those. `check_pcb.py` now checks exactly those
+  pins against KiCad's exported netlist, and parity passes. A pad on the
+  wrong net still fails.
 
 ### The prototype, brought up to it (8–9 November)
 

@@ -914,7 +914,7 @@ Two more readings:
   - The service link runs at 1000 kbit/s, Bosch's rate for 87/86.
 - **The netlist check had been passing its decoupling check on nothing** under KiCad 10. It now parses KiCad 10's netlist and checks 50 supply pins.
 
-Every check passes on this Windows machine: 26/26 circuit blocks; the netlist with **0 open items**; the firmware unit tests, the boot tests, 16/16 scenarios and the service tool; and the board check. The exception is KiCad's schematic parity, which fails the same way on the unchanged board here and is down to the KiCad build. **The Rust simulator is updated but unbuilt**: there was no Rust toolchain here.
+Every check passes on this Windows machine: 26/26 circuit blocks; the netlist with **0 open items**; the firmware unit tests, the boot tests, 16/16 scenarios and the service tool; and the board check, schematic parity included. KiCad 10.0.6 drops every pin on an auto-named net from parity, so since 9 Nov `check_pcb.py` checks those pins against the exported netlist (HANDOFF §2). **The Rust simulator is updated but unbuilt**: there was no Rust toolchain here.
 
 **The prototype board was brought up to the Bosch pinout on 9 November** (decisions log §18, "The prototype, brought up to it"):
 - 30 new parts, each input's front end placed at J1007.
@@ -961,7 +961,8 @@ Updated 8 November 2026, after the Bosch pinout (decisions log §18). Every chec
 - the netlist gate, with **0 open items**
 - the firmware unit tests, 7 bootloader tests, 16/16 engine scenarios and the service tool end to end
 - the PCB rules and generator self-tests
-- the board check, including the schematic links. The exception is KiCad's parity on the Windows machine, which fails the same on the unchanged board
+- the board check, including the schematic links and parity (on Windows, pins on auto-named nets are checked against the exported netlist: HANDOFF §2)
+- all 26 prototype tests (9 Nov)
 
 **On Windows** these all run with KiCad 10's bundled Python and ngspice, plus `zig cc` (pip `ziglang`) for the firmware. See HANDOFF §2.
 

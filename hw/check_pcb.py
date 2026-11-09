@@ -130,8 +130,37 @@ def main(board=None, rules=pr, parity_ok=PARITY_OK,
     parity = [v for v in rep.get("schematic_parity", [])
               if (v["type"], (v["items"] or [v])[0]["description"].split()[-1])
               not in parity_ok]      # a missing footprint has no items
+    # KiCad 10.0.6 on Windows reports "No corresponding pin found" for
+    # every pad on an auto-named net, Net-(...) or unconnected-(...), and
+    # for no other pad (9 Nov: 98 of 98 on the prototype); its own netlist
+    # export lists those pins on those nets. For exactly that report, the
+    # pad's net is checked against that netlist instead: it passes only if
+    # the schematic puts this pin on this same net. 10.0.7 on macOS passed.
+    pin_net = {(r, p): n for n, nodes in nets.items() for r, p, _ in nodes}
+    vouched = []
+
+    def netlist_agrees(v):
+        if v["type"] != "net_conflict" or \
+                not v["description"].startswith("No corresponding pin found in schematic") \
+                or len(v["items"]) != 1:
+            return False
+        m = re.match(r"(?:PTH |NPTH )?[Pp]ad (\S+) \[(.*)\] of (\S+)(?: on |$)",
+                     v["items"][0]["description"])
+        if not m or "(" not in m.group(2):
+            return False
+        # the same name, but for the {slash} the netlist reader spells a
+        # "/" in a pin name with (pcb_rules.kicad_name): EN/UVLO
+        want = pin_net.get((m.group(3), m.group(1))) or ""
+        return want.replace("{slash}", "/") == m.group(2).replace("{slash}", "/")
+    for v in list(parity):
+        if netlist_agrees(v):
+            parity.remove(v)
+            vouched.append(v)
     check("schematic parity (nets per pad, fields, footprints)", not parity,
           f"{len(parity)}: {items(parity)}")
+    if vouched:
+        print(f"INFO  {len(vouched)} pads on auto-named nets checked against "
+              f"the exported netlist instead (KiCad 10.0.6 parity drops them)")
     unrouted = len(rep.get("unconnected_items", []))
     if require_routed:
         check("routed: no unconnected items", not unrouted,

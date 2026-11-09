@@ -112,15 +112,15 @@ Two traps:
 - **Write Python patches with `chr(92)` for a backslash.** The shell
   wrapper halves doubled backslashes before Python sees them, so a
   `"\\n"` written into a heredoc arrives as `"\n"`, a real newline.
-- **KiCad's schematic parity fails here on the unchanged board** (199
-  entries, nearly all pins with no net). That is the KiCad build, not
-  the design, and every other `check_pcb.py` gate passes. The prototype
-  shows the same thing: 98 "no corresponding pin" entries, identical on
-  the committed board (9 Nov). They are on unconnected pins and on
-  auto-named nets of parts with stacked pins. The netlist this same
-  KiCad exports agrees with the board's pad nets. So `test_placement_clean`
-  and `test_routed` fail here on parity alone. Every other gate passes:
-  0 DRC errors, 0 unconnected.
+- **KiCad 10.0.6's schematic parity drops every pin on an auto-named
+  net**, `Net-(...)` or `unconnected-(...)`, and reports "No corresponding
+  pin found in schematic". It drops those pins and no others: 198 pads
+  on the production board, 98 on the prototype. The netlist this same
+  KiCad exports lists those pins on the right nets. 10.0.7 on macOS
+  passed. Since 9 Nov, `check_pcb.py` checks exactly those reports
+  against the exported netlist and passes a pad only if the schematic
+  puts that pin on that same net. It prints how many it checked that
+  way. Swapping two such pads' nets on a copy of the board still fails.
 
 There is no Rust toolchain on that machine, so the simulator was not rebuilt.
 
