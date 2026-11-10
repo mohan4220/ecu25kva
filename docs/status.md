@@ -180,7 +180,7 @@ These have no netlist, no schematic and no checks. They are the real gaps.
 |---|---|---|
 | **Negative-input protection for the buck** | pin 21 chain | **Found 19 Sep.** The LM5164's VIN is rated −0.3 V to 100 V; the negative limit is not a mirror of the positive one and nothing was sized against it. The TVS clamps correctly to −38 V, which is still two orders of magnitude outside what the buck tolerates. A missing component, not a mis-sized one |
 | ~~Intake throttle driver~~ | — | **Closed 10 Nov 2026 (U8).** The owner's "throttle" is fuelling to reach and hold 1500 rpm: the firmware's speed governor (`govern.c`), through the injectors and the metering unit. Bosch's drawing gives a throttle valve no pin, so the ECU drives none |
-| **Pre/post-heat output** | unknown | **Blocked on U14.** Same distinction — battery-fed is not the same as ECU-switched. The DSE4522 enables both at 50 °C and this design has no heater output |
+| ~~Pre/post-heat output~~ | — | **Closed 10 Nov 2026 (U14), by the owner's rule: follow Bosch.** The MD1CS162 terminal diagram has no heater pin, so the ECU has no heater output. The DSE4522 switches pre/post-heat itself (enabled at 50 °C) |
 
 ---
 
@@ -235,7 +235,7 @@ reliable without the machine.
 
 **U4** CAN expectations (addresses 234 and 44 confirmed) · **U5** injector drive profile
 (part confirmed 10 Nov: Bosch 0 445 B76 1X3, CRI-2-16; its electrical data is unpublished, so the drive's numbers are confirmed on the bench) · ~~U8~~ throttle (closed 10 Nov: the governor) ·
-**U14** pre/post-heat (supply known, control not)
+~~U14~~ pre/post-heat (closed 10 Nov: not on Bosch's drawing; the DSE switches it)
 
 ### Open — 8
 
@@ -939,7 +939,7 @@ whoever is at the machine.
 | ~~Cavity census~~ | — | ~~A pin for `TRIP_LOOP`~~ The loop is gone (no Bosch pin) |
 | ~~Whether the main relay has its own suppressor~~ | — | **Closed 10 Nov:** pin 50 drives the main relay and 69 the buzzer relay (owner). Pin 50's TVS, and pin 69's flyback diode to the board's supply (fed, like the buzzer coil, from the main-relay line), are safe with or without a suppressor in the relay. Settled by the owner on 10 Nov: pin 25's polarity as Bosch draws it; pins 09 and 14 as analog and digital inputs, functions configured later |
 | ~~Pin 21 with the ignition off~~ | — | **Closed 10 Nov 2026 by the owner:** pin 21 is the water-in-fuel sensor, as Bosch draws it |
-| Trace who switches the heater feed | **U14** | Whether a heater output is in scope — **can make the board bigger** |
+| ~~Trace who switches the heater feed~~ | ~~U14~~ | Closed 10 Nov 2026: not on Bosch's drawing, so not the ECU's |
 | ~~Follow the throttle's 6-pin cable to where it ends~~ | ~~U8~~ | Closed 10 Nov 2026: speed is governed by fuel quantity; no throttle driver |
 | ~~Injector part number from the body~~ | **U5** | **Part confirmed 10 Nov (owner):** Bosch 0 445 B76 1X3 (CRI-2-16), as on the drawing. Its coil data is not published, so the 100 V boost and 18 A peak stay the CRI-2 family's and are measured on the bench with a real injector (bring-up step 4); the setpoints are firmware values |
 | ~~Alternator rectifier part number~~ | ~~U16~~ | Closed 9 Oct 2026: designed for the suppressed load dump, no field check needed |
@@ -948,10 +948,9 @@ whoever is at the machine.
 | Contact pitch and row spacing, with calipers | — | Confirms which Bosch family drawing is the right one for the board-side footprint |
 | Relay contact-type check | U12 confirmation | Nothing — recorded for completeness |
 
-**The one that can still grow the board — U14, the heater — should be
-answered before layout starts, not after** (U8 closed 10 Nov: no throttle
-driver). Everything else on this list changes a value or closes a
-register entry.
+**Nothing on this list can grow the board any more:** U8 (throttle) and
+U14 (heater) closed on 10 Nov, because neither is on Bosch's drawing.
+Everything left changes a value or closes a register entry.
 
 ---
 
