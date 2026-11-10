@@ -938,7 +938,7 @@ whoever is at the machine.
 | ~~Continuity from every populated cavity to chassis — where is the power ground?~~ | — | **Closed 8 Nov 2026 by Bosch's drawing: pins 01/02.** A continuity check still confirms it |
 | ~~Cavity census~~ | — | ~~A pin for `TRIP_LOOP`~~ The loop is gone (no Bosch pin) |
 | **Pin 25's polarity; whether the main relay has its own suppressor** | — | The stop switch's sense (its hardware kill too); nothing for the second (the board's TVS covers both cases). Pins 09 and 14: analog and digital inputs as built, functions configured later (owner, 10 Nov) |
-| **Pin 21 with the ignition off** (the 2-minute check from the harness sheet) | — | Confirms the harness matches Bosch's drawing. The input survives battery either way |
+| ~~Pin 21 with the ignition off~~ | — | **Closed 10 Nov 2026 by the owner:** pin 21 is the water-in-fuel sensor, as Bosch draws it |
 | Trace who switches the heater feed | **U14** | Whether a heater output is in scope — **can make the board bigger** |
 | Follow the throttle's 6-pin cable to where it ends | **U8** | Whether a throttle driver exists at all — **can make the board bigger** |
 | Injector part number from the body | **U5** | The boost rail's 100 V target and the 18 A threshold, both currently a family envelope |
