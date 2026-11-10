@@ -909,7 +909,7 @@ Two more readings:
 - **The trip loop is gone.** It had no Bosch pin. The trip module now opens the main relay's coil feed (spec §3 item 7).
 - **Firmware, ABI 2:**
   - After-run: the relay is held until the engine has stopped and the fault memory is written, at most 60 s.
-  - Pin 25 latches SHUTDOWN, like the ignition.
+  - Pin 25 latches SHUTDOWN, like the ignition. **Since 10 Nov it also kills the gates in hardware**, for when the firmware is what's misbehaving (decisions log §18).
   - Water in fuel raises an amber SPN 97.
   - The service link runs at 1000 kbit/s, Bosch's rate for 87/86.
 - **The netlist check had been passing its decoupling check on nothing** under KiCad 10. It now parses KiCad 10's netlist and checks 50 supply pins.
@@ -937,7 +937,7 @@ whoever is at the machine.
 |---|---|---|
 | ~~Continuity from every populated cavity to chassis — where is the power ground?~~ | — | **Closed 8 Nov 2026 by Bosch's drawing: pins 01/02.** A continuity check still confirms it |
 | ~~Cavity census~~ | — | ~~A pin for `TRIP_LOOP`~~ The loop is gone (no Bosch pin) |
-| **Pin 25's polarity; what the GCU puts on 09 and 14; whether the main relay has its own suppressor** | — | The stop switch's sense; firmware functions for 09 and 14; nothing for the third (the board's TVS covers both cases) |
+| **Pin 25's polarity; whether the main relay has its own suppressor** | — | The stop switch's sense (its hardware kill too); nothing for the second (the board's TVS covers both cases). Pins 09 and 14: analog and digital inputs as built, functions configured later (owner, 10 Nov) |
 | **Pin 21 with the ignition off** (the 2-minute check from the harness sheet) | — | Confirms the harness matches Bosch's drawing. The input survives battery either way |
 | Trace who switches the heater feed | **U14** | Whether a heater output is in scope — **can make the board bigger** |
 | Follow the throttle's 6-pin cable to where it ends | **U8** | Whether a throttle driver exists at all — **can make the board bigger** |
@@ -979,7 +979,7 @@ Updated 8 November 2026, after the Bosch pinout (decisions log §18). Every chec
 ### Waiting on the machine (inspection brief)
 1. **7.1, the metering valve's part number.** It confirms "normally open", which the firmware and the trip design now assume.
 2. **Group 6, the old ECU's measurements:** housing, board, and the J1001 header. Until then, no board can be ordered.
-3. ~~5.1 / 6.4, which pins are battery ground.~~ Bosch's drawing: 01/02. Now: pin 25's polarity, and what the GCU puts on 09 and 14.
+3. ~~5.1 / 6.4, which pins are battery ground.~~ Bosch's drawing: 01/02. Now: pin 25's polarity. Pins 09 and 14 are settled as inputs; their functions are configured later.
 4. **A running-engine J1939 trace on the DSE's CAN** (U4). The 14 Oct file was an XCP recording, not a bus trace.
 5. **7.2–7.4, any existing trip module and the main relay's coil feed:** needed when the trip is fitted.
 

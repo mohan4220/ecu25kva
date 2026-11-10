@@ -117,7 +117,7 @@ With firmware firing one injection at 1 ms:
    Check the current on each dummy load, and the gate of Q412 (low side 1) on the scope.
 4. On the scope, `WDT_FAULT` (PC12) and NRST go low together and come back high together. `WDT_FAULT` is high again by the time firmware runs, so it does not record which trip it was. **History:** RESET and `WDT_FAULT` were shorted on the production schematic until 15 Oct 2026; that fix removed the only path from `WDO` to the reset, and D302 (19 Oct) puts it back.
 
-## 6. The ignition wake and the main relay (Bosch wiring)
+## 6. The ignition wake, the main relay and pin 25 (Bosch wiring)
 
 On the engine the board has no supply until **pin 71 (ignition)** closes the main relay through the wake FET on pin 50. The firmware then holds the relay through the after-run (decisions log §18).
 
@@ -126,6 +126,12 @@ On the engine the board has no supply until **pin 71 (ignition)** closes the mai
 3. **Ignition on (13.5 V on J1007-5):** J1004-4 falls to **under 0.1 V** and the relay pulls in. **Repeat with the MCU held in reset** (NRST to GND through the debugger): it must still pull in, because the wake FET closes it in hardware.
 4. **Ignition off with the firmware running:** the relay stays in. The firmware saves the fault memory, waits for the engine to be stopped (on the bench it already is), then releases it, within about 10 s. `afterrun` reads 1 until then.
 5. **Optional: a real main relay.** Wire its contact from the bench supply to J1001-1, -2 and -3, the way the engine does, and repeat 3–4. The board should start on ignition, and switch itself off after ignition off.
-6. **Inputs:** 13.5 V on J1007-6 (water in fuel) for over 2 s raises an amber DTC, SPN 97. Grounding J1007-8 (stop switch) shuts the firmware down. J1007-9 (GCU sync) reads 0–10 V as 0–3.125 V on PB2.
+6. **Inputs:** 13.5 V on J1007-6 (water in fuel) for over 2 s raises an amber DTC, SPN 97. Grounding J1007-8 (stop switch, the force shutdown) shuts the firmware down. J1007-9 (GCU sync) reads 0–10 V as 0–3.125 V on PB2.
+
+7. **Pin 25 in hardware** (decisions log §18): with the firmware driving the outputs, **halt the MCU from the debugger** (it stays out of reset), then ground J1007-8.
+   - `GATE_KILL` (Q301's drain) rises to about 12 V **within 1 ms**.
+   - Every gate drops, as in step 5.
+   - `~RESET` stays at about **3.0 V**: the MCU is not reset.
+   - Release J1007-8: `GATE_KILL` falls again.
 
 **Pass:** all six steps within their ranges, and TP12 under 5 V before you disconnect. Record the readings in `docs/status.md` with the date and board serial.

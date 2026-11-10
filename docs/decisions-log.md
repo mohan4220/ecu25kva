@@ -1397,7 +1397,7 @@ render.
 | Pin 50's turn-off clamp | **A TVS to ground** (SMAJ48CA), not a diode to VBAT_PROT | See "Found on the way" |
 | The after-run | Ignition off: the firmware stops the engine, asks for a save, and **releases the relay only once the engine has stopped and the save is written**, at most 60 s | The board drops its own supply. Releasing early would lose the stop's record. The save goes through the 10 s rate limit, and the relay waits for it, so a flapping ignition costs no extra flash writes |
 | The trip loop | **Removed.** The overspeed trip module opens the main relay's coil feed | It had no Bosch pin. Opening the coil drops the ECU, the injectors and the metering unit together, and the GCU sees the CAN go quiet |
-| Pin 25 | An operator stop: SHUTDOWN, no DTC, no red lamp, latched until an ignition cycle | Like the ignition. Its polarity (stop on closed) is to confirm at the machine |
+| Pin 25 | An operator stop: SHUTDOWN, no DTC, no red lamp, latched until an ignition cycle. **Also in hardware since 10 Nov** (below) | Like the ignition. Its polarity (stop on closed) is to confirm at the machine |
 | Pin 21 | Amber DTC, SPN 97 FMI 31, after 2 s; clears after 2 s dry | A warning, never a stop. 2 s each way so fuel sloshing past the probe does nothing |
 | Pins 09 and 14 | Read and passed to the firmware; **no function yet** | Bosch's drawing names them but does not say what the GCU sends. 09 reads 0–10 V |
 | CAN | Net names kept; the service link moves to **1000 kbit/s** | Renaming nets churns three sheets for nothing. The mapping is written on the connector sheet |
@@ -1467,14 +1467,37 @@ again (`prototype/gen_board.py`):
 
   The result: **0 DRC errors, 0 unconnected items, schematic parity clean** (KiCad 10, this machine).
 
+### Pin 25 kills the gates in hardware (10 November)
+
+**The owner:** pin 25 is the operator's force shutdown, pressed when the generator is not behaving properly. So it has to work when the firmware is what is misbehaving. Until now it reached only the firmware.
+
+**The change** (`hw/gen_sheet_mcu.py`, `stop_kill()`, on both boards):
+- Q301, the inverter that raises `GATE_KILL`, now takes its gate from `~RESET` through a 100k (R307; R314 on the prototype).
+- A 2N7002BK (Q302) with its gate on `SW_STOP` pulls that gate low while the button is pressed. `GATE_KILL` rises and every injector, metering and EGR gate drops, with no firmware in the path.
+- `~RESET` stays at 3.0 V, above the MCU's 2.31 V threshold, so the MCU runs on, sees the stop and latches SHUTDOWN. Releasing the button does not restart injection.
+
+**Proven by:**
+- `sim/blocks/stop_kill.cir`, at the worst-high FET threshold:
+  - pressed: 11.9 V on `GATE_KILL`
+  - a 1 kΩ contact still kills; 47 kΩ of harness leakage does not; it trips at 10.8 kΩ
+  - 0.9 ms from press to kill
+- `check_netlist` STOP_KILL, on both boards.
+
+**Polarity:** the drawing's (contact to terminal 31 when pressed), chosen by the owner on 10 Nov. If the machine shows a normally-closed contact, this path and the firmware both invert.
+
 ### Still open
 
 - **The Rust simulator** mirrors `ecu_io`. Its fields and ABI are
   updated, but there was no Rust toolchain on this machine to build it.
   CI will build it, and so will a `cargo` on any of the three OSes. The
   committed Windows `.exe` is the old build until then.
-- At the machine: pin 25's polarity; what the GCU puts on 09 and 14;
-  whether the fitted main relay carries its own suppressor.
+- At the machine: pin 25's polarity; whether the fitted main relay
+  carries its own suppressor.
+- **Pins 09 and 14 (owner, 10 Nov):** they stay as an analog input
+  (09, 0–10 V into the ADC) and a digital switch input (14, contact to
+  ground), at their current ratings. What they do is configured in
+  firmware later. Until then the firmware reads both and acts on
+  neither, so neither can change how the engine runs.
 
 ---
 

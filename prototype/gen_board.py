@@ -457,6 +457,13 @@ BOSCH_MIGRATE = dict(
 )
 
 
+# Pin 25's hardware kill (10 Nov 2026, decisions log 18): Q301's gate
+# leaves ~RESET for KILL_GATE (R314 100k from ~RESET, Q302 on SW_STOP).
+# Before it: rip /mcu_stm32/~{RESET}, whose copper ran to Q301's gate.
+STOP_KILL_MIGRATE = dict(renames={}, drop=(), refit=("Q301",))
+MIGRATIONS = {"bosch": BOSCH_MIGRATE, "stop_kill": STOP_KILL_MIGRATE}
+
+
 def migrate_inputs(renames):
     """The same renames in the committed router inputs the board tests
     read: the power router's runs (build/power.json: the old net's runs
@@ -483,6 +490,8 @@ def migrate_inputs(renames):
                          lambda q: q.group(1) + " " + m.group(1) + ")", dsn, count=1)
             dsn = re.sub(r"(\(class [^\n]*?) " + o + r"(?=[\s)])", r"\1", dsn)
         dsn = re.sub(o + r"(?![\w/])", new, dsn)
+    if not renames:          # nothing to rename: leave the committed files
+        return
     json.dump(power, open(pj, "w"))
     with open(dj, "w", newline="") as f:
         f.write(dsn)
@@ -2300,7 +2309,7 @@ if __name__ == "__main__":
     stage = sys.argv[1] if len(sys.argv) > 1 else "place"
     {"place": place, "pour": pour, "route": route, "setup": setup,
      "fab": fab, "sync": lambda: sync(BOARD),
-     "migrate": lambda: migrate(BOARD, **BOSCH_MIGRATE),
+     "migrate": lambda: migrate(BOARD, **MIGRATIONS[sys.argv[2] if len(sys.argv) > 2 else "bosch"]),
      "clusters": lambda: clusters(sys.argv[2]),
      "necks": lambda: print(necks(pcbnew.LoadBoard(BOARD)) or "no necks"),
      "finish": lambda: finish(BOARD),

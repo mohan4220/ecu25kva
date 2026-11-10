@@ -197,6 +197,7 @@ def build():
     prod.supervisor(sh)
     prod.debug_port(sh)
     support(sh)
+    prod.stop_kill(sh, r_footprint=R0603)   # last, as production (its R307: 0603)
     return sh
 
 

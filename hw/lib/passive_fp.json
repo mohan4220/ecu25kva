@@ -674,6 +674,11 @@
   "value": "22mOhm 1%",
   "why": "shunt: 22mOhm 1%"
  },
+ "R307": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "100k",
+  "why": "3.6 V peak, 0.1 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
  "R401": {
   "footprint": "Resistor_SMD:R_2512_6332Metric",
   "value": "11k 1W",

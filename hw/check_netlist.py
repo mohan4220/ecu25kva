@@ -84,6 +84,14 @@ class Fail(Exception):
     pass
 
 
+def pr_ohms(value):
+    """'100k' -> 1e5, '4.7k' -> 4700, '0R' -> 0; anything else -> 0."""
+    m = re.match(r"^([\d.]+)\s*([RkKM]?)", value or "")
+    if not m:
+        return 0.0
+    return float(m.group(1)) * {"": 1, "R": 1, "k": 1e3, "K": 1e3, "M": 1e6}[m.group(2)]
+
+
 def export_netlist(path, root=ROOT):
     r = subprocess.run(
         ["kicad-cli", "sch", "export", "netlist", "--format", "kicadsexpr",
@@ -288,6 +296,27 @@ def main(root=ROOT, expected_open=None, boundary_open=None,
             and net_of.get((r, "2")) == rst and net_of.get((r, "1")) == wdo]
     check(f"a watchdog fault reaches the gate kill: a Schottky from "
           f"{rst} to {wdo}", bool(path) and rst != wdo, f"diodes: {path}")
+
+    # -- STOP_KILL (10 Nov 2026): pin 25, the force shutdown, kills the
+    # gates in hardware. The inverter (the NMOS whose drain is GATE_KILL)
+    # takes its gate from ~RESET through >= 47k, and an NMOS on SW_STOP
+    # pulls that gate to ground: no firmware, no MCU reset.
+    def ends(name):
+        return [n for n in set(net_of.values()) if n.split("/")[-1] == name]
+    nmos = [r for r, part in part_of.items() if part == "Q_NMOS_GSD"]
+    kill = ends("GATE_KILL")
+    inv = [r for r in nmos if net_of.get((r, "3")) in kill]
+    kg = net_of.get((inv[0], "1")) if len(inv) == 1 else None
+    iso = [r for r, part in part_of.items() if part == "R" and kg and rst
+           and {net_of.get((r, "1")), net_of.get((r, "2"))} == {kg, rst}
+           and pr_ohms(comps.get(r, "")) >= 47e3]
+    stop = ends("SW_STOP")
+    pull = [r for r in nmos if kg and net_of.get((r, "1")) in stop
+            and net_of.get((r, "3")) == kg and net_of.get((r, "2")) == "GND"]
+    check("pin 25 kills the gates in hardware: an NMOS on SW_STOP pulls "
+          "the GATE_KILL inverter's gate low, isolated from ~RESET by >= 47k",
+          kg is not None and kg != rst and bool(iso) and bool(pull),
+          f"inverter {inv}, its gate {kg}, resistor {iso}, puller {pull}")
 
     for rail in MUST_SPAN:
         hit = [p for n, p in named if n == rail]

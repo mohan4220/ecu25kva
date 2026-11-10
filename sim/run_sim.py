@@ -956,6 +956,49 @@ def check_injector_turnoff():
     return c
 
 
+def check_stop_kill():
+    """Pin 25, the force shutdown, kills the gates in hardware (owner,
+    10 Nov 2026; decisions log sec.18): pressing it raises GATE_KILL
+    with no firmware, and the MCU runs on to latch SHUTDOWN."""
+    c = Checks("stop_kill -- pin 25 kills the gates in hardware, MCU runs on")
+    r = sim("stop_kill", {
+        "stop_kill_dc.dat": ["rsw", "stp", "rst", "kg", "gk"],
+        "stop_kill_tran.dat": ["time", "stp", "rst", "kg", "gk"]})
+    d = r["stop_kill_dc.dat"]
+
+    def at(col, ohms):
+        return float(np.interp(ohms, d["rsw"], d[col]))
+    # The MCU's reset input: VIH 0.7 x VDD = 2.31 V (STM32G474 NRST and
+    # S32K148 RESET_b alike). ~RESET must stay above it while pressed.
+    c.that("pressed (1 ohm): GATE_KILL asserted, over the kill FETs' 2.1 V Vth",
+           at("gk", 1), 10.0, tol=None, ok=at("gk", 1) > 10.0, unit="V")
+    c.that("pressed: ~RESET stays above the MCU's 2.31 V VIH (the MCU runs on)",
+           at("rst", 1), 2.31, tol=None, ok=at("rst", 1) > 2.31, unit="V")
+    c.that("pressed: Q301's gate under 2N7002BK's 1.1 V minimum Vth",
+           at("kg", 1), 1.1, tol=None, ok=at("kg", 1) < 1.1, unit="V")
+    c.that("a worn contact, 1 kohm to ground, still kills",
+           at("gk", 1e3), 10.0, tol=None, ok=at("gk", 1e3) > 10.0, unit="V")
+    c.that("released (200 kohm to ground): GATE_KILL low",
+           at("gk", 200e3), 0.5, tol=None, ok=at("gk", 200e3) < 0.5, unit="V")
+    c.that("harness leakage of 47 kohm to ground does not kill",
+           at("gk", 47e3), 0.5, tol=None, ok=at("gk", 47e3) < 0.5, unit="V")
+    trip = d["rsw"][np.argmax(d["gk"] < 6.0)]
+    c.that("the kill trips between 1 k and 47 k of contact resistance",
+           trip / 1e3, 10.0, tol=None, ok=1e3 < trip < 47e3, unit="kohm")
+
+    t = r["stop_kill_tran.dat"]
+    tt, gk, rst = t["time"], t["gk"], t["rst"]
+    up = tt[np.argmax((tt > 10e-3) & (gk > 6.0))] - 10e-3
+    c.that("press to GATE_KILL: the input filter's delay, under 50 ms",
+           up * 1e3, 20.0, tol=None, ok=0 < up < 50e-3, unit="ms")
+    c.that("~RESET's lowest point through press and release, above 2.31 V",
+           rst.min(), 2.31, tol=None, ok=rst.min() > 2.31, unit="V")
+    late = gk[tt > 240e-3].max()
+    c.that("released at 150 ms: GATE_KILL low again by 240 ms",
+           late, 0.5, tol=None, ok=late < 0.5, unit="V")
+    return c
+
+
 def check_main_relay():
     """Pins 50 and 71 under Bosch's wiring: the ECU closes its own supply
     relay (refs/bosch-pinout-md1cs162.md, decisions log sec.18)."""
@@ -2953,6 +2996,7 @@ CHECKS = {
     "injector_turnoff": check_injector_turnoff,
     "relay_driver": check_relay_driver,
     "main_relay": check_main_relay,
+    "stop_kill": check_stop_kill,
     "egr_hbridge": check_egr_hbridge,
     "emi_filter": check_emi_filter,
     "reverse_battery": check_reverse_battery,

@@ -106,8 +106,9 @@ def test_assign_covers_netlist():
     with tempfile.TemporaryDirectory() as d:
         comps, nets = pr.read_netlist(pr.export_netlist(d))
     # 379 + D302 (19 Oct); Bosch pinout (8 Nov): +29 for the wake FET,
-    # pins 21/14/25/09, -4 for the trip loop's front end
-    assert len(comps) == 405, len(comps)
+    # pins 21/14/25/09, -4 for the trip loop's front end; pin 25's
+    # hardware kill (10 Nov): +2, R307 and Q302
+    assert len(comps) == 407, len(comps)
     power = pr.power_nets(comps, nets)
     assert "/VBAT_INJ" in power and "/injector/BOOST_100V" in power
     assert "/injector/HSA_BOOST_GATE" not in power, "a gate is not a power net"

@@ -152,7 +152,7 @@ NET_V = {
 LOGIC3_RE = re.compile(
     r"^/(IN_AUDIO_ABORT|IN_OVERRIDE_SS|IN_IGNITION|SW_COOLANT|SW_DROOP|"
     r"IN_WIF|SW_DIAG|SW_STOP|RLY_MAIN|RLY_BUZZER|EGR_EN|CAM_EDGE|CRANK_EDGE|"
-    r"INJ_HS_[AB](_BAT)?|can/CAN[12]_STB|mcu/WDT_FAULT|mcu/~\{RESET\}|"
+    r"INJ_HS_[AB](_BAT)?|can/CAN[12]_STB|mcu/WDT_FAULT|mcu/~\{RESET\}|mcu/KILL_GATE|"
     r"metering_egr/EGR_SD|injector/U[AB][12]_HIN)$|^Net-\(U302-")
 LOGIC5_RE = re.compile(
     r"^/(BARO|BOOST_P|BOOST_T|COOLANT_T|EGR_POS|OIL_P|RAIL_P|SYNC)$|"

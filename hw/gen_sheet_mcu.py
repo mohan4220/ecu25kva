@@ -160,6 +160,7 @@ def build():
     decoupling(sh)
     debug_port(sh)
     notes(sh)
+    stop_kill(sh)
     return sh, at
 
 
@@ -293,7 +294,9 @@ def supervisor(sh):
     sr = pin_xy(*qp["2"], qx, qy, 0)
     d = pin_xy(*qp["3"], qx, qy, 0)
     sh.wire(g[0], g[1], g[0] - STUB, g[1])
-    sh.label("~{RESET}", g[0] - STUB, g[1], rot=180)
+    # its gate is ~RESET through stop_kill()'s 100k, which pin 25 can
+    # pull low without resetting the MCU
+    sh.label("KILL_GATE", g[0] - STUB, g[1], rot=180)
     sh.wire(sr[0], sr[1], sr[0], sr[1] + 7.62)
     sh.gnd(sr[0], sr[1] + 7.62)
     sh.wire(d[0], d[1], d[0], d[1] - 7.62)
@@ -356,6 +359,57 @@ def supervisor(sh):
     sh.label("WDT_FAULT", k[0] - 7.62, k[1], rot=180)
     sh.wire(a[0], a[1], a[0] + 7.62, a[1])
     sh.label("~{RESET}", a[0] + 7.62, a[1])
+
+
+STOP_AT = (250.0, 305.0)          # left of and above Q301, clear
+
+
+def stop_kill(sh, r_footprint=""):
+    """Pin 25, the operator's force shutdown (owner, 10 Nov 2026), kills
+    the gates in hardware too, so it works when the firmware is the
+    thing misbehaving. Q301's gate comes from ~RESET through 100k; a
+    2N7002BK on SW_STOP (high while the button is pressed, discrete_io)
+    pulls that gate low, Q301 turns off and GATE_KILL rises, as for a
+    reset. ~RESET itself stays up (3.3 V x 100k / 110k = 3.0 V, above the
+    MCU's 0.7 VDD), so the firmware keeps running, sees the stop, and
+    latches SHUTDOWN: releasing the button does not restart injection.
+    Polarity is the drawing's (contact to terminal 31 when pressed);
+    check_netlist STOP_KILL. Placed last so no reference moves."""
+    x, y = STOP_AT
+    # production's package comes from assign_passives (by reference); the
+    # prototype numbers it differently and passes the same 0603
+    sh.place("Device:R", "R", x, y, "100k", footprint=r_footprint,
+             fields={"Source": "stop_kill: ~RESET to Q301's gate",
+                     "Note": "Lets pin 25 hold Q301's gate low while "
+                             "~RESET stays at 3.0 V: the MCU runs on. "
+                             "With Q301's ~50 pF it adds ~5 us to the "
+                             "reset kill, nothing to the watchdog's ms"})
+    a = pin_xy(*PINS["Device:R"]["1"], x, y, 0)
+    b = pin_xy(*PINS["Device:R"]["2"], x, y, 0)
+    t, bo = (a, b) if a[1] < b[1] else (b, a)
+    sh.wire(t[0], t[1], t[0], t[1] - 5.08)
+    sh.label("~{RESET}", t[0], t[1] - 5.08)
+    sh.wire(bo[0], bo[1], bo[0], bo[1] + 5.08)
+    sh.label("KILL_GATE", bo[0], bo[1] + 5.08)
+
+    qx, qy = x + 25.4, y
+    sh.place("Device:Q_NMOS_GSD", "Q", qx, qy, "2N7002BK",
+             footprint="Package_TO_SOT_SMD:SOT-23",
+             fields={"MPN": "2N7002BK",
+                     "Source": "stop_kill: pin 25 force shutdown",
+                     "Note": "Gate on SW_STOP (3.3 V via 10k while pin 25 "
+                             "is grounded): pulls Q301's gate low, so "
+                             "GATE_KILL asserts with no firmware involved"})
+    qp = PINS["Device:Q_NMOS_GSD"]
+    g = pin_xy(*qp["1"], qx, qy, 0)
+    sr = pin_xy(*qp["2"], qx, qy, 0)
+    d = pin_xy(*qp["3"], qx, qy, 0)
+    sh.wire(g[0], g[1], g[0] - 7.62, g[1])
+    sh.label("SW_STOP", g[0] - 7.62, g[1], rot=180)
+    sh.wire(sr[0], sr[1], sr[0], sr[1] + 7.62)
+    sh.gnd(sr[0], sr[1] + 7.62)
+    sh.wire(d[0], d[1], d[0], d[1] - 7.62)
+    sh.label("KILL_GATE", d[0], d[1] - 7.62)
 
 
 def decoupling(sh):

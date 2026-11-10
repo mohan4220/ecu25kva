@@ -260,8 +260,11 @@ C401 + C420 are two HXC 82 µF 80 V cans in series, balanced by the
   diagram puts it on pins 01/02, and the netlist check now requires it.
 - ~~**`TRIP_LOOP` has no connector pin**~~ Removed 8 Nov 2026: no Bosch
   pin. The trip module opens the main relay's coil feed (spec §3 item 7).
-- **At the machine (Bosch pinout):** pin 25's polarity, and what the GCU
-  puts on 09 (analog) and 14.
+- **At the machine (Bosch pinout):** pin 25's polarity, which its
+  hardware kill (decisions log §18, 10 Nov) also depends on.
+- **Pins 09 and 14 (owner, 10 Nov):** an analog input and a digital
+  switch input, as built. Their functions are configured in firmware
+  later; until then they are read and unused.
 - **The Bosch 94-way land pattern** — needs a distributor drawing for
   1 928 405 192 / 194, code C. The board carries the OEM connector
   (spec §7 deviation 1 reversed), so this is the board's own header.

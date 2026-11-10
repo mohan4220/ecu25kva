@@ -1,0 +1,78 @@
+* ============================================================
+* Stop kill -- ECU pin 25, the operator's force shutdown, in hardware
+* Bosch I_S_STST (refs/bosch-pinout-md1cs162.md); owner, 10 Nov 2026
+* ============================================================
+* Pin 25 is the button an operator presses when the generator is not
+* behaving: it has to stop the engine when the firmware is the thing
+* misbehaving. The input stage (discrete_io) turns "pin 25 grounded"
+* into SW_STOP high. Q302 (2N7002BK) on SW_STOP pulls Q301's gate low;
+* Q301 is the inverter whose turn-off raises GATE_KILL (47k from
+* VBAT_PROT, 12 V zener), which drops every injector, metering and EGR
+* gate. Q301's gate comes from ~RESET through R307 (100k), so pressing
+* the button leaves ~RESET up: the MCU runs on, logs the stop and
+* latches SHUTDOWN.
+*
+* Polarity: the drawing's, contact to terminal 31 when pressed.
+*
+* A. DC: the switch's resistance to ground, swept. A pressed contact
+*    (ohms) must kill; harness leakage (tens of k and up) must not.
+* B. Transient: press at 10 ms, release at 150 ms. The kill follows the
+*    input filter (C808), and ~RESET never dips toward the MCU's reset.
+* ============================================================
+
+.model QN   NPN(Is=6.7e-15 Bf=200 Vaf=74 Br=0.7 Rb=10 Rc=1 Cje=4.5p Cjc=3.6p)
+* 2N7002BK at its worst-high threshold (2.1 V max): the hardest case
+* for Q302 to turn on and for Q301 to stay on
+.model NM   NMOS(Level=1 Vto=2.1 Kp=0.17 Lambda=0.01)
+.model DZ12 D(Is=1e-14 N=1 Rs=5 BV=12 IBV=5m)
+.model BAV  D(Is=4e-9 N=1.8 Rs=0.8 BV=75)
+.model SWM  SW(Ron=1 Roff=1e9 Vt=0.5 Vh=0.1)
+
+V5   v5   0  DC 5.0
+V33  v33  0  DC 3.3
+Vbat vbat 0  DC 13.5
+
+* ---- the input stage, discrete_io (R825-R828, C808, D808, Q808) ----
+R825 v5   c    10k
+Rsw  c    0    1e6
+R826 c    b    10k
+R827 b    0    4.7k
+C808 b    0    4.7u
+D808 b    v5   BAV
+Q808 stp  b    0    QN
+R828 v33  stp  10k
+
+* ---- B: the same stage again, with a timed button for the transient ----
+R825t v5  ct   10k
+R826t ct  bt   10k
+R827t bt  0    4.7k
+C808t bt  0    4.7u
+Q808t stpt bt  0   QN
+R828t v33 stpt 10k
+Vpress prs 0 PULSE(0 1 10m 10u 10u 140m 1)
+Sbtn  ct  0   prs 0 SWM
+
+* ---- the kill stage, mcu sheet: ~RESET 10k pullup, R307, Q302, Q301 ----
+Rrst  v33  rst  10k
+R307  rst  kg   100k
+M302  kg   stp  0 0 NM
+M301  gk   kg   0 0 NM
+R305  vbat gk   47k
+D301  0    gk   DZ12
+
+Rrstt v33  rstt 10k
+R307t rstt kgt  100k
+Cg    kgt  0    50p
+M302t kgt  stpt 0 0 NM
+M301t gkt  kgt  0 0 NM
+R305t vbat gkt  47k
+D301t 0    gkt  DZ12
+
+.control
+dc Rsw 1 200k 100
+wrdata stop_kill_dc.dat v(stp) v(rst) v(kg) v(gk)
+tran 50u 250m
+wrdata stop_kill_tran.dat v(stpt) v(rstt) v(kgt) v(gkt)
+.endc
+
+.end
