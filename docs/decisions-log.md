@@ -1397,7 +1397,7 @@ render.
 | Pin 50's turn-off clamp | **A TVS to ground** (SMAJ48CA), not a diode to VBAT_PROT | See "Found on the way" |
 | The after-run | Ignition off: the firmware stops the engine, asks for a save, and **releases the relay only once the engine has stopped and the save is written**, at most 60 s | The board drops its own supply. Releasing early would lose the stop's record. The save goes through the 10 s rate limit, and the relay waits for it, so a flapping ignition costs no extra flash writes |
 | The trip loop | **Removed.** The overspeed trip module opens the main relay's coil feed | It had no Bosch pin. Opening the coil drops the ECU, the injectors and the metering unit together, and the GCU sees the CAN go quiet |
-| Pin 25 | An operator stop: SHUTDOWN, no DTC, no red lamp, latched until an ignition cycle. **Also in hardware since 10 Nov** (below) | Like the ignition. Its polarity (stop on closed) is to confirm at the machine |
+| Pin 25 | An operator stop: SHUTDOWN, no DTC, no red lamp, latched until an ignition cycle. **Also in hardware since 10 Nov** (below) | Like the ignition. **Polarity as Bosch draws it** (contact to terminal 31 = stop), the owner's decision on 10 Nov; seen once at first power-up (bring-up step 6) |
 | Pin 21 | Amber DTC, SPN 97 FMI 31, after 2 s; clears after 2 s dry | A warning, never a stop. 2 s each way so fuel sloshing past the probe does nothing |
 | Pins 09 and 14 | Read and passed to the firmware; **no function yet** | Bosch's drawing names them but does not say what the GCU sends. 09 reads 0–10 V |
 | CAN | Net names kept; the service link moves to **1000 kbit/s** | Renaming nets churns three sheets for nothing. The mapping is written on the connector sheet |
@@ -1491,8 +1491,12 @@ again (`prototype/gen_board.py`):
   updated, but there was no Rust toolchain on this machine to build it.
   CI will build it, and so will a `cargo` on any of the three OSes. The
   committed Windows `.exe` is the old build until then.
-- At the machine: pin 25's polarity; whether the fitted main relay
-  carries its own suppressor.
+- At the machine: whether the fitted main relay carries its own
+  suppressor.
+- **Pin 25's polarity: as Bosch draws it** (owner, 10 Nov 2026). The
+  switch is the external stop/emergency button, and pressing it
+  connects pin 25 to terminal 31. It is no longer a question for the
+  machine; first power-up shows it (bring-up step 6).
 - **Pins 09 and 14 (owner, 10 Nov):** they stay as an analog input
   (09, 0–10 V into the ADC) and a digital switch input (14, contact to
   ground), at their current ratings. What they do is configured in
