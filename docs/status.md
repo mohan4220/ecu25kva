@@ -978,7 +978,7 @@ Updated 8 November 2026, after the Bosch pinout (decisions log §18). Every chec
 
 ### Waiting on the machine (inspection brief)
 1. ~~7.1, the metering valve's part number.~~ **Confirmed 10 Nov (owner):** Bosch 0 928 400 820 (CB18), as on the drawing. Bosch's 0 928 400 metering units are normally open, as the firmware and the stop design assume.
-2. **Group 6, the old ECU's measurements:** housing, board, and the J1001 header. Until then, no board can be ordered.
+2. **Group 6, the old ECU's measurements:** housing, board, and the J1001 header. **Deferred (owner, 10 Nov 2026):** the prototype is tested physically first, and the production board is changed and fitted to the housing only after that. It blocks the production board, not the prototype.
 3. ~~5.1 / 6.4, which pins are battery ground.~~ Bosch's drawing: 01/02. Pin 25 follows Bosch's drawing (owner, 10 Nov). Pins 09 and 14 are settled as inputs; their functions are configured later.
 4. **A running-engine J1939 trace on the DSE's CAN** (U4). The 14 Oct file was an XCP recording, not a bus trace.
 5. **7.2–7.4, any existing trip module and the main relay's coil feed:** needed when the trip is fitted.
