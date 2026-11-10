@@ -234,7 +234,7 @@ reliable without the machine.
 ### Partly answered — 4
 
 **U4** CAN expectations (addresses 234 and 44 confirmed) · **U5** injector drive profile
-(family envelope only, no part number) · ~~U8~~ throttle (closed 10 Nov: the governor) ·
+(part confirmed 10 Nov: Bosch 0 445 B76 1X3, CRI-2-16; its electrical data is unpublished, so the drive's numbers are confirmed on the bench) · ~~U8~~ throttle (closed 10 Nov: the governor) ·
 **U14** pre/post-heat (supply known, control not)
 
 ### Open — 8
@@ -941,7 +941,7 @@ whoever is at the machine.
 | ~~Pin 21 with the ignition off~~ | — | **Closed 10 Nov 2026 by the owner:** pin 21 is the water-in-fuel sensor, as Bosch draws it |
 | Trace who switches the heater feed | **U14** | Whether a heater output is in scope — **can make the board bigger** |
 | ~~Follow the throttle's 6-pin cable to where it ends~~ | ~~U8~~ | Closed 10 Nov 2026: speed is governed by fuel quantity; no throttle driver |
-| Injector part number from the body | **U5** | The boost rail's 100 V target and the 18 A threshold, both currently a family envelope |
+| ~~Injector part number from the body~~ | **U5** | **Part confirmed 10 Nov (owner):** Bosch 0 445 B76 1X3 (CRI-2-16), as on the drawing. Its coil data is not published, so the 100 V boost and 18 A peak stay the CRI-2 family's and are measured on the bench with a real injector (bring-up step 4); the setpoints are firmware values |
 | ~~Alternator rectifier part number~~ | ~~U16~~ | Closed 9 Oct 2026: designed for the suppressed load dump, no field check needed |
 | Resistance across the charge-air element, cold | **U2** | The `ntc_frontend` populate choice |
 | Crank VR output while cranking, cold *(supervised)* | — | Confirms the ±198 mV hysteresis window against the real sensor, not a 2 V estimate |
@@ -978,7 +978,7 @@ Updated 8 November 2026, after the Bosch pinout (decisions log §18). Every chec
 - **The prototype is on the Bosch pinout as of 9 Nov.** Placement and routing were updated in place; decisions log §18.
 
 ### Waiting on the machine (inspection brief)
-1. **7.1, the metering valve's part number.** It confirms "normally open", which the firmware and the trip design now assume.
+1. ~~7.1, the metering valve's part number.~~ **Confirmed 10 Nov (owner):** Bosch 0 928 400 820 (CB18), as on the drawing. Bosch's 0 928 400 metering units are normally open, as the firmware and the stop design assume.
 2. **Group 6, the old ECU's measurements:** housing, board, and the J1001 header. Until then, no board can be ordered.
 3. ~~5.1 / 6.4, which pins are battery ground.~~ Bosch's drawing: 01/02. Pin 25 follows Bosch's drawing (owner, 10 Nov). Pins 09 and 14 are settled as inputs; their functions are configured later.
 4. **A running-engine J1939 trace on the DSE's CAN** (U4). The 14 Oct file was an XCP recording, not a bus trace.
