@@ -937,7 +937,7 @@ whoever is at the machine.
 |---|---|---|
 | ~~Continuity from every populated cavity to chassis — where is the power ground?~~ | — | **Closed 8 Nov 2026 by Bosch's drawing: pins 01/02.** A continuity check still confirms it |
 | ~~Cavity census~~ | — | ~~A pin for `TRIP_LOOP`~~ The loop is gone (no Bosch pin) |
-| **Whether the main relay has its own suppressor** | — | Nothing: the board's TVS covers both cases. Settled by the owner on 10 Nov: pin 25's polarity as Bosch draws it; pins 09 and 14 as analog and digital inputs, functions configured later |
+| ~~Whether the main relay has its own suppressor~~ | — | **Closed 10 Nov:** pin 50 drives the main relay and 69 the buzzer relay (owner). Pin 50's TVS, and pin 69's flyback diode to the board's supply (fed, like the buzzer coil, from the main-relay line), are safe with or without a suppressor in the relay. Settled by the owner on 10 Nov: pin 25's polarity as Bosch draws it; pins 09 and 14 as analog and digital inputs, functions configured later |
 | ~~Pin 21 with the ignition off~~ | — | **Closed 10 Nov 2026 by the owner:** pin 21 is the water-in-fuel sensor, as Bosch draws it |
 | Trace who switches the heater feed | **U14** | Whether a heater output is in scope — **can make the board bigger** |
 | Follow the throttle's 6-pin cable to where it ends | **U8** | Whether a throttle driver exists at all — **can make the board bigger** |

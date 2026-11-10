@@ -1491,8 +1491,13 @@ again (`prototype/gen_board.py`):
   updated, but there was no Rust toolchain on this machine to build it.
   CI will build it, and so will a `cargo` on any of the three OSes. The
   committed Windows `.exe` is the old build until then.
-- At the machine: whether the fitted main relay carries its own
-  suppressor.
+- ~~At the machine: whether the fitted main relay carries its own
+  suppressor.~~ Closed 10 Nov. Pin 50 drives the main relay and 69 the
+  buzzer relay (owner). Neither needs to know about suppressors:
+  - Pin 50's TVS works with one in the relay or without.
+  - Pin 69's flyback diode (D811) goes to the board's supply. That is
+    safe because the buzzer coil is fed from the same main-relay line,
+    as Bosch draws it, so there is no sneak path when the relay opens.
 - **Pin 25's polarity: as Bosch draws it** (owner, 10 Nov 2026). The
   switch is the external stop/emergency button, and pressing it
   connects pin 25 to terminal 31. It is no longer a question for the
