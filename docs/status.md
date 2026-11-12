@@ -982,6 +982,7 @@ Updated 8 November 2026, after the Bosch pinout (decisions log §18). Every chec
 3. ~~5.1 / 6.4, which pins are battery ground.~~ Bosch's drawing: 01/02. Pin 25 follows Bosch's drawing (owner, 10 Nov). Pins 09 and 14 are settled as inputs; their functions are configured later.
 4. **A running-engine J1939 trace on the DSE's CAN** (U4). The 14 Oct file was an XCP recording, not a bus trace.
 5. **7.2–7.4, any existing trip module and the main relay's coil feed:** needed when the trip is fitted.
+6. **Emissions certification (CPCB IV+, certificate `P25/2825/24`).** It was granted with Bosch's ECU and calibration, so a replacement ECU will probably need it re-checked. **Deferred (owner, 12 Nov 2026):** the ECU is proven working on the prototype first. The certification is taken up before any unit goes into a customer's genset. It doesn't block the prototype.
 
 ### Needs a person
 - **Routing the PCB:** `docs/layout-guide.md`, once Group 6 replaces the placeholders.
