@@ -1,0 +1,79 @@
+* ============================================================
+* Boost overvoltage cutoff -- BOOST_100V cannot run away (12 Nov 2026)
+* TPS40210-Q1 (TI SLVS861F): DIS/EN is an active-high shutdown,
+* VDIS(en) 0.7-1.3 V, hysteresis 25-220 mV, 0.7-1.5 Mohm internal
+* pulldown, absolute maximum 10 V (sec. 6.1, 6.5, 7.3.7).
+* ============================================================
+* The rail is set by FB through 2 x 499k. If either opens -- a cracked
+* 1206, a lifted joint -- FB reads 0 V, the controller runs at maximum
+* duty, and nothing stopped the rail short of a 150 V part failing.
+*
+* The cutoff, on the injector sheet:
+*   BOOST_100V -> Dz 110 V (BZG03C110-HM3, 104-116 V at 5 mA,
+*                 80 ohm typ / 250 ohm max)
+*              -> 470 ohm -> EN_BOOST -> 470 ohm to GND
+*   EN_BOOST clamped by a 5.1 V zener (BZX84-C5V1-Q, 4.8-5.4 V)
+*   BOOST_DIS (MCU, 3.3 V) -> 100 ohm -> BAT54Q -> EN_BOOST
+* 470/470 puts the zener at 1.5-2.8 mA at the trip, close to its 5 mA
+* test current, so the datasheet's voltage range applies.
+*
+* A. DC: the rail swept 90-160 V at the two corners --
+*    LO: 104 V zener with a soft knee (0.75 V low at 1 mA) and the
+*        0.7 V minimum EN threshold: the earliest trip;
+*    HI: 116 V zener, 250 ohm, and the 1.3 V maximum threshold.
+* B. DC: the MCU drives BOOST_DIS to its 2.9 V minimum high.
+* C. Transient: FB open from the start. The controller pushes 50 mA (its
+*    design average) into the 41 uF reservoir with the 22k bleed; EN
+*    switches it at its 1.3 V maximum threshold (hysteresis left out).
+* ============================================================
+
+.model ZLO  D(Is=1e-12 N=1 Rs=80  BV=104 IBV=5m NBV=18)
+.model ZHI  D(Is=1e-12 N=1 Rs=250 BV=116 IBV=5m)
+.model Z51  D(Is=1e-12 N=1 Rs=10  BV=5.4 IBV=5m)
+.model BAT  D(Is=2e-8 N=1.05 Rs=2 BV=30)
+
+* ---- A: LO corner ----
+Vr1  r1  0 DC 100
+Dz1  e1  r1 ZLO
+Rs1  e1  en1 470
+Rp1  en1 0   470
+Rq1  en1 0   1.1e6
+Dc1  0   en1 Z51
+
+* ---- A: HI corner ----
+Dz2  e2  r1 ZHI
+Rs2  e2  en2 470
+Rp2  en2 0   470
+Rq2  en2 0   1.1e6
+Dc2  0   en2 Z51
+
+* ---- B: MCU drive, rail at its 101.7 V high corner, LO zener ----
+Vmcu m3  0 DC 2.9
+Rm3  m3  a3  100
+Db3  a3  en3 BAT
+Vr3  r3  0 DC 101.7
+Dz3  e3  r3 ZLO
+Rs3  e3  en3 470
+Rp3  en3 0   470
+Dc3  0   en3 Z51
+
+* ---- C: runaway, HI corner (the highest the rail can reach) ----
+.ic v(rt)=99.7
+Cres rt  0   41u
+Rbl  rt  0   22k
+Bchg 0   rt  I = 50m * (1 - u(V(ent) - 1.3))
+Dzt  et  rt  ZHI
+Rst  et  ent 470
+Rpt  ent 0   470
+Dct  0   ent Z51
+
+.control
+dc Vr1 90 160 0.05
+wrdata boost_ovp_dc.dat v(r1) v(en1) v(e1) v(en2) v(e2)
+op
+wrdata boost_ovp_mcu.dat v(en3) i(Vmcu)
+tran 10u 80m uic
+wrdata boost_ovp_tran.dat v(rt) v(ent)
+.endc
+
+.end

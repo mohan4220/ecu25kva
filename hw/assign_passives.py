@@ -54,7 +54,9 @@ R_MIN_SIZE = "0603"          # nothing smaller: hand rework, probe access
 
 BAT = (24.0, 73.3)           # jump-start continuous, pulse 2a peak
 HARNESS = (24.0, 73.3)       # any loom wire can be shorted to battery
-BOOST = (104.0, 104.0)
+# Peak 120 V since BOOST-OVP (12 Nov 2026): the overvoltage cutoff
+# holds a runaway rail at 105.0-119.3 V (run_sim boost_ovp).
+BOOST = (104.0, 120.0)
 LOGIC3 = (3.6, 3.6)
 LOGIC5 = (5.5, 5.5)
 GATE12 = (13.6, 13.6)        # 12V_GATE high corner, run_sim
@@ -107,7 +109,11 @@ NET_V = {
     "/injector/VDD_BAT": (24.0, 47.5), "/injector/VDD_REF": (45.5, 45.5),
     "/injector/VDD_Q1E": (45.5, 45.5), "/injector/VDD_REF_MID": BOOST,
     "/injector/VDD_Q1C": BOOST, "/injector/VDD_Q1C_MID": BOOST,
-    "/injector/BP_BOOST": (8.5, 8.5), "/injector/EN_BOOST": LOGIC5,
+    "/injector/BP_BOOST": (8.5, 8.5),
+    # BOOST-OVP: EN is the MCU's 2.1 V when it drives, and the 5.1 V
+    # clamp's 6.2 V at a 160 V rail; OVP_MID is the zener's anode.
+    "/injector/EN_BOOST": (2.2, 6.5), "/injector/OVP_MID": (2.6, 12.0),
+    "/injector/BOOST_DIS_R": LOGIC3,
     "/injector/FB_BOOST": LOGIC5, "/injector/COMP_BOOST": LOGIC5,
     "/injector/SS_BOOST": LOGIC5, "/injector/COMP_RC_BOOST": LOGIC5,
     "/injector/ISNS_BOOST": (0.3, 0.3),
@@ -151,7 +157,7 @@ NET_V = {
 # Nets at MCU logic level, by name pattern.
 LOGIC3_RE = re.compile(
     r"^/(IN_AUDIO_ABORT|IN_OVERRIDE_SS|IN_IGNITION|SW_COOLANT|SW_DROOP|"
-    r"IN_WIF|SW_DIAG|SW_STOP|RLY_MAIN|RLY_BUZZER|EGR_EN|CAM_EDGE|CRANK_EDGE|"
+    r"IN_WIF|SW_DIAG|SW_STOP|BOOST_DIS|RLY_MAIN|RLY_BUZZER|EGR_EN|CAM_EDGE|CRANK_EDGE|"
     r"INJ_HS_[AB](_BAT)?|can/CAN[12]_STB|mcu/WDT_FAULT|mcu/~\{RESET\}|mcu/KILL_GATE|"
     r"metering_egr/EGR_SD|injector/U[AB][12]_HIN)$|^Net-\(U302-")
 LOGIC5_RE = re.compile(
@@ -175,6 +181,9 @@ DOMAINS = [
 # Keyed by the net pair, not the ref -- refs move when parts are added.
 # (v_cont, v_peak, why)
 PAIR_V = {
+    ("/BOOST_DIS", "/injector/BOOST_DIS_R"):
+        (0.9, 3.6, "BOOST-OVP's 100 ohm: 3.3 V less the Schottky and "
+                   "EN's 2.1 V, 4.5 mA; the whole pin only if EN shorts"),
     ("/injector/BIAS_12V_MID", "/injector/BOOST_100V"):
         (45.5, 45.5, "upper half of the 47k/47k zener bias string"),
     ("/injector/BASE_12V", "/injector/BIAS_12V_MID"):

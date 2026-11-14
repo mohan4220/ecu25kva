@@ -79,6 +79,7 @@ ASSIGN = {
     "SW_STOP":       ("PD10", "GPIO_Input"),   # pin 25, stop switch
     "RLY_MAIN":      ("PD5", "GPIO_Output"),
     "RLY_BUZZER":    ("PD15", "GPIO_Output"),
+    "BOOST_DIS":     ("PD14", "GPIO_Output"),  # boost DIS/EN, BOOST-OVP
     "WDT_KICK":      ("PC11", "GPIO_Output"),
     "WDT_FAULT":     ("PC12", "GPIO_Input"),
     "LED_STATUS":    ("PB7", "GPIO_Output"),

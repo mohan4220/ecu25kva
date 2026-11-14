@@ -238,6 +238,19 @@ CHOSEN = {
         "Wurth WE-PD 1210, 150 uH, IR 2.1 A, Isat 2.7 A (10%) / 3.3 A "
         "(30%) typ, 200 mOhm max, 120 V, AEC-Q200 Grade 1. Same land "
         "pattern as 7447709220 (2.9 x 5.4 pads, 7.0 gap). Decisions log 8"),
+    # BOOST-OVP (12 Nov 2026): the boost's overvoltage cutoff. BZG03C110:
+    # 104-116 V at IZT 5 mA, ZZ 80 ohm typ / 250 max, IR 1 uA at 82 V
+    # (BZG03C-M datasheet, the same series as the 36 V and 39 V parts).
+    ("Device:D_Zener", "110V 3W"): (
+        "BZG03C110-HM3", "Diode_SMD:D_SMA",
+        "Vishay BZG03C-M, 104-116 V at 5 mA, ZZ 250 ohm max, 3 W / "
+        "1.25 W, AEC-Q101, SMA"),
+    # The DIS/EN clamp. Runs at mA only above 5 V, so the soft-knee
+    # concern below (LOWV-CLAMP) does not apply: at the 1.3 V trip it
+    # sees a fraction of its 2 uA-at-2 V leakage.
+    ("Device:D_Zener", "5V1"): (
+        "BZX84-C5V1-Q", "ecu25kva:SOT-23_Zener_K1_A2",
+        "Nexperia BZX84-Q, 4.8-5.4 V at 5 mA, AEC-Q101"),
     ("Device:D_Zener", "39V 3W"): (
         "BZG03C39-HM3", "Diode_SMD:D_SMA",
         "Vishay BZG03C-M, 37-41 V at 10 mA, ZZ 40 ohm max, +0.06-0.11 "

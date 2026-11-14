@@ -318,6 +318,35 @@ def main(root=ROOT, expected_open=None, boundary_open=None,
           kg is not None and kg != rst and bool(iso) and bool(pull),
           f"inverter {inv}, its gate {kg}, resistor {iso}, puller {pull}")
 
+    # -- BOOST-OVP (12 Nov 2026): the boost cannot run away. A zener from
+    # BOOST_100V reaches the TPS40210's DIS/EN (pin 3) through a resistor,
+    # EN has a resistor and a clamp zener to GND, and BOOST_DIS reaches EN
+    # through a resistor and a Schottky (anode toward the MCU).
+    ctl = [r for r, part in part_of.items() if part == "TPS40210"]
+    en = net_of.get((ctl[0], "3")) if len(ctl) == 1 else None
+    boost = ends("BOOST_100V")
+
+    def between_nets(kind, a, b):
+        return [r for r, part in part_of.items() if part == kind
+                and {net_of.get((r, "1")), net_of.get((r, "2"))} == {a, b}]
+    zen = [r for r, part in part_of.items() if part == "D_Zener"
+           and net_of.get((r, "1")) in boost]
+    ovp = [(z, r) for z in zen for r in
+           between_nets("R", net_of.get((z, "2")), en)] if en else []
+    pd = between_nets("R", en, "GND") if en else []
+    clamp = [r for r, part in part_of.items() if part == "D_Zener" and en
+             and net_of.get((r, "1")) == en and net_of.get((r, "2")) == "GND"]
+    dis = ends("BOOST_DIS")
+    sch = [r for r, part in part_of.items() if part == "D_Schottky" and en
+           and net_of.get((r, "1")) == en]
+    mcu = [(d, r) for d in sch for n in dis
+           for r in between_nets("R", n, net_of.get((d, "2")))]
+    check("the boost cannot run away: a zener from BOOST_100V into the "
+          "TPS40210's DIS/EN, EN pulled down and clamped, and BOOST_DIS "
+          "on it through a Schottky",
+          bool(ovp) and bool(pd) and bool(clamp) and bool(mcu),
+          f"EN {en}, zener+R {ovp}, pulldown {pd}, clamp {clamp}, MCU {mcu}")
+
     for rail in MUST_SPAN:
         hit = [p for n, p in named if n == rail]
         n_pins = len(hit[0]) if hit else 0

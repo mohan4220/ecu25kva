@@ -461,7 +461,14 @@ BOSCH_MIGRATE = dict(
 # leaves ~RESET for KILL_GATE (R314 100k from ~RESET, Q302 on SW_STOP).
 # Before it: rip /mcu_stm32/~{RESET}, whose copper ran to Q301's gate.
 STOP_KILL_MIGRATE = dict(renames={}, drop=(), refit=("Q301",))
-MIGRATIONS = {"bosch": BOSCH_MIGRATE, "stop_kill": STOP_KILL_MIGRATE}
+# BOOST-OVP (12 Nov 2026): R403, the DIS/EN pulldown, went 10k -> 470;
+# U301's PD14 now drives BOOST_DIS.
+# sync first dropped R437 inside the ISNS_BOOST pour (Q401 source to
+# R402), and its routing cut the pour in two: R437 moves to the column of
+# the other new parts (MOVES), left of the pour.
+BOOST_OVP_MIGRATE = dict(renames={}, drop=(), refit=("R403", "U301"))
+MIGRATIONS = {"bosch": BOSCH_MIGRATE, "stop_kill": STOP_KILL_MIGRATE,
+              "boost_ovp": BOOST_OVP_MIGRATE}
 
 
 def migrate_inputs(renames):
@@ -559,7 +566,8 @@ def migrate(path, renames, drop, refit, links=()):
                 ni = pad_net.get((ref, pad.GetNumber()))
                 if ni is not None:
                     pad.SetNet(ni)
-            print(f"  {ref}: pad nets from the schematic", flush=True)
+            old.SetValue(comps[ref]["value"])
+            print(f"  {ref}: pad nets and value from the schematic", flush=True)
             continue
         p1 = next(p for p in old.Pads() if p.GetNumber() == "1")
         new = make_fp(board, ref, comps[ref], pad_net)
@@ -571,11 +579,13 @@ def migrate(path, renames, drop, refit, links=()):
         board.Remove(old)
         print(f"  {ref}: footprint {want}, pin 1 kept in place", flush=True)
 
-    # (ref, pad, pad, mm): an F.Cu link, locked, between two pads a rename
-    # put on one net whose pours do not meet
-    for ref, a, b, w in links:
-        fp = board.FindFootprintByReference(ref)
-        pa, pb = (next(p for p in fp.Pads() if p.GetNumber() == n) for n in (a, b))
+    # (ref, pad, pad, mm) or (ref, pad, ref, pad, mm): an F.Cu link, locked,
+    # between two pads on one net whose pours do not meet
+    for link in links:
+        ra, a, rb, b, w = link if len(link) == 5 else (link[0], link[1], link[0], link[2], link[3])
+        ref = ra if ra == rb else f"{ra}/{rb}"
+        pa, pb = (next(p for p in board.FindFootprintByReference(r).Pads()
+                       if p.GetNumber() == n) for r, n in ((ra, a), (rb, b)))
         ends = {(pa.GetPosition().x, pa.GetPosition().y), (pb.GetPosition().x, pb.GetPosition().y)}
         if any(t.Type() == pcbnew.PCB_TRACE_T and t.GetLayer() == pcbnew.F_Cu and
                {(t.GetStart().x, t.GetStart().y), (t.GetEnd().x, t.GetEnd().y)} == ends

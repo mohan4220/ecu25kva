@@ -85,6 +85,10 @@ NETS = {
     "PTD9":  ("SW_STOP", "input"),
     # --- discrete out ---
     "PTD13": ("RLY_MAIN", "output"),      "PTD14": ("RLY_BUZZER", "output"),
+    # BOOST-OVP (12 Nov 2026): stops the injector boost converter through
+    # its DIS/EN pin (injector sheet). Hi-Z at reset leaves the boost
+    # running, as before; the zener on the same pin needs no MCU at all.
+    "PTD15": ("BOOST_DIS", "output"),
     # --- CAN ---
     "PTE4":  ("CAN1_RX", "input"),        "PTE5":  ("CAN1_TX", "output"),
     "PTC6":  ("CAN2_RX", "input"),        "PTC7":  ("CAN2_TX", "output"),

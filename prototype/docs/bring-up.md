@@ -3,7 +3,7 @@
 **For:** the person at the bench with the assembled prototype board. **You need:**
 - a bench supply with an adjustable current limit, 0–20 V
 - a multimeter
-- a 100 MHz oscilloscope with a probe rated **300 V CAT II or better** (the boost rail reaches 116 V)
+- a 100 MHz oscilloscope with a probe rated **300 V CAT II or better** (the boost rail reaches 119 V in a fault)
 - an ST-LINK V3 or J-Link with the 10-pin 1.27 mm Cortex cable
 - dummy loads for steps 4 and 5
 - a 12 V automotive relay (or a 160 Ω, 2 W resistor) for step 6
@@ -14,7 +14,7 @@ Power the board up **one supply at a time**, in the order below. The board follo
 
 On the engine both pins come from the main relay, which the board closes itself (step 6). On the bench, feed them straight from the supply. Don't skip a step. If a reading is outside its range, **stop** and find out why before going on.
 
-**From step 2 on, TP12 is at about 100 V,** because the boost converter's enable is tied on in copper and it starts as soon as pin 04 is powered. **The boost capacitors stay charged after the supply is off.** TP12 can hold close to 100 V for minutes. Before you touch the board after any powered step, measure TP12 to GND and wait until it reads **under 5 V**.
+**From step 2 on, TP12 is at about 100 V,** because the boost converter starts as soon as pin 04 is powered: its DIS/EN pin is pulled low in copper, and the MCU only stops it by driving `BOOST_DIS` (PD14) high. **The boost capacitors stay charged after the supply is off.** TP12 can hold close to 100 V for minutes. Before you touch the board after any powered step, measure TP12 to GND and wait until it reads **under 5 V**.
 
 Expected values come from the production simulation blocks (`sim/blocks/`) and the sheet notes; each is named.
 
@@ -74,6 +74,7 @@ Supply **13.5 V on J1001-1**, with GND on J1002, at a **1 A** limit. Leave pin 0
 | D303 (3V3 LED) | on | — |
 | **TP12 BOOST_100V** (HV probe) | **99.7 V nominal**, never above about 102 V | `boost_converter.cir`; `injector` sheet |
 | `BOOST_MON` (PB11) | **2.43 V at 100 V** (24.9 k / (2 × 499 k + 24.9 k) = 0.0243) | `prototype/additions.py` |
+| `EN_BOOST` (U401 pin 3, DIS/EN) | **under 0.1 V** while the boost runs. It rises only when the overvoltage zener D417 conducts, or `BOOST_DIS` is driven high | `boost_ovp.cir` |
 | TP4 12V_GATE | about 12.3 V (a 13 V zener-referenced follower from the boost rail). The drivers' UVLO is 9.8 V | `injector` sheet |
 
 Then connect the debugger to J301. **SWD must connect,** and the debugger should read the device ID (STM32G474, `0x469`). Flash a test build that toggles `LED_STATUS` (PB7): D304 should blink.
@@ -134,4 +135,28 @@ On the engine the board has no supply until **pin 71 (ignition)** closes the mai
    - `~RESET` stays at about **3.0 V**: the MCU is not reset.
    - Release J1007-8: `GATE_KILL` falls again.
 
-**Pass:** all six steps within their ranges, and TP12 under 5 V before you disconnect. Record the readings in `docs/status.md` with the date and board serial.
+## 7. The boost cutoff and the heat check
+
+The boost has a hardware overvoltage cutoff since 12 November 2026 (decisions log §19). A 110 V zener (D417) feeds the controller's DIS/EN pin, so if the rail climbs to **105–119 V** the converter stops with no firmware involved. The firmware can also stop it through `BOOST_DIS` (PD14), and does so above 106 V, latching a red DTC (SPN 520192).
+
+1. **Firmware stop:** with step 2's supply on, drive `BOOST_DIS` (PD14) high.
+   - `EN_BOOST` (U401 pin 3) reads about **2.1 V**.
+   - TP12 decays through the 22 k bleed, under 5 V in about 3 s.
+   - Release PD14: TP12 returns to 99.7 V.
+2. **Optional, the zener trip itself.** This needs a current-limited supply that reaches 150 V. With pin 04 **unpowered**, feed TP12 from that supply at a **20 mA** limit and raise it slowly from 95 V. `EN_BOOST` must stay under 0.1 V up to 102 V and cross **0.7–1.3 V between 105 and 119.3 V**. Discharge TP12 afterwards.
+3. **Heat.** The hot parts were designed to be cooled by the ECU housing, which the prototype doesn't have. Run each load at full current for **10 minutes** and measure each part with a thermocouple or an IR thermometer. **Stop if any part goes over 100 °C.**
+   - the feed FETs Q103 and Q104
+   - the metering FET Q501
+   - the EGR bridge FETs Q503–Q506
+   - the injector FETs Q408–Q416 and diodes D408–D414
+
+   The worst case is the EGR load stalled: the bridge carries 6.4 A.
+4. **EGR stall guard:** hold the EGR load at stall (or fit a 2 Ω load). After **1.5 s** the firmware lets the bridge coast (`EGR_EN` low) and raises an amber DTC, SPN 2791 FMI 6. It retries after 5 s. After the third stall it stays off until the ignition cycles.
+
+## Before the board goes on the engine
+
+- **Conformal-coat it.** Use acrylic or silicone, and mask the connectors, the test points and the debug header. The 100 V nets keep 0.6 mm, which is IPC-2221B's spacing for an *uncoated* board up to 150 V. That is fine on a clean bench, but not with diesel soot and condensation.
+- **Heat.** If any part ran above 100 °C in step 7, or the engine bay is hotter than the bench, fit stick-on heatsinks to the FETs above, or a small fan.
+- **An independent stop.** Before the first start, confirm that something besides this board can stop the engine on overspeed: the DSE controller's overspeed shutdown, or a fuel or air cut-off within reach.
+
+**Pass:** all seven steps within their ranges, and TP12 under 5 V before you disconnect. Record the readings in `docs/status.md` with the date and board serial.

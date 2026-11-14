@@ -999,6 +999,51 @@ def check_stop_kill():
     return c
 
 
+def check_boost_ovp():
+    """BOOST_100V cannot run away (12 Nov 2026): an open feedback resistor
+    used to leave nothing between the rail and a 150 V part failing."""
+    c = Checks("boost_ovp -- a 110 V zener into DIS/EN stops a runaway boost")
+    r = sim("boost_ovp", {
+        "boost_ovp_dc.dat": ["v", "r", "en_lo", "e_lo", "en_hi", "e_hi"],
+        "boost_ovp_mcu.dat": ["x", "en", "i"],
+        "boost_ovp_tran.dat": ["time", "rail", "en"]})
+    d = r["boost_ovp_dc.dat"]
+    v = d["v"]
+    # TPS40210-Q1 VDIS(en) 0.7-1.3 V, absolute maximum 10 V (SLVS861F).
+    lo = float(v[np.argmax(d["en_lo"] > 0.7)])
+    hi = float(v[np.argmax(d["en_hi"] > 1.3)])
+    # The rail's own top: 99.7 V +2 % reference = 101.7 V; the sheet
+    # allows ~102 V with a recirculation bump.
+    c.that("earliest trip (104 V zener, soft knee, 0.7 V EN) above 102 V",
+           lo, 102.0, tol=None, ok=lo > 102.0, unit="V")
+    c.that("latest trip (116 V zener, 250 ohm, 1.3 V EN) under 125 V: "
+           "the 150 V parts keep 1.2x", hi, 125.0, tol=None, ok=hi < 125.0,
+           unit="V")
+    en_n = float(np.interp(101.7, v, d["en_lo"]))
+    c.that("rail at 101.7 V, earliest corner: EN well under 0.7 V",
+           en_n, 0.35, tol=None, ok=en_n < 0.35, unit="V")
+    en_max = float(max(d["en_lo"].max(), d["en_hi"].max()))
+    c.that("rail at 160 V: the 5.1 V clamp holds EN under its 10 V maximum",
+           en_max, 10.0, tol=None, ok=en_max < 10.0, unit="V")
+    pz = hi * 2 * 1.3 / 470
+    c.that("zener power while holding the rail, under BZG03C's 1.25 W",
+           pz, 1.25, tol=None, ok=pz < 1.25, unit="W")
+    m = r["boost_ovp_mcu.dat"]
+    en_m, i_m = float(m["en"][0]), float(-m["i"][0])
+    c.that("BOOST_DIS at the MCU's 2.9 V minimum high: EN over 1.3 V",
+           en_m, 1.3, tol=None, ok=en_m > 1.3 * 1.3, unit="V")
+    c.that("  ... drawing under 8 mA from the pin", i_m * 1e3, 8.0,
+           tol=None, ok=i_m < 8e-3, unit="mA")
+    t = r["boost_ovp_tran.dat"]
+    top = float(t["rail"].max())
+    c.that("feedback open, 50 mA into 41 uF: the rail is held, not lost",
+           top, 125.0, tol=None, ok=top < 125.0, unit="V")
+    held = float(t["rail"][t["time"] > 40e-3].min())
+    c.that("  ... and sits at the trip, the converter cycling on DIS/EN",
+           held, hi, tol=None, ok=abs(held - hi) < 2.0, unit="V")
+    return c
+
+
 def check_main_relay():
     """Pins 50 and 71 under Bosch's wiring: the ECU closes its own supply
     relay (refs/bosch-pinout-md1cs162.md, decisions log sec.18)."""
@@ -2997,6 +3042,7 @@ CHECKS = {
     "relay_driver": check_relay_driver,
     "main_relay": check_main_relay,
     "stop_kill": check_stop_kill,
+    "boost_ovp": check_boost_ovp,
     "egr_hbridge": check_egr_hbridge,
     "emi_filter": check_emi_filter,
     "reverse_battery": check_reverse_battery,

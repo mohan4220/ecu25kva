@@ -680,13 +680,14 @@ def boost_stage(sh):
         (560.0, "Device:C", "C", "100nF", "SS_BOOST", 0,
          {"Note": "Soft start. Also the overcurrent retry timer -- the "
                   "part discharges this pin on a fault and restarts."}),
-        (600.0, "Device:R", "R", "10k", "EN_BOOST", 0,
+        (600.0, "Device:R", "R", "470", "EN_BOOST", 0,
          {"Source": "TPS40210-Q1 Table 6.5 -- DIS/EN has a 1 MOhm "
                     "internal pulldown and the pin is ACTIVE HIGH",
           "Note": "Pulled down rather than left floating, so the enable "
-                  "state is asserted by copper. Same treatment the CAN "
-                  "transceivers' STB gets, and for the same reason: a "
-                  "GPIO can take it later."}),
+                  "state is asserted by copper. 470, not 10k, since "
+                  "BOOST-OVP (12 Nov 2026): it is the lower half of the "
+                  "overvoltage zener's divider, and sets the zener's "
+                  "current at the trip."}),
         (640.0, "Device:C", "C", "1uF", "BP_BOOST", 0,
          {"Source": "TPS40210-Q1 pin table -- 1 uF from BP to GND",
           "Note": "The internal 8 V regulator's reservoir, and the "
@@ -1233,6 +1234,62 @@ def vdd_follower(sh):
     sh.label("VDD_BAT", a[0] + 8.0, a[1])
 
 
+def boost_ovp(sh):
+    """BOOST-OVP (12 Nov 2026): the rail cannot run away.
+
+    The rail is set by FB through 2 x 499k. If either opens -- a cracked
+    1206, a lifted joint -- FB reads 0 V, the controller runs at maximum
+    duty and nothing stopped the rail short of a 150 V part failing.
+    DIS/EN is an active-high shutdown (TPS40210-Q1 SLVS861F 7.3.7:
+    VDIS(en) 0.7-1.3 V, absolute maximum 10 V), so a 110 V zener into it
+    is a limit that needs neither the loop nor the firmware. The MCU gets
+    the same pin through a Schottky, so it can stop the boost too.
+    run_sim.py boost_ovp: trips at 105.0-119.3 V over both corners.
+    """
+    x, y = 470.0, 470.0
+    sh.text("BOOST OVERVOLTAGE CUTOFF -- a 110 V zener into DIS/EN; "
+            "the MCU's BOOST_DIS on the same pin", x - 20.0, y - 22.0,
+            size=1.8)
+    between(sh, x, y, "Device:D_Zener", "D", "110V 3W", "BOOST_100V",
+            "OVP_MID",
+            {"Tag": "BOOST-OVP",
+             "Note": "Conducts above 104-116 V. With 470/470 below it, "
+                     "it reaches DIS/EN's 0.7-1.3 V at 1.5-2.8 mA, near "
+                     "its 5 mA test current: trip 105.0-119.3 V. Holding "
+                     "a runaway rail it carries ~5.5 mA, 0.66 W. "
+                     "run_sim boost_ovp."}, rot=270)
+    between(sh, x + 30.0, y, "Device:R", "R", "470", "OVP_MID", "EN_BOOST",
+            {"Tag": "BOOST-OVP",
+             "Note": "Equal to the pulldown, so the trip is the zener "
+                     "plus twice DIS/EN's threshold."})
+    # The MCU's path: 100 ohm and a Schottky, so a low or Hi-Z pin never
+    # loads the zener's divider.
+    rx = x + 60.0
+    sh.place("Device:R", "R", rx, y, "100", fields={
+        "Tag": "BOOST-OVP",
+        "Note": "From BOOST_DIS. At the MCU's 2.9 V minimum high, EN "
+                "reaches 2.1 V against 1.3 V, drawing 4.5 mA."})
+    a = pin_xy(*PINS["Device:R"]["1"], rx, y, 0)
+    b = pin_xy(*PINS["Device:R"]["2"], rx, y, 0)
+    t, bo = (a, b) if a[1] < b[1] else (b, a)
+    sh.wire(t[0], t[1], t[0], t[1] - 5.0)
+    sh.hlabel("BOOST_DIS", t[0], t[1] - 5.0, shape="input", rot=90)
+    sh.wire(bo[0], bo[1], bo[0], bo[1] + 5.0)
+    sh.label("BOOST_DIS_R", bo[0], bo[1] + 5.0, rot=270)
+    # rot=90: anode at the top, cathode at the bottom, into EN.
+    between(sh, x + 90.0, y, "Device:D_Schottky", "D", "30V 200mA",
+            "BOOST_DIS_R", "EN_BOOST",
+            {"Tag": "BOOST-OVP",
+             "Note": "Blocks the zener's current from a low or Hi-Z MCU "
+                     "pin: at reset the boost runs, as before."}, rot=90)
+    to_gnd(sh, x + 130.0, y - 8.0, "Device:D_Zener", "D", "5V1",
+           "EN_BOOST",
+           {"Tag": "BOOST-OVP",
+            "Note": "Holds DIS/EN under its 10 V absolute maximum if the "
+                    "rail is pushed far past the trip: 6.2 V at 160 V."},
+           rot=270)
+
+
 def build():
     schlib.verify_pins()
     sh = Sheet("Injector drive: boost converter, boost rail, high sides, low sides",
@@ -1292,6 +1349,9 @@ def build():
     notes(sh)
     vdd_follower(sh)
     boost_rail_lower(sh)
+    # Last, so its new references follow every existing one and nothing
+    # already on the board is renumbered.
+    boost_ovp(sh)
     return sh
 
 

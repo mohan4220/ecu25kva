@@ -59,7 +59,7 @@ def test_stock_pins():
 def test_mcu_labels():
     import gen_sheet_mcu_stm32
     prod = _hlabels(open(os.path.join(HERE, "..", "hw", "mcu.kicad_sch")).read())
-    assert len(prod) == 45                     # Bosch pinout: +IN_WIF, SW_DIAG, SW_STOP
+    assert len(prod) == 46                     # Bosch pinout: +IN_WIF, SW_DIAG, SW_STOP; +BOOST_DIS (12 Nov)
     got = _hlabels(gen_sheet_mcu_stm32.build().render())
     assert got == prod | {"BOOST_MON"}, (got ^ (prod | {"BOOST_MON"}))
 
