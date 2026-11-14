@@ -1508,6 +1508,104 @@ again (`prototype/gen_board.py`):
   firmware later. Until then the firmware reads both and acts on
   neither, so neither can change how the engine runs.
 
+## 19. The boost cannot run away; heat and coating (12 November)
+
+**Asked for:** the owner asked what still bothered us, then for fixes
+for the 100 V boost and for heat: **"fix this"**.
+
+**Found: nothing stopped the boost in hardware.** The TPS40210 holds
+99.7 V through 2 × 499 k into FB. If either resistor opens (a cracked
+1206, a lifted joint), FB reads 0 V and the controller runs at maximum
+duty. Its DIS/EN pin was tied to "on" through 10 k, and nothing else
+stopped the rail before a 150 V part failed (FET, diode or the 160 V
+capacitor stack). The production board doesn't measure the rail at all.
+
+| Question | Answer | Why |
+|---|---|---|
+| The cutoff | **A 110 V zener (BZG03C110-HM3) from BOOST_100V, through 470 Ω, into DIS/EN**; the pulldown goes from 10 k to 470 Ω | DIS/EN is an active-high shutdown, 0.7–1.3 V, rated 10 V (TI SLVS861F §6.1, §6.5, §7.3.7). 470/470 puts the zener at 1.5–2.8 mA at the trip, near its 5 mA test current, so its 104–116 V range applies. **Trip 105.0–119.3 V** over both corners; with feedback open the rail is held at 119.3 V, dissipating 0.66 W in the zener (`run_sim.py boost_ovp`) |
+| Above the trip | **A 5.1 V zener (BZX84-C5V1-Q) on DIS/EN** | Holds the pin at 6.2 V with the rail at 160 V, under its 10 V rating |
+| The MCU's stop | **`BOOST_DIS`: PTD15 (production), PD14 (prototype), through 100 Ω and a BAT54Q into DIS/EN** | 2.1 V on EN at the MCU's 2.9 V minimum high, 4.5 mA. The Schottky keeps a low or Hi-Z pin from loading the zener's divider. Hi-Z at reset leaves the boost running, as before |
+| Firmware | **Above 106 V for 20 ms: `boost_dis`, SHUTDOWN, red DTC SPN 520192 FMI 0**, latched to the next ignition cycle. The boost is also off in SHUTDOWN | With the boost off, 12V_GATE collapses and nothing can inject, so the stop is made explicit. 520192 is the first proprietary SPN: J1939 has none for an injector boost rail. Production has no rail channel (`v_boost_rail` 0), so there only the zener guards it |
+| Passives at the fault peak | **BOOST peak 104 → 120 V** in `assign_passives.py` | Nothing changes size: the 0805s on the rail are rated 150 V |
+
+**Heat.** The hot parts were sized against a housing the prototype
+doesn't have: Q104 at 139 °C junction with the EGR valve stalled at
+6.4 A, on a 105 °C board. The firmware had no EGR control loop, so it
+had no stall limit either. **Now it has a stall guard.** Over 5 A for
+1.5 s, the bridge coasts (`egr_off`: the valve springs shut) for 5 s
+and an amber DTC is raised: SPN 2791 (EGR valve control), FMI 6. The
+third stall holds it off until the next ignition cycle. EGR is never a
+reason to stop the engine. Bring-up step 7 adds a 10-minute full-load
+heat check with a 100 °C limit.
+
+**Spacing.** Every 100 V net keeps 0.6 mm. That is IPC-2221B's B2 row
+for an uncoated external layer up to 150 V, so it's fine on a bench.
+Raising it to 1.0 mm would fail hundreds of places, and many of them are
+inside the FET packages themselves, where layout can't help. So **the
+board is conformal-coated before it goes on the engine** (acrylic or
+silicone, connectors and test points masked). The bring-up guide says
+so, and so does the layout guide for production.
+
+**The prototype, brought up to it.** `migrate boost_ovp` refits R403
+(10 k → 470 Ω) and U301 (PD14 now drives `BOOST_DIS`); `sync` places
+the five new parts beside U401. Sync dropped R437 inside the
+ISNS_BOOST pour (Q401's source to the 62 mΩ sense resistor), and its
+first routing cut that pour in two (`test_power_pours_connect`). R437
+was moved to the nearest clear spot, left of the pour, and the four
+nets were re-routed in one pass. 26/26 prototype tests pass, with 0
+DRC errors, nothing unconnected, and the fab files regenerated.
+
+**ABI 3.** `ecu_io` gains `v_boost_rail`, `i_egr`, `boost_dis` and
+`egr_off`. The Python SIL and the Rust simulator's copies are updated.
+The simulator wasn't rebuilt (owner: "no simulator").
+
+## 20. The application in Simulink and Stateflow, with generated code (13 November)
+
+**Asked for:** "a complete state flow model in MATLAB Simulink that is
+able to generate code, and the new generated code we should be able to
+flash in our ECU". The owner left the how to us ("do the best you can").
+Design: `docs/superpowers/specs/2026-11-13-simulink-model-design.md`.
+
+| Question | Answer | Why |
+|---|---|---|
+| What the models own | **The application layer**: the engine state machine, governor, rail control, the two calibration tables, the injector law, the trip decision and the five timed guards. Twelve models | That is the logic engineers tune and review. Tooth decoding, J1939, UDS, storage and the bootloader are event- and byte-driven platform code, already tested, and stay C |
+| How they plug in | **Drop-in components** behind today's functions (`gov_step`, `mode_cmd` ...), selected by `ECU_MODEL` | One model for the whole tick would either slow the per-tooth trips (overspeed, sync) to the tick or split one state machine between C and model |
+| The state machine | **A Stateflow chart driven by commands** (IGN_ON, TOOTH, RUN_OK, TRIP, RESET) | The tooth interrupt and the tick both change the state. `ecu.c` had five places that wrote it; all five now ask the chart |
+| The guards | **Five small charts**, each its own model (`mode.c` holds the hand-written reference, moved out of `ecu.c` unchanged) | They reset at different times (water in fuel only at power-up) and run at different points in the tick |
+| Where constants come from | **The C headers and tables**, read by `model/ecu_params.m` | A calibration typed in two places drifts. The `.slx` files are built by scripts, like the schematics |
+| Code settings | ERT, reusable functions, inlined parameters, single precision, ARM Cortex-M, shared utilities | Runs on the STM32G474 and the S32K148 alike; no `double` on a single-precision FPU |
+| Which is the reference | **Both builds, for now** | The hand-written modules stay until the generated build has run on the engine |
+
+**The proof.** Every unit test and all 16 SIL scenarios pass on the
+generated build. A back-to-back test (`model/test/run_b2b.sh`) runs each
+generated model against its hand-written original on millions of
+random inputs; the six charts are run 3 million random ticks each,
+reaching every outcome (84 boost trips, 143 EGR stalls, 46 after-runs,
+every engine state). They agree exactly, apart from one or two units in
+the last place in the two tables, where Simulink orders its
+interpolation arithmetic differently. The closed-loop model
+(`ecu_app`: the real component models with a mean-value engine) starts,
+holds 1500 rpm, takes 20 kW with a 1444 rpm low and stops on pin 25 in
+Simulink (`model/test/sim_ecu_app.m`).
+
+**Found on the way:**
+- The governor first came out one unit in the last place off. The
+  compiler, not the model, did it: it fused `set + RAMP*dt` into one
+  multiply-add in the hand-written C. With `-ffp-contract=off` both
+  agree to the bit.
+- Simulating the charts in Simulink caught locals read before they were
+  first written, which the C tests could not see. They start at zero in
+  the generated C either way, but every chart now says so.
+- `python -m ziglang cc` swallows the compiler's error messages on this
+  machine. Two silent failures (a duplicated helper across two models,
+  a missing source file) came from that; `zig.exe` called directly
+  prints them.
+
+**What it does not do yet: run on the board.** The generated code is
+part of the firmware image and is flashed with it, over SWD or the UDS
+bootloader. But the STM32 chip layer (ADC, timers, CAN, USB, flash) is
+still unwritten, for either build.
+
 ---
 
 ## Where these came from

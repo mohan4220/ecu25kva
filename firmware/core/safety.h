@@ -19,7 +19,8 @@
 
 /* TRIP_STOP: pin 25, the GCU's stop / emergency switch (Bosch I_S_STST).
  * Appended, so the logged reason codes of the others do not move. */
-enum { TRIP_NONE, TRIP_OVERSPEED, TRIP_SYNC, TRIP_IGN, TRIP_STOP };
+/* TRIP_BOOST: the injector boost rail over BOOST_OV_V (12 Nov 2026). */
+enum { TRIP_NONE, TRIP_OVERSPEED, TRIP_SYNC, TRIP_IGN, TRIP_STOP, TRIP_BOOST };
 
 typedef struct { uint32_t spn; uint8_t fmi, oc; } fault_t;
 typedef struct { fault_t f[8]; uint8_t n; } faults_t;

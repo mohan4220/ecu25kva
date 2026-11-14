@@ -15,13 +15,19 @@
 #include "service.h"
 #include "isotp.h"
 #include "link.h"
+#include "mode.h"
 
 #define SPN_PROGRAM 628u             /* program memory */
 #define FMI_CALIBRATION 13u          /* out of calibration: no end-of-line record */
 #define SPN_WIF 97u                  /* water in fuel indicator (pin 21, Bosch I_S_WFLS) */
 #define FMI_WIF 31u                  /* condition exists: amber, never a shutdown */
+/* J1939 has no SPN for an injector boost rail: the first of the
+ * proprietary range (520192-524287). Red, a shutdown. */
+#define SPN_BOOST_RAIL 520192u
+#define FMI_HIGH_SEVERE 0u           /* data valid but above normal, most severe */
+#define SPN_EGR 2791u                /* EGR valve control */
+#define FMI_CURRENT_HIGH 6u          /* current above normal: a stall */
 
-#define RUN_RPM 400.0f               /* CRANK -> RUN once phased and above this */
 #define WDG_TOGGLE_MS 5              /* WDI falling edge every 10 ms */
 #define BAM_GAP_MS 50                /* J1939-21: 50-200 ms between TP.DT packets */
 
@@ -44,7 +50,6 @@ static ecu_can tx[J1939_BAM_MAX];    /* scratch for building a response */
 static uint8_t pend_dm1, pend_dm2, pend_dm4, pend_hours;
 static uint8_t bam_n, bam_i;
 static uint8_t bam_wait;             /* ms to the next TP.DT */
-static uint16_t under_ms, over_ms;   /* underspeed: ms below its floor, ms back above */
 /* the service link: one UDS core behind USB framing and CAN channel 2 */
 static svc_t svc;
 static eol_record eol;               /* the working record */
@@ -57,8 +62,6 @@ static uint8_t svc_req[ISOTP_MAX], svc_rsp[SVC_RESP_MAX];
 static uint8_t stopped;              /* engine stopped, as the service link means it */
 static uint16_t tooth_ms;            /* ms since the last crank tooth, saturating */
 static uint32_t now_us;              /* the last tick's time */
-static uint16_t afterrun_ms;         /* ms since the ignition went off with the relay held */
-static uint16_t wif_on_ms, wif_off_ms;   /* water in fuel: debounce, both ways */
 
 static void event(ecu_io *io, uint8_t code, uint16_t arg)
 {
@@ -119,12 +122,15 @@ static void reset_all(ecu_io *io)
     memset(&faults, 0, sizeof faults);
     log_dtc_all_inactive(&img);         /* the latch clears; the history stays */
     ign_low_ms = 0;
-    under_ms = over_ms = 0;
+    underg_reset();
+    boostg_reset();
+    egrg_reset();
+    io->egr_off = 0;
     bam_n = bam_i = 0;
     pend_dm1 = pend_dm2 = pend_dm4 = pend_hours = 0;
     inject_cancel(io->inj);
     io->meter_duty = METER_CLOSED;
-    io->state = ECU_OFF;
+    io->state = mode_cmd(MODE_RESET, 0, 0);
     io->fault_n = io->synced = 0;
     io->rpm = io->fuel_mg = 0;
 }
@@ -148,7 +154,8 @@ void ecu_init(ecu_io *io)
     stopped = 1;
     tooth_ms = ECU_STOPPED_MS;          /* no tooth yet: as long ago as counts */
     io->main_relay = io->afterrun = 0;  /* set on the first tick with the ignition on */
-    afterrun_ms = wif_on_ms = wif_off_ms = 0;
+    relay_reset();
+    wifg_reset();
     now_us = 0;
     io->usb_in_n = 0;
     io->usb_out_n = 0;
@@ -178,7 +185,7 @@ static void trip(ecu_io *io, int why)
             rec_trigger(&rec, &img, img.c.ecu_s, (uint8_t)why);  /* overwrite real trips */
         save_req = 1;
     }
-    io->state = ECU_SHUTDOWN;
+    io->state = mode_cmd(MODE_TRIP, 0, 0);
     inject_cancel(io->inj);
     io->meter_duty = METER_CLOSED;
 }
@@ -198,12 +205,41 @@ static void check(ecu_io *io, float rpm)
  * so fuel sloshing past the probe neither sets nor clears it. */
 static void water_in_fuel(ecu_io *io)
 {
-    wif_on_ms = io->wif ? (uint16_t)(wif_on_ms + (wif_on_ms < WIF_MS)) : 0;
-    wif_off_ms = io->wif ? 0 : (uint16_t)(wif_off_ms + (wif_off_ms < WIF_MS));
-    if (wif_on_ms >= WIF_MS)
+    uint8_t raise, drop;
+    wifg_step(io->wif, &raise, &drop);
+    if (raise)
         fault_raise(io, SPN_WIF, FMI_WIF);
-    else if (wif_off_ms >= WIF_MS)
+    else if (drop)
         fault_drop(io, SPN_WIF, FMI_WIF);
+}
+
+/* BOOST-OVP: the injector boost rail. Over BOOST_OV_V for BOOST_OV_MS
+ * the converter is stopped and the engine shut down -- with the boost off
+ * 12V_GATE collapses and nothing can inject anyway -- and both latch to
+ * the next ignition cycle. The boost is also off while shut down, so a
+ * stopped engine carries no 100 V. 0 V means the board does not measure
+ * the rail (production): then only the hardware zener guards it. */
+static void boost_guard(ecu_io *io)
+{
+    uint8_t dis, now;
+    boostg_step(io->v_boost_rail, io->state == ECU_SHUTDOWN, &dis, &now);
+    if (now) {
+        fault_raise(io, SPN_BOOST_RAIL, FMI_HIGH_SEVERE);
+        trip(io, TRIP_BOOST);
+    }
+    io->boost_dis = dis || io->state == ECU_SHUTDOWN;
+}
+
+/* EGR stall: a stalled valve holds the bridge at 6.4 A. The time over
+ * EGR_STALL_A leaks away at the same rate below it, so a PWM sample that
+ * dips does not reset it. Amber only: EGR is not needed to run. */
+static void egr_guard(ecu_io *io)
+{
+    uint8_t off, raise;
+    egrg_step(io->i_egr, &off, &raise);
+    if (raise)
+        fault_raise(io, SPN_EGR, FMI_CURRENT_HIGH);
+    io->egr_off = off;
 }
 
 /* The main relay is the board's own supply (Bosch wiring, decisions log
@@ -214,45 +250,26 @@ static void water_in_fuel(ecu_io *io)
  * completes must not flatten the battery through the relay coil. */
 static void main_relay(ecu_io *io)
 {
-    if (io->ignition) {
-        io->main_relay = 1;
-        io->afterrun = 0;
-        afterrun_ms = 0;
-        return;
-    }
-    if (!io->main_relay)
-        return;
-    if (!io->afterrun) {
-        io->afterrun = 1;
-        /* through the rate limit, not around it: the relay waits for the
-         * save instead, at most SAVE_GAP_S, so a flapping ignition costs
-         * no extra flash writes (test_ecu_save_rate) */
+    uint8_t written = !save_now && !save_req && !io->nvm_save;
+    uint8_t save;
+    relay_step(io->ignition, stopped, written, &io->main_relay, &io->afterrun, &save);
+    /* through the rate limit, not around it: the relay waits for the
+     * save instead, at most SAVE_GAP_S, so a flapping ignition costs no
+     * extra flash writes (test_ecu_save_rate) */
+    if (save)
         save_req = 1;
-    }
-    if (afterrun_ms < AFTERRUN_MAX_MS)
-        afterrun_ms++;
-    int written = !save_now && !save_req && !io->nvm_save;
-    if ((stopped && written) || afterrun_ms >= AFTERRUN_MAX_MS) {
-        io->main_relay = 0;             /* the board loses its supply here */
-        io->afterrun = 0;
-    }
 }
 
 /* Armed in RUN once the setpoint ramp from the start has finished. A
  * warning only: the engine keeps governing (spec: the DSE decides). */
 static void underspeed(ecu_io *io, float rpm)
 {
-    int armed = io->state == ECU_RUN && gov.set >= gov_setpoint(gov.fuel, io->droop_sw) - 1.0f;
-    if (!armed) {
-        under_ms = over_ms = 0;
-        fault_drop(io, SPN_SPEED, FMI_LOW_MODERATE);
-        return;
-    }
-    under_ms = rpm < UNDERSPEED_RPM ? (uint16_t)(under_ms + (under_ms < UNDERSPEED_MS)) : 0;
-    over_ms = rpm > UNDERSPEED_CLEAR_RPM ? (uint16_t)(over_ms + (over_ms < UNDERSPEED_CLEAR_MS)) : 0;
-    if (under_ms >= UNDERSPEED_MS)
+    uint8_t armed = io->state == ECU_RUN && gov.set >= gov_setpoint(gov.fuel, io->droop_sw) - 1.0f;
+    uint8_t raise, drop;
+    underg_step(rpm, armed, &raise, &drop);
+    if (raise)
         fault_raise(io, SPN_SPEED, FMI_LOW_MODERATE);
-    else if (over_ms >= UNDERSPEED_CLEAR_MS)
+    else if (drop)
         fault_drop(io, SPN_SPEED, FMI_LOW_MODERATE);
 }
 
@@ -262,7 +279,7 @@ void ecu_crank_edge(ecu_io *io, uint32_t t_us)
     if (io->state == ECU_OFF)
         return;
     if (io->state == ECU_WAIT) {
-        io->state = ECU_CRANK;
+        io->state = mode_cmd(MODE_TOOTH, 0, 0);
         event(io, EV_CRANK, 0);
     }
     uint8_t fault_before = crank_fault(&crank);
@@ -282,8 +299,8 @@ void ecu_crank_edge(ecu_io *io, uint32_t t_us)
     if (!fresh)                         /* this edge's rpm is not to be trusted */
         check(io, rpm);
 
-    if (io->state == ECU_CRANK && crank_phased(&crank) && rpm >= RUN_RPM) {
-        io->state = ECU_RUN;
+    if (io->state == ECU_CRANK &&
+        (io->state = mode_cmd(MODE_RUN_OK, (uint8_t)crank_phased(&crank), rpm)) == ECU_RUN) {
         gov_reset(&gov, FUEL_START_MG, rpm);
         img.c.starts++;
         event(io, EV_RUN, 0);
@@ -317,7 +334,7 @@ static uint8_t lamps(void)
     uint8_t l = 0;
     for (int i = 0; i < faults.n; i++)
         l |= ((faults.f[i].spn == SPN_SPEED && faults.f[i].fmi != FMI_LOW_MODERATE)
-              || faults.f[i].spn == SPN_POS)
+              || faults.f[i].spn == SPN_POS || faults.f[i].spn == SPN_BOOST_RAIL)
              ? LAMP_RED | LAMP_PROTECT        /* shutdown: the DSE stops only on Protect */
              : LAMP_AMBER;
     return l;
@@ -623,6 +640,8 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
               && tooth_ms >= ECU_STOPPED_MS;
     svc_tick(&svc, ms, stopped);
     main_relay(io);
+    boost_guard(io);
+    egr_guard(io);
     usb_poll(io);                       /* at tick priority: it shares state with the ISRs */
     if (eol_dirty && !io->eol_save) {   /* never change the copy the host is writing */
         eol_out = eol;
@@ -646,7 +665,7 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     if (io->state == ECU_OFF) {
         if (!io->ignition)
             return;
-        io->state = ECU_WAIT;
+        io->state = mode_cmd(MODE_IGN_ON, 0, 0);
         event(io, EV_IGN_ON, 0);
     }
 

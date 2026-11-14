@@ -1,5 +1,6 @@
 #include "safety.h"
 
+#ifndef ECU_MODEL    /* else generated: model/ecu_safety.slx */
 int safety_check(float rpm, uint8_t crank_fault, uint8_t ignition, int running)
 {
     if (rpm > OVERSPEED_RPM)
@@ -10,6 +11,7 @@ int safety_check(float rpm, uint8_t crank_fault, uint8_t ignition, int running)
         return TRIP_IGN;
     return TRIP_NONE;
 }
+#endif
 
 static int find(const faults_t *t, uint32_t spn, uint8_t fmi)
 {

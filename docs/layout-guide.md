@@ -125,6 +125,8 @@
 - **Shunts:** R428/R429 sit in the low-side source return. Take the sense lines to U406/U407 as a **Kelvin pair** from the shunt pads, not from the pour.
 - **High-side drivers:** U402–U405 with bootstraps C409/C411/C413/C415. Keep each bootstrap capacitor at its driver's VB/VS pins. VS is the bank node, so the bootstrap loop rides at 100 V.
 - **Creepage:** the 100 V copper is in `HV100`/`HV100_SIG`, at 0.6 mm (IPC-2221B, external, uncoated, 101–150 V). Don't run Default-class signals between HV pads.
+- **Conformal coating (12 Nov 2026, decisions log §19):** 0.6 mm is the *uncoated* spacing, which assumes a clean board. In an engine bay, with soot and condensation, it isn't enough on its own. So the assembled board is **conformal-coated** (acrylic or silicone), with the connector, the test points and the debug header masked. Put this on the assembly drawing.
+- **The boost cutoff (BOOST-OVP):** D417 (110 V zener), R436 and R403 into U401's DIS/EN, with the clamp and the `BOOST_DIS` Schottky beside them. Keep the zener and R436 next to U401 pin 3. The zener's cathode is on BOOST_100V, so its pad takes that net's 0.6 mm; the rest of the cutoff sits at logic level.
 - **L401 inductor:** no vias or sensitive traces underneath.
 - **Heat:** the TO-263 FETs (Q408, Q410, Q412, Q414, Q416) and the SMPD diodes D408–D414 are the board's main heat. Put their tabs on large L1 pours, stitched to L4, over the housing contact area.
 

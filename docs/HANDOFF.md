@@ -128,11 +128,20 @@ Verify the whole project in one go:
 
 ```bash
 set -o pipefail
-.venv/bin/python sim/run_sim.py | tail -3        # expect 26/26 blocks pass
+.venv/bin/python sim/run_sim.py | tail -3        # expect 28/28 blocks pass
 .venv/bin/python hw/check_netlist.py | tail -6   # expect "schematic connectivity OK", 0 open items
-.venv/bin/python hw/assign_passives.py           # expect 253 packaged, 0 unresolved
+.venv/bin/python hw/assign_passives.py           # expect 256 packaged, 0 unresolved
 .venv/bin/python docs/build_pdf.py | tail -1     # rebuilds docs/pdf/ECU-Bible.pdf
 ```
+
+**The application models (Simulink/Stateflow) are generated too** (since
+13 Nov, `model/README.md`). Edit `model/mdl_<name>.m`, then in MATLAB
+`build_all({'<name>'})`, `gen_code({'<name>'})` and
+`sim_ecu_app` (in `model/test`). Then rebuild both firmware builds and
+run the unit tests, the scenarios (`ECU_LIB=libecu_model`) and
+`model/test/run_b2b.sh`. On Windows call
+`.venv/Lib/site-packages/ziglang/zig.exe cc` directly:
+`python -m ziglang cc` hides compiler errors.
 
 **The schematics are generated.** Edit `hw/gen_sheet_*.py`, then
 `.venv/bin/python hw/gen_sheet_<name>.py --force`. Without `--force` the

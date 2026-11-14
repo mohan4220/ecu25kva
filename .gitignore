@@ -24,3 +24,9 @@ prototype/build/*
 # KiCad local history
 .history/
 *.lck
+
+# Simulink caches (models are rebuilt by model/build_all.m)
+model/slprj/
+model/*.slxc
+model/*.autosave
+model/*_ert_rtw/

@@ -2,6 +2,7 @@
 import ctypes as C
 import pathlib
 import struct
+import os
 import sys
 import zlib
 
@@ -52,6 +53,9 @@ class IO(C.Structure):
         ("stop_sw", C.c_uint8), ("wif", C.c_uint8), ("diag_sw", C.c_uint8),
         ("v_sync", C.c_float),
         ("main_relay", C.c_uint8), ("afterrun", C.c_uint8),
+        # the boost cutoff and the EGR stall guard, ABI 3 (12 Nov 2026)
+        ("v_boost_rail", C.c_float), ("i_egr", C.c_float),
+        ("boost_dis", C.c_uint8), ("egr_off", C.c_uint8),
     ]
 
 
@@ -61,7 +65,9 @@ OFF, WAIT, CRANK, RUN, SHUTDOWN = range(5)
 class Ecu:
     def __init__(self):
         ext = {"darwin": "dylib", "win32": "dll"}.get(sys.platform, "so")
-        self.lib = C.CDLL(str(HERE / "build" / f"libecu.{ext}"))
+        # ECU_LIB=libecu_model runs the scenarios on the model-generated build
+        name = os.environ.get("ECU_LIB", "libecu")
+        self.lib = C.CDLL(str(HERE / "build" / f"{name}.{ext}"))
         self.lib.ecu_io_size.restype = C.c_size_t
         self.lib.ecu_nvm_image.restype = C.c_void_p
         self.lib.ecu_eol_image.restype = C.c_void_p

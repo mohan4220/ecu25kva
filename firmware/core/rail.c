@@ -1,6 +1,7 @@
 #include "rail.h"
 #include "table.h"
 
+#ifndef ECU_MODEL    /* else generated: model/ecu_railset.slx, ecu_rail.slx */
 /* The old ECU's setpoint at 1500 rpm, median per 1 mg of fuel, steady
  * running (field evidence 2026-10-14 sec. 3c). Held beyond 26.5 mg: no
  * data above that yet. */
@@ -22,3 +23,4 @@ float rail_step(rail_t *r, float set_bar, float rail_bar, float dt_s)
     r->integ = clampf(r->integ + RAIL_KI * err * dt_s, 0, 1);
     return clampf(r->integ + RAIL_KP * err, 0, 1);
 }
+#endif

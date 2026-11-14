@@ -1,0 +1,16 @@
+function mdl_ecu_lookup(m, x, y, in, out, what)
+%MDL_ECU_LOOKUP  A one-input calibration table, as table.h's table_lookup:
+%   linear between points, held flat beyond the first and last.
+mb.new(m);
+S = 'single';
+mb.in(m, in, S); mb.out(m, out, S);
+mb.b(m, 'table', 'simulink/Lookup Tables/1-D Lookup Table', ...
+    'Table', mb.num(single(y)), 'BreakpointsForDimension1', mb.num(single(x)), ...
+    'InterpMethod', 'Linear point-slope', 'ExtrapMethod', 'Clip', ...
+    'UseLastTableValue', 'on', 'TableDataTypeStr', S, ...
+    'BreakpointsForDimension1DataTypeStr', S, 'FractionDataTypeStr', S, ...
+    'IntermediateResultsDataTypeStr', S, 'OutDataTypeStr', S);
+mb.l(m, [in '/1'], 'table/1'); mb.l(m, 'table/1', [out '/1']);
+set_param(m, 'Description', what);
+mb.finish(m);
+end

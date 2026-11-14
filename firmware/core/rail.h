@@ -18,7 +18,14 @@
 #define RAIL_OPEN_LIMP 0.3f          /* calibration: fixed opening while the rail sensor is faulted */
 #define RAIL_DUTY_LIMP (METER_NC ? RAIL_OPEN_LIMP : 1.0f - RAIL_OPEN_LIMP)
 
+#ifdef ECU_MODEL
+/* ECU_MODEL: generated from model/ecu_rail.slx; model_glue.c keeps this API. */
+#include <stdint.h>
+#include "ecu_rail.h"
+typedef struct { float integ; uint8_t rst; RT_MODEL_ecu_rail_T m; DW_ecu_rail_T dw; } rail_t;
+#else
 typedef struct { float integ; } rail_t;
+#endif
 
 void  rail_reset(rail_t *r);
 ECU_API float rail_set_bar(float fuel_mg);

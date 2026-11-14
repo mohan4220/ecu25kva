@@ -267,7 +267,7 @@ contact-type confirmation, which gates nothing
 |---|---|---|
 | 0 | Reconciled specification | Done |
 | 1 | Research memos | Done — twelve |
-| 1.5 | Block-level simulation | **Done — 26 blocks, 26 passing** (feed_emi added 8 Oct 2026) |
+| 1.5 | Block-level simulation | **Done — 28 blocks, 28 passing** (stop_kill 10 Nov, boost_ovp 12 Nov 2026) |
 | **2** | **KiCad hierarchical schematic capture** | **Complete — 380 components, 378 with footprints; connectivity OK with 2 named open items (power-ground pin, trip-loop pin)** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | **Prepared for hand routing (14 Oct)**: board with all 379 parts placed by block, classes and rules set, DRC clean, 499 connections to route (decisions log §13). Housing and J1001 are placeholders until measured (brief Group 6) |
 | 4 | Firmware skeleton | **Core done on the PC, with production logging — 16/16 engine scenarios, 101 unit tests; calibrated from the old ECU's recording (§14). Service link (20 Oct): bootloader, end-of-line record, underspeed warning, laptop tool over USB and CAN — 7 bootloader tests, the tool tested end to end** (decisions log §11, §12, §16). **Simulator (20 Oct): `ecusim`, one program for Windows, macOS and Linux, runs the firmware live or from scripts in a browser; all 16 scenarios pass as scripts** (§17). Next: S32K148 dev kit and the chip layers |
@@ -921,6 +921,18 @@ Every check passes on this Windows machine: 26/26 circuit blocks; the netlist wi
 - The three new inputs on PD8–PD10.
 - 0 DRC errors, nothing unconnected, and the fab files regenerated.
 
+**The boost cannot run away, 12 November 2026** (decisions log §19). The owner asked for fixes for the 100 V boost and for heat:
+- **A hardware overvoltage cutoff.** A 110 V zener (D417) drives the boost controller's DIS/EN pin, so an open feedback resistor can no longer push the rail into its 150 V parts. It trips at 105.0–119.3 V over both tolerance corners (`sim/blocks/boost_ovp.cir`). A 5.1 V clamp protects the pin, and `BOOST_DIS` (PTD15 on production, PD14 on the prototype) lets the MCU stop the boost too. Five new parts on each board; `check_netlist.py` checks the circuit.
+- **Firmware, ABI 3:** above 106 V on the rail, it stops the boost and shuts down (red DTC, SPN 520192). It also stops the boost while shut down. An **EGR stall guard** lets the bridge coast after 1.5 s over 5 A (amber DTC, SPN 2791 FMI 6), and holds it off after the third stall.
+- **Coating and heat:** the board is conformal-coated before it goes on the engine. Bring-up step 7 adds a 10-minute full-load heat check with a 100 °C limit.
+
+**The application in Simulink and Stateflow, 13 November 2026** (decisions log §20, `model/README.md`). The owner asked for a state-flow model that generates the code the ECU runs:
+- **Twelve models**, built by scripts in `model/`: six Stateflow charts (the engine state machine, and the boost, EGR stall, water-in-fuel, underspeed and main-relay guards) and six Simulink models (governor, rail control, the two tables, injector law, trip decision). Constants are read from the firmware's C.
+- **Embedded Coder generates the C** into `firmware/gen/`. Building with `ECU_MODEL` swaps it in behind the same functions.
+- **Proven equal:** all unit tests and 16/16 scenarios pass on the generated build; the back-to-back test agrees exactly on millions of random inputs (the tables to a unit in the last place).
+- **`ecu_app`**: the whole application closed loop with an engine, simulated in Simulink.
+- **Flashing:** the code goes in the firmware image like any other. The STM32 chip layer is still the missing piece, for either build.
+
 ---
 
 ## 8. Work at the machine
@@ -973,7 +985,7 @@ Updated 8 November 2026, after the Bosch pinout (decisions log §18). Every chec
 - **Firmware:** runs on the PC, calibrated from the old ECU's own recording (§14). **Service link (20 October):** a bootloader with the image header written last, the end-of-line record with its analog trims, an underspeed warning (SPN 190 FMI 18, amber, no shutdown), and a laptop tool (`firmware/tools/ecu_service.py`) over USB or CAN channel 2, all proven on the PC (decisions log §16, firmware guide §16). The chip layers (flash, CAN, USB, reset) are still to write.
 - **Simulator (20 October):** `simulator/`, mode 1 (firmware only). `ecusim` is a single Rust program. It runs the unchanged firmware against the engine model, live or from `.seq` scripts, at 1× to about 100×, and traces everything in a browser. Firmware builds load from the UI. The 16 SIL scenarios pass as scripts. Guide `simulator/README.md`; decisions log §17. Modes 2 (board fed over USB) and 3 (bench rig) are next.
 - **Safety change written up, not yet wired:** the overspeed trip opens the main relay's coil feed (spec §3 item 7, which supersedes item 6's pin 04).
-- **Stale since 8 Nov:** the Rust simulator's build (its source is updated to ABI 2).
+- **Stale since 8 Nov:** the Rust simulator's build (its source is updated to ABI 3).
 - **The prototype is on the Bosch pinout as of 9 Nov.** Placement and routing were updated in place; decisions log §18.
 
 ### Waiting on the machine (inspection brief)
@@ -989,6 +1001,6 @@ Updated 8 November 2026, after the Bosch pinout (decisions log §18). Every chec
 - **MC33816AE last-time-buy:** a distributor question (fallback path only).
 
 ### Next that needs neither
-- **Build the Rust simulator** at ABI 2 (`cargo test`), and rebuild the committed Windows `.exe`.
+- **Build the Rust simulator** at ABI 3 (`cargo test`), and rebuild the committed Windows `.exe`.
 - **Quote and build the prototype:** 2 oz outer copper, 300 × 200 mm, 95 pin necks at 0.15 mm (decisions log §15, "The cost to know before quoting").
 - **The S32K148 port:** running the firmware core on NXP's evaluation board, with the engine signals simulated on the bench. It needs the board, a debugger and a toolchain on this machine.

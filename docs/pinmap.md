@@ -15,7 +15,7 @@ package actually breaks out; per-pin reset defaults for the six gate pins).
 > - Pins 09, 14 and 25 are new inputs.
 > - The trip loop is gone.
 >
-> 45 MCU pins are committed, against 42 before.
+> 45 MCU pins are committed, against 42 before; 46 since the boost stop on `PTD15` (12 Nov 2026).
 
 ---
 
@@ -141,7 +141,7 @@ connector pins is accounted for, not silently dropped.
 | 23 | Droop switch | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD7` | GPIO input | Hi-Z, no pull | Pad LOW = contact OPEN |
 | 21 | **BOSCH:** water in fuel, active high | Same NPN buffer, **inverted**, no pull-up (open = no water) | `PTD6` | GPIO input | Hi-Z, no pull | From the main-relay line through the sensor's switch |
 | 14 | **BOSCH:** diagnosis request, contact to ground | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD8` | GPIO input | Hi-Z, no pull | GCU relay contact |
-| 25 | **BOSCH:** stop / emergency switch, contact to ground | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD9` | GPIO input | Hi-Z, no pull | GCU relay contact. Polarity (stop on closed) to confirm at the machine |
+| 25 | **BOSCH:** stop / emergency switch, contact to ground | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD9` | GPIO input | Hi-Z, no pull | GCU relay contact; stop on closed, as Bosch draws it (owner, 10 Nov). Also kills the gates in hardware, through Q302 on the kill inverter's gate (decisions log §18) |
 | 20 | Audio abort (active-high) | 10k/4.7k/4.7 µF + NPN buffer, **inverted** | `PTD11` | GPIO input | Hi-Z, no pull | Pad LOW = input active. Was a 3.0 V zener clamp until 22 Sep 2026 |
 | 24 | Override SS (active-high) | Same NPN buffer, **inverted** | `PTD12` | GPIO input | Hi-Z, no pull | Pad LOW = input active |
 | 71 | Ignition (active-high) | Same NPN buffer, **inverted**; **BOSCH:** also gates the wake FET on pin 50 | `PTD16` | GPIO input | Hi-Z, no pull | Pad LOW = input active |
@@ -196,6 +196,7 @@ for the EGR bridge's shared shutdown (§1.5).
 | — | EGR bridge enable (shared SD̄) | Pulled LOW on the sheet — **coast** at reset | `PTB10` | FTM3_CH2 | Hi-Z, no pull | **ADDED 22 Sep 2026.** The bridge is two AUIRS2184S, one input per leg; coast needs both shutdowns asserted, and they default asserted by copper. Same timer as IN1/IN2 |
 | 50 | Main relay, **BOSCH: the board's own supply** | Low-side FET, a second FET woken from pin 71, **SMAJ48CA to ground, no flyback diode** | `PTD13` | GPIO output | Hi-Z, no pull | Held through the after-run. A diode to VBAT_PROT fed the board through the coil (decisions log §18) |
 | 69 | Buzzer relay | Low-side FET + flyback | `PTD14` | GPIO output | Hi-Z, no pull | |
+| — | `BOOST_DIS`, the boost converter's stop | 100 Ω + BAT54Q into the TPS40210's DIS/EN, beside the 110 V overvoltage zener | `PTD15` | GPIO output | Hi-Z, no pull | **ADDED 12 Nov 2026** (decisions log §19). Hi-Z at reset leaves the boost running, as before. GPIO-HD, so the 4.5 mA it sources is within its drive |
 
 **ADDED 21 September 2026 — a peak-and-hold stage needs two high-side switches per bank,
 and this map had allocated one.**

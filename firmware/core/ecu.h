@@ -20,10 +20,24 @@
 #define AFTERRUN_MAX_MS 60000u        /* after-run cap: release the main relay even if not done;
                                       * covers the 25 kVA set's ~25 s run-down with margin */
 #define WIF_MS 2000                  /* water in fuel held this long (or clear this long) to change */
+/* BOOST-OVP (12 Nov 2026). The hardware zener stops the boost at 105-119 V
+ * by itself; the firmware stops it earlier and says why. The rail runs at
+ * 99.7 V +/-2 %, so 106 V is a fault, not a tolerance. */
+#define BOOST_OV_V 106.0f
+#define BOOST_OV_MS 20
+/* EGR stall: the bridge draws 6.4 A into a stalled valve and its FETs and
+ * the EGR feed FET are sized on a housing the prototype does not have.
+ * Over EGR_STALL_A for EGR_STALL_MS, the bridge coasts (the valve springs
+ * shut) for EGR_COOL_MS; the EGR_STALL_TRIES-th stall holds it off until
+ * the next ignition cycle. EGR is never a reason to stop the engine. */
+#define EGR_STALL_A 5.0f
+#define EGR_STALL_MS 1500
+#define EGR_COOL_MS 5000
+#define EGR_STALL_TRIES 3
 #define ECU_USB_IN 64
 #define ECU_USB_OUT 512
 #ifndef ECU_ABI_VERSION
-#define ECU_ABI_VERSION 2u           /* bump whenever ecu_io or an entry point changes */
+#define ECU_ABI_VERSION 3u           /* bump whenever ecu_io or an entry point changes */
 #endif
 
 /* Exported from a Windows DLL (the simulator's loadable firmware) */
@@ -83,6 +97,12 @@ typedef struct {
                                       * keeps it through the after-run */
     uint8_t afterrun;                /* status: ignition off, still holding the relay to stop
                                       * the engine and write the fault memory */
+    /* ABI 3: the boost cutoff and the EGR stall guard (12 Nov 2026) */
+    float v_boost_rail;              /* input: BOOST_100V volts; 0 = not measured (production
+                                      * has no BOOST_MON channel; the prototype reads PB11) */
+    float i_egr;                     /* input: EGR bridge current, A (ISNS_EGR) */
+    uint8_t boost_dis;               /* output: 1 = stop the boost converter (BOOST_DIS) */
+    uint8_t egr_off;                 /* output: 1 = the EGR bridge coasts (EGR_EN low) */
 } ecu_io;
 
 ECU_API void ecu_init(ecu_io *io);

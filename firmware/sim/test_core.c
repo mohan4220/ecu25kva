@@ -1797,9 +1797,78 @@ static void test_water_in_fuel(void)
     CHECK(io.fault_n == 0);
 }
 
+/* BOOST-OVP: over BOOST_OV_V for BOOST_OV_MS the boost stops and the
+ * engine shuts down, red; a spike shorter than that does nothing; 0 V
+ * (not measured) never trips; the latch clears on an ignition cycle. */
+static void test_boost_ovp(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    ticks(&io, 50, 1);
+    CHECK(io.boost_dis == 0);                  /* not measured: boost runs */
+    io.v_boost_rail = 99.7f;
+    ticks(&io, 50, 1);
+    CHECK(io.boost_dis == 0 && io.fault_n == 0);
+    io.v_boost_rail = BOOST_OV_V + 2.0f;
+    ticks(&io, BOOST_OV_MS - 5, 1);
+    io.v_boost_rail = 99.7f;
+    ticks(&io, 10, 1);
+    CHECK(io.boost_dis == 0 && io.state != ECU_SHUTDOWN);   /* a spike */
+    io.v_boost_rail = BOOST_OV_V + 2.0f;
+    ticks(&io, BOOST_OV_MS, 1);
+    CHECK(io.boost_dis == 1 && io.state == ECU_SHUTDOWN);
+    CHECK(dm1_first_spn(&io, 520192) && dm1_fmi == 0);
+    CHECK(dm1_lamps & LAMP_RED);
+    io.v_boost_rail = 99.7f;                   /* back down: still latched */
+    ticks(&io, 100, 1);
+    CHECK(io.boost_dis == 1 && io.state == ECU_SHUTDOWN);
+    io.ignition = 0;
+    ticks(&io, IGN_OFF_MS, 1);
+    io.ignition = 1;
+    ticks(&io, 2, 1);
+    CHECK(io.boost_dis == 0 && io.state == ECU_WAIT);
+}
+
+/* EGR stall: EGR_STALL_MS over EGR_STALL_A coasts the bridge for
+ * EGR_COOL_MS, amber, never a stop; the third stall holds it off until
+ * the ignition cycles. A current that dips (PWM) still counts. */
+static void test_egr_stall(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    io.i_egr = 2.0f;                           /* moving the valve */
+    ticks(&io, EGR_STALL_MS * 2, 1);
+    CHECK(io.egr_off == 0 && io.fault_n == 0);
+    for (int i = 0; i < EGR_STALL_MS * 2; i++) {       /* 6.4 A for 6 ms in every 9 */
+        io.i_egr = i % 3 ? 6.4f : 1.0f;
+        ticks(&io, 3, 1);
+    }
+    CHECK(io.egr_off == 1);
+    CHECK(io.state != ECU_SHUTDOWN && dm1_first_spn(&io, 2791) && dm1_fmi == 6);
+    CHECK(!(dm1_lamps & LAMP_RED));
+    io.i_egr = 0.0f;                           /* coasting: no current */
+    ticks(&io, EGR_COOL_MS + 5, 1);
+    CHECK(io.egr_off == 0);                    /* tries again */
+    for (int n = 1; n < EGR_STALL_TRIES; n++) {
+        io.i_egr = 6.4f;
+        ticks(&io, EGR_STALL_MS + 5, 1);
+        CHECK(io.egr_off == 1);
+        io.i_egr = 0.0f;
+        ticks(&io, EGR_COOL_MS + 5, 1);
+    }
+    CHECK(io.egr_off == 1);                    /* third stall: held off */
+    io.ignition = 0;
+    ticks(&io, IGN_OFF_MS + 1, 1);            /* the first tick latches SHUTDOWN */
+    io.ignition = 1;
+    ticks(&io, 2, 1);
+    CHECK(io.state == ECU_WAIT && io.egr_off == 0);
+}
+
 int main(void)
 {
     test_io_size();
+    test_boost_ovp();
+    test_egr_stall();
     test_crank_sync();
     test_crank_rpm_gap();
     test_crank_phase();

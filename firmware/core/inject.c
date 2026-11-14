@@ -2,6 +2,7 @@
 #include "inject.h"
 #include "table.h"
 
+#ifndef ECU_MODEL    /* else generated: model/ecu_soi.slx, ecu_injdur.slx */
 /* Start of the main injection, deg before TDC, from the old ECU at 1500
  * rpm: median per 1 mg of fuel, steady running (field evidence 2026-10-14
  * sec. 3b). Held beyond 26.5 mg. */
@@ -20,6 +21,8 @@ uint32_t inject_dur_us(float fuel_mg, float rail_bar)
     float p = rail_bar > INJ_RAIL_MIN ? rail_bar : INJ_RAIL_MIN;
     return (uint32_t)(INJ_DEAD_US + fuel_mg / (INJ_K * sqrtf(p)) + 0.5f);
 }
+
+#endif
 
 /* Is soi the angle between this edge and the next (gap-aware, 720 wrap)? */
 int inject_due(const crank_t *c, float soi_deg)

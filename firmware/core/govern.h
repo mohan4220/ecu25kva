@@ -10,7 +10,21 @@
 #define GOV_KI 2.0f                  /* calibration, mg/(rpm*s) */
 #define GOV_RAMP_RPM_S 500.0f        /* calibration: setpoint ramp from RUN entry */
 
+#ifdef ECU_MODEL
+/* ECU_MODEL: the governor is generated from model/ecu_gov.slx (Embedded
+ * Coder); model_glue.c keeps this API. integ, fuel and set stay readable. */
+#include <stdint.h>
+#include "ecu_gov.h"
+typedef struct {
+    float integ, fuel, set;
+    float fuel0, rpm0;               /* gov_reset's values, applied on the next step */
+    uint8_t rst;
+    RT_MODEL_ecu_gov_T m;
+    DW_ecu_gov_T dw;
+} gov_t;
+#else
 typedef struct { float integ, fuel, set; } gov_t;   /* set: ramping speed setpoint */
+#endif
 
 void  gov_reset(gov_t *g, float fuel0, float rpm0);   /* bumpless: set = rpm0, integ = fuel0 */
 float gov_setpoint(float fuel, int droop);

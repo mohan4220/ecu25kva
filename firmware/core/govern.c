@@ -1,5 +1,6 @@
 #include "govern.h"
 
+#ifndef ECU_MODEL    /* else generated: model/ecu_gov.slx, via model_glue.c */
 static float clampf(float x, float lo, float hi) { return x < lo ? lo : x > hi ? hi : x; }
 
 void gov_reset(gov_t *g, float fuel0, float rpm0)
@@ -8,10 +9,15 @@ void gov_reset(gov_t *g, float fuel0, float rpm0)
     g->set = rpm0 < GOV_RPM_SET ? rpm0 : GOV_RPM_SET;
 }
 
+#endif
+
+/* Both builds: the platform's underspeed arming asks for it between steps. */
 float gov_setpoint(float fuel, int droop)
 {
     return droop ? GOV_RPM_SET * (1.0f - GOV_DROOP * fuel / FUEL_RATED_MG) : GOV_RPM_SET;
 }
+
+#ifndef ECU_MODEL
 
 float gov_step(gov_t *g, float rpm, int droop, float dt_s)
 {
@@ -24,3 +30,4 @@ float gov_step(gov_t *g, float rpm, int droop, float dt_s)
     g->fuel = clampf(g->integ + GOV_KP * err, 0, FUEL_MAX_MG);
     return g->fuel;
 }
+#endif

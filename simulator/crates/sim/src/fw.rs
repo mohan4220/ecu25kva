@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 
-pub const ABI_VERSION: u32 = 2; // ecu.h ECU_ABI_VERSION
+pub const ABI_VERSION: u32 = 3; // ecu.h ECU_ABI_VERSION
 pub const NCYL: usize = 3;
 pub const CANQ: usize = 16;
 
@@ -75,6 +75,11 @@ pub struct EcuIo {
     pub v_sync: f32,
     pub main_relay: u8,
     pub afterrun: u8,
+    // the boost cutoff and the EGR stall guard, ABI 3 (12 Nov 2026)
+    pub v_boost_rail: f32,
+    pub i_egr: f32,
+    pub boost_dis: u8,
+    pub egr_off: u8,
 }
 
 impl EcuIo {

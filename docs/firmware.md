@@ -58,6 +58,9 @@ nothing inside the core changes.
 | `core/rail.c` | Rail-pressure loop on the metering valve |
 | `core/sensors.c` | Volts to engineering units, range faults |
 | `core/safety.c` | The trip decision and the table of active faults |
+| `core/mode.c` | The engine state machine and the guards that keep their own time (boost, EGR stall, water in fuel, underspeed, main relay), stepped by `ecu.c` (§17) |
+| `core/model_glue.c` | `ECU_MODEL` builds: the same functions from the code generated out of `model/` (§17) |
+| `gen/` | The C Embedded Coder generated from the Simulink/Stateflow models in `model/`. Committed; do not edit |
 | `core/j1939.c` | Every CAN frame the ECU sends, and request parsing |
 | `core/nvm.c` | The persistent image: layout, checksum, choosing between the two copies |
 | `core/log.c` | Writes into the image: events, counters, fault memory, trip recorder |
@@ -74,7 +77,7 @@ nothing inside the core changes.
 | `sim/run_sil.py` | The 16 scenarios |
 | `sim/test_service.py` | The service tool end to end against `Unit` |
 
-All of the core's state lives in `static` variables inside `ecu.c`.
+All of the core's state lives in `static` variables inside `ecu.c` and `mode.c`.
 There is one ECU per program, and `ecu_init` resets it.
 
 ## 3. The interface
@@ -104,6 +107,13 @@ platform writes the inputs and reads the outputs.
 | | `eol_save` | "Write the end-of-line record to copy a, then copy b", cleared when done. The image does not change while it is set; a later change asks again once it is cleared |
 | | `boot_req`, `reset_req` | Set the stay flag and reset into the bootloader; a plain reset |
 | | `session` | Status: the UDS session (1 default, 2 programming, 3 extended) |
+| Bosch pinout (ABI 2) | `stop_sw`, `wif`, `diag_sw` | Inputs, logical (the platform applies each contact's polarity): pin 25 stop, pin 21 water in fuel, pin 14 diagnosis request |
+| | `v_sync` | Input: pin 09 volts, the GCU's sync. Read, no function yet |
+| | `main_relay`, `afterrun` | Output: hold the main relay (pin 50), the board's own supply; status: holding it after ignition off |
+| Boost and EGR guards (ABI 3) | `v_boost_rail` | Input: BOOST_100V volts. 0 means not measured (production has no channel; the prototype reads `BOOST_MON`) |
+| | `i_egr` | Input: EGR bridge current (A) |
+| | `boost_dis` | Output: 1 = stop the boost converter (`BOOST_DIS`, DIS/EN) |
+| | `egr_off` | Output: 1 = the EGR bridge coasts (`EGR_EN` low) |
 
 **Injection is given as commands, not pin levels.** For each cylinder
 the command is "start at time T, for D microseconds". The chip's timer
@@ -366,6 +376,8 @@ dev-kit spec. Until then, the simulator decodes them from the image
 | Injection cancel | Any command not yet started when a trip happens | `inject_cancel` |
 | Metering valve closed in SHUTDOWN | Rail pressure falls after a trip | `rail.h` `METER_CLOSED` |
 | Underspeed warning | A set held below 1350 rpm for 3 s (overload, a fuel fault): SPN 190 FMI 18, amber. **No shutdown**: the DSE decides | `ecu.c` `underspeed()` |
+| Boost overvoltage | Rail over 106 V for 20 ms: stop the boost, SHUTDOWN, red SPN 520192 FMI 0. The boost is also off in SHUTDOWN. A 110 V zener on DIS/EN backs it in hardware (105–119 V) | `ecu.c` `boost_guard()`; injector sheet |
+| EGR stall | Over 5 A for 1.5 s: the bridge coasts 5 s, amber SPN 2791 FMI 6; the third stall holds it off to the next ignition cycle. **No shutdown** | `ecu.c` `egr_guard()` |
 | Window watchdog (TPS3850) | A hung main loop: the pulses stop and the chip resets the processor; the next power-up logs it | `ecu_tick_1ms`, `ecu_background` |
 | Independent trip module | Everything above failing: it cuts the metering valve's supply from outside the board | Hardware, spec §3 |
 
@@ -397,6 +409,9 @@ re-tuned on the engine.
 | Sensor tables | sensors.c | §8 | assumed until each front-end is measured |
 | `RUN_RPM` | ecu.c | 400 | design |
 | `IGN_OFF_MS` | ecu.h | 500 ms | design |
+| `BOOST_OV_V`, `BOOST_OV_MS` | ecu.h | 106 V for 20 ms | design (rail 99.7 V ±2 %) |
+| `EGR_STALL_A`, `EGR_STALL_MS` | ecu.h | 5 A for 1.5 s | assumed (stall 6.4 A; the running current is unmeasured) |
+| `EGR_COOL_MS`, `EGR_STALL_TRIES` | ecu.h | 5 s, 3 | design |
 | `SAVE_GAP_S` | ecu.h | 10 s | design (flash wear) |
 | `UNDERSPEED_RPM`, `UNDERSPEED_MS` | safety.h | 1350 rpm for 3 s | design (90 % of 1500) |
 | `UNDERSPEED_CLEAR_RPM`, `UNDERSPEED_CLEAR_MS` | safety.h | 1400 rpm for 1 s | design |
@@ -617,3 +632,52 @@ erase; USB is faster.
 **Not yet:** the chip layers (§14 items 10–13). The prototype is first
 flashed over SWD (J301), as any new board is.
 
+## 17. The Simulink and Stateflow models (13 November 2026)
+
+The control and state logic also exists as models, in `model/`, and
+Embedded Coder generates C from them into `gen/`. Building with
+`ECU_MODEL` defined puts that generated code in place of the hand-written
+modules, behind the same functions:
+
+| Function(s) | Model | Kind |
+|---|---|---|
+| `mode_cmd` | `ecu_mode` | Stateflow: OFF, WAIT, CRANK, RUN, SHUTDOWN |
+| `boostg_*`, `egrg_*`, `wifg_*`, `underg_*`, `relay_*` | `ecu_boostg`, `ecu_egrg`, `ecu_wifg`, `ecu_underg`, `ecu_relay` | Stateflow |
+| `gov_reset`, `gov_step` | `ecu_gov` | Simulink |
+| `rail_reset`, `rail_step`, `rail_set_bar` | `ecu_rail`, `ecu_railset` | Simulink |
+| `inject_soi_btdc`, `inject_dur_us` | `ecu_soi`, `ecu_injdur` | Simulink |
+| `safety_check` | `ecu_safety` | Simulink |
+
+The state machine is driven by commands, because both the crank-tooth
+interrupt and the 1 ms tick change it: `ecu.c` sends IGN_ON, TOOTH,
+RUN_OK, TRIP or RESET, and the chart answers with the new state. `ecu.c`
+keeps everything around it (events, the governor reset on RUN entry,
+counters, DTCs), and `gov_setpoint` stays hand-written in both builds.
+
+**Building it:** `make test-model` (unit tests) and
+`build/libecu_model.*` (the scenarios, with `ECU_LIB=libecu_model`) in
+`sim/`. On Windows, call `zig.exe` from the venv directly
+(`.venv/Lib/site-packages/ziglang/zig.exe cc`): `python -m ziglang`
+swallows the compiler's error messages.
+
+**The evidence it is the same firmware:** every unit test and all 16
+scenarios pass on both builds; `model/test/run_b2b.sh` runs each
+generated model against its hand-written original on millions of
+random inputs, and they agree exactly, apart from one or two units in
+the last place in the two tables (Simulink orders its interpolation
+arithmetic differently from `table.h`). See `model/README.md`.
+
+**For the target:** the generated code is single-precision C99 for an
+ARM Cortex-M. With the whole core it compiles warning-free for the
+Cortex-M4F (`zig cc -target thumb-linux-musleabihf
+-mcpu=cortex_m4+vfp4d16sp -mfloat-abi=hard -DECU_MODEL`, compile only),
+and the governor comes out as native `vadd.f32`/`vmul.f32`/`vdiv.f32`
+with no double-precision code. It is
+flashed as part of the firmware image. The chip layers (§14) are still
+what stands between either build and the board.
+
+**Which is the source of truth:** for now, both. The hand-written
+modules stay the reference build until the generated build has run on
+the engine. A change goes into both: the model's script in `model/`
+(constants come from the C headers automatically), then `build_all` and
+`gen_code`, then the C reference, then both test runs.
