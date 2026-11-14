@@ -7,7 +7,7 @@ engine **3GK550ETA 4SR1**, application code `GK3.8703`, 26.5 kW at 1500 rpm,
 ## Start here
 
 **[`docs/pdf/ECU-Bible.pdf`](docs/pdf/ECU-Bible.pdf)** — everything, in reading
-order, in one 328-page file. Cover, handoff, field handbook, sensor reference,
+order, in one 442-page file. Cover, handoff, field handbook, sensor reference,
 circuit reference, the specification, the decisions log, all twelve research
 memos, the plan. Bookmarked, so the PDF reader's outline pane is the table of
 contents.
@@ -56,6 +56,16 @@ plus `markdown` and `pypdf`:
 ```
 
 Page rules live in [`docs/print.css`](docs/print.css).
+
+## Checking everything
+
+```bash
+./verify.sh              # circuits, schematics, both firmware builds, scenarios
+./verify.sh --boards     # ... plus the KiCad board checks
+./verify.sh --matlab     # ... plus the Simulink closed loop (model/)
+```
+
+It names every step that failed. Run it before committing.
 
 ## Running the circuit simulations
 

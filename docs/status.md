@@ -932,6 +932,7 @@ Every check passes on this Windows machine: 26/26 circuit blocks; the netlist wi
 - **Proven equal:** all unit tests and 16/16 scenarios pass on the generated build; the back-to-back test agrees exactly on millions of random inputs (the tables to a unit in the last place).
 - **`ecu_app`**: the whole application closed loop with an engine, simulated in Simulink.
 - **Flashing:** the code goes in the firmware image like any other. The STM32 chip layer is still the missing piece, for either build.
+- **14 Nov:** boost-rail warnings (held high: the zener clamping; low while fuelling: a dead boost), the state machine owning the ignition cycle, and `./verify.sh` to run every check at once (decisions log §20).
 
 ---
 

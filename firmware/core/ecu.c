@@ -25,6 +25,8 @@
  * proprietary range (520192-524287). Red, a shutdown. */
 #define SPN_BOOST_RAIL 520192u
 #define FMI_HIGH_SEVERE 0u           /* data valid but above normal, most severe */
+#define FMI_HIGH_MODERATE 16u        /* above normal, moderately severe: amber */
+#define FMI_LOW_MODERATE_B 18u       /* below normal, moderately severe: amber */
 #define SPN_EGR 2791u                /* EGR valve control */
 #define FMI_CURRENT_HIGH 6u          /* current above normal: a stall */
 
@@ -44,7 +46,6 @@ static uint16_t ign_off_ms;          /* ignition low this long: a real ignition-
 static uint32_t last_save_s;
 static rec_t rec;
 static uint32_t ms;
-static uint16_t ign_low_ms;          /* ignition low with the engine stopped */
 static ecu_can bam[J1939_BAM_MAX];   /* TP.DT packets still to send */
 static ecu_can tx[J1939_BAM_MAX];    /* scratch for building a response */
 static uint8_t pend_dm1, pend_dm2, pend_dm4, pend_hours;
@@ -121,16 +122,16 @@ static void reset_all(ecu_io *io)
     rail_reset(&rail);
     memset(&faults, 0, sizeof faults);
     log_dtc_all_inactive(&img);         /* the latch clears; the history stays */
-    ign_low_ms = 0;
     underg_reset();
     boostg_reset();
+    boostm_reset();
     egrg_reset();
     io->egr_off = 0;
     bam_n = bam_i = 0;
     pend_dm1 = pend_dm2 = pend_dm4 = pend_hours = 0;
     inject_cancel(io->inj);
     io->meter_duty = METER_CLOSED;
-    io->state = mode_cmd(MODE_RESET, 0, 0);
+    io->state = mode_cmd(MODE_RESET, 0, 0, 0);
     io->fault_n = io->synced = 0;
     io->rpm = io->fuel_mg = 0;
 }
@@ -185,7 +186,7 @@ static void trip(ecu_io *io, int why)
             rec_trigger(&rec, &img, img.c.ecu_s, (uint8_t)why);  /* overwrite real trips */
         save_req = 1;
     }
-    io->state = mode_cmd(MODE_TRIP, 0, 0);
+    io->state = mode_cmd(MODE_TRIP, 0, 0, 0);
     inject_cancel(io->inj);
     io->meter_duty = METER_CLOSED;
 }
@@ -228,6 +229,18 @@ static void boost_guard(ecu_io *io)
         trip(io, TRIP_BOOST);
     }
     io->boost_dis = dis || io->state == ECU_SHUTDOWN;
+    /* the warnings: amber, never a stop */
+    uint8_t hr, hd, lr, ld;
+    boostm_step(io->v_boost_rail, io->state == ECU_CRANK || io->state == ECU_RUN,
+                &hr, &hd, &lr, &ld);
+    if (hr)
+        fault_raise(io, SPN_BOOST_RAIL, FMI_HIGH_MODERATE);
+    else if (hd)
+        fault_drop(io, SPN_BOOST_RAIL, FMI_HIGH_MODERATE);
+    if (lr)
+        fault_raise(io, SPN_BOOST_RAIL, FMI_LOW_MODERATE_B);
+    else if (ld)
+        fault_drop(io, SPN_BOOST_RAIL, FMI_LOW_MODERATE_B);
 }
 
 /* EGR stall: a stalled valve holds the bridge at 6.4 A. The time over
@@ -279,7 +292,7 @@ void ecu_crank_edge(ecu_io *io, uint32_t t_us)
     if (io->state == ECU_OFF)
         return;
     if (io->state == ECU_WAIT) {
-        io->state = mode_cmd(MODE_TOOTH, 0, 0);
+        io->state = mode_cmd(MODE_TOOTH, 0, 0, 0);
         event(io, EV_CRANK, 0);
     }
     uint8_t fault_before = crank_fault(&crank);
@@ -300,7 +313,7 @@ void ecu_crank_edge(ecu_io *io, uint32_t t_us)
         check(io, rpm);
 
     if (io->state == ECU_CRANK &&
-        (io->state = mode_cmd(MODE_RUN_OK, (uint8_t)crank_phased(&crank), rpm)) == ECU_RUN) {
+        (io->state = mode_cmd(MODE_RUN_OK, 0, (uint8_t)crank_phased(&crank), rpm)) == ECU_RUN) {
         gov_reset(&gov, FUEL_START_MG, rpm);
         img.c.starts++;
         event(io, EV_RUN, 0);
@@ -334,7 +347,8 @@ static uint8_t lamps(void)
     uint8_t l = 0;
     for (int i = 0; i < faults.n; i++)
         l |= ((faults.f[i].spn == SPN_SPEED && faults.f[i].fmi != FMI_LOW_MODERATE)
-              || faults.f[i].spn == SPN_POS || faults.f[i].spn == SPN_BOOST_RAIL)
+              || faults.f[i].spn == SPN_POS
+              || (faults.f[i].spn == SPN_BOOST_RAIL && faults.f[i].fmi == FMI_HIGH_SEVERE))
              ? LAMP_RED | LAMP_PROTECT        /* shutdown: the DSE stops only on Protect */
              : LAMP_AMBER;
     return l;
@@ -652,20 +666,16 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     pump_can2(io);
 
     if (io->state == ECU_SHUTDOWN) {
-        /* the latch clears only on a real ignition cycle: low for IGN_OFF_MS
-         * with the engine stopped, then high. A contact bounce does nothing. */
-        if (io->ignition) {
-            if (ign_low_ms >= IGN_OFF_MS)
-                reset_all(io);
-            ign_low_ms = 0;
-        } else {
-            ign_low_ms = rpm == 0 ? (uint16_t)(ign_low_ms + (ign_low_ms < IGN_OFF_MS)) : 0;
-        }
+        /* the state machine times the ignition cycle that clears the latch
+         * (mode.h); when it ends at OFF, everything else is reset here */
+        io->state = mode_cmd(MODE_TICK, io->ignition, 0, rpm);
+        if (io->state == ECU_OFF)
+            reset_all(io);
     }
     if (io->state == ECU_OFF) {
         if (!io->ignition)
             return;
-        io->state = mode_cmd(MODE_IGN_ON, 0, 0);
+        io->state = mode_cmd(MODE_TICK, io->ignition, 0, rpm);
         event(io, EV_IGN_ON, 0);
     }
 

@@ -1606,6 +1606,26 @@ part of the firmware image and is flashed with it, over SWD or the UDS
 bootloader. But the STM32 chip layer (ADC, timers, CAN, USB, flash) is
 still unwritten, for either build.
 
+**14 November, closing what still bothered us** (the owner: "can we fix
+any of these"):
+- **The boost's silent clamp, and a dead boost.** The hardware zener can
+  hold the rail at 105 V, below the firmware's 106 V trip, and nothing
+  said so. A dead boost showed only as "won't start". Now: held over
+  104 V for 2 s raises amber SPN 520192 FMI 16; under 80 V for 0.5 s
+  while cranking or running raises amber FMI 18. Neither stops the
+  engine. Both are in the C and in a new chart, `ecu_boostm`; the
+  back-to-back test agrees on every tick.
+- **The state machine owns its conditions.** `ecu.c` used to decide
+  when the ignition counted and when an ignition cycle had finished; it
+  now sends TICK every millisecond and the chart decides both. The
+  Simulink closed loop lost the copy of that logic it carried.
+- **One command checks everything:** `./verify.sh`.
+- **A test that passed by luck.** The hour-counter test depended on the
+  edge generator's leftover fraction of a microsecond from earlier
+  tests: that bias decided whether the governor's integral drifted up
+  or down over a simulated hour. Adding a test before it flipped it.
+  Each test now starts the edge clock clean.
+
 ---
 
 ## Where these came from

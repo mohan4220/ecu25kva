@@ -9,7 +9,7 @@
  *
  * Model version                  : 1.1
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Fri Nov 13 16:47:58 2026
+ * C/C++ source code generated on : Sat Nov 14 17:38:41 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: ARM Compatible->ARM Cortex-M
@@ -46,6 +46,7 @@
 
 /* Block states (default storage) for system '<Root>' */
 typedef struct {
+  uint16_T low;                        /* '<Root>/EngineMode' */
   uint8_T is_c3_ecu_mode;              /* '<Root>/EngineMode' */
   uint8_T is_Engine;                   /* '<Root>/EngineMode' */
 } DW_ecu_mode_T;
@@ -58,11 +59,11 @@ struct tag_RTM_ecu_mode_T {
 
 /* Model entry point functions */
 extern void ecu_mode_initialize(RT_MODEL_ecu_mode_T *const ecu_mode_M, uint8_T
-  *ecu_mode_U_cmd, uint8_T *ecu_mode_U_phased, real32_T *ecu_mode_U_rpm, uint8_T
-  *ecu_mode_Y_mode);
+  *ecu_mode_U_cmd, uint8_T *ecu_mode_U_ignition, uint8_T *ecu_mode_U_phased,
+  real32_T *ecu_mode_U_rpm, uint8_T *ecu_mode_Y_mode);
 extern void ecu_mode_step(RT_MODEL_ecu_mode_T *const ecu_mode_M, uint8_T
-  ecu_mode_U_cmd, uint8_T ecu_mode_U_phased, real32_T ecu_mode_U_rpm, uint8_T
-  *ecu_mode_Y_mode);
+  ecu_mode_U_cmd, uint8_T ecu_mode_U_ignition, uint8_T ecu_mode_U_phased,
+  real32_T ecu_mode_U_rpm, uint8_T *ecu_mode_Y_mode);
 
 /*-
  * The generated code includes comments that allow you to trace directly

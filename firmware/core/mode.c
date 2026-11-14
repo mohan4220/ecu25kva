@@ -10,13 +10,33 @@
 
 /* ---- engine mode ---- */
 static uint8_t st = ECU_OFF;
+static uint16_t low_ms;              /* in SHUTDOWN: ignition low, engine stopped, this long */
 
-uint8_t mode_cmd(uint8_t cmd, uint8_t phased, float rpm)
+uint8_t mode_cmd(uint8_t cmd, uint8_t ignition, uint8_t phased, float rpm)
 {
     switch (cmd) {
     case MODE_RESET:  st = ECU_OFF; break;
-    case MODE_TRIP:   st = ECU_SHUTDOWN; break;
-    case MODE_IGN_ON: if (st == ECU_OFF) st = ECU_WAIT; break;
+    case MODE_TRIP:
+        if (st != ECU_SHUTDOWN)
+            low_ms = 0;
+        st = ECU_SHUTDOWN;
+        break;
+    case MODE_TICK:
+        if (st == ECU_OFF && ignition) {
+            st = ECU_WAIT;
+        } else if (st == ECU_SHUTDOWN) {
+            /* the latch clears only on a real ignition cycle: low for
+             * IGN_OFF_MS with the engine stopped, then high. A contact
+             * bounce does nothing. */
+            if (ignition) {
+                if (low_ms >= IGN_OFF_MS)
+                    st = ECU_OFF;
+                low_ms = 0;
+            } else {
+                low_ms = rpm == 0 ? (uint16_t)(low_ms + (low_ms < IGN_OFF_MS)) : 0;
+            }
+        }
+        break;
     case MODE_TOOTH:  if (st == ECU_WAIT) st = ECU_CRANK; break;
     case MODE_RUN_OK: if (st == ECU_CRANK && phased && rpm >= RUN_RPM) st = ECU_RUN; break;
     default: break;
@@ -42,6 +62,28 @@ void boostg_step(float v_rail, uint8_t shut, uint8_t *dis, uint8_t *trip)
         boost_ov_ms = 0;
     }
     *dis = boost_ov || shut;
+}
+
+/* ---- boost rail warnings ---- */
+static uint16_t bh_on, bh_off, bl_on, bl_off;
+
+void boostm_reset(void) { bh_on = bh_off = bl_on = bl_off = 0; }
+
+static void debounce(uint8_t cond, uint16_t ms, uint16_t *on, uint16_t *off,
+                     uint8_t *raise, uint8_t *drop)
+{
+    *on = cond ? (uint16_t)(*on + (*on < ms)) : 0;
+    *off = cond ? 0 : (uint16_t)(*off + (*off < ms));
+    *raise = *on >= ms;
+    *drop = !*raise && *off >= ms;
+}
+
+void boostm_step(float v_rail, uint8_t fuelling, uint8_t *hi_raise, uint8_t *hi_drop,
+                 uint8_t *lo_raise, uint8_t *lo_drop)
+{
+    debounce(v_rail > BOOST_HIGH_V, BOOST_HIGH_MS, &bh_on, &bh_off, hi_raise, hi_drop);
+    debounce(fuelling && v_rail > 0 && v_rail < BOOST_LOW_V, BOOST_LOW_MS,
+             &bl_on, &bl_off, lo_raise, lo_drop);
 }
 
 /* ---- EGR stall guard ---- */

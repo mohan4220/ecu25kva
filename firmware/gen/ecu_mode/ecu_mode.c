@@ -9,7 +9,7 @@
  *
  * Model version                  : 1.1
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Fri Nov 13 16:47:58 2026
+ * C/C++ source code generated on : Sat Nov 14 17:38:41 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: ARM Compatible->ARM Cortex-M
@@ -32,13 +32,15 @@
 
 /* Model step function */
 void ecu_mode_step(RT_MODEL_ecu_mode_T *const ecu_mode_M, uint8_T ecu_mode_U_cmd,
-                   uint8_T ecu_mode_U_phased, real32_T ecu_mode_U_rpm, uint8_T
-                   *ecu_mode_Y_mode)
+                   uint8_T ecu_mode_U_ignition, uint8_T ecu_mode_U_phased,
+                   real32_T ecu_mode_U_rpm, uint8_T *ecu_mode_Y_mode)
 {
   DW_ecu_mode_T *ecu_mode_DW = ecu_mode_M->dwork;
+  uint32_T tmp;
 
   /* Chart: '<Root>/EngineMode' incorporates:
    *  Inport: '<Root>/cmd'
+   *  Inport: '<Root>/ignition'
    *  Inport: '<Root>/phased'
    *  Inport: '<Root>/rpm'
    */
@@ -50,6 +52,7 @@ void ecu_mode_step(RT_MODEL_ecu_mode_T *const ecu_mode_M, uint8_T ecu_mode_U_cmd
 
       /* Outport: '<Root>/mode' */
       *ecu_mode_Y_mode = 4U;
+      ecu_mode_DW->low = 0U;
       break;
 
      case 5U:
@@ -76,7 +79,7 @@ void ecu_mode_step(RT_MODEL_ecu_mode_T *const ecu_mode_M, uint8_T ecu_mode_U_cmd
        case ecu_mode_IN_OFF:
         /* Outport: '<Root>/mode' */
         *ecu_mode_Y_mode = 0U;
-        if (ecu_mode_U_cmd == 1) {
+        if ((ecu_mode_U_cmd == 1) && (ecu_mode_U_ignition != 0)) {
           ecu_mode_DW->is_Engine = ecu_mode_IN_WAIT;
 
           /* Outport: '<Root>/mode' */
@@ -107,12 +110,30 @@ void ecu_mode_step(RT_MODEL_ecu_mode_T *const ecu_mode_M, uint8_T ecu_mode_U_cmd
     /* Outport: '<Root>/mode' */
     /* case IN_SHUTDOWN: */
     *ecu_mode_Y_mode = 4U;
-    if (ecu_mode_U_cmd == 5) {
+    if ((ecu_mode_U_cmd == 5) || ((ecu_mode_U_cmd == 1) && (ecu_mode_U_ignition
+          != 0) && (ecu_mode_DW->low >= 500))) {
       ecu_mode_DW->is_c3_ecu_mode = ecu_mode_IN_Engine;
       ecu_mode_DW->is_Engine = ecu_mode_IN_OFF;
 
       /* Outport: '<Root>/mode' */
       *ecu_mode_Y_mode = 0U;
+    } else if (ecu_mode_U_cmd == 1) {
+      if (ecu_mode_U_ignition != 0) {
+        ecu_mode_DW->low = 0U;
+      } else if (ecu_mode_U_rpm == 0.0F) {
+        tmp = ecu_mode_DW->low + 1U;
+        if (ecu_mode_DW->low + 1U > 65535U) {
+          tmp = 65535U;
+        }
+
+        if ((uint16_T)tmp <= 500) {
+          ecu_mode_DW->low = (uint16_T)tmp;
+        } else {
+          ecu_mode_DW->low = 500U;
+        }
+      } else {
+        ecu_mode_DW->low = 0U;
+      }
     }
   }
 
@@ -121,8 +142,8 @@ void ecu_mode_step(RT_MODEL_ecu_mode_T *const ecu_mode_M, uint8_T ecu_mode_U_cmd
 
 /* Model initialize function */
 void ecu_mode_initialize(RT_MODEL_ecu_mode_T *const ecu_mode_M, uint8_T
-  *ecu_mode_U_cmd, uint8_T *ecu_mode_U_phased, real32_T *ecu_mode_U_rpm, uint8_T
-  *ecu_mode_Y_mode)
+  *ecu_mode_U_cmd, uint8_T *ecu_mode_U_ignition, uint8_T *ecu_mode_U_phased,
+  real32_T *ecu_mode_U_rpm, uint8_T *ecu_mode_Y_mode)
 {
   DW_ecu_mode_T *ecu_mode_DW = ecu_mode_M->dwork;
 
@@ -134,6 +155,7 @@ void ecu_mode_initialize(RT_MODEL_ecu_mode_T *const ecu_mode_M, uint8_T
 
   /* external inputs */
   *ecu_mode_U_cmd = 0U;
+  *ecu_mode_U_ignition = 0U;
   *ecu_mode_U_phased = 0U;
   *ecu_mode_U_rpm = 0.0F;
 
@@ -141,6 +163,7 @@ void ecu_mode_initialize(RT_MODEL_ecu_mode_T *const ecu_mode_M, uint8_T
   *ecu_mode_Y_mode = 0U;
 
   /* Chart: '<Root>/EngineMode' */
+  ecu_mode_DW->low = 0U;
   ecu_mode_DW->is_c3_ecu_mode = ecu_mode_IN_Engine;
   ecu_mode_DW->is_Engine = ecu_mode_IN_OFF;
 

@@ -4,5 +4,5 @@ function names = model_list()
 %   Simulink: governor, rail, the two calibration tables, injector law,
 %   trip decision. Stateflow: engine mode and the five guards.
 names = {'ecu_gov', 'ecu_rail', 'ecu_railset', 'ecu_soi', 'ecu_injdur', 'ecu_safety', ...
-         'ecu_mode', 'ecu_boostg', 'ecu_egrg', 'ecu_wifg', 'ecu_underg', 'ecu_relay'};
+         'ecu_mode', 'ecu_boostg', 'ecu_boostm', 'ecu_egrg', 'ecu_wifg', 'ecu_underg', 'ecu_relay'};
 end

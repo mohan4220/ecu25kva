@@ -45,7 +45,10 @@ PRINT_CSS = (DOCS / "print.css").read_text()
 
 CHROME = os.environ.get("CHROME") or shutil.which("google-chrome") \
     or shutil.which("chromium") \
-    or shutil.which("chromium-browser")
+    or shutil.which("chromium-browser") \
+    or next((c for c in (r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe")
+             if os.path.exists(c)), None)
 
 FONTS = (
     '<link rel="preconnect" href="https://fonts.googleapis.com">'

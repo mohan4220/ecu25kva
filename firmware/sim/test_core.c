@@ -377,6 +377,7 @@ static void ecu_up(ecu_io *io)
     eol_seal(&r);
     ecu_eol_load(io, &r, &r);              /* a unit that passed the line */
     tick_t = 0;
+    t_frac = 0;                          /* each test starts its edge clock clean */
     host_dead = 0;
     seals = 0;
 }
@@ -393,6 +394,8 @@ static void ticks(ecu_io *io, int n, int drain)
 /* Edges at `rpm`, with 1 ms ticks interleaved when with_ticks. The last
  * DM1's lamp byte seen while spinning is kept in spin_lamps. */
 static uint8_t spin_lamps;
+static uint32_t spin_spn;            /* the last DM1 seen while spinning: its first DTC */
+static uint8_t spin_fmi;
 static void ecu_spin(ecu_io *io, float rpm, int edges, uint32_t *t, int *tooth, int with_ticks)
 {
     for (int i = 0; i < edges; i++) {
@@ -401,7 +404,12 @@ static void ecu_spin(ecu_io *io, float rpm, int edges, uint32_t *t, int *tooth, 
             tick_t += 1000;
             host_tick(io);
             for (int k = 0; k < io->can_n; k++)
-                if (io->can[k].id == 0x18FECAEAu) spin_lamps = io->can[k].data[0];
+                if (io->can[k].id == 0x18FECAEAu) {
+                    const uint8_t *d = io->can[k].data;
+                    spin_lamps = d[0];
+                    spin_spn = d[2] | d[3] << 8 | (uint32_t)(d[4] & 0xE0) << 11;
+                    spin_fmi = d[4] & 0x1F;
+                }
             io->can_n = 0;
         }
         if (cam) ecu_cam_edge(io, *t - 10);
@@ -1829,6 +1837,37 @@ static void test_boost_ovp(void)
     CHECK(io.boost_dis == 0 && io.state == ECU_WAIT);
 }
 
+/* The rail's warnings (14 Nov): held over BOOST_HIGH_V for BOOST_HIGH_MS
+ * is amber FMI 16, never a stop -- the hardware zener clamping at 105 V,
+ * below the 106 V trip; it clears after as long below. Under BOOST_LOW_V
+ * for BOOST_LOW_MS while running is amber FMI 18, the engine kept going. */
+static void test_boost_warnings(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    io.v_boost_rail = 105.0f;                  /* clamped by the zener: no trip */
+    ticks(&io, BOOST_HIGH_MS - 10, 1);
+    CHECK(io.fault_n == 0);
+    ticks(&io, 10, 1);
+    CHECK(io.fault_n == 1 && io.state != ECU_SHUTDOWN && io.boost_dis == 0);
+    CHECK(dm1_first_spn(&io, 520192) && dm1_fmi == 16);
+    CHECK(dm1_lamps == LAMP_AMBER);
+    io.v_boost_rail = 99.7f;
+    ticks(&io, BOOST_HIGH_MS, 1);
+    CHECK(io.fault_n == 0);
+
+    uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    tick_t = t;
+    CHECK(io.state == ECU_RUN);
+    io.v_boost_rail = 60.0f;                   /* the boost has died */
+    ecu_hold(&io, 1500, BOOST_LOW_MS + 20, &t, &tooth);
+    CHECK(io.state == ECU_RUN && io.fault_n == 1);
+    ecu_hold(&io, 1500, 1100, &t, &tooth);     /* the next DM1, still running */
+    CHECK(io.state == ECU_RUN);
+    CHECK(spin_spn == 520192 && spin_fmi == 18 && spin_lamps == LAMP_AMBER);
+}
+
 /* EGR stall: EGR_STALL_MS over EGR_STALL_A coasts the bridge for
  * EGR_COOL_MS, amber, never a stop; the third stall holds it off until
  * the ignition cycles. A current that dips (PWM) still counts. */
@@ -1868,6 +1907,7 @@ int main(void)
 {
     test_io_size();
     test_boost_ovp();
+    test_boost_warnings();
     test_egr_stall();
     test_crank_sync();
     test_crank_rpm_gap();

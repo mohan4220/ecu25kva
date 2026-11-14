@@ -17,6 +17,7 @@
 #include "ecu_safety.h"
 #include "ecu_mode.h"
 #include "ecu_boostg.h"
+#include "ecu_boostm.h"
 #include "ecu_egrg.h"
 #include "ecu_wifg.h"
 #include "ecu_underg.h"
@@ -98,14 +99,18 @@ int main(void)
     /* ---- the Stateflow charts against mode.c, tick by tick ---- */
     const int N = 3000000;
     long bad, hit[5] = {0}, n1, n2;
-    { RT_MODEL_ecu_mode_T m; DW_ecu_mode_T dw; uint8_t y, c0 = 0, p0 = 0; float r0f = 0;
-      m.dwork = &dw; ecu_mode_initialize(&m, &c0, &p0, &r0f, &y); mode_cmd(MODE_RESET, 0, 0);
+    { RT_MODEL_ecu_mode_T m; DW_ecu_mode_T dw; uint8_t y, c0 = 0, i0 = 0, p0 = 0; float r0f = 0; hold_t hi = {0}, hs = {0};
+      m.dwork = &dw; ecu_mode_initialize(&m, &c0, &i0, &p0, &r0f, &y); mode_cmd(MODE_RESET, 0, 0, 0);
       bad = 0;
       for (int i = 0; i < N; i++) {
-          uint8_t cmd = (uint8_t)(1 + rand() % 5), ph = rand() & 1; float sp = rnd(0, 800);
-          if (cmd == MODE_RESET && rand() % 4) cmd = MODE_TOOTH;     /* resets rarer */
-          uint8_t a = mode_cmd(cmd, ph, sp);
-          ecu_mode_step(&m, cmd, ph, sp, &y);
+          /* mostly ticks, as the firmware sends them; the ignition and a
+           * stopped engine held long enough to complete ignition cycles */
+          int r = rand() % 100;
+          uint8_t cmd = r < 85 ? MODE_TICK : r < 92 ? MODE_TOOTH : r < 97 ? MODE_RUN_OK : r < 99 ? MODE_TRIP : MODE_RESET;
+          uint8_t ig = held(&hi, 0, 1, 1500) > 0.4f, ph = rand() & 1;
+          float sp = held(&hs, 0, 1, 2000) > 0.5f ? 0.0f : rnd(1, 800);
+          uint8_t a = mode_cmd(cmd, ig, ph, sp);
+          ecu_mode_step(&m, cmd, ig, ph, sp, &y);
           bad += a != y; hit[y]++;
       }
       report("engine mode chart (mismatched ticks)", (double)bad, 0);
@@ -120,6 +125,19 @@ int main(void)
       }
       report("boost guard chart (mismatched ticks)", (double)bad, 0);
       printf("   trips exercised: %ld\n", n1); }
+    { RT_MODEL_ecu_boostm_T m; DW_ecu_boostm_T dw; uint8_t y[4], c[4], f0 = 0; float v0 = 0; hold_t h = {0}, hf = {0};
+      m.dwork = &dw; ecu_boostm_initialize(&m, &v0, &f0, &y[0], &y[1], &y[2], &y[3]); boostm_reset(); bad = 0; n1 = n2 = 0;
+      for (int i = 0; i < N; i++) {
+          if (rand() % 400000 == 0) { boostm_reset(); ecu_boostm_initialize(&m, &v0, &f0, &y[0], &y[1], &y[2], &y[3]); }
+          float v = held(&h, -1, 110, 4000); if (v < 0) v = 0;
+          uint8_t f = held(&hf, 0, 1, 6000) > 0.3f;
+          boostm_step(v, f, &c[0], &c[1], &c[2], &c[3]);
+          ecu_boostm_step(&m, v, f, &y[0], &y[1], &y[2], &y[3]);
+          bad += y[0] != c[0] || y[1] != c[1] || y[2] != c[2] || y[3] != c[3];
+          n1 += c[0]; n2 += c[2];
+      }
+      report("boost warnings chart (mismatched ticks)", (double)bad, 0);
+      printf("   ticks warning high / low: %ld %ld\n", n1, n2); }
     { RT_MODEL_ecu_egrg_T m; DW_ecu_egrg_T dw; uint8_t o, r1, o2, r2; float i0 = 0; hold_t h = {0};
       m.dwork = &dw; ecu_egrg_initialize(&m, &i0, &o, &r1); egrg_reset(); bad = 0; n1 = 0;
       for (int i = 0; i < N; i++) {

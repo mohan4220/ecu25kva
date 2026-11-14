@@ -25,6 +25,14 @@
  * 99.7 V +/-2 %, so 106 V is a fault, not a tolerance. */
 #define BOOST_OV_V 106.0f
 #define BOOST_OV_MS 20
+/* The rail's warnings (14 Nov 2026), amber, never a stop. HIGH: held over
+ * 104 V, which is what the hardware zener's clamp looks like at its low
+ * corner (105 V), below BOOST_OV_V. LOW: under 80 V while cranking or
+ * running, a dead boost, which otherwise shows only as "won't start". */
+#define BOOST_HIGH_V 104.0f
+#define BOOST_HIGH_MS 2000
+#define BOOST_LOW_V 80.0f
+#define BOOST_LOW_MS 500
 /* EGR stall: the bridge draws 6.4 A into a stalled valve and its FETs and
  * the EGR feed FET are sized on a housing the prototype does not have.
  * Over EGR_STALL_A for EGR_STALL_MS, the bridge coasts (the valve springs

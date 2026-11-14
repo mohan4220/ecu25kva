@@ -376,6 +376,7 @@ dev-kit spec. Until then, the simulator decodes them from the image
 | Injection cancel | Any command not yet started when a trip happens | `inject_cancel` |
 | Metering valve closed in SHUTDOWN | Rail pressure falls after a trip | `rail.h` `METER_CLOSED` |
 | Underspeed warning | A set held below 1350 rpm for 3 s (overload, a fuel fault): SPN 190 FMI 18, amber. **No shutdown**: the DSE decides | `ecu.c` `underspeed()` |
+| Boost rail warnings | Held over 104 V for 2 s (the hardware zener clamping, below the 106 V trip): amber SPN 520192 FMI 16. Under 80 V for 0.5 s while cranking or running (a dead boost): amber FMI 18. Both clear after as long the other way | `mode.c` `boostm_step` |
 | Boost overvoltage | Rail over 106 V for 20 ms: stop the boost, SHUTDOWN, red SPN 520192 FMI 0. The boost is also off in SHUTDOWN. A 110 V zener on DIS/EN backs it in hardware (105–119 V) | `ecu.c` `boost_guard()`; injector sheet |
 | EGR stall | Over 5 A for 1.5 s: the bridge coasts 5 s, amber SPN 2791 FMI 6; the third stall holds it off to the next ignition cycle. **No shutdown** | `ecu.c` `egr_guard()` |
 | Window watchdog (TPS3850) | A hung main loop: the pulses stop and the chip resets the processor; the next power-up logs it | `ecu_tick_1ms`, `ecu_background` |
@@ -410,6 +411,8 @@ re-tuned on the engine.
 | `RUN_RPM` | ecu.c | 400 | design |
 | `IGN_OFF_MS` | ecu.h | 500 ms | design |
 | `BOOST_OV_V`, `BOOST_OV_MS` | ecu.h | 106 V for 20 ms | design (rail 99.7 V ±2 %) |
+| `BOOST_HIGH_V`, `BOOST_HIGH_MS` | ecu.h | 104 V for 2 s | design (the zener's 105 V low corner) |
+| `BOOST_LOW_V`, `BOOST_LOW_MS` | ecu.h | 80 V for 0.5 s, cranking or running | design |
 | `EGR_STALL_A`, `EGR_STALL_MS` | ecu.h | 5 A for 1.5 s | assumed (stall 6.4 A; the running current is unmeasured) |
 | `EGR_COOL_MS`, `EGR_STALL_TRIES` | ecu.h | 5 s, 3 | design |
 | `SAVE_GAP_S` | ecu.h | 10 s | design (flash wear) |
@@ -642,17 +645,28 @@ modules, behind the same functions:
 | Function(s) | Model | Kind |
 |---|---|---|
 | `mode_cmd` | `ecu_mode` | Stateflow: OFF, WAIT, CRANK, RUN, SHUTDOWN |
-| `boostg_*`, `egrg_*`, `wifg_*`, `underg_*`, `relay_*` | `ecu_boostg`, `ecu_egrg`, `ecu_wifg`, `ecu_underg`, `ecu_relay` | Stateflow |
+| `boostg_*`, `boostm_*`, `egrg_*`, `wifg_*`, `underg_*`, `relay_*` | `ecu_boostg`, `ecu_boostm`, `ecu_egrg`, `ecu_wifg`, `ecu_underg`, `ecu_relay` | Stateflow |
 | `gov_reset`, `gov_step` | `ecu_gov` | Simulink |
 | `rail_reset`, `rail_step`, `rail_set_bar` | `ecu_rail`, `ecu_railset` | Simulink |
 | `inject_soi_btdc`, `inject_dur_us` | `ecu_soi`, `ecu_injdur` | Simulink |
 | `safety_check` | `ecu_safety` | Simulink |
 
 The state machine is driven by commands, because both the crank-tooth
-interrupt and the 1 ms tick change it: `ecu.c` sends IGN_ON, TOOTH,
-RUN_OK, TRIP or RESET, and the chart answers with the new state. `ecu.c`
+interrupt and the 1 ms tick change it: `ecu.c` sends TICK (every 1 ms,
+with the ignition and speed), TOOTH, RUN_OK, TRIP or RESET, and the
+chart answers with the new state. Since 14 November the chart owns its
+conditions: the ignition for OFF → WAIT, and the ignition cycle that
+ends SHUTDOWN (low for `IGN_OFF_MS` with the engine stopped, then on).
+When the chart lands in OFF that way, `ecu.c` resets everything else. `ecu.c`
 keeps everything around it (events, the governor reset on RUN entry,
 counters, DTCs), and `gov_setpoint` stays hand-written in both builds.
+
+**Checking everything at once:** `./verify.sh` at the top of the
+repository runs the circuits, schematics, both firmware builds, the
+back-to-back test, both sets of scenarios and the service tool, and
+names whatever failed. `--boards` adds the KiCad board checks,
+`--matlab` the Simulink closed loop. Run it before every commit that
+touches `firmware/`, `model/` or `hw/`.
 
 **Building it:** `make test-model` (unit tests) and
 `build/libecu_model.*` (the scenarios, with `ECU_LIB=libecu_model`) in

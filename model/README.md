@@ -7,8 +7,9 @@ turns into the C that runs on the ECU. Design: `docs/superpowers/specs/2026-11-1
 
 | Model | Kind | Replaces (hand-written reference) |
 |---|---|---|
-| `ecu_mode` | Stateflow | the engine state machine: OFF → WAIT → CRANK → RUN, any → SHUTDOWN, RESET → OFF (`mode.c` `mode_cmd`) |
+| `ecu_mode` | Stateflow | the engine state machine: OFF → WAIT → CRANK → RUN, any → SHUTDOWN, back to OFF on RESET or an ignition cycle it times itself (`mode.c` `mode_cmd`) |
 | `ecu_boostg` | Stateflow | boost-rail overvoltage guard: trip once, latched (`boostg_step`) |
+| `ecu_boostm` | Stateflow | boost-rail warnings: held high (the zener clamping), low while fuelling (a dead boost) (`boostm_step`) |
 | `ecu_egrg` | Stateflow | EGR stall guard: coast, retry, lock out (`egrg_step`) |
 | `ecu_wifg` | Stateflow | water-in-fuel debounce (`wifg_step`) |
 | `ecu_underg` | Stateflow | underspeed warning (`underg_step`) |
@@ -23,8 +24,10 @@ turns into the C that runs on the ECU. Design: `docs/superpowers/specs/2026-11-1
 
 `ecu_app` references the component models themselves (Model blocks), so
 what you simulate is what the code is generated from. Its sequencer
-(the order `ecu.c` drives the state machine in) and its mean-value
-engine (the constants of `firmware/sim/engine.py`) are simulation-only.
+picks which command `ecu.c` would send each tick (TRIP, TOOTH, RUN_OK,
+else TICK); what the ignition means is the chart's own logic. The
+sequencer and the mean-value engine (the constants of
+`firmware/sim/engine.py`) are simulation-only.
 
 **Not modelled, on purpose:** crank-tooth decoding, the per-tooth
 injection scheduling, J1939, UDS, flash storage and the bootloader.
@@ -71,6 +74,10 @@ API, and the hand-written bodies drop out. Without `ECU_MODEL` the
 hand-written reference is built, as before.
 
 ## How it is proven
+
+`./verify.sh` (top of the repository) runs all of this except the
+Simulink run, which `./verify.sh --matlab` adds.
+
 
 | Test | What it shows |
 |---|---|

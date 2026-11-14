@@ -124,7 +124,9 @@ Two traps:
 
 There is no Rust toolchain on that machine, so the simulator was not rebuilt.
 
-Verify the whole project in one go:
+Verify the whole project in one go: **`./verify.sh`** (since 14 Nov;
+`--boards` adds the KiCad board checks, `--matlab` the Simulink closed
+loop). It names every step that failed. By hand, the core of it is:
 
 ```bash
 set -o pipefail

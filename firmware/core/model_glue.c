@@ -23,6 +23,7 @@
 #include "mode.h"
 #include "ecu_mode.h"
 #include "ecu_boostg.h"
+#include "ecu_boostm.h"
 #include "ecu_egrg.h"
 #include "ecu_wifg.h"
 #include "ecu_underg.h"
@@ -114,16 +115,16 @@ static RT_MODEL_ecu_mode_T mode_m;
 static DW_ecu_mode_T mode_dw;
 static uint8_t mode_y, mode_up;
 
-uint8_t mode_cmd(uint8_t cmd, uint8_t phased, float rpm)
+uint8_t mode_cmd(uint8_t cmd, uint8_t ignition, uint8_t phased, float rpm)
 {
     if (!mode_up) {                      /* first use: the chart at its default, OFF */
-        uint8_t c = 0, p = 0;
+        uint8_t c = 0, i = 0, p = 0;
         float r = 0;
         mode_m.dwork = &mode_dw;
-        ecu_mode_initialize(&mode_m, &c, &p, &r, &mode_y);
+        ecu_mode_initialize(&mode_m, &c, &i, &p, &r, &mode_y);
         mode_up = 1;
     }
-    ecu_mode_step(&mode_m, cmd, phased, rpm, &mode_y);
+    ecu_mode_step(&mode_m, cmd, ignition, phased, rpm, &mode_y);
     return mode_y;
 }
 
@@ -145,6 +146,29 @@ void boostg_step(float v_rail, uint8_t shut, uint8_t *dis, uint8_t *trip)
     ecu_boostg_step(&boostg_m, v_rail, shut, &boostg_dis, &boostg_trip);
     *dis = boostg_dis;
     *trip = boostg_trip;
+}
+
+/* boost rail warnings: model/ecu_boostm.slx */
+static RT_MODEL_ecu_boostm_T boostm_m;
+static DW_ecu_boostm_T boostm_dw;
+static uint8_t boostm_y[4];
+
+void boostm_reset(void)
+{
+    float v = 0;
+    uint8_t f = 0;
+    boostm_m.dwork = &boostm_dw;
+    ecu_boostm_initialize(&boostm_m, &v, &f, &boostm_y[0], &boostm_y[1], &boostm_y[2], &boostm_y[3]);
+}
+
+void boostm_step(float v_rail, uint8_t fuelling, uint8_t *hi_raise, uint8_t *hi_drop,
+                 uint8_t *lo_raise, uint8_t *lo_drop)
+{
+    ecu_boostm_step(&boostm_m, v_rail, fuelling, &boostm_y[0], &boostm_y[1], &boostm_y[2], &boostm_y[3]);
+    *hi_raise = boostm_y[0];
+    *hi_drop = boostm_y[1];
+    *lo_raise = boostm_y[2];
+    *lo_drop = boostm_y[3];
 }
 
 /* EGR stall guard: model/ecu_egrg.slx */
