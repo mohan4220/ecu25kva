@@ -28,6 +28,11 @@
 #include "ecu_wifg.h"
 #include "ecu_underg.h"
 #include "ecu_relay.h"
+#include "sensors.h"
+#include "ecu_sensors.h"
+#include "j1939.h"
+#include "ecu_j1939.h"
+#include <string.h>
 
 /* ---- governor: model/ecu_gov.slx ----
  * gov_reset is the model's rst input, applied on the next step: the C
@@ -249,5 +254,64 @@ void relay_step(uint8_t ignition, uint8_t stopped, uint8_t written,
     *afterrun = relay_after;
     *save = relay_save;
 }
+
+/* ---- sensors: model/ecu_sensors.slx ----
+ * One instance (ecu.c's). The model keeps the debounce counts, latched
+ * FMIs and last values in its own state; sens_t gets a copy each step, so
+ * ecu.c reads sens.val / sens.fmi as before. The trims are its inputs. */
+static RT_MODEL_ecu_sensors_T sens_m;
+static DW_ecu_sensors_T sens_dw;
+static float trim_g[S_N + 1] = { 1, 1, 1, 1, 1, 1 };
+static float trim_o[S_N + 1];
+
+void sens_trim(const float gain[S_N + 1], const float offset[S_N + 1])
+{
+    memcpy(trim_g, gain, sizeof trim_g);
+    memcpy(trim_o, offset, sizeof trim_o);
+}
+
+void sens_reset(sens_t *s)
+{
+    /* the generated initialize zeroes every array it is given: scratch
+     * ones, never the live trims */
+    float v[S_N] = { 0 }, v5 = 0, g[S_N + 1], o[S_N + 1];
+    sens_m.dwork = &sens_dw;
+    ecu_sensors_initialize(&sens_m, v, &v5, g, o, s->val, s->fmi);
+    for (int i = 0; i < S_N; i++) {
+        s->val[i] = sens_default[i];
+        s->bad_ms[i] = 0;
+        s->fmi[i] = 0;
+    }
+}
+
+void sens_step_1ms(sens_t *s, const float v[S_N], float v_5v)
+{
+    float in[S_N];
+    memcpy(in, v, sizeof in);
+    sens_m.dwork = &sens_dw;
+    ecu_sensors_step(&sens_m, in, v_5v, trim_g, trim_o, s->val, s->fmi);
+    for (int i = 0; i < S_N; i++)
+        s->bad_ms[i] = sens_dw.bad_z_DSTATE[i];
+}
+
+/* ---- J1939 periodic PGNs: model/ecu_j1939.slx ("Set PGNs") ----
+ * Stateless: every call computes all four and keeps the one asked for.
+ * The identifiers stay in C (j1939_id), as does everything that sends. */
+static RT_MODEL_ecu_j1939_T j1939_m;
+
+static void pgns(ecu_can *f, int which, uint8_t prio, uint32_t pgn, float rpm, float clt, uint8_t clt_ok,
+                 float oil, uint8_t oil_ok, uint32_t engine_s)
+{
+    uint8_t y[4][8];
+    ecu_j1939_step(&j1939_m, rpm, clt, clt_ok, oil, oil_ok, engine_s, y[0], y[1], y[2], y[3]);
+    f->id = j1939_id(prio, pgn, J1939_SA);
+    f->len = 8;
+    memcpy(f->data, y[which], 8);
+}
+
+void j1939_eec1(ecu_can *f, float rpm) { pgns(f, 0, 3, 61444, rpm, 0, 0, 0, 0, 0); }
+void j1939_et1(ecu_can *f, float clt_c, int valid) { pgns(f, 1, 6, 65262, 0, clt_c, (uint8_t)(valid != 0), 0, 0, 0); }
+void j1939_eflp1(ecu_can *f, float oil_kpa, int valid) { pgns(f, 2, 6, 65263, 0, 0, 0, oil_kpa, (uint8_t)(valid != 0), 0); }
+void j1939_hours(ecu_can *f, uint32_t engine_s) { pgns(f, 3, 6, PGN_HOURS, 0, 0, 0, 0, 0, engine_s); }
 
 #endif

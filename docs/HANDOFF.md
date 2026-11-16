@@ -139,7 +139,7 @@ set -o pipefail
 **The application models (Simulink/Stateflow) are generated too** (since
 13 Nov, `model/README.md`). Edit `model/mdl_<name>.m`, then in MATLAB
 `build_all({'<name>'})`, `gen_code({'<name>'})` and
-`sim_ecu_app` (in `model/test`). Then rebuild both firmware builds and
+`sim_ecu25kva` (in `model/test`). Then rebuild both firmware builds and
 run the unit tests, the scenarios (`ECU_LIB=libecu_model`) and
 `model/test/run_b2b.sh`. On Windows call
 `.venv/Lib/site-packages/ziglang/zig.exe cc` directly:

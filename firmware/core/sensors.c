@@ -9,6 +9,7 @@ const float sens_v_lo[S_N] = { 0.1f, 0.2f, 0.2f, 0.2f, 0.2f };
 static const float span_lo[S_N] = { 0, 0, 0, 50.0f, 0 };
 static const float span_hi[S_N] = { 0, 1000.0f, 1800.0f, 400.0f, 100.0f };
 
+#ifndef ECU_MODEL    /* else generated: model/ecu_sensors.slx, via model_glue.c */
 static float trim_g[S_N + 1] = { 1, 1, 1, 1, 1, 1 };
 static float trim_o[S_N + 1];
 
@@ -19,6 +20,8 @@ void sens_trim(const float gain[S_N + 1], const float offset[S_N + 1])
         trim_o[i] = offset[i];
     }
 }
+
+#endif
 
 #define NTC_R25 2500.0f             /* assumed: ohms at 20 degC */
 #define NTC_BETA 3450.0f
@@ -33,6 +36,7 @@ float sens_convert(int ch, float v)
     return span_lo[ch] + (v - 0.5f) / 4.0f * (span_hi[ch] - span_lo[ch]);
 }
 
+#ifndef ECU_MODEL
 void sens_reset(sens_t *s)
 {
     for (int i = 0; i < S_N; i++) {
@@ -69,3 +73,4 @@ void sens_step_1ms(sens_t *s, const float v[S_N], float v_5v)
             s->val[i] = sens_convert(i, vr);
     }
 }
+#endif

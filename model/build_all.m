@@ -5,7 +5,7 @@ function build_all(names)
 here = fileparts(mfilename('fullpath'));
 addpath(here, fullfile(here, 'lib'));
 P = ecu_params();
-if nargin < 1, names = [model_list(), {'ecu_app'}]; end
+if nargin < 1, names = [model_list(), {'ecu25kva'}]; end
 for i = 1:numel(names)
     if exist(['mdl_' names{i}], 'file')
         feval(['mdl_' names{i}], P);

@@ -1,104 +1,127 @@
-# The ECU application in Simulink and Stateflow
+# The 25 kVA ECU in Simulink and Stateflow
 
-The control and state logic of the firmware, as models that Embedded Coder
-turns into the C that runs on the ECU. Design: `docs/superpowers/specs/2026-11-13-simulink-model-design.md`.
+The ECU's application as models that Embedded Coder turns into the C the
+board runs. Open **`ecu25kva.slx`**: it is the whole ECU in one model,
+and its buttons generate the code, build the firmware and flash the board.
 
-## What is here
+**Licence.** The MATLAB here is an academic licence, and every generated
+file says so. This is for learning and bench testing. Before any
+commercial use, regenerate the code under a commercial MATLAB, Simulink
+and Embedded Coder licence and run `./verify.sh --matlab` again.
+
+## `ecu25kva.slx`
+
+```
+ [Generate code] [Build firmware] [Bootloader] [Flash (ST-LINK)] [Flash (J-Link)]
+ [Clean project] [Run all checks] [Simulate]   [Select_PCB ▾]    [software 0x0100]
+
+ TRIGGERS ──────────────▶ MODEL ──────────────────────────────▶ PLANT (simulation only)
+ initialisation            initialisation   trims
+ cyl_event_isr             cyl_event_isr    ecu_soi, ecu_injdur
+ one_ms_task               one_ms_task      ecu_sensors, ecu_safety, ecu_mode, ecu_gov,
+                                            ecu_railset, ecu_rail, six guards
+ twenty_ms_task            twenty_ms_task   Set PGNs (ecu_j1939), send EEC1
+ five_hundred_ms_task      ...              send EFL/P1
+ one_sec_task                               send ET1, the engine-hours count
+ ten_sec_task                               send HOURS
+```
+
+- **TRIGGERS** is a Stateflow chart sending function-call events at the
+  firmware's own rates. `cyl_event_isr` stands in for the crank-tooth
+  interrupt, with one event per cylinder, because the plant has no teeth.
+- **MODEL** holds the component models themselves, as Model blocks. What
+  you simulate is what the code is generated from. The sequencer inside
+  `one_ms_task` reproduces the order `ecu.c` sends the state machine its
+  commands. It runs only in simulation; on the board, `ecu.c` does it.
+- **PLANT** is the engine and generator: a mean-value model with
+  `firmware/sim/engine.py`'s constants. It also models the rail, and the
+  sensor voltages that the ECU then converts back.
+
+### The buttons (double-click; each is also `ecu_project <action>`)
+
+| Button | Does |
+|---|---|
+| Generate code | C from every component model into `firmware/gen/` |
+| Build firmware | generate, then `firmware/stm32/build.py` and the image checks |
+| Bootloader | build, then flash `boot.hex` and the application over SWD |
+| Flash (ST-LINK) / (J-Link) | flash `app_model_signed.hex`, the code from these models |
+| Clean project | delete the build folders (the committed `firmware/gen` stays) |
+| Run all checks | `./verify.sh` |
+| Simulate | `sim_ecu25kva`: run it closed loop and check it (16 checks) |
+| Select_PCB | prototype STM32G474 (builds) or production S32K148 (no chip layer yet) |
+
+Errors from code generation, the compiler, the image checks or the probe
+go to the command window and to a dialog.
+
+## The component models
 
 | Model | Kind | Replaces (hand-written reference) |
 |---|---|---|
-| `ecu_mode` | Stateflow | the engine state machine: OFF → WAIT → CRANK → RUN, any → SHUTDOWN, back to OFF on RESET or an ignition cycle it times itself (`mode.c` `mode_cmd`) |
-| `ecu_boostg` | Stateflow | boost-rail overvoltage guard: trip once, latched (`boostg_step`) |
-| `ecu_boostm` | Stateflow | boost-rail warnings: held high (the zener clamping), low while fuelling (a dead boost) (`boostm_step`) |
-| `ecu_egrg` | Stateflow | EGR stall guard: coast, retry, lock out (`egrg_step`) |
+| `ecu_sensors` | Simulink | volts to units, the 5 V correction, end-of-line trims, debounced range faults (`sensors.c`) |
+| `ecu_safety` | Simulink | the trip decision (`safety_check`) |
+| `ecu_mode` | Stateflow | the engine state machine: OFF, WAIT, CRANK, RUN, SHUTDOWN (`mode.c` `mode_cmd`) |
+| `ecu_gov` | Simulink | speed governor, PI with droop and start ramp (`govern.c`) |
+| `ecu_railset` | Simulink | rail setpoint table (`rail_set_bar`) |
+| `ecu_rail` | Simulink | rail-pressure PI on the metering valve (`rail.c`) |
+| `ecu_soi` | Simulink | start-of-injection table (`inject_soi_btdc`) |
+| `ecu_injdur` | Simulink | injector law, fuel to energising time (`inject_dur_us`) |
+| `ecu_boostg` | Stateflow | boost-rail overvoltage trip, latched (`boostg_step`) |
+| `ecu_boostm` | Stateflow | boost-rail warnings, high and low (`boostm_step`) |
+| `ecu_egrg` | Stateflow | EGR stall: coast, retry, lock out (`egrg_step`) |
 | `ecu_wifg` | Stateflow | water-in-fuel debounce (`wifg_step`) |
 | `ecu_underg` | Stateflow | underspeed warning (`underg_step`) |
 | `ecu_relay` | Stateflow | main relay and after-run (`relay_step`) |
-| `ecu_gov` | Simulink | speed governor, PI with droop and start ramp (`govern.c`) |
-| `ecu_rail` | Simulink | rail-pressure PI on the metering valve (`rail.c` `rail_step`) |
-| `ecu_railset` | Simulink | rail setpoint table (`rail_set_bar`) |
-| `ecu_soi` | Simulink | start-of-injection table (`inject_soi_btdc`) |
-| `ecu_injdur` | Simulink | injector law, fuel → energising time (`inject_dur_us`) |
-| `ecu_safety` | Simulink | the trip decision (`safety_check`) |
-| `ecu_app` | Simulink | **all of the above, closed loop with an engine**: start, load step, stop switch |
+| `ecu_j1939` | Simulink | the J1939 PGNs' data: EEC1, ET1, EFL/P1, HOURS (`j1939.c`) |
 
-`ecu_app` references the component models themselves (Model blocks), so
-what you simulate is what the code is generated from. Its sequencer
-picks which command `ecu.c` would send each tick (TRIP, TOOTH, RUN_OK,
-else TICK); what the ignition means is the chart's own logic. The
-sequencer and the mean-value engine (the constants of
-`firmware/sim/engine.py`) are simulation-only.
+They have no rate of their own (sample-time independent). They take the
+rate of whatever task calls them.
 
-**Not modelled, on purpose:** crank-tooth decoding, the per-tooth
-injection scheduling, J1939, UDS, flash storage and the bootloader.
-They stay hand-written C in `firmware/core`: they are event- and
-byte-driven, and already tested.
+**What stays hand-written C, on purpose:** the parts that are driven by
+events or bytes: crank-tooth decoding and per-tooth injection timing,
+the fault memory and event log, the DM1/DM2/DM4 transport and requests,
+UDS, ISO-TP, the bootloader, flash storage, and the chip drivers
+(`firmware/stm32`). They are already tested; a model would add nothing.
 
-## Open and simulate
+## Changing something
 
-In MATLAB, from this folder:
+**Edit the models in Simulink** (any `ecu_*.slx`), save, then press
+**Generate code** and **Build firmware**. Then **Run all checks**:
+- **The back-to-back test** compares every model with its hand-written
+  reference. If you changed behaviour on purpose, it reports the
+  difference. Then change the C reference to match, or retire it.
+- **The scenarios** check the engine still starts, holds 1500 rpm and stops.
 
-```matlab
-addpath(pwd, fullfile(pwd, 'lib'), fullfile(pwd, 'test'))
-open_system ecu_app        % or any ecu_*.slx
-sim_ecu_app                % runs it, checks it, writes test/ecu_app_sim.png
-```
+Constants come from the firmware's C headers (`ecu_params.m`) when a model
+is built from its script (`mdl_<name>.m`). The scripts lay a model out
+from scratch: running `build_all` **overwrites edits made in Simulink**,
+so use it only to start a model over.
 
-## Change something
-
-The `.slx` files are **built by scripts**: edit `mdl_<name>.m`, never the
-model, then:
-
-```matlab
-build_all({'ecu_gov'})     % or build_all() for every model
-gen_code({'ecu_gov'})      % C into firmware/gen/ecu_gov/
-```
-
-Constants are not typed here. `ecu_params.m` reads them from the
-firmware's headers and tables (`govern.h`, `rail.c` ...), so a
-calibration change is made once, in the C, and reaches the models on the
-next `build_all`. The generated C is committed, so the firmware builds
-without MATLAB.
-
-Code generation settings (`lib/mb.m`): ERT, reusable functions with root
-I/O as arguments, inlined parameters, single precision, ARM Cortex-M,
-utilities in `firmware/gen/shared/`.
-
-## How the firmware uses it
-
-Build the firmware with `ECU_MODEL` defined and `firmware/gen/*` on the
-include path (`make test-model` in `firmware/sim`). Then
-`firmware/core/model_glue.c` provides `gov_step`, `rail_step`,
-`mode_cmd`, `boostg_step` ... from the generated code, with the same
-API, and the hand-written bodies drop out. Without `ECU_MODEL` the
-hand-written reference is built, as before.
+Code generation (`lib/mb.m`): ERT, reusable functions with root I/O as
+arguments, inlined parameters, single precision, ARM Cortex-M, C99,
+utilities in `firmware/gen/shared/`. The generated C is committed, so the
+firmware builds without MATLAB.
 
 ## How it is proven
 
-`./verify.sh` (top of the repository) runs all of this except the
-Simulink run, which `./verify.sh --matlab` adds.
-
+`./verify.sh` runs all of this except the Simulink run; `--matlab` adds it.
 
 | Test | What it shows |
 |---|---|
 | `firmware/sim` unit tests, built with `ECU_MODEL` | every firmware unit test passes on the generated code |
 | SIL scenarios, `ECU_LIB=libecu_model` | the 16 engine scenarios pass on it |
-| `test/run_b2b.sh` | each generated model against its hand-written C, on millions of random inputs: the PI loops, injector law, trip decision and all six charts agree **exactly**; the two tables within one or two units in the last place |
-| `test/sim_ecu_app.m` | the closed loop in Simulink meets the SIL scenarios' limits |
+| `test/run_b2b.sh` | each generated model against its hand-written C, on millions of random inputs. The PI loops, injector law, trip decision, all six charts, the sensor conversion and the J1939 bytes agree **exactly**; the two tables within one or two units in the last place |
+| `test/sim_ecu25kva.m` | the whole model, closed loop: start, load, stop, the sensor chain, the injection, the J1939 frames |
+| `firmware/stm32/test_image.py` | the image built from this code is one the bootloader accepts |
 
 The tables differ in the last place because Simulink's interpolation
 orders its arithmetic differently from `table.h`. The back-to-back test
-builds with `-ffp-contract=off`: with fused multiply-add the compiler,
-not the model, can move a result by one unit in the last place.
+builds with `-ffp-contract=off`, because with fused multiply-add the
+compiler, not the model, can move a result by one unit in the last place.
 
 ## Flashing it
 
-The generated code is ordinary C99 in the firmware tree. It is flashed
-as part of the firmware image, built with `ECU_MODEL`, by the same
-route as the hand-written build: ST-LINK on the prototype's SWD header,
-or the UDS bootloader over CAN or USB.
-
-**The STM32 chip layer exists since 14 November** (`firmware/stm32/`).
-`firmware/stm32/build.py` builds this code into `app_model.bin` /
-`app_model_signed.hex`, ready to flash on the prototype. It has been
-compiled, linked and checked on the PC; it has not run on a board yet.
+**Build firmware** produces `firmware/stm32/build/app_model_signed.hex`:
+these models' code plus the hand-written C and the STM32 chip layer.
+Flash it with **Flash (ST-LINK)** or **Flash (J-Link)**, or over USB or
+CAN with the service tool (`firmware/stm32/README.md`). It has been
+compiled, linked and checked on the PC; it has not yet run on a board.

@@ -62,6 +62,11 @@ methods (Static)
     end
 
     function finish(m)
+        % The component models run inside any task (ecu25kva's
+        % function-call subsystems): they must not have a rate of their own.
+        if any(strcmp(m, model_list()))
+            set_param(m, 'SampleTimeConstraint', 'STIndependent');
+        end
         Simulink.BlockDiagram.arrangeSystem(m);
         save_system(m, fullfile(mb.dir(), [m '.slx']));
     end

@@ -13,6 +13,7 @@ static void blank(ecu_can *f, uint8_t prio, uint32_t pgn)
     memset(f->data, 0xFF, 8);
 }
 
+#ifndef ECU_MODEL    /* else generated: model/ecu_j1939.slx, via model_glue.c */
 static uint8_t byte_clamp(float x) { return x < 0 ? 0 : x > 250 ? 250 : (uint8_t)(x + 0.5f); }
 
 void j1939_eec1(ecu_can *f, float rpm)
@@ -37,6 +38,7 @@ void j1939_eflp1(ecu_can *f, float oil_kpa, int valid)
     if (valid)
         f->data[3] = byte_clamp(oil_kpa / 4);
 }
+#endif
 
 int j1939_tp(ecu_can *out, int max, uint8_t prio, uint32_t pgn, const uint8_t *buf, int n)
 {
@@ -134,6 +136,7 @@ int j1939_dm4(ecu_can *out, int max, const nvm_image *m)
     return j1939_tp(out, max, 6, PGN_DM4, buf, n);
 }
 
+#ifndef ECU_MODEL
 void j1939_hours(ecu_can *f, uint32_t engine_s)
 {
     blank(f, 6, PGN_HOURS);
@@ -141,6 +144,7 @@ void j1939_hours(ecu_can *f, uint32_t engine_s)
     for (int i = 0; i < 4; i++)
         f->data[i] = (uint8_t)(raw >> (8 * i));
 }
+#endif
 
 uint32_t j1939_request_pgn(const ecu_can *f, uint8_t sa)
 {

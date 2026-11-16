@@ -930,8 +930,9 @@ Every check passes on this Windows machine: 26/26 circuit blocks; the netlist wi
 - **Twelve models**, built by scripts in `model/`: six Stateflow charts (the engine state machine, and the boost, EGR stall, water-in-fuel, underspeed and main-relay guards) and six Simulink models (governor, rail control, the two tables, injector law, trip decision). Constants are read from the firmware's C.
 - **Embedded Coder generates the C** into `firmware/gen/`. Building with `ECU_MODEL` swaps it in behind the same functions.
 - **Proven equal:** all unit tests and 16/16 scenarios pass on the generated build; the back-to-back test agrees exactly on millions of random inputs (the tables to a unit in the last place).
-- **`ecu_app`**: the whole application closed loop with an engine, simulated in Simulink.
+- **`ecu25kva`** (since 16 Nov; replaced `ecu_app`): the whole ECU in one model, TRIGGERS, MODEL, PLANT and the project buttons, simulated closed loop (decisions log §22).
 - **Flashing:** the code goes in the firmware image like any other. Since 14 Nov the STM32 chip layer exists (`firmware/stm32/`); not yet run on a board.
+- **16 Nov:** `model/ecu25kva.slx`, the whole ECU in one model (TRIGGERS, MODEL, PLANT, buttons that generate, build and flash); sensors and J1939 data now models too, bit-exact with the C (decisions log §22). Academic MATLAB licence: regenerate under a commercial one before commercial use.
 - **14 Nov, later:** the STM32G474 chip layer, `firmware/stm32/` (decisions log §21): images built with the project's zig, peak and hold by the ADC watchdog, a bootloader host that erases lazily. PC-checked; the bench is next.
 - **14 Nov:** boost-rail warnings (held high: the zener clamping; low while fuelling: a dead boost), the state machine owning the ignition cycle, and `./verify.sh` to run every check at once (decisions log §20).
 

@@ -650,6 +650,11 @@ board is. The S32K148's are still to write.
 
 ## 17. The Simulink and Stateflow models (13 November 2026)
 
+**Since 16 November:** sensor conversion (`ecu_sensors`) and the J1939
+PGN data (`ecu_j1939`) are models too, and `model/ecu25kva.slx` holds the
+whole ECU with buttons that generate, build and flash it (decisions log
+§22, `model/README.md`). The `.slx` files are now what you edit.
+
 The control and state logic also exists as models, in `model/`, and
 Embedded Coder generates C from them into `gen/`. Building with
 `ECU_MODEL` defined puts that generated code in place of the hand-written

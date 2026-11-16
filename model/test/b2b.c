@@ -22,6 +22,11 @@
 #include "ecu_wifg.h"
 #include "ecu_underg.h"
 #include "ecu_relay.h"
+#include "sensors.h"
+#include "j1939.h"
+#include "ecu_sensors.h"
+#include "ecu_j1939.h"
+#include <string.h>
 
 /* A random input that holds for a random while: the guards count time,
  * so white noise would never reach a threshold. */
@@ -176,5 +181,53 @@ int main(void)
       }
       report("main relay chart (mismatched ticks)", (double)bad, 0);
       printf("   after-runs started: %ld, ticks released: %ld\n", n1, n2); }
+    /* sensors: volts across and beyond every range, a sagging 5 V, trims
+     * that change at run time, resets; every value and FMI, every tick */
+    { RT_MODEL_ecu_sensors_T m; DW_ecu_sensors_T dw; sens_t ref; float val[S_N]; uint8_t fmi[S_N];
+      float g[S_N + 1], o[S_N + 1], v[S_N], v5 = 5; hold_t hv[S_N], h5 = {0};
+      float zv[S_N], z5, zg[S_N + 1], zo[S_N + 1];   /* initialize zeroes what it is given */
+      memset(hv, 0, sizeof hv);
+      for (int k = 0; k <= S_N; k++) { g[k] = 1; o[k] = 0; }
+      m.dwork = &dw; sens_trim(g, o); sens_reset(&ref);
+      ecu_sensors_initialize(&m, zv, &z5, zg, zo, val, fmi);
+      double worst = 0; bad = 0; n1 = n2 = 0;
+      for (int i = 0; i < N; i++) {
+          if (rand() % 300000 == 0) { sens_reset(&ref); ecu_sensors_initialize(&m, zv, &z5, zg, zo, val, fmi); }
+          if (rand() % 200000 == 0) {
+              for (int k = 0; k <= S_N; k++) { g[k] = rnd(0.9f, 1.1f); o[k] = rnd(-0.1f, 0.1f); }
+              sens_trim(g, o);
+          }
+          for (int k = 0; k < S_N; k++) {
+              v[k] = held(&hv[k], -0.5f, 5.3f, 400);
+              if (rand() % 5000 == 0) v[k] = sens_v_lo[k];          /* the edges themselves */
+              if (rand() % 5000 == 0) v[k] = SENS_V_HI;
+          }
+          v5 = held(&h5, 4.3f, 5.7f, 3000);
+          sens_step_1ms(&ref, v, v5);
+          ecu_sensors_step(&m, v, v5, g, o, val, fmi);
+          for (int k = 0; k < S_N; k++) {
+              double d = fabs((double)val[k] - (double)ref.val[k]);
+              if (d > worst) worst = d;
+              bad += fmi[k] != ref.fmi[k];
+              n1 += ref.fmi[k] == 3; n2 += ref.fmi[k] == 4;
+          }
+      }
+      report("sensors: values", worst, 0);
+      report("sensors: FMIs (mismatched)", (double)bad, 0);
+      printf("   channel-ticks at FMI 3 / FMI 4: %ld %ld\n", n1, n2); }
+    /* J1939 PGN data: every byte, from inside and outside every range */
+    { RT_MODEL_ecu_j1939_T m; uint8_t y[4][8]; ecu_can f;
+      bad = 0;
+      for (int i = 0; i < N; i++) {
+          float rpm = rnd(-200, 9000), clt = rnd(-80, 260), oil = rnd(-20, 1100);
+          uint8_t co = rand() & 1, oo = rand() & 1;
+          uint32_t es = (uint32_t)rand() * 65599u + (uint32_t)rand();
+          ecu_j1939_step(&m, rpm, clt, co, oil, oo, es, y[0], y[1], y[2], y[3]);
+          j1939_eec1(&f, rpm); bad += memcmp(f.data, y[0], 8) != 0;
+          j1939_et1(&f, clt, co); bad += memcmp(f.data, y[1], 8) != 0;
+          j1939_eflp1(&f, oil, oo); bad += memcmp(f.data, y[2], 8) != 0;
+          j1939_hours(&f, es); bad += memcmp(f.data, y[3], 8) != 0;
+      }
+      report("J1939 PGN bytes (mismatched frames)", (double)bad, 0); }
     return fails != 0;
 }

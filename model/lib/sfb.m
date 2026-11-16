@@ -11,7 +11,7 @@ methods (Static)
         ch.ActionLanguage = 'MATLAB';
         ch.ExecuteAtInitialization = true;
         ch.ChartUpdate = 'DISCRETE';
-        ch.SampleTime = '0.001';
+        ch.SampleTime = '-1';                 % inherited: the model runs in any task's rate
         for i = 1:size(ins, 1)
             d = Stateflow.Data(ch);
             d.Name = ins{i, 1}; d.Scope = 'Input'; d.DataType = ins{i, 2};

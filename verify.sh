@@ -6,7 +6,7 @@
 #                          the service tool, the STM32 build and its checks
 #   ./verify.sh --boards   also the KiCad board checks (production and
 #                          prototype: DRC, parity, routing). Slow.
-#   ./verify.sh --matlab   also rebuild nothing, but simulate model/ecu_app
+#   ./verify.sh --matlab   also rebuild nothing, but simulate model/ecu25kva
 #                          in Simulink (needs MATLAB with Stateflow)
 #
 # Any step that fails is listed at the end, and the exit code is non-zero.
@@ -71,7 +71,7 @@ boot()       { $CCMD $CF -I"$FW/core" -I"$FW/boot" -o "$OUT/t_boot$EXE" "$FW/sim
                  "$FW/core/service.c" "$FW/core/nvm.c" "$FW/core/isotp.c" "$FW/core/link.c" && "$OUT/t_boot$EXE"; }
 b2b()        { $CCMD -std=c99 -Wall -Wextra -O2 -ffp-contract=off -I"$FW/core" $GI -o "$OUT/b2b$EXE" \
                  "$ROOT/model/test/b2b.c" "$FW/core/govern.c" "$FW/core/rail.c" "$FW/core/inject.c" \
-                 "$FW/core/safety.c" "$FW/core/mode.c" "$FW/core/crank.c" "$FW"/gen/*/*.c -lm && "$OUT/b2b$EXE"; }
+                 "$FW/core/safety.c" "$FW/core/mode.c" "$FW/core/crank.c" "$FW/core/sensors.c" "$FW/core/j1939.c" "$FW/core/nvm.c" "$FW/core/log.c" "$FW"/gen/*/*.c -lm && "$OUT/b2b$EXE"; }
 libs()       { mkdir -p "$FW/sim/build" &&
                $CCMD $CF -I"$FW/core" -shared -fPIC -o "$FW/sim/build/libecu.$EXT" "$FW"/core/*.c -lm &&
                $CCMD $CF -DECU_MODEL -I"$FW/core" $GI -shared -fPIC -o "$FW/sim/build/libecu_model.$EXT" "$FW"/core/*.c "$FW"/gen/*/*.c -lm &&
@@ -96,7 +96,7 @@ for n in names:
 print(len(names) - len(bad), '/', len(names)); sys.exit(1 if bad else 0)"); }
 stm32()      { "$PY" firmware/stm32/build.py --check && "$PY" firmware/stm32/test_image.py; }
 inj_seq()    { $CCMD $CF -I"$FW/stm32" -o "$OUT/t_inj$EXE" "$FW/stm32/test_inj.c" "$FW/stm32/inj_logic.c" && "$OUT/t_inj$EXE"; }
-simulink()   { (cd model && matlab -batch "addpath(pwd, fullfile(pwd,'lib'), fullfile(pwd,'test')); sim_ecu_app"); }
+simulink()   { (cd model && matlab -batch "addpath(pwd, fullfile(pwd,'lib'), fullfile(pwd,'test')); sim_ecu25kva"); }
 
 echo "== circuits and schematics"
 step "circuit blocks (run_sim)" circuits
@@ -123,7 +123,7 @@ if [ $BOARDS = 1 ]; then
 fi
 if [ $MATLAB = 1 ]; then
     echo "== Simulink"
-    step "ecu_app closed loop" simulink
+    step "ecu25kva closed loop (16 checks)" simulink
 fi
 
 echo

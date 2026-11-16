@@ -118,6 +118,13 @@ cd simulator && cargo run --release -p ecusim                 # the browser UI
 cd simulator && cargo run --release -p ecusim -- run 'scenarios/sil/*.seq'
 ```
 
+**In Simulink** (`model/`, its README): open `model/ecu25kva.slx`, the
+whole ECU in one model (scheduler, application, engine), with buttons that
+generate the code, build the firmware and flash the board. Edit the
+`ecu_*.slx` component models, then press Generate code and Build firmware.
+The MATLAB here is an academic licence: learning and testing only, until
+the code is regenerated under a commercial one.
+
 **On the prototype board** (`firmware/stm32/`, its README): the same core
 on the STM32G474, built with the project's zig, nothing to install:
 

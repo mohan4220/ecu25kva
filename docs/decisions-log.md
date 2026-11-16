@@ -1681,6 +1681,54 @@ bring-up are in `firmware/stm32/README.md`: the peak and hold currents
 (U5), the metering PWM frequency, the crank and cam edge, and the tick's
 real duration (`tick_max_cycles`).
 
+## 22. The whole ECU as one model, with buttons (16 November)
+
+The owner sent two photographs of a production model-based ECU (dSPACE
+TargetLink): a TRIGGERS block firing the tasks and interrupts into a
+MODEL block, a "Set PGNs / SEND all PGNs" J1939 area, and Build, Clean,
+Bootloader and J-Link buttons. They asked for the same for this ECU: "do
+what is the best for the ECU".
+
+**Decided: the model owns everything signal-level, C keeps what is event-
+or byte-driven.** Two more component models, each proven bit-exact
+against the C it replaces on 3 million random steps:
+- **`ecu_sensors`:** the 5 V correction, the end-of-line trims, the NTC
+  and linear transfer functions, and the debounced range faults
+  (`sensors.c`).
+- **`ecu_j1939`:** the data bytes of EEC1, ET1, EFL/P1 and HOURS
+  (`j1939.c`). Sending them, the transport protocol, DM1/2/4 and the
+  requests stay in C.
+
+**`ecu25kva.slx`** replaces `ecu_app`:
+- **TRIGGERS:** a Stateflow scheduler firing initialisation, a
+  per-cylinder event and the 1 ms, 20 ms, 500 ms, 1 s and 10 s tasks.
+- **MODEL:** function-call subsystems holding the 15 component models.
+- **PLANT:** the engine, the rail and the sensor voltages.
+- **Buttons:** `ecu_project.m` generates, builds, flashes (ST-LINK or
+  J-Link), cleans, checks and simulates, with a PCB selector. Errors are
+  shown in MATLAB.
+
+Simulated closed loop with 16 checks: the SIL limits, the sensor chain,
+the injection and the J1939 frames.
+
+**To make this possible, the components lost their own rate.** Their
+charts were fixed at 1 ms. Now every component is sample-time
+independent and takes its task's rate. The regenerated C differs only
+in its timestamps.
+
+**From now on the `.slx` files are what you edit.** The `mdl_*.m`
+scripts lay a model out from scratch and overwrite edits, so they are
+for starting over. The back-to-back test is how a deliberate change is
+caught and then carried into the C reference.
+
+**Found on the way:** the generated `initialize` functions zero every
+array they are given. Passing the live end-of-line trims to it would
+have wiped them on every sensor reset. The glue gives it scratch arrays.
+
+**The MATLAB here is an academic licence**, and every generated file
+says so. The owner: education and testing first; the code is
+regenerated under a commercial licence before any commercial use.
+
 ---
 
 ## Where these came from
