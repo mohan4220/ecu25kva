@@ -1,1 +1,2 @@
 e5f0a3786805bed8f00baf27e1cd4f8f1a51ee5bad44493c79c142fa3083cc90  STM32G474V(B-C-E)Tx.xml  (https://raw.githubusercontent.com/STMicroelectronics/STM32_open_pin_data/master/mcu/STM32G474V(B-C-E)Tx.xml, 15 Oct 2026)
+9e1cb7917a51c1f1dd5b8b143d4f1ca31af1146694e0137064f6e731157c4c0c  GPIO-STM32G47x_gpio_v1_0_Modes.xml  (https://raw.githubusercontent.com/STMicroelectronics/STM32_open_pin_data/7d1f1514ed5583ec5007ad91236b4e1d377295b1/mcu/IP/GPIO-STM32G47x_gpio_v1_0_Modes.xml, 14 Nov 2026)

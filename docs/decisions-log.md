@@ -1626,6 +1626,61 @@ any of these"):
   or down over a simulated hour. Adding a test before it flipped it.
   Each test now starts the edge clock clean.
 
+## 21. The prototype's chip layer (14 November)
+
+The owner, after the 4-layer board was confirmed: "do the best you can".
+So the STM32G474 side of firmware guide §14, in `firmware/stm32/`.
+
+**Choices made, each the simplest that is correct:**
+- **Toolchain: the project's zig**, already in `.venv`, compiling against
+  musl's headers and linking freestanding (zig's runtime supplies
+  `memcpy`, `logf`, `fmodf`). Nothing new to install. The Arm GNU
+  toolchain was downloaded and its checksum matched, but running a
+  downloaded compiler was refused on this machine; zig made it
+  unnecessary.
+- **Registers, not ST's HAL.** ST's device header and Arm's CMSIS core,
+  pinned and vendored with their licences. ST's HAL sources were read
+  for the message-RAM layout, the DMA request numbers and the clock
+  sequence, not copied. USB is TinyUSB 0.20.0 (MIT), vendored.
+- **Peak and hold by the ADC's own watchdog.** ADC1 converts the active
+  bank's shunt about every 0.45 µs; its watchdog interrupt is the
+  crossing. The comparators were the other way, but bank A's shunt pin
+  (PA2) is not a comparator input. A pure-C sequencer decides, so the PC
+  checks it against a coil model: the peak arrives in 37 µs (the circuit
+  simulation says 38), the hold stays within 9–11 A. It also carries
+  rules of its own: no peak in 60 µs, over 26 A, longer than 5 ms, or
+  started late, and the injection ends.
+- **Two timers for one clock.** TIM2 captures the crank and cam at the
+  core's priority; TIM5, started on the same edge, holds the injection
+  compares at the top priority. One timer has one interrupt priority.
+- **Stored data in bank 2,** so writes never stall code in bank 1, and
+  the end-of-line record's copies in separate pages, so b survives a's
+  erase. Firmware guide §14 item 11 said "the last page": it is now the
+  last two.
+- **The bootloader erases lazily**, because the tool waits 2 s and a
+  full erase takes 5. Bank-1 erases run from RAM, feeding the
+  watchdog, because a 22–40 ms stall is longer than its window.
+- **Transmit by back-pressure.** The chip layer takes from the front of
+  `can[]`/`can2[]` what the 3-deep hardware FIFO accepts and leaves the
+  rest, so a long ISO-TP reply is paced by the bus, never dropped.
+
+**Found on the way:**
+- PB6, CAN2's transmit pin, comes out of reset with the USB-C
+  dead-battery pull-down on it. The firmware releases it first thing.
+- The core gives the EGR bridge no position command (`ecu_io` carries
+  only `egr_off`), so the bridge stays coasting.
+
+**Checked on the PC (`verify.sh`):** 11 sequencing cases on the coil
+model; every pin, AF number and ADC channel against ST's data; the
+images (vectors, bank-1 code, RAM, no double-precision code); and the
+real bootloader core accepts `app_signed.hex` and refuses it with one
+bit changed.
+
+**Not checked: anything on a board.** Placeholders to settle at
+bring-up are in `firmware/stm32/README.md`: the peak and hold currents
+(U5), the metering PWM frequency, the crank and cam edge, and the tick's
+real duration (`tick_max_cycles`).
+
 ---
 
 ## Where these came from

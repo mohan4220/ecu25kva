@@ -6,7 +6,21 @@ does the analysis and writes results with wrdata, then read the file back.
 """
 import ctypes, os, tempfile, pathlib
 
-LIB = os.environ.get("NGSPICE_LIB", "/usr/lib/x86_64-linux-gnu/libngspice.so.0")
+def _default_lib():
+    """NGSPICE_LIB, else the usual place: Linux's package, or on Windows the
+    ngspice.dll that KiCad installs (the one the suite is checked on)."""
+    if os.environ.get("NGSPICE_LIB"):
+        return os.environ["NGSPICE_LIB"]
+    if os.name == "nt":
+        base = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "KiCad")
+        for ver in ("10.0", "9.0"):
+            p = os.path.join(base, ver, "bin", "ngspice.dll")
+            if os.path.exists(p):
+                return p
+    return "/usr/lib/x86_64-linux-gnu/libngspice.so.0"
+
+
+LIB = _default_lib()
 
 _OUT = []
 
@@ -22,6 +36,29 @@ def _send_stat(msg, _id, _ud):
 @ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.c_bool, ctypes.c_bool, ctypes.c_int, ctypes.c_void_p)
 def _exit(status, _unload, _quit, _id, _ud):
     return 0
+
+
+# The versions the whole suite has passed on. Others are not wrong as such,
+# but several checks sit close to their limits: ngspice 47 fails three
+# blocks (docs/HANDOFF.md sec. 2), so a new version needs the suite re-run.
+KNOWN_GOOD = (42, 46)
+
+
+def version():
+    """(major, text) of the loaded ngspice, e.g. (46, 'ngspice-46'); (0, error) if none."""
+    try:
+        ng = ctypes.CDLL(LIB)
+    except OSError as e:
+        return 0, f"cannot load {LIB}: {e}"
+    ng.ngSpice_Init(_send_char, _send_stat, _exit, None, None, None, None)
+    _OUT.clear()
+    ng.ngSpice_Command(b"version -s")
+    for line in _OUT:
+        for word in line.split():
+            if word.startswith("ngspice-"):
+                num = word[len("ngspice-"):].split(".")[0].split("+")[0]
+                return (int(num) if num.isdigit() else 0), word
+    return 0, "ngspice of unknown version"
 
 
 def run(netlist: str, workdir=None):

@@ -1,0 +1,4 @@
+# Shell scripts run under bash: LF, whatever the checkout
+*.sh text eol=lf
+# Vendored data checked by SHA-256 (prototype/lib/checksums.txt): byte for byte
+prototype/lib/*.xml -text

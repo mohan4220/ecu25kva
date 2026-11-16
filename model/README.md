@@ -98,8 +98,7 @@ as part of the firmware image, built with `ECU_MODEL`, by the same
 route as the hand-written build: ST-LINK on the prototype's SWD header,
 or the UDS bootloader over CAN or USB.
 
-**What still stands in the way is not the model.** The STM32 chip layer
-(ADC, timers, CAN, USB, flash drivers) is not written yet, for either
-build. Until it is, no firmware image can run on the board. The model
-code is cross-compiled for the Cortex-M4F as a check that it is
-target-ready (see `docs/firmware.md`).
+**The STM32 chip layer exists since 14 November** (`firmware/stm32/`).
+`firmware/stm32/build.py` builds this code into `app_model.bin` /
+`app_model_signed.hex`, ready to flash on the prototype. It has been
+compiled, linked and checked on the PC; it has not run on a board yet.

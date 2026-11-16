@@ -30,3 +30,5 @@ model/slprj/
 model/*.slxc
 model/*.autosave
 model/*_ert_rtw/
+
+firmware/stm32/build/

@@ -175,8 +175,10 @@ production logging (fault memory, events, counters, trip recorder) and
 all 16 scenarios passing (`firmware/`, decisions log §11–12). Since 20
 October it also has a service link (decisions log §16, firmware guide
 §16): a bootloader, the end-of-line record with analog trims, an
-underspeed warning, and a laptop tool over USB or CAN channel 2. Only the
-chip layers are missing; the prototype is first flashed over SWD.
+underspeed warning, and a laptop tool over USB or CAN channel 2. Since
+14 November the prototype's STM32G474 chip layer exists too
+(`firmware/stm32/`, its README): `build.py` makes the images, nothing to
+install. It has not run on a board yet; the S32K148's is still missing.
 **A simulator anyone can run** (`simulator/`, decisions log §17): `ecusim`
 is one Rust program that runs that firmware live or from scripts, traced
 in a browser, with firmware builds loadable from the page. It is built
@@ -345,7 +347,7 @@ These each cost a debugging session already:
   voltages on net names — so give any node whose voltage matters a real
   label.
 - **`--force`**, or the generator keeps the existing sheet.
-- **The ngspice version matters.** The suite passes on ngspice 42
+- **The ngspice version matters.** The suite passes on ngspice 42 and 46 (KiCad 10.0.6's, 16 Nov)
   and fails on 47 (see §2). Upgrading the simulator is a change that
   needs the whole suite re-run, not a routine update.
 - **kicad-cli's DRC report stops listing unconnected items at about

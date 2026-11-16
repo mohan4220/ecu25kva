@@ -77,7 +77,14 @@ Supply **13.5 V on J1001-1**, with GND on J1002, at a **1 A** limit. Leave pin 0
 | `EN_BOOST` (U401 pin 3, DIS/EN) | **under 0.1 V** while the boost runs. It rises only when the overvoltage zener D417 conducts, or `BOOST_DIS` is driven high | `boost_ovp.cir` |
 | TP4 12V_GATE | about 12.3 V (a 13 V zener-referenced follower from the boost rail). The drivers' UVLO is 9.8 V | `injector` sheet |
 
-Then connect the debugger to J301. **SWD must connect,** and the debugger should read the device ID (STM32G474, `0x469`). Flash a test build that toggles `LED_STATUS` (PB7): D304 should blink.
+Then connect the debugger to J301. **SWD must connect,** and the debugger should read the device ID (STM32G474, `0x469`).
+
+Build the firmware with `.venv/bin/python firmware/stm32/build.py` and flash **`firmware/stm32/build/app_standalone.hex`** (the application alone, no bootloader). Leave pin 06 unpowered and no injector connected: with no crank signal the firmware never fires one.
+- D304 (`LED_STATUS`) blinks at **1 Hz**. If it blinks at 2 Hz, the 8 MHz crystal did not start and the chip is running on its internal clock.
+- `WDT_KICK` (PC11) shows a falling edge every **10 ms**, and the reset train on NRST stops.
+- With the debugger, read `tick_max_cycles`: it must stay well under 170000 (1 ms).
+
+Later, flash `boot.hex` and `app_signed.hex` together; after that, updates go over USB with the service tool (`firmware/stm32/README.md`).
 
 **The supervisor will reset the MCU every few tens of milliseconds** unless the firmware kicks `WDT_KICK` (PC11) at 5–20 ms intervals (decisions log 11). With no firmware, a reset pulse train on NRST is correct behaviour, not a fault.
 

@@ -3,7 +3,7 @@
 #
 #   ./verify.sh            circuits, schematics, firmware (both builds),
 #                          the model's back-to-back test, the scenarios,
-#                          the service tool
+#                          the service tool, the STM32 build and its checks
 #   ./verify.sh --boards   also the KiCad board checks (production and
 #                          prototype: DRC, parity, routing). Slow.
 #   ./verify.sh --matlab   also rebuild nothing, but simulate model/ecu_app
@@ -94,6 +94,8 @@ for n in names:
     try: T.__dict__[n]()
     except Exception as e: bad.append(n); print('FAIL', n, e)
 print(len(names) - len(bad), '/', len(names)); sys.exit(1 if bad else 0)"); }
+stm32()      { "$PY" firmware/stm32/build.py --check && "$PY" firmware/stm32/test_image.py; }
+inj_seq()    { $CCMD $CF -I"$FW/stm32" -o "$OUT/t_inj$EXE" "$FW/stm32/test_inj.c" "$FW/stm32/inj_logic.c" && "$OUT/t_inj$EXE"; }
 simulink()   { (cd model && matlab -batch "addpath(pwd, fullfile(pwd,'lib'), fullfile(pwd,'test')); sim_ecu_app"); }
 
 echo "== circuits and schematics"
@@ -111,6 +113,9 @@ step "SIL libraries" libs
 step "16 scenarios, hand-written build" sil_ref
 step "16 scenarios, model-generated build" sil_model
 step "service tool" service
+echo "== STM32G474 (the prototype's chip layer)"
+step "injector sequencing, coil model" inj_seq
+step "STM32 build, pins, images" stm32
 if [ $BOARDS = 1 ]; then
     echo "== boards"
     step "production board (check_pcb)" pcb

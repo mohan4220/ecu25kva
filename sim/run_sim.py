@@ -3070,6 +3070,17 @@ def main():
         return 2
     print("=" * 74)
     print("  Genset ECU -- circuit block simulation")
+    major, ver = ngrun.version()
+    print(f"  simulator: {ver}  ({ngrun.LIB})")
+    if major == 0:
+        print(f"  {FAIL}  no ngspice: set NGSPICE_LIB to libngspice / KiCad's ngspice.dll")
+        print("=" * 74)
+        return 1
+    if major not in ngrun.KNOWN_GOOD:
+        good = " and ".join(str(v) for v in ngrun.KNOWN_GOOD)
+        print(f"  WARNING: the suite has passed on ngspice {good}, not {major}. Several")
+        print("  checks sit close to their limits, so a FAIL here may be the simulator,")
+        print("  not the circuit (docs/HANDOFF.md sec. 2). Point NGSPICE_LIB at one of those.")
     print("=" * 74)
     results = {}
     for name, fn in selected.items():

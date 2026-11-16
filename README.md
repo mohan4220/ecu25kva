@@ -7,7 +7,7 @@ engine **3GK550ETA 4SR1**, application code `GK3.8703`, 26.5 kW at 1500 rpm,
 ## Start here
 
 **[`docs/pdf/ECU-Bible.pdf`](docs/pdf/ECU-Bible.pdf)** — everything, in reading
-order, in one 442-page file. Cover, handoff, field handbook, sensor reference,
+order, in one 445-page file. Cover, handoff, field handbook, sensor reference,
 circuit reference, the specification, the decisions log, all twelve research
 memos, the plan. Bookmarked, so the PDF reader's outline pane is the table of
 contents.
@@ -75,7 +75,7 @@ It names every step that failed. Run it before committing.
 ```
 
 Each check is a claim about the circuit, so a red line means the **design** is
-wrong, not the simulator. All 28 blocks currently pass (on ngspice 42 — see
+wrong, not the simulator. All 28 blocks currently pass (on ngspice 42 and 46; the run prints which it loaded — see
 `docs/HANDOFF.md` §2).
 
 The netlists are plain SPICE — they also open directly in KiCad's built-in
@@ -116,6 +116,14 @@ a browser, on Windows, macOS or Linux with nothing to install (guide
 ```bash
 cd simulator && cargo run --release -p ecusim                 # the browser UI
 cd simulator && cargo run --release -p ecusim -- run 'scenarios/sil/*.seq'
+```
+
+**On the prototype board** (`firmware/stm32/`, its README): the same core
+on the STM32G474, built with the project's zig, nothing to install:
+
+```bash
+.venv/bin/python firmware/stm32/build.py --check   # build/app_standalone.hex, boot.hex, app.bin ...
+.venv/bin/python firmware/stm32/test_image.py      # check the images
 ```
 
 The C core in `firmware/core/` touches no hardware. The simulator drives it

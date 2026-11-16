@@ -496,7 +496,7 @@ The core needs nothing else. The platform layer must:
     virtual-serial bytes into `usb_in` (up to 64 per ms; the tick takes
     them) and send `usb_out`.
 11. **End-of-line record:** two copies in their own sector (S32K148: a
-    D-flash sector; STM32G474: the last page). Pass both to
+    D-flash sector; STM32G474: the last two pages, one per copy). Pass both to
     `ecu_eol_load` at start-up. When `eol_save` is set, write
     `ecu_eol_image()` to copy a, then copy b, then clear it. Pass the
     bootloader's version in `boot_ver`.
@@ -506,6 +506,15 @@ The core needs nothing else. The platform layer must:
     words), `flash_read` over the application area only, the stay flag
     (read and clear), and `jump_to_app` (stack pointer and vector table
     from the application's base, then branch). §16 has the rest.
+
+**The prototype's port exists (14 November 2026):** `firmware/stm32/`,
+the STM32G474 side of every item above, built by
+`firmware/stm32/build.py` with the project's zig and checked on the PC by
+`verify.sh` (the injector sequencing against a coil model, the pins
+against ST's data, the images against the real bootloader core). Its
+README has the flash map, the interrupt levels, the injector stage and
+the list of placeholders to settle at bring-up. It has not run on a
+board yet. The S32K148 port is still to write.
 
 ## 15. Known limits and open items
 
@@ -632,8 +641,12 @@ above. `pyserial` (USB) and `python-can` with `can-isotp` (CAN) are needed
 only by their links. A 256 KiB image takes about 10 s over CAN plus the
 erase; USB is faster.
 
-**Not yet:** the chip layers (§14 items 10–13). The prototype is first
-flashed over SWD (J301), as any new board is.
+**On the prototype (14 November):** written, for the STM32G474, in
+`firmware/stm32/` (its README). The bootloader host erases lazily: the
+tool's erase request clears only the header's page, and each other page
+is erased just before its first write, so no reply waits the 5 s a full
+erase takes. The prototype is first flashed over SWD (J301), as any new
+board is. The S32K148's are still to write.
 
 ## 17. The Simulink and Stateflow models (13 November 2026)
 
@@ -687,8 +700,10 @@ Cortex-M4F (`zig cc -target thumb-linux-musleabihf
 -mcpu=cortex_m4+vfp4d16sp -mfloat-abi=hard -DECU_MODEL`, compile only),
 and the governor comes out as native `vadd.f32`/`vmul.f32`/`vdiv.f32`
 with no double-precision code. It is
-flashed as part of the firmware image. The chip layers (§14) are still
-what stands between either build and the board.
+flashed as part of the firmware image. Since 14 November the
+prototype's chip layer exists (`firmware/stm32/`, built with both: `app`
+and `app_model`); what stands between either build and a running board
+is now the bench, not code.
 
 **Which is the source of truth:** for now, both. The hand-written
 modules stay the reference build until the generated build has run on
