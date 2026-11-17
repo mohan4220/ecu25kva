@@ -224,7 +224,7 @@ def cover_page():
 def render(source_html, pdf_path, workdir):
     """Print one HTML string to PDF with headless Chrome."""
     page = workdir / (pdf_path.stem + ".html")
-    page.write_text(source_html)
+    page.write_text(source_html, encoding="utf-8")
     cmd = [
         CHROME, "--headless", "--disable-gpu", "--no-sandbox",
         "--no-pdf-header-footer",

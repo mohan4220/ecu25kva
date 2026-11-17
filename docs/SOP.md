@@ -167,6 +167,11 @@ the model it feeds. After a schematic change, rebuild it:
 `CHROME="C:/Program Files/Google/Chrome/Application/chrome.exe" .venv/Scripts/python.exe docs/build_schematic_guide.py`
 (it plots the sheets fresh with kicad-cli).
 
+**Draw it by hand:** `docs/pdf/ECU-System-Circuit.pdf` is the whole ECU on
+one A0 portrait page: each block's circuit with its real parts and values,
+joined by named wires (same name = same wire), plus the connector table.
+Rebuild it the same way with `docs/draw_system.py`.
+
 **Order the prototype:** upload everything in `prototype/fab/` (Gerbers,
 `prototype.drl`, `bom.csv`, `positions.csv`). Select 4 layers, 1.6 mm,
 outer 2 oz / inner 1 oz, Tg 170. Then follow `prototype/docs/bring-up.md`

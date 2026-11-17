@@ -357,7 +357,9 @@ from this bus, and its protections act on them.
 - **CAN1, J1939:** pins 55/77, 250 kbit/s, to the DSE.
 - **CAN2, service:** pins 87/86, 1 Mbit/s, for the laptop tool.
 - Each bus is **split-terminated** (60 Ω + 60 Ω, thin film,
-  50 ppm/°C), with a common-mode choke.
+  50 ppm/°C), midpoint to ground through 4.7 nF.
+- No common-mode choke on the schematic yet: the layout guide
+  leaves space for one per channel (CISPR 25 Class 5 target).
 
 **Proven by:** `can_termination`.
 

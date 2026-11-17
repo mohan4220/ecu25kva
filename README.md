@@ -22,6 +22,11 @@ why, and how each signal reaches the Simulink model. Source:
 [`docs/schematic-guide.md`](docs/schematic-guide.md); rebuild with
 `.venv/bin/python docs/build_schematic_guide.py`.
 
+Want to draw it by hand? **[`docs/pdf/ECU-System-Circuit.pdf`](docs/pdf/ECU-System-Circuit.pdf)**
+(A0 portrait): every block's circuit with its designators and values from the
+production netlist, joined by named nets, plus the J1001 pin table. One panel
+per block is also in `docs/system/*.svg`. Rebuild with `docs/draw_system.py`.
+
 Resuming work, or moving to another machine?
 **[`docs/HANDOFF.md`](docs/HANDOFF.md)** — setup, what is verified, what is
 open, and the traps that already cost a session each.
