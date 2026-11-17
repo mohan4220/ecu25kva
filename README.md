@@ -16,6 +16,12 @@ New to the project? **[`docs/SOP.md`](docs/SOP.md)** — the standard operating
 procedure: setup, circuits, schematics and boards, the Simulink model,
 checking and release, troubleshooting.
 
+Want the hardware explained? **[`docs/pdf/ECU-Schematic-Guide.pdf`](docs/pdf/ECU-Schematic-Guide.pdf)**
+— every schematic sheet (production and prototype), what each circuit does and
+why, and how each signal reaches the Simulink model. Source:
+[`docs/schematic-guide.md`](docs/schematic-guide.md); rebuild with
+`.venv/bin/python docs/build_schematic_guide.py`.
+
 Resuming work, or moving to another machine?
 **[`docs/HANDOFF.md`](docs/HANDOFF.md)** — setup, what is verified, what is
 open, and the traps that already cost a session each.

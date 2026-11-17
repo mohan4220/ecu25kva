@@ -161,6 +161,12 @@ power), L2 1 oz solid ground, L3 1 oz power and slow signals.
 4. `.venv/Scripts/python.exe prototype/test_prototype.py`: every prototype
    check.
 
+**Explain the circuits:** `docs/pdf/ECU-Schematic-Guide.pdf` puts every
+sheet after a page on what it does, why, the simulations that prove it and
+the model it feeds. After a schematic change, rebuild it:
+`CHROME="C:/Program Files/Google/Chrome/Application/chrome.exe" .venv/Scripts/python.exe docs/build_schematic_guide.py`
+(it plots the sheets fresh with kicad-cli).
+
 **Order the prototype:** upload everything in `prototype/fab/` (Gerbers,
 `prototype.drl`, `bom.csv`, `positions.csv`). Select 4 layers, 1.6 mm,
 outer 2 oz / inner 1 oz, Tg 170. Then follow `prototype/docs/bring-up.md`
