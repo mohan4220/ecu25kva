@@ -12,6 +12,10 @@ circuit reference, the specification, the decisions log, all twelve research
 memos, the plan. Bookmarked, so the PDF reader's outline pane is the table of
 contents.
 
+New to the project? **[`docs/SOP.md`](docs/SOP.md)** — the standard operating
+procedure: setup, circuits, schematics and boards, the Simulink model,
+checking and release, troubleshooting.
+
 Resuming work, or moving to another machine?
 **[`docs/HANDOFF.md`](docs/HANDOFF.md)** — setup, what is verified, what is
 open, and the traps that already cost a session each.

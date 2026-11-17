@@ -67,6 +67,8 @@ BOOK = [
      "What is done, what is not, and what each gap is waiting on"),
     ("00a-handoff", "HANDOFF.md", "Handoff",
      "Setting up on another machine, what is verified, what is open, the traps"),
+    ("00b-sop", "SOP.md", "Standard Operating Procedure",
+     "How to work: circuits, schematics and boards, the Simulink model, checks and release"),
     ("01-handbook", "handbook/index.html", "Field Handbook",
      "The machine, its interface, the circuits in narrative, and how to run it"),
     ("02-sensors", "handbook/sensors.html", "Sensor Reference",
