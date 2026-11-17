@@ -41,6 +41,19 @@ void wifg_step(uint8_t wif, uint8_t *raise, uint8_t *drop);
 void underg_reset(void);
 void underg_step(float rpm, uint8_t armed, uint8_t *raise, uint8_t *drop);
 
+/* ---- speed states (decisions log 23, the 20 kVA set's cascade): what the
+ * governor aims for. OFF until RUN; IDLE holds GOV_IDLE_RPM for idle_ms
+ * (0 = no idle: straight on); OPERATING ramps to and regulates the rated
+ * setpoint; STEADY once within SPD_BAND_RPM of it for SPD_STEADY_MS, and
+ * back to OPERATING beyond twice the band. ---- */
+#define SPD_IDLE_MS 0u               /* calibration: warm-up idle; 0 = none (the DSE decides) */
+#define SPD_BAND_RPM 15.0f
+#define SPD_STEADY_MS 1000
+enum { SPD_OFF, SPD_IDLE, SPD_OPERATING, SPD_STEADY };
+void spdst_reset(void);
+void spdst_step(uint8_t running, float rpm, float target, uint32_t idle_ms,
+                uint8_t *idle, uint8_t *state);
+
 /* ---- main relay: held with the ignition, then the after-run ---- */
 void relay_reset(void);
 void relay_step(uint8_t ignition, uint8_t stopped, uint8_t written,

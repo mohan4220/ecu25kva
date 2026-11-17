@@ -56,6 +56,9 @@ class IO(C.Structure):
         # the boost cutoff and the EGR stall guard, ABI 3 (12 Nov 2026)
         ("v_boost_rail", C.c_float), ("i_egr", C.c_float),
         ("boost_dis", C.c_uint8), ("egr_off", C.c_uint8),
+        # the cascades, ABI 4 (16 Nov 2026)
+        ("i_mu", C.c_float), ("i_mu_valid", C.c_uint8),
+        ("egr_duty", C.c_float), ("spd_state", C.c_uint8),
     ]
 
 

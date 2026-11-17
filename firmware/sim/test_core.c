@@ -16,6 +16,8 @@
 #include "link.h"
 #include "eol.h"
 #include "service.h"
+#include "mode.h"
+#include "actuate.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; \
@@ -174,9 +176,9 @@ static void test_sens_5v_short(void)
 static void test_gov(void)
 {
     gov_t g; gov_reset(&g, 10, 1500);
-    for (int i = 0; i < 1000; i++) gov_step(&g, 1400, 0, 0.001f);
+    for (int i = 0; i < 1000; i++) gov_step(&g, 1400, 0, 0, 0.001f);
     CHECK(g.fuel == FUEL_MAX_MG);
-    for (int i = 0; i < 1000; i++) gov_step(&g, 1600, 0, 0.001f);
+    for (int i = 0; i < 1000; i++) gov_step(&g, 1600, 0, 0, 0.001f);
     CHECK(g.fuel == 0.0f);
     CHECK(g.integ >= 0.0f);
     CHECK(fabsf(gov_setpoint(34, 1) - 1440.0f) <= 0.1f);
@@ -1175,8 +1177,8 @@ static void test_crank_glitch(void)                   /* I3 */
 static void test_gov_ramp(void)                       /* I4 */
 {
     gov_t g; gov_reset(&g, 30, 400);
-    CHECK(fabsf(gov_step(&g, 400, 0, 0.001f) - 30.0f) <= 1.0f);   /* bumpless */
-    for (int i = 1; i < 1000; i++) gov_step(&g, 400, 0, 0.001f);
+    CHECK(fabsf(gov_step(&g, 400, 0, 0, 0.001f) - 30.0f) <= 1.0f);   /* bumpless */
+    for (int i = 1; i < 1000; i++) gov_step(&g, 400, 0, 0, 0.001f);
     CHECK(fabsf(g.set - (400 + GOV_RAMP_RPM_S)) <= 2.0f);
 }
 
@@ -1903,9 +1905,116 @@ static void test_egr_stall(void)
     CHECK(io.state == ECU_WAIT && io.egr_off == 0);
 }
 
+/* ---- the cascades (decisions log 23) ---- */
+
+/* The metering valve's inner loop: without a measurement it is the
+ * command exactly at 13.5 V and scaled by the battery otherwise; with one,
+ * it holds the commanded current through a 25 % hotter coil. */
+static void test_metering_current_loop(void)
+{
+    mu_t m;
+    mu_reset(&m);
+    CHECK(mu_step(&m, 0.4f, 0, 0, 13.5f, 0.001f) == 0.4f);       /* nominal: unchanged */
+    CHECK(mu_step(&m, 0.4f, 0, 0, 0.0f, 0.001f) == 0.4f);        /* no battery reading */
+    CHECK(mu_step(&m, 0.4f, 0, 0, 24.0f, 0.001f) == 0.4f);       /* implausible for 12 V */
+    CHECK(near(mu_step(&m, 0.4f, 0, 0, 12.0f, 0.001f), 0.45f, 1e-5f));   /* 13.5/12 */
+    /* closed loop on a coil: i = duty * vbat / R, R hot = 12.5 ohm */
+    float r = 12.5f, vb = 13.5f, i = 0, duty = 0;
+    mu_reset(&m);
+    for (int k = 0; k < 2000; k++) {
+        duty = mu_step(&m, 0.5f, i, 1, vb, 0.001f);
+        i += (duty * vb / r - i) * (0.001f / 0.003f);           /* tau 3 ms */
+    }
+    CHECK(near(i, 0.5f * MU_I_FULL, 0.01f));                     /* the current, not the duty */
+    CHECK(duty > 0.6f);                                          /* it had to push harder */
+    /* feedforward only, the same hot coil: 20 % short */
+    mu_reset(&m);
+    i = 0;
+    for (int k = 0; k < 2000; k++) {
+        duty = mu_step(&m, 0.5f, i, 0, vb, 0.001f);
+        i += (duty * vb / r - i) * (0.001f / 0.003f);
+    }
+    CHECK(i < 0.85f * 0.5f * MU_I_FULL);
+}
+
+/* The EGR position loop: it reaches a target on a motor-and-spring valve,
+ * coasts at the closed target, and coasts when disabled. */
+static void test_egr_position_loop(void)
+{
+    egrp_t e;
+    egrp_reset(&e);
+    float pos = 0, vel = 0, duty = 0;
+    for (int k = 0; k < 3000; k++) {
+        duty = egrp_step(&e, 40.0f, pos, 1, 0.001f);
+        float acc = 4000.0f * duty - 20.0f * vel - 30.0f * pos;  /* motor, friction, spring */
+        vel += acc * 0.001f;
+        pos += vel * 0.001f;
+        if (pos < 0) { pos = 0; vel = 0; }
+        if (pos > 100) { pos = 100; vel = 0; }
+    }
+    CHECK(fabsf(pos - 40.0f) < 1.0f);
+    CHECK(fabsf(duty) <= EGR_DUTY_MAX);
+    CHECK(egrp_step(&e, 0.0f, pos, 1, 0.001f) == 0.0f);          /* closed target: coast */
+    CHECK(egrp_step(&e, 40.0f, pos, 0, 0.001f) == 0.0f);         /* disabled: coast */
+    CHECK(egr_target_pct(30.0f) == 0.0f);                        /* no EGR until calibrated */
+}
+
+/* The speed states: idle for its time, then operating, then steady once
+ * within the band long enough; off when the engine stops running. */
+static void test_speed_states(void)
+{
+    uint8_t idle, st;
+    spdst_reset();
+    spdst_step(0, 0, 1500, 3000, &idle, &st);
+    CHECK(st == SPD_OFF && !idle);
+    spdst_step(1, 1000, 1500, 3000, &idle, &st);
+    CHECK(st == SPD_IDLE && idle);
+    for (int k = 0; k < 2999; k++)
+        spdst_step(1, 1000, 1500, 3000, &idle, &st);
+    CHECK(st == SPD_IDLE);
+    spdst_step(1, 1000, 1500, 3000, &idle, &st);
+    CHECK(st == SPD_OPERATING && !idle);
+    for (int k = 0; k < SPD_STEADY_MS; k++)
+        spdst_step(1, 1505, 1500, 3000, &idle, &st);
+    CHECK(st == SPD_STEADY);
+    spdst_step(1, 1540, 1500, 3000, &idle, &st);                 /* beyond twice the band */
+    CHECK(st == SPD_OPERATING);
+    spdst_step(0, 1540, 1500, 3000, &idle, &st);
+    CHECK(st == SPD_OFF);
+    /* no idle time: straight to operating */
+    spdst_step(1, 600, 1500, 0, &idle, &st);
+    CHECK(st == SPD_OPERATING && !idle);
+    /* the governor holds the idle speed while told to */
+    gov_t g;
+    gov_reset(&g, 10, 700);
+    for (int k = 0; k < 2000; k++)
+        gov_step(&g, 1000, 0, 1, 0.001f);
+    CHECK(g.set == GOV_IDLE_RPM);
+    for (int k = 0; k < 2000; k++)
+        gov_step(&g, 1000, 0, 0, 0.001f);
+    CHECK(g.set == GOV_RPM_SET);                                 /* then on to rated */
+}
+
+/* The whole ECU at nominal battery: the scenarios' engine starts and runs
+ * with the cascades in, and the speed state reaches STEADY. */
+static void test_cascade_in_ecu(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    CHECK(io.state == ECU_RUN && io.spd_state == SPD_OPERATING);
+    ecu_hold(&io, 1500, 3000, &t, &tooth);
+    CHECK(io.spd_state == SPD_STEADY);
+    CHECK(io.egr_duty == 0.0f);                                  /* no EGR target yet: coast */
+    CHECK(io.meter_duty >= 0.0f && io.meter_duty <= 1.0f);
+}
+
 int main(void)
 {
     test_io_size();
+    test_metering_current_loop();
+    test_egr_position_loop();
+    test_speed_states();
+    test_cascade_in_ecu();
     test_boost_ovp();
     test_boost_warnings();
     test_egr_stall();

@@ -177,4 +177,61 @@ void relay_step(uint8_t ignition, uint8_t stopped, uint8_t written,
     *afterrun = relay_after;
 }
 
+/* ---- speed states ---- */
+static uint8_t sp_state;
+static uint32_t sp_n;
+
+void spdst_reset(void) { sp_state = SPD_OFF; sp_n = 0; }
+
+void spdst_step(uint8_t running, float rpm, float target, uint32_t idle_ms,
+                uint8_t *idle, uint8_t *state)
+{
+    float e = rpm - target;
+    if (e < 0)
+        e = -e;
+    switch (sp_state) {
+    case SPD_OFF:
+        if (running) {
+            sp_state = idle_ms > 0 ? SPD_IDLE : SPD_OPERATING;
+            sp_n = 0;
+        }
+        break;
+    case SPD_IDLE:
+        if (!running) {
+            sp_state = SPD_OFF;
+            sp_n = 0;
+        } else if (sp_n + 1 >= idle_ms) {
+            sp_state = SPD_OPERATING;
+            sp_n = 0;
+        } else {
+            sp_n++;
+        }
+        break;
+    case SPD_OPERATING:
+        if (!running) {
+            sp_state = SPD_OFF;
+            sp_n = 0;
+        } else if (e <= SPD_BAND_RPM && sp_n + 1 >= SPD_STEADY_MS) {
+            sp_state = SPD_STEADY;
+            sp_n = 0;
+        } else if (e <= SPD_BAND_RPM) {
+            sp_n++;
+        } else {
+            sp_n = 0;
+        }
+        break;
+    default:                            /* SPD_STEADY */
+        if (!running) {
+            sp_state = SPD_OFF;
+            sp_n = 0;
+        } else if (e > 2.0f * SPD_BAND_RPM) {
+            sp_state = SPD_OPERATING;
+            sp_n = 0;
+        }
+        break;
+    }
+    *idle = sp_state == SPD_IDLE;
+    *state = sp_state;
+}
+
 #endif

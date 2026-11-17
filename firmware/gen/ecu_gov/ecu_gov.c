@@ -9,7 +9,7 @@
  *
  * Model version                  : 1.1
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Mon Nov 16 14:11:27 2026
+ * C/C++ source code generated on : Mon Nov 16 16:25:44 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: ARM Compatible->ARM Cortex-M
@@ -25,75 +25,80 @@
 /* Model step function */
 void ecu_gov_step(RT_MODEL_ecu_gov_T *const ecu_gov_M, real32_T ecu_gov_U_rpm,
                   uint8_T ecu_gov_U_droop, uint8_T ecu_gov_U_rst, real32_T
-                  ecu_gov_U_fuel0, real32_T ecu_gov_U_rpm0, real32_T
-                  *ecu_gov_Y_fuel, real32_T *ecu_gov_Y_set)
+                  ecu_gov_U_fuel0, real32_T ecu_gov_U_rpm0, uint8_T
+                  ecu_gov_U_idle, real32_T *ecu_gov_Y_fuel, real32_T
+                  *ecu_gov_Y_set)
 {
   DW_ecu_gov_T *ecu_gov_DW = ecu_gov_M->dwork;
-  real32_T rtb_integ_add;
+  int32_T tmp;
   real32_T rtb_pi_add;
-
-  /* Switch: '<Root>/tgt' incorporates:
-   *  Constant: '<Root>/ONE'
-   *  Constant: '<Root>/RATED'
-   *  Constant: '<Root>/SET'
-   *  Gain: '<Root>/g_droop'
-   *  Gain: '<Root>/g_set'
-   *  Inport: '<Root>/droop'
-   *  Product: '<Root>/div_rated'
-   *  Sum: '<Root>/one_minus'
-   *  Switch: '<Root>/fuel_prev'
-   */
-  if (ecu_gov_U_droop != 0) {
-    /* Switch: '<Root>/fuel_prev' incorporates:
-     *  Inport: '<Root>/fuel0'
-     *  Inport: '<Root>/rst'
-     */
-    if (ecu_gov_U_rst != 0) {
-      *ecu_gov_Y_fuel = ecu_gov_U_fuel0;
-    }
-
-    rtb_integ_add = (1.0F - 0.04F * *ecu_gov_Y_fuel / 34.0F) * 1500.0F;
-  } else {
-    rtb_integ_add = 1500.0F;
-  }
-
-  /* End of Switch: '<Root>/tgt' */
 
   /* Switch: '<Root>/set_prev' incorporates:
    *  Constant: '<Root>/SET'
    *  Inport: '<Root>/rpm0'
    *  Inport: '<Root>/rst'
    *  MinMax: '<Root>/set_init'
-   *  UnitDelay: '<Root>/set_z'
    */
   if (ecu_gov_U_rst != 0) {
-    rtb_pi_add = fminf(ecu_gov_U_rpm0, 1500.0F);
-  } else {
-    rtb_pi_add = *ecu_gov_Y_set;
+    *ecu_gov_Y_set = fminf(ecu_gov_U_rpm0, 1500.0F);
   }
 
-  /* End of Switch: '<Root>/set_prev' */
-
-  /* Saturate: '<Root>/set_sat' incorporates:
-   *  Constant: '<Root>/RAMP_DT'
-   *  Sum: '<Root>/set_add'
+  /* Switch: '<Root>/top' incorporates:
+   *  Constant: '<Root>/IDLE'
+   *  Constant: '<Root>/SET'
+   *  Inport: '<Root>/idle'
+   *  Switch: '<Root>/tgt_idle'
    */
-  if (rtb_pi_add + 0.5F > 1500.0F) {
-    *ecu_gov_Y_set = 1500.0F;
-  } else if (rtb_pi_add + 0.5F < 0.0F) {
-    *ecu_gov_Y_set = 0.0F;
+  if (ecu_gov_U_idle != 0) {
+    tmp = 1000;
+    rtb_pi_add = 1000.0F;
   } else {
-    *ecu_gov_Y_set = rtb_pi_add + 0.5F;
+    tmp = 1500;
+
+    /* Switch: '<Root>/tgt' incorporates:
+     *  Constant: '<Root>/ONE'
+     *  Constant: '<Root>/RATED'
+     *  Constant: '<Root>/SET'
+     *  Gain: '<Root>/g_droop'
+     *  Gain: '<Root>/g_set'
+     *  Inport: '<Root>/droop'
+     *  Product: '<Root>/div_rated'
+     *  Sum: '<Root>/one_minus'
+     *  Switch: '<Root>/fuel_prev'
+     */
+    if (ecu_gov_U_droop != 0) {
+      /* Switch: '<Root>/fuel_prev' incorporates:
+       *  Inport: '<Root>/fuel0'
+       *  Inport: '<Root>/rst'
+       */
+      if (ecu_gov_U_rst != 0) {
+        *ecu_gov_Y_fuel = ecu_gov_U_fuel0;
+      }
+
+      rtb_pi_add = (1.0F - 0.04F * *ecu_gov_Y_fuel / 34.0F) * 1500.0F;
+    } else {
+      rtb_pi_add = 1500.0F;
+    }
+
+    /* End of Switch: '<Root>/tgt' */
   }
 
-  /* End of Saturate: '<Root>/set_sat' */
+  /* Switch: '<Root>/set_prev' incorporates:
+   *  Constant: '<Root>/RAMP_DT'
+   *  Constant: '<Root>/ZERO'
+   *  MinMax: '<Root>/set_min'
+   *  MinMax: '<Root>/set_sat'
+   *  Sum: '<Root>/set_add'
+   *  Switch: '<Root>/top'
+   */
+  *ecu_gov_Y_set = fmaxf(fminf(*ecu_gov_Y_set + 0.5F, (real32_T)tmp), 0.0F);
 
   /* Sum: '<Root>/err' incorporates:
    *  Inport: '<Root>/rpm'
    *  MinMax: '<Root>/sp'
    *  UnitDelay: '<Root>/set_z'
    */
-  rtb_pi_add = fminf(*ecu_gov_Y_set, rtb_integ_add) - ecu_gov_U_rpm;
+  rtb_pi_add = fminf(*ecu_gov_Y_set, rtb_pi_add) - ecu_gov_U_rpm;
 
   /* Switch: '<Root>/integ_prev' incorporates:
    *  Gain: '<Root>/g_dt'
@@ -141,8 +146,8 @@ void ecu_gov_step(RT_MODEL_ecu_gov_T *const ecu_gov_M, real32_T ecu_gov_U_rpm,
 /* Model initialize function */
 void ecu_gov_initialize(RT_MODEL_ecu_gov_T *const ecu_gov_M, real32_T
   *ecu_gov_U_rpm, uint8_T *ecu_gov_U_droop, uint8_T *ecu_gov_U_rst, real32_T
-  *ecu_gov_U_fuel0, real32_T *ecu_gov_U_rpm0, real32_T *ecu_gov_Y_fuel, real32_T
-  *ecu_gov_Y_set)
+  *ecu_gov_U_fuel0, real32_T *ecu_gov_U_rpm0, uint8_T *ecu_gov_U_idle, real32_T *
+  ecu_gov_Y_fuel, real32_T *ecu_gov_Y_set)
 {
   DW_ecu_gov_T *ecu_gov_DW = ecu_gov_M->dwork;
 
@@ -158,6 +163,7 @@ void ecu_gov_initialize(RT_MODEL_ecu_gov_T *const ecu_gov_M, real32_T
   *ecu_gov_U_rst = 0U;
   *ecu_gov_U_fuel0 = 0.0F;
   *ecu_gov_U_rpm0 = 0.0F;
+  *ecu_gov_U_idle = 0U;
 
   /* external outputs */
   *ecu_gov_Y_fuel = 0.0F;

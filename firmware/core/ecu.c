@@ -16,6 +16,7 @@
 #include "isotp.h"
 #include "link.h"
 #include "mode.h"
+#include "actuate.h"
 
 #define SPN_PROGRAM 628u             /* program memory */
 #define FMI_CALIBRATION 13u          /* out of calibration: no end-of-line record */
@@ -37,6 +38,8 @@ static crank_t crank;
 static sens_t sens;
 static gov_t gov;
 static rail_t rail;
+static mu_t mu;                      /* metering valve: the current loop */
+static egrp_t egrp;                  /* EGR valve: the position loop */
 static faults_t faults;
 static nvm_image img;                /* live: the tick updates it */
 static nvm_image out;                /* sealed copy the host writes */
@@ -127,6 +130,11 @@ static void reset_all(ecu_io *io)
     boostm_reset();
     egrg_reset();
     io->egr_off = 0;
+    mu_reset(&mu);
+    egrp_reset(&egrp);
+    spdst_reset();
+    io->egr_duty = 0;
+    io->spd_state = SPD_OFF;
     bam_n = bam_i = 0;
     pend_dm1 = pend_dm2 = pend_dm4 = pend_hours = 0;
     inject_cancel(io->inj);
@@ -189,6 +197,7 @@ static void trip(ecu_io *io, int why)
     io->state = mode_cmd(MODE_TRIP, 0, 0, 0);
     inject_cancel(io->inj);
     io->meter_duty = METER_CLOSED;
+    io->egr_duty = 0;
 }
 
 static void check(ecu_io *io, float rpm)
@@ -691,14 +700,24 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     check(io, rpm);
     underspeed(io, rpm);
 
+    /* the speed states pick what the governor aims for (idle or rated) */
+    uint8_t idle, spd;
+    spdst_step(io->state == ECU_RUN, rpm, gov_setpoint(gov.fuel, io->droop_sw), SPD_IDLE_MS, &idle, &spd);
+    io->spd_state = spd;
     if (io->state == ECU_RUN)
-        gov_step(&gov, rpm, io->droop_sw, 0.001f);
+        gov_step(&gov, rpm, io->droop_sw, idle, 0.001f);
+    /* metering valve, a cascade: rail pressure -> valve current -> PWM */
+    float cmd;
     if (io->state == ECU_CRANK || io->state == ECU_RUN)
-        io->meter_duty = sens.fmi[S_RAIL] ? RAIL_DUTY_LIMP
+        cmd = sens.fmi[S_RAIL] ? RAIL_DUTY_LIMP
             : rail_step(&rail, rail_set_bar(io->state == ECU_RUN ? gov.fuel : FUEL_START_MG),
                         sens.val[S_RAIL], 0.001f);
     else
-        io->meter_duty = METER_CLOSED;
+        cmd = METER_CLOSED;
+    io->meter_duty = mu_step(&mu, cmd, io->i_mu, io->i_mu_valid, io->v_bat, 0.001f);
+    /* EGR valve, a cascade: target position -> position PID -> bridge */
+    io->egr_duty = egrp_step(&egrp, egr_target_pct(io->state == ECU_RUN ? gov.fuel : 0), sens.val[S_EGR],
+                             (uint8_t)(io->state == ECU_RUN && !io->egr_off && !sens.fmi[S_EGR]), 0.001f);
 
     send_can(io);
 

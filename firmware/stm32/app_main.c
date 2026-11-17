@@ -45,6 +45,8 @@ static void read_inputs(void)
     io.v_sync = adc_pin_v(AN_SYNC) / G_SYNC;
     io.v_boost_rail = adc_pin_v(AN_BOOST_MON) / G_BOOST_MON;
     io.i_egr = adc_pin_v(AN_I_EGR) * A_PER_V_EGR;
+    io.i_mu = adc_mu_amps();
+    io.i_mu_valid = 1;
 }
 
 /* ---- the metering valve: TIM20 CH4 on PE1 ---- */
@@ -60,6 +62,9 @@ static void meter_init(void)
     TIM20->ARR = meter_arr;
     TIM20->CCR4 = 0;
     TIM20->CCMR2 = (6u << TIM_CCMR2_OC4M_Pos) | TIM_CCMR2_OC4PE;   /* PWM mode 1 */
+    TIM20->CCMR1 = 0;                                       /* CH1: timing only, no pin (PE2 is GPIO) */
+    TIM20->CCR1 = 0;
+    TIM20->CR2 = 3u << TIM_CR2_MMS_Pos;                     /* TRGO = CC1 compare pulse: the ADC sample */
     TIM20->CCER = TIM_CCER_CC4E;
     TIM20->BDTR = TIM_BDTR_MOE;
     TIM20->EGR = TIM_EGR_UG;
@@ -67,17 +72,45 @@ static void meter_init(void)
     pin_mode(P_MU_PWM, PM_AF, AF_MU_PWM);
 }
 
+/* ---- the EGR bridge: TIM1 CH1 / CH2 on PA8 / PA9 ---- */
+static uint32_t egr_arr;
+
+static void egr_init(void)
+{
+    RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
+    (void)RCC->APB2ENR;
+    TIM1->CR1 = 0;
+    TIM1->PSC = 2;                                          /* 56.67 MHz */
+    egr_arr = SYSCLK_HZ / 3u / EGR_PWM_HZ - 1u;
+    TIM1->ARR = egr_arr;
+    TIM1->CCR1 = TIM1->CCR2 = 0;
+    TIM1->CCMR1 = (6u << TIM_CCMR1_OC1M_Pos) | TIM_CCMR1_OC1PE | (6u << TIM_CCMR1_OC2M_Pos) | TIM_CCMR1_OC2PE;
+    TIM1->CCER = TIM_CCER_CC1E | TIM_CCER_CC2E;
+    TIM1->BDTR = TIM_BDTR_MOE;
+    TIM1->EGR = TIM_EGR_UG;
+    TIM1->CR1 = TIM_CR1_ARPE | TIM_CR1_CEN;
+    pin_mode(P_EGR_IN1, PM_AF, AF_EGR);
+    pin_mode(P_EGR_IN2, PM_AF, AF_EGR);
+}
+
 static void write_outputs(void)
 {
     float d = io.meter_duty;
     d = d < 0.0f ? 0.0f : d > 1.0f ? 1.0f : d;
-    TIM20->CCR4 = (uint32_t)(d * (float)(meter_arr + 1u) + 0.5f);
+    uint32_t c4 = (uint32_t)(d * (float)(meter_arr + 1u) + 0.5f);
+    TIM20->CCR4 = c4;
+    TIM20->CCR1 = c4 / 2u;                                  /* the middle of the on-time */
+    /* EGR: sign-magnitude; the other leg held low (low-side brake while it
+     * switches); EN only while driving. egr_off (the stall guard) coasts. */
+    float e = io.egr_off ? 0.0f : io.egr_duty;
+    e = e < -0.95f ? -0.95f : e > 0.95f ? 0.95f : e;
+    uint32_t ce = (uint32_t)((e < 0 ? -e : e) * (float)(egr_arr + 1u) + 0.5f);
+    TIM1->CCR1 = e > 0 ? ce : 0;
+    TIM1->CCR2 = e < 0 ? ce : 0;
+    pin_set(P_EGR_EN, ce != 0);
     pin_set(P_WDT_KICK, io.wdg);
     pin_set(P_RLY_MAIN, io.main_relay);
     pin_set(P_BOOST_DIS, io.boost_dis);
-    /* The core has no EGR position loop yet (ecu_io carries only egr_off):
-     * the bridge stays coasting, the valve spring-shut. */
-    pin_set(P_EGR_EN, 0);
     /* status LED: 1 Hz stopped, 5 Hz cranking or running, on in SHUTDOWN;
      * 2 Hz if the crystal failed and the clock is HSI16 */
     uint32_t half = clock_on_hsi ? 250u : (io.state == ECU_CRANK || io.state == ECU_RUN) ? 100u : 500u;
@@ -216,6 +249,8 @@ int main(void)
     clock_on_hsi = clock_init() != 0;
     adc_init();
     meter_init();
+    adc_mu_init();
+    egr_init();
 
     ecu_init(&io);
     io.reset_cause = reset_cause();

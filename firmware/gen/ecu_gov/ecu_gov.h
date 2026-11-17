@@ -9,7 +9,7 @@
  *
  * Model version                  : 1.1
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Mon Nov 16 14:11:27 2026
+ * C/C++ source code generated on : Mon Nov 16 16:25:44 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: ARM Compatible->ARM Cortex-M
@@ -58,12 +58,12 @@ struct tag_RTM_ecu_gov_T {
 /* Model entry point functions */
 extern void ecu_gov_initialize(RT_MODEL_ecu_gov_T *const ecu_gov_M, real32_T
   *ecu_gov_U_rpm, uint8_T *ecu_gov_U_droop, uint8_T *ecu_gov_U_rst, real32_T
-  *ecu_gov_U_fuel0, real32_T *ecu_gov_U_rpm0, real32_T *ecu_gov_Y_fuel, real32_T
-  *ecu_gov_Y_set);
+  *ecu_gov_U_fuel0, real32_T *ecu_gov_U_rpm0, uint8_T *ecu_gov_U_idle, real32_T *
+  ecu_gov_Y_fuel, real32_T *ecu_gov_Y_set);
 extern void ecu_gov_step(RT_MODEL_ecu_gov_T *const ecu_gov_M, real32_T
   ecu_gov_U_rpm, uint8_T ecu_gov_U_droop, uint8_T ecu_gov_U_rst, real32_T
-  ecu_gov_U_fuel0, real32_T ecu_gov_U_rpm0, real32_T *ecu_gov_Y_fuel, real32_T
-  *ecu_gov_Y_set);
+  ecu_gov_U_fuel0, real32_T ecu_gov_U_rpm0, uint8_T ecu_gov_U_idle, real32_T
+  *ecu_gov_Y_fuel, real32_T *ecu_gov_Y_set);
 
 /*-
  * The generated code includes comments that allow you to trace directly

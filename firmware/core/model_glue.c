@@ -32,6 +32,8 @@
 #include "ecu_sensors.h"
 #include "j1939.h"
 #include "ecu_j1939.h"
+#include "actuate.h"
+#include "ecu_spdst.h"
 #include <string.h>
 
 /* ---- governor: model/ecu_gov.slx ----
@@ -48,12 +50,12 @@ void gov_reset(gov_t *g, float fuel0, float rpm0)
     g->set = rpm0 < GOV_RPM_SET ? rpm0 : GOV_RPM_SET;
 }
 
-float gov_step(gov_t *g, float rpm, int droop, float dt_s)
+float gov_step(gov_t *g, float rpm, int droop, int idle, float dt_s)
 {
     (void)dt_s;                          /* the model runs at its fixed 1 ms */
     g->m.dwork = &g->dw;                 /* re-bound: survives a struct copy */
     ecu_gov_step(&g->m, rpm, (uint8_t)(droop != 0), g->rst, g->fuel0, g->rpm0,
-                 &g->fuel, &g->set);
+                 (uint8_t)(idle != 0), &g->fuel, &g->set);
     g->rst = 0;
     g->integ = g->dw.integ_z_DSTATE;
     return g->fuel;
@@ -313,5 +315,73 @@ void j1939_eec1(ecu_can *f, float rpm) { pgns(f, 0, 3, 61444, rpm, 0, 0, 0, 0, 0
 void j1939_et1(ecu_can *f, float clt_c, int valid) { pgns(f, 1, 6, 65262, 0, clt_c, (uint8_t)(valid != 0), 0, 0, 0); }
 void j1939_eflp1(ecu_can *f, float oil_kpa, int valid) { pgns(f, 2, 6, 65263, 0, 0, 0, oil_kpa, (uint8_t)(valid != 0), 0); }
 void j1939_hours(ecu_can *f, uint32_t engine_s) { pgns(f, 3, 6, PGN_HOURS, 0, 0, 0, 0, 0, engine_s); }
+
+/* ---- the cascades' inner loops: model/ecu_mucur.slx, ecu_egrpos.slx ----
+ * State in the caller's struct, as the governor's; integ etc. mirrored
+ * for readers. The generated initialize zeroes what it is given: scratch. */
+void mu_reset(mu_t *m)
+{
+    float a = 0, b = 0, d = 0, y = 0;
+    uint8_t v = 0;
+    m->m.dwork = &m->dw;
+    ecu_mucur_initialize(&m->m, &a, &b, &v, &d, &y);
+    m->integ = 0;
+}
+
+float mu_step(mu_t *m, float cmd, float i_meas, uint8_t valid, float v_bat, float dt_s)
+{
+    float y;
+    (void)dt_s;
+    m->m.dwork = &m->dw;
+    ecu_mucur_step(&m->m, cmd, i_meas, valid, v_bat, &y);
+    m->integ = m->dw.integ_z_DSTATE;
+    return y;
+}
+
+void egrp_reset(egrp_t *e)
+{
+    float a = 0, b = 0, y = 0;
+    uint8_t en = 0;
+    e->m.dwork = &e->dw;
+    ecu_egrpos_initialize(&e->m, &a, &b, &en, &y);
+    e->integ = e->prev = e->dfilt = 0;
+}
+
+float egrp_step(egrp_t *e, float target, float pos, uint8_t enable, float dt_s)
+{
+    float y;
+    (void)dt_s;
+    e->m.dwork = &e->dw;
+    ecu_egrpos_step(&e->m, target, pos, enable, &y);
+    e->integ = e->dw.integ_z_DSTATE;
+    e->prev = e->dw.prev_z_DSTATE;
+    e->dfilt = e->dw.dfilt_z_DSTATE;
+    return y;
+}
+
+/* ---- speed states: model/ecu_spdst.slx ----
+ * A chart writes its outputs only in entry actions and holds them in the
+ * caller's storage otherwise: that storage must persist, so it is ours,
+ * not the caller's locals. */
+static RT_MODEL_ecu_spdst_T spdst_m;
+static DW_ecu_spdst_T spdst_dw;
+static uint8_t spdst_idle, spdst_state;
+
+void spdst_reset(void)
+{
+    float r = 0, t = 0;
+    uint8_t run = 0;
+    uint32_t ms = 0;
+    spdst_m.dwork = &spdst_dw;
+    ecu_spdst_initialize(&spdst_m, &r, &t, &run, &ms, &spdst_idle, &spdst_state);
+}
+
+void spdst_step(uint8_t running, float rpm, float target, uint32_t idle_ms,
+                uint8_t *idle, uint8_t *state)
+{
+    ecu_spdst_step(&spdst_m, rpm, target, running, idle_ms, &spdst_idle, &spdst_state);
+    *idle = spdst_idle;
+    *state = spdst_state;
+}
 
 #endif

@@ -277,8 +277,11 @@ def runaway():
         c.that("pending commands cancelled", sum(i.dur_us for i in sim.io.inj), 0,
                ok=all(i.dur_us == 0 for i in sim.io.inj))
         at = [p for t, r, st, p, *_ in sim.trace if t >= tr[0]]
-        c.that("rail after trip never above rail at trip, bar", max(at) - at[0], 0,
-               ok=max(at) <= at[0], unit="bar")
+        # the valve shuts as fast as its coil's current rises (tau 3 ms,
+        # engine.py since 16 Nov), not in zero time: a fraction of a bar,
+        # where any real build-up after the trip would be tens
+        c.that("rail rise after trip (valve coil shutting), bar", max(at) - at[0], 0,
+               ok=max(at) - at[0] < 1.0, unit="bar")
         got = [d for t, d in sim.dm1_after(tr[0]) if (190, 0) in d]
         c.that("DM1 carries SPN 190 FMI 0", "yes" if got else "no", 0, ok=bool(got))
     return c
@@ -483,12 +486,33 @@ def overload():
            ok=sim.trip() is None and sim.io.state == RUN)
     return c
 
+def hot_coil():
+    """The metering cascade (decisions log 23): rail -> valve current -> PWM.
+    A coil 25 % hot (12.5 ohm) on a 12.0 V battery: the duty that gave the
+    right current cold now gives 29 % less. The inner loop must put the
+    current back, so the rail holds as in scenario 10."""
+    c = Checks("17 metering valve: hot coil, low battery, rail still within 5 %")
+    sim = Sim()
+    sim.eng.r_coil, sim.eng.vbat = 12.5, 12.0
+    sim._volts()
+    sim.start(8.0)
+    sim.eng.load_kw = 20
+    sim.run(16.0)
+    xs = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if 14 * S <= t < 16 * S]
+    worst = max(abs(p / ps - 1) for p, ps in xs)
+    c.that("20 kW: worst deviation, fraction", worst, 0.05, ok=worst <= 0.05)
+    duty = sim.io.meter_duty
+    cold = sim.eng.i_mu / (13.5 / 10.0)        # the duty a cold coil at 13.5 V would need
+    want = (sim.eng.r_coil / sim.eng.vbat) / (10.0 / 13.5)    # 1.41: what Ohm's law needs
+    c.that("duty raised above the cold-coil duty, ratio", duty / cold, want, tol=0.03)
+    return c
+
 
 SCENARIOS = {f.__name__: f for f in (start, load_step, load_reject, droop, runaway,
                                      crank_loss, ignition_off, sensor_open,
                                      can_content, rail, watchdog,
                                      history_after_power_cycle, torn_save,
-                                     dm2_dm3_over_can, lost_tooth, overload)}
+                                     dm2_dm3_over_can, lost_tooth, overload, hot_coil)}
 
 
 def main():

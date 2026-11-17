@@ -9,6 +9,7 @@
 #define GOV_KP 0.5f                  /* calibration, mg/rpm */
 #define GOV_KI 2.0f                  /* calibration, mg/(rpm*s) */
 #define GOV_RAMP_RPM_S 500.0f        /* calibration: setpoint ramp from RUN entry */
+#define GOV_IDLE_RPM 1000.0f         /* calibration: the warm-up idle speed (mode.h spdst) */
 
 #ifdef ECU_MODEL
 /* ECU_MODEL: the governor is generated from model/ecu_gov.slx (Embedded
@@ -28,6 +29,7 @@ typedef struct { float integ, fuel, set; } gov_t;   /* set: ramping speed setpoi
 
 void  gov_reset(gov_t *g, float fuel0, float rpm0);   /* bumpless: set = rpm0, integ = fuel0 */
 float gov_setpoint(float fuel, int droop);
-float gov_step(gov_t *g, float rpm, int droop, float dt_s);
+/* idle: hold GOV_IDLE_RPM (the warm-up state); 0 = the rated setpoint */
+float gov_step(gov_t *g, float rpm, int droop, int idle, float dt_s);
 
 #endif

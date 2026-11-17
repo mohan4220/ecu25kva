@@ -26,6 +26,10 @@
 #include "j1939.h"
 #include "ecu_sensors.h"
 #include "ecu_j1939.h"
+#include "actuate.h"
+#include "ecu_mucur.h"
+#include "ecu_egrpos.h"
+#include "ecu_spdst.h"
 #include <string.h>
 
 /* A random input that holds for a random while: the guards count time,
@@ -61,8 +65,9 @@ int main(void)
         if (i % 50000 == 0) { f0 = rnd(0, 45); r0 = rnd(300, 1600); gov_reset(&g, f0, r0); rst = 1; }
         rpm += rnd(-5, 5); if (rpm < 0) rpm = 0;
         int droop = (i / 100000) & 1;
-        float a = gov_step(&g, rpm, droop, 0.001f);
-        ecu_gov_step(&gm, rpm, (uint8_t)droop, rst, f0, r0, &fy, &sy);
+        int idle = (i / 37000) % 3 == 0;               /* the speed states' IDLE, on and off */
+        float a = gov_step(&g, rpm, droop, idle, 0.001f);
+        ecu_gov_step(&gm, rpm, (uint8_t)droop, rst, f0, r0, (uint8_t)idle, &fy, &sy);
         rst = 0;
         double d = fabs(a - fy) + fabs(g.set - sy);
         if (d > w) w = d;
@@ -229,5 +234,57 @@ int main(void)
           j1939_hours(&f, es); bad += memcmp(f.data, y[3], 8) != 0;
       }
       report("J1939 PGN bytes (mismatched frames)", (double)bad, 0); }
+    /* the metering valve's current loop: commands, measurements and battery
+     * readings inside and outside their ranges, the measurement coming and going */
+    { mu_t ref; RT_MODEL_ecu_mucur_T m; DW_ecu_mucur_T dw; float y, z0 = 0, z1 = 0, z2 = 0, z3 = 0; uint8_t zv = 0;
+      hold_t hc = {0}, hi = {0}, hb = {0}, hv = {0};
+      double worst = 0;
+      mu_reset(&ref); m.dwork = &dw; ecu_mucur_initialize(&m, &z0, &z1, &zv, &z2, &z3);
+      for (int i = 0; i < N; i++) {
+          if (rand() % 500000 == 0) { mu_reset(&ref); ecu_mucur_initialize(&m, &z0, &z1, &zv, &z2, &z3); }
+          float c = held(&hc, -0.1f, 1.2f, 300), im = held(&hi, -0.1f, 2.0f, 50);
+          float vb = held(&hb, 0.0f, 26.0f, 2000);
+          uint8_t va = held(&hv, 0, 1, 20000) > 0.2f;
+          float a = mu_step(&ref, c, im, va, vb, 0.001f);
+          ecu_mucur_step(&m, c, im, va, vb, &y);
+          double d = fabs((double)a - (double)y);
+          if (d > worst) worst = d;
+      }
+      report("metering current loop (duty)", worst, 0); }
+    /* the EGR position PID: targets either side of the closed band, a
+     * moving position, enable on and off */
+    { egrp_t ref; RT_MODEL_ecu_egrpos_T m; DW_ecu_egrpos_T dw; float y, z0 = 0, z1 = 0, z2 = 0; uint8_t ze = 0;
+      hold_t ht = {0}, he = {0};
+      double worst = 0; float pos = 20;
+      egrp_reset(&ref); m.dwork = &dw; ecu_egrpos_initialize(&m, &z0, &z1, &ze, &z2);
+      for (int i = 0; i < N; i++) {
+          if (rand() % 500000 == 0) { egrp_reset(&ref); ecu_egrpos_initialize(&m, &z0, &z1, &ze, &z2); }
+          float t = held(&ht, -5.0f, 100.0f, 3000);
+          pos += rnd(-0.3f, 0.3f); if (pos < 0) pos = 0; if (pos > 100) pos = 100;
+          uint8_t en = held(&he, 0, 1, 20000) > 0.2f;
+          float a = egrp_step(&ref, t, pos, en, 0.001f);
+          ecu_egrpos_step(&m, t, pos, en, &y);
+          double d = fabs((double)a - (double)y);
+          if (d > worst) worst = d;
+      }
+      report("EGR position PID (duty)", worst, 0); }
+    /* the speed states: running on and off, speeds in and out of the band,
+     * idle times from none to seconds */
+    { RT_MODEL_ecu_spdst_T m; DW_ecu_spdst_T dw; uint8_t id, st, id2, st2, zr = 0, zi = 0, zs = 0;
+      float zf = 0, zg = 0; uint32_t zm = 0;
+      hold_t hr = {0}, hn = {0}, hm = {0};
+      long n1 = 0, n2 = 0, n3 = 0; bad = 0;
+      spdst_reset(); m.dwork = &dw; ecu_spdst_initialize(&m, &zf, &zg, &zr, &zm, &zi, &zs);
+      for (int i = 0; i < N; i++) {
+          uint8_t run = held(&hr, 0, 1, 40000) > 0.15f;
+          float sp = held(&hn, 1440, 1560, 900);
+          uint32_t im = (uint32_t)held(&hm, 0, 4000, 60000);
+          spdst_step(run, sp, 1500, im, &id2, &st2);
+          ecu_spdst_step(&m, sp, 1500, run, im, &id, &st);
+          bad += id != id2 || st != st2;
+          n1 += st2 == SPD_IDLE; n2 += st2 == SPD_OPERATING; n3 += st2 == SPD_STEADY;
+      }
+      report("speed states chart (mismatched ticks)", (double)bad, 0);
+      printf("   ticks idle / operating / steady: %ld %ld %ld\n", n1, n2, n3); }
     return fails != 0;
 }

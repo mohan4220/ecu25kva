@@ -19,12 +19,13 @@ float gov_setpoint(float fuel, int droop)
 
 #ifndef ECU_MODEL
 
-float gov_step(gov_t *g, float rpm, int droop, float dt_s)
+float gov_step(gov_t *g, float rpm, int droop, int idle, float dt_s)
 {
     /* the setpoint ramps from the RUN-entry speed, so the start does not
-     * slam into the fuel limit and overshoot towards the overspeed trip */
-    g->set = clampf(g->set + GOV_RAMP_RPM_S * dt_s, 0, GOV_RPM_SET);
-    float target = gov_setpoint(g->fuel, droop);
+     * slam into the fuel limit and overshoot towards the overspeed trip;
+     * while idling it stops at the idle speed, then ramps on from there */
+    g->set = clampf(g->set + GOV_RAMP_RPM_S * dt_s, 0, idle ? GOV_IDLE_RPM : GOV_RPM_SET);
+    float target = idle ? GOV_IDLE_RPM : gov_setpoint(g->fuel, droop);
     float err = (g->set < target ? g->set : target) - rpm;
     g->integ = clampf(g->integ + GOV_KI * err * dt_s, 0, FUEL_MAX_MG);
     g->fuel = clampf(g->integ + GOV_KP * err, 0, FUEL_MAX_MG);

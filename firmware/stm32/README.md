@@ -52,7 +52,7 @@ pages). If it is not, the application runs but stores nothing.
 | `gpio.c` | — | every gate written low *before* it becomes an output |
 | `timebase.c` | 1, 2 | TIM2 counts µs and captures crank (CH2) and cam (CH3); TIM5, started on the same clock edge, carries the injection compares |
 | `inj_logic.c`, `inj_hw.c` | 3 | peak and hold, below |
-| `app_main.c` | 4–9, 12 | metering PWM (TIM20 CH4), inputs, outputs, the tick, storage, resets |
+| `app_main.c` | 4–9, 12 | metering PWM (TIM20 CH4, with CH1 timing the current sample), EGR bridge PWM (TIM1), inputs, outputs, the tick, storage, resets |
 | `adc.c` | — | ADC2 and ADC3 scan continuously into DMA, 16× oversampled; VDDA measured against VREFINT |
 | `can.c` | 5, 10 | FDCAN1 J1939 at 250 kbit/s; FDCAN2 service link at 1 Mbit/s |
 | `flash.c` | 7, 11, 13 | bank-2 writes as a non-blocking job; bank-1 erases from RAM, feeding the watchdog |
@@ -116,7 +116,8 @@ it answers. Every other page is erased just before the first write into it.
 | Peak and hold currents | 18 A, 9–11 A (the simulation's) | U5, the injector part number |
 | Metering PWM frequency | 1 kHz (`METER_PWM_HZ`) | the valve's data, or the old ECU on a scope |
 | Crank and cam edge | falling (`CRANK_FALLING`, `CAM_FALLING`) | bring-up step 3, on the scope |
-| EGR bridge | held coasting: the core has no EGR position command yet | a core change |
+| EGR bridge | driven by the position PID (TIM1, sign-magnitude); the target table is zeros, so it coasts | the emissions calibration |
+| EGR PWM frequency | 1 kHz (`EGR_PWM_HZ`) | the valve's data |
 | USB VID/PID | 0x1209/0x0001, pid.codes' test pair | a product needs its own |
 | Tick time | unknown on the chip | read `tick_max_cycles` with the debugger: it must stay well under 170000 |
 

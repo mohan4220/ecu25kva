@@ -1729,6 +1729,87 @@ have wiped them on every sensor reset. The glue gives it scratch arrays.
 says so. The owner: education and testing first; the code is
 regenerated under a commercial licence before any commercial use.
 
+## 23. The 20 kVA set's cascade PID, carried over (16-17 November)
+
+The owner sent the control diagram of the AG48 ECU, tested on a 20 kVA
+genset: engine states → RPM setpoint → outer PID (speed) → position
+command → inner PID (position) → PWM → solenoid valve → crankshaft. They
+asked for it to be carried over, and for any mistakes to be corrected:
+"use it all because the logic would be same".
+
+**It does not map one-to-one, and that is the first correction.** That
+engine has a fuel actuator with a position sensor; this one is common
+rail (Bosch MD1CS162). Our governor's output is fuel mass, which the
+injector law turns into a time, and there is no position to control. The
+cascade's idea fits in three places, and all three are now in:
+- **Metering valve: rail pressure → valve current → PWM.** The rail PI's
+  output is now a current command, and a new inner loop
+  (`actuate.c mu_step`, model `ecu_mucur`) feeds the battery voltage
+  forward and closes on the coil current. This is what Bosch does: the
+  old ECU's recording runs on a current setpoint, `MeUn_iSet`. Before
+  this, a hot coil or a low battery moved the valve: the metering
+  block's "fails both corners".
+- **EGR valve: target position → position PID → bridge PWM**
+  (`egrp_step`, model `ecu_egrpos`), on the valve's own position
+  sensor, pin 37. The bridge was never driven before. The target table
+  is zeros until the emissions calibration exists, so today the loop
+  coasts, as before. The structure is ready.
+- **Engine states → speed setpoint:** OFF, IDLE, OPERATING, STEADY
+  (`spdst_step`, chart `ecu_spdst`). The governor gains an idle input.
+  Warm-up idle is a calibration, `SPD_IDLE_MS`, and it is 0, so the set
+  goes straight to rated speed. A genset whose DSE expects rated speed
+  should not idle on its own; set it if your sets do.
+
+**Corrections to the diagram as drawn, applied here:**
+- **Derivative on the measurement, not the error,** and filtered. A D
+  term on the error kicks the actuator every time the target steps.
+- **Anti-windup.** The integral stops while the output is pushed into
+  a limit. The diagram has none, and a wound-up integral overshoots
+  when the limit releases.
+- **The inner loop must be much faster than the outer.** The coil's 3 ms
+  against a rail loop of tens of ms holds that; so does a position loop
+  of tens of ms against a speed loop of seconds.
+- **The comparators are differences, with the sign the actuator needs.**
+  For a normally-open metering valve, more current means LESS fuel. The
+  rail PI already has that sign; the diagram's "=" hides it.
+- **Coast, don't brake, at a closed EGR target.** Driving into the
+  closed stop stalls the motor and trips the stall guard; the spring
+  closes the valve.
+
+**The chip side.** The metering shunt carries current only while its
+FET is on, so a free-running scan reads the coil current or zero at
+random. TIM20's spare compare channel sits at half the on-time, and its
+compare pulse triggers one ADC2 injected sample per PWM period. The EGR
+bridge is TIM1 PWM, sign-magnitude, with EGR_EN high only while driving.
+
+**Mistakes of mine, found by the checks:**
+- **The SIL plant had no coil:** the valve shut the instant it was told.
+  With a real 3 ms coil, scenario 5's "rail never above its value at the
+  trip" was not physical. It now allows a fraction of a bar; a real
+  build-up would be tens.
+- **The hot-coil scenario's expected duty ratio was wrong:** 1.29 where
+  Ohm's law gives 1.41. The check now computes it from the plant.
+- **A Stateflow chart writes its outputs only in entry actions,** and
+  holds them in the caller's storage the rest of the time. The new
+  chart's glue passed fresh local variables, so between transitions the
+  governor read an uninitialised "idle". Seven unit tests and five
+  scenarios caught it on the model build. The back-to-back test did
+  not, because it reuses its variables. The glue now owns that storage,
+  as every other chart's does.
+- **The Simulink plant fed the coil current straight back in the same
+  step** (an algebraic loop). The ADC reads the current already flowing,
+  so the measurement now comes from the coil's previous step.
+
+**Proven:** all three models bit-exact with their C on 3 million random
+steps; the governor too, with idle switching. A 17th scenario, a coil
+25 % hot on a 12 V battery, holds the rail within 1.3 %. Unit tests
+cover each loop and the states.
+
+**ABI 4.** `ecu_io` gained `i_mu`, `i_mu_valid`, `egr_duty` and
+`spd_state`. The Rust simulator's binding (`simulator/crates/sim/src/fw.rs`)
+needs the same four fields and `ABI_VERSION = 4`. Until then it refuses
+this firmware, saying so. It was left alone as asked.
+
 ---
 
 ## Where these came from

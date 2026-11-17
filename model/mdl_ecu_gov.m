@@ -1,8 +1,9 @@
 function mdl_ecu_gov(P)
 %MDL_ECU_GOV  Speed governor: PI on rpm error, output fuel per injection (mg).
 %   Same arithmetic as firmware/core/govern.c, step for step:
-%     set   = sat(set_prev + RAMP*dt, 0, SET)        setpoint ramp from RUN entry
-%     tgt   = droop ? SET*(1 - DROOP*fuel_prev/RATED) : SET
+%     top   = idle ? IDLE : SET
+%     set   = sat(set_prev + RAMP*dt, 0, top)        setpoint ramp from RUN entry
+%     tgt   = idle ? IDLE : (droop ? SET*(1 - DROOP*fuel_prev/RATED) : SET)
 %     err   = min(set, tgt) - rpm
 %     integ = sat(integ_prev + (KI*err)*dt, 0, FUEL_MAX)
 %     fuel  = sat(integ + KP*err, 0, FUEL_MAX)
@@ -14,6 +15,7 @@ mb.new(m);
 S = 'single';
 mb.in(m, 'rpm', S); mb.in(m, 'droop', 'uint8'); mb.in(m, 'rst', 'uint8');
 mb.in(m, 'fuel0', S); mb.in(m, 'rpm0', S);
+mb.in(m, 'idle', 'uint8');                 % the speed states' IDLE (decisions log 23)
 mb.out(m, 'fuel', S); mb.out(m, 'set', S);
 
 % --- setpoint ramp
@@ -23,11 +25,17 @@ mb.b(m, 'set_z', 'simulink/Discrete/Unit Delay', 'InitialCondition', '0');
 mb.b(m, 'set_prev', 'simulink/Signal Routing/Switch', 'Criteria', 'u2 ~= 0');
 mb.k(m, 'RAMP_DT', single(P.GOV_RAMP_RPM_S) * single(P.DT), S);
 mb.b(m, 'set_add', 'simulink/Math Operations/Sum', 'Inputs', '++');
-mb.b(m, 'set_sat', 'simulink/Discontinuities/Saturation', 'UpperLimit', mb.num(P.GOV_RPM_SET), 'LowerLimit', '0');
+mb.k(m, 'IDLE', P.GOV_IDLE_RPM, S);
+mb.b(m, 'top', 'simulink/Signal Routing/Switch', 'Criteria', 'u2 ~= 0');
+mb.b(m, 'set_min', 'simulink/Math Operations/MinMax', 'Function', 'min', 'Inputs', '2');
+mb.k(m, 'ZERO', 0, S);
+mb.b(m, 'set_sat', 'simulink/Math Operations/MinMax', 'Function', 'max', 'Inputs', '2');
+mb.l(m, 'IDLE/1', 'top/1'); mb.l(m, 'idle/1', 'top/2'); mb.l(m, 'SET/1', 'top/3');
 mb.l(m, 'rpm0/1', 'set_init/1'); mb.l(m, 'SET/1', 'set_init/2');
 mb.l(m, 'set_init/1', 'set_prev/1'); mb.l(m, 'rst/1', 'set_prev/2'); mb.l(m, 'set_z/1', 'set_prev/3');
 mb.l(m, 'set_prev/1', 'set_add/1'); mb.l(m, 'RAMP_DT/1', 'set_add/2');
-mb.l(m, 'set_add/1', 'set_sat/1');
+mb.l(m, 'set_add/1', 'set_min/1'); mb.l(m, 'top/1', 'set_min/2');
+mb.l(m, 'set_min/1', 'set_sat/1'); mb.l(m, 'ZERO/1', 'set_sat/2');
 mb.l(m, 'set_sat/1', 'set_z/1', 'set/1');
 
 % --- droop target, from the previous step's fuel
@@ -50,7 +58,9 @@ mb.l(m, 'g_set/1', 'tgt/1'); mb.l(m, 'droop/1', 'tgt/2'); mb.l(m, 'SET/1', 'tgt/
 % --- error
 mb.b(m, 'sp', 'simulink/Math Operations/MinMax', 'Function', 'min', 'Inputs', '2');
 mb.b(m, 'err', 'simulink/Math Operations/Sum', 'Inputs', '+-');
-mb.l(m, 'set_sat/1', 'sp/1'); mb.l(m, 'tgt/1', 'sp/2');
+mb.b(m, 'tgt_idle', 'simulink/Signal Routing/Switch', 'Criteria', 'u2 ~= 0');
+mb.l(m, 'IDLE/1', 'tgt_idle/1'); mb.l(m, 'idle/1', 'tgt_idle/2'); mb.l(m, 'tgt/1', 'tgt_idle/3');
+mb.l(m, 'set_sat/1', 'sp/1'); mb.l(m, 'tgt_idle/1', 'sp/2');
 mb.l(m, 'sp/1', 'err/1'); mb.l(m, 'rpm/1', 'err/2');
 
 % --- integral, clamped (anti-windup)

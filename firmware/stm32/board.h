@@ -35,8 +35,9 @@
 #define P_INJ_HS_B_BAT PIN('F', 2)
 #define P_MU_PWM PIN('E', 1)          /* TIM20_CH4, AF6 */
 #define AF_MU_PWM 6u
-#define P_EGR_IN1 PIN('A', 8)
-#define P_EGR_IN2 PIN('A', 9)
+#define P_EGR_IN1 PIN('A', 8)        /* TIM1_CH1, AF6: leg A (pin 59) */
+#define P_EGR_IN2 PIN('A', 9)        /* TIM1_CH2, AF6: leg B (pin 81) */
+#define AF_EGR 6u
 #define P_EGR_EN PIN('A', 10)
 #define P_RLY_MAIN PIN('D', 5)
 #define P_RLY_BUZZER PIN('D', 15)
@@ -101,6 +102,9 @@ enum { AN_5V, AN_BARO, AN_VREFINT, AN_N3 };
  * (metering_unit_pwm.cir: "make it a firmware constant"); 1 kHz is the
  * block's middle case. */
 #define METER_PWM_HZ 1000u
+/* EGR bridge PWM: sign-magnitude, IN1 or IN2 switching, EGR_EN high only
+ * while driving (EN low = coast, the safe state). Not settled either. */
+#define EGR_PWM_HZ 1000u
 
 /* ---- injector current law (U5 open: the sim's figures) ---- */
 #define INJ_PEAK_A 18.0f              /* injector_boost.cir: needle lifts at ~18 A */

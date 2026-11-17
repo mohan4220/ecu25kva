@@ -932,6 +932,7 @@ Every check passes on this Windows machine: 26/26 circuit blocks; the netlist wi
 - **Proven equal:** all unit tests and 16/16 scenarios pass on the generated build; the back-to-back test agrees exactly on millions of random inputs (the tables to a unit in the last place).
 - **`ecu25kva`** (since 16 Nov; replaced `ecu_app`): the whole ECU in one model, TRIGGERS, MODEL, PLANT and the project buttons, simulated closed loop (decisions log §22).
 - **Flashing:** the code goes in the firmware image like any other. Since 14 Nov the STM32 chip layer exists (`firmware/stm32/`); not yet run on a board.
+- **17 Nov:** the 20 kVA set's cascade PID, carried over (decisions log §23): the metering valve now runs rail → current → PWM, the EGR valve has a position PID, and the speed has states (idle, operating, steady). 17 scenarios; ABI 4.
 - **16 Nov:** `model/ecu25kva.slx`, the whole ECU in one model (TRIGGERS, MODEL, PLANT, buttons that generate, build and flash); sensors and J1939 data now models too, bit-exact with the C (decisions log §22). Academic MATLAB licence: regenerate under a commercial one before commercial use.
 - **14 Nov, later:** the STM32G474 chip layer, `firmware/stm32/` (decisions log §21): images built with the project's zig, peak and hold by the ADC watchdog, a bootloader host that erases lazily. PC-checked; the bench is next.
 - **14 Nov:** boost-rail warnings (held high: the zener clamping; low while fuelling: a dead boost), the state machine owning the ignition cycle, and `./verify.sh` to run every check at once (decisions log §20).

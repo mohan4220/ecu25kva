@@ -45,7 +45,7 @@
 #define ECU_USB_IN 64
 #define ECU_USB_OUT 512
 #ifndef ECU_ABI_VERSION
-#define ECU_ABI_VERSION 3u           /* bump whenever ecu_io or an entry point changes */
+#define ECU_ABI_VERSION 4u           /* bump whenever ecu_io or an entry point changes */
 #endif
 
 /* Exported from a Windows DLL (the simulator's loadable firmware) */
@@ -111,6 +111,12 @@ typedef struct {
     float i_egr;                     /* input: EGR bridge current, A (ISNS_EGR) */
     uint8_t boost_dis;               /* output: 1 = stop the boost converter (BOOST_DIS) */
     uint8_t egr_off;                 /* output: 1 = the EGR bridge coasts (EGR_EN low) */
+    /* ABI 4: the cascades (16 Nov 2026, decisions log 23) */
+    float i_mu;                      /* input: metering-valve coil current, A (ISNS_MU,
+                                      * sampled mid on-time); used only if i_mu_valid */
+    uint8_t i_mu_valid;              /* input: 1 = i_mu is a real measurement */
+    float egr_duty;                  /* output: EGR bridge, -1..1, + opens; 0 = coast */
+    uint8_t spd_state;               /* status: 0 off, 1 idle, 2 operating, 3 steady */
 } ecu_io;
 
 ECU_API void ecu_init(ecu_io *io);

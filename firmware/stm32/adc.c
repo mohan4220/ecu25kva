@@ -102,5 +102,21 @@ float adc_vdda(void)
     return (v > 3.1f && v < 3.5f) ? v : VDDA_NOM;
 }
 
+/* The metering valve's shunt carries current only while its FET is on,
+ * so a free-running scan would read the coil current or zero at random.
+ * One injected conversion per PWM period instead, at the middle of the
+ * on-time: TIM20's compare channel 1 sits at half the duty, and its
+ * compare pulse is TRGO (MMS = 011), which is ADC1/2 injected trigger 16.
+ * It interrupts the regular scan and the scan resumes. */
+void adc_mu_init(void)
+{
+    ADC2->JSQR = 3u << ADC_JSQR_JSQ1_Pos                     /* IN3, PA6, ISNS_MU; JL = 0 */
+               | 16u << ADC_JSQR_JEXTSEL_Pos                 /* TIM20_TRGO */
+               | 1u << ADC_JSQR_JEXTEN_Pos;                  /* rising edge */
+    ADC2->CR |= ADC_CR_JADSTART;
+}
+
+float adc_mu_amps(void) { return (float)(ADC2->JDR1 & 0xFFFu) * adc_vdda() / 4095.0f * A_PER_V_MU; }
+
 float adc_pin_v(int idx) { return (float)buf2[idx] * adc_vdda() / 4095.0f; }
 float adc3_pin_v(int idx) { return (float)buf3[idx] * adc_vdda() / 4095.0f; }

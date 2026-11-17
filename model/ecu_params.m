@@ -7,7 +7,7 @@ function P = ecu_params()
 here = fileparts(mfilename('fullpath'));
 core = fullfile(here, '..', 'firmware', 'core');
 P = struct();
-for f = {'govern.h', 'rail.h', 'inject.h', 'safety.h', 'ecu.h', 'crank.h', 'mode.h'}
+for f = {'govern.h', 'rail.h', 'inject.h', 'safety.h', 'ecu.h', 'crank.h', 'mode.h', 'actuate.h'}
     txt = fileread(fullfile(core, f{1}));
     tok = regexp(txt, '#define\s+([A-Z][A-Z0-9_]*)\s+([-+]?[0-9.]+(?:[eE][-+]?\d+)?)[fFuU]*(?=\s|$)', 'tokens', 'lineanchors');
     for k = 1:numel(tok)
@@ -47,7 +47,9 @@ need = {'GOV_RPM_SET', 'GOV_DROOP', 'FUEL_MAX_MG', 'FUEL_RATED_MG', 'GOV_KP', ..
         'EGR_STALL_TRIES', 'WIF_MS', 'UNDERSPEED_RPM', 'UNDERSPEED_CLEAR_RPM', ...
         'UNDERSPEED_MS', 'UNDERSPEED_CLEAR_MS', 'AFTERRUN_MAX_MS', 'FUEL_START_MG', 'RUN_RPM', 'BOOST_HIGH_V', 'BOOST_HIGH_MS', 'BOOST_LOW_V', 'BOOST_LOW_MS', ...
         'sens_default', 'sens_v_lo', 'span_lo', 'span_hi', 'SENS_V_HI', 'SENS_FAULT_MS', ...
-        'NTC_R25', 'NTC_BETA', 'NTC_PULLUP'};
+        'NTC_R25', 'NTC_BETA', 'NTC_PULLUP', 'GOV_IDLE_RPM', 'SPD_BAND_RPM', 'SPD_STEADY_MS', ...
+        'MU_R_NOM', 'MU_V_NOM', 'MU_VBAT_MIN', 'MU_VBAT_MAX', 'MU_KP', 'MU_KI', 'MU_INTEG_MAX', ...
+        'EGR_KP', 'EGR_KI', 'EGR_KD', 'EGR_D_ALPHA', 'EGR_DUTY_MAX', 'EGR_CLOSED_PCT'};
 miss = need(~isfield(P, need));
 assert(isempty(miss), 'ecu_params: not found in the C: %s', strjoin(miss, ', '));
 end

@@ -34,6 +34,7 @@ static void gates_off(void)
     GPIOE->MODER = (GPIOE->MODER & ~(3u << 2)) | 1u << 2;   /* PE1: from TIM20 to plain low */
     GPIOF->BSRR = (1u << 2) << 16;
     GPIOA->BSRR = (1u << 8 | 1u << 9 | 1u << 10) << 16;
+    GPIOA->MODER = (GPIOA->MODER & ~(3u << 16 | 3u << 18)) | 1u << 16 | 1u << 18;   /* PA8, PA9 from TIM1 */
 }
 
 void Fault_Handler(void)

@@ -293,7 +293,8 @@ def check_pins():
     for macro, sig, afm in (("P_MU_PWM", "MU_PWM", "AF_MU_PWM"), ("P_CRANK", "CRANK_EDGE", "AF_TIM2"),
                             ("P_CAM", "CAM_EDGE", "AF_TIM2"), ("P_CAN1_RX", "CAN1_RX", "AF_FDCAN"),
                             ("P_CAN1_TX", "CAN1_TX", "AF_FDCAN"), ("P_CAN2_RX", "CAN2_RX", "AF_FDCAN"),
-                            ("P_CAN2_TX", "CAN2_TX", "AF_FDCAN")):
+                            ("P_CAN2_TX", "CAN2_TX", "AF_FDCAN"), ("P_EGR_IN1", "EGR_IN1", "AF_EGR"),
+                            ("P_EGR_IN2", "EGR_IN2", "AF_EGR")):
         pin, fn = sp.ASSIGN[sig]
         got = int(re.search(r"#define %s (\d+)u" % afm, BOARD).group(1))
         if af.get((pin, fn)) != got:
@@ -310,7 +311,7 @@ def check_pins():
     for ch, sig in ((3, "ISNS_INJ_A"), (4, "ISNS_INJ_B")):
         if sp.ASSIGN[sig][1] != f"ADC1_IN{ch}":
             bad.append(f"ADC1 channel {ch} is not {sig}")
-    print("\n".join(bad) or f"  pins: {len(sig_of)} pins, 7 AF numbers and the ADC channels agree with ST")
+    print("\n".join(bad) or f"  pins: {len(sig_of)} pins, 9 AF numbers and the ADC channels agree with ST")
     return not bad
 
 

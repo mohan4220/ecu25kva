@@ -71,14 +71,14 @@ boot()       { $CCMD $CF -I"$FW/core" -I"$FW/boot" -o "$OUT/t_boot$EXE" "$FW/sim
                  "$FW/core/service.c" "$FW/core/nvm.c" "$FW/core/isotp.c" "$FW/core/link.c" && "$OUT/t_boot$EXE"; }
 b2b()        { $CCMD -std=c99 -Wall -Wextra -O2 -ffp-contract=off -I"$FW/core" $GI -o "$OUT/b2b$EXE" \
                  "$ROOT/model/test/b2b.c" "$FW/core/govern.c" "$FW/core/rail.c" "$FW/core/inject.c" \
-                 "$FW/core/safety.c" "$FW/core/mode.c" "$FW/core/crank.c" "$FW/core/sensors.c" "$FW/core/j1939.c" "$FW/core/nvm.c" "$FW/core/log.c" "$FW"/gen/*/*.c -lm && "$OUT/b2b$EXE"; }
+                 "$FW/core/safety.c" "$FW/core/mode.c" "$FW/core/crank.c" "$FW/core/sensors.c" "$FW/core/j1939.c" "$FW/core/actuate.c" "$FW/core/nvm.c" "$FW/core/log.c" "$FW"/gen/*/*.c -lm && "$OUT/b2b$EXE"; }
 libs()       { mkdir -p "$FW/sim/build" &&
                $CCMD $CF -I"$FW/core" -shared -fPIC -o "$FW/sim/build/libecu.$EXT" "$FW"/core/*.c -lm &&
                $CCMD $CF -DECU_MODEL -I"$FW/core" $GI -shared -fPIC -o "$FW/sim/build/libecu_model.$EXT" "$FW"/core/*.c "$FW"/gen/*/*.c -lm &&
                $CCMD $CF -I"$FW/core" -I"$FW/boot" -shared -fPIC -o "$FW/sim/build/libboot.$EXT" "$FW/boot/boot.c" \
                  "$FW/core/service.c" "$FW/core/nvm.c" "$FW/core/isotp.c" "$FW/core/link.c"; }
-sil_ref()    { (cd "$FW/sim" && "$PY" run_sil.py | tee /dev/stderr | grep -q "16/16 scenarios pass"); }
-sil_model()  { (cd "$FW/sim" && ECU_LIB=libecu_model "$PY" run_sil.py | tee /dev/stderr | grep -q "16/16 scenarios pass"); }
+sil_ref()    { (cd "$FW/sim" && "$PY" run_sil.py | tee /dev/stderr | grep -q "17/17 scenarios pass"); }
+sil_model()  { (cd "$FW/sim" && ECU_LIB=libecu_model "$PY" run_sil.py | tee /dev/stderr | grep -q "17/17 scenarios pass"); }
 service()    { (cd "$FW/sim" && "$PY" test_service.py); }
 circuits()   { "$PY" sim/run_sim.py | tee /dev/stderr | grep -qE "^ +([0-9]+)/\1 blocks pass"; }
 netlist()    { "$PY" hw/check_netlist.py | tee /dev/stderr | grep -q "schematic connectivity OK"; }
@@ -110,8 +110,8 @@ step "unit tests, model-generated build" unit_model
 step "bootloader tests" boot
 step "models against hand-written C (b2b)" b2b
 step "SIL libraries" libs
-step "16 scenarios, hand-written build" sil_ref
-step "16 scenarios, model-generated build" sil_model
+step "17 scenarios, hand-written build" sil_ref
+step "17 scenarios, model-generated build" sil_model
 step "service tool" service
 echo "== STM32G474 (the prototype's chip layer)"
 step "injector sequencing, coil model" inj_seq
@@ -123,7 +123,7 @@ if [ $BOARDS = 1 ]; then
 fi
 if [ $MATLAB = 1 ]; then
     echo "== Simulink"
-    step "ecu25kva closed loop (16 checks)" simulink
+    step "ecu25kva closed loop (20 checks)" simulink
 fi
 
 echo
