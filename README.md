@@ -27,6 +27,11 @@ Want to draw it by hand? **[`docs/pdf/ECU-System-Circuit.pdf`](docs/pdf/ECU-Syst
 production netlist, joined by named nets, plus the J1001 pin table. One panel
 per block is also in `docs/system/*.svg`. Rebuild with `docs/draw_system.py`.
 
+The board itself: **[`docs/pdf/ECU-PCB-Prototype.pdf`](docs/pdf/ECU-PCB-Prototype.pdf)**
+(11 A3 sheets, board at 1:1): floor plan of the circuit blocks, every net
+between blocks, every terminal pin, top assembly, each copper layer, 3D views.
+Rebuild with `docs/draw_pcb.py` (needs KiCad 10).
+
 Resuming work, or moving to another machine?
 **[`docs/HANDOFF.md`](docs/HANDOFF.md)** — setup, what is verified, what is
 open, and the traps that already cost a session each.

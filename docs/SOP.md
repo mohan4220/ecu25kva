@@ -172,6 +172,12 @@ one A0 portrait page: each block's circuit with its real parts and values,
 joined by named wires (same name = same wire), plus the connector table.
 Rebuild it the same way with `docs/draw_system.py`.
 
+**See the board:** `docs/pdf/ECU-PCB-Prototype.pdf` is the routed prototype
+PCB as 11 A3 sheets at 1:1 (blocks, connections, terminals, assembly, copper
+layers, 3D). After a board change rebuild it with
+`CHROME=... .venv/Scripts/python.exe docs/draw_pcb.py` (about 4 minutes; it
+uses KiCad 10's kicad-cli and Python).
+
 **Order the prototype:** upload everything in `prototype/fab/` (Gerbers,
 `prototype.drl`, `bom.csv`, `positions.csv`). Select 4 layers, 1.6 mm,
 outer 2 oz / inner 1 oz, Tg 170. Then follow `prototype/docs/bring-up.md`

@@ -32,3 +32,6 @@ model/*.autosave
 model/*_ert_rtw/
 
 firmware/stm32/build/
+
+# draw_pcb.py working files (plots, renders); the PDF is the output
+docs/pcb/
