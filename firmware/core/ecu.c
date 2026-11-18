@@ -144,7 +144,7 @@ static void reset_all(ecu_io *io)
     bam_n = bam_i = 0;
     pend_dm1 = pend_dm2 = pend_dm4 = pend_hours = 0;
     inject_cancel(io->inj);
-    io->meter_duty = METER_CLOSED;
+    io->meter_duty = mu_ff(METER_CLOSED, io->v_bat);   /* the closing current, not a raw 1.0 */
     io->state = mode_cmd(MODE_RESET, 0, 0, 0);
     io->fault_n = io->synced = 0;
     io->rpm = io->fuel_mg = 0;
@@ -202,7 +202,7 @@ static void trip(ecu_io *io, int why)
     }
     io->state = mode_cmd(MODE_TRIP, 0, 0, 0);
     inject_cancel(io->inj);
-    io->meter_duty = METER_CLOSED;
+    io->meter_duty = mu_ff(METER_CLOSED, io->v_bat);   /* the closing current, not a raw 1.0 */
     io->egr_duty = 0;
 }
 
@@ -746,7 +746,13 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
             : rail_step(&rail, rail_set, sens.val[S_RAIL], 0.001f);
     else
         cmd = METER_CLOSED;
-    io->meter_duty = mu_step(&mu, cmd, io->i_mu, io->i_mu_valid, io->v_bat, 0.001f);
+    /* the measurement is trusted only while it reads neither open load nor
+     * over current (diag.h): a sense chain that reads low would otherwise
+     * wind the duty up, and the measured 2.5-5 ohm coil can then draw
+     * 8.6 A cold. Feedforward alone holds the coldest, lowest coil under
+     * 2.5 A (decisions log 25). */
+    uint8_t mu_meas = io->i_mu_valid && !dg[DG_MU_OPEN].act && !dg[DG_MU_OVERCUR].act;
+    io->meter_duty = mu_step(&mu, cmd, io->i_mu, mu_meas, io->v_bat, 0.001f);
     /* EGR valve, a cascade: target position -> position PID -> bridge */
     io->egr_duty = egrp_step(&egrp, egr_target_pct(io->state == ECU_RUN ? gov.fuel : 0), sens.val[S_EGR],
                              (uint8_t)(io->state == ECU_RUN && !io->egr_off && !sens.fmi[S_EGR]), 0.001f);

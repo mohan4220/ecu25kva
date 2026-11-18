@@ -38,6 +38,9 @@ def friction(rpm):
     return 10 + 0.006 * rpm          # N m
 
 
+I_CLOSE = 1.35                       # A, closes the metering valve (assumed; firmware MU_I_FULL)
+
+
 def _lin(x, lo, hi):
     return 0.5 + 4.0 * (x - lo) / (hi - lo)
 
@@ -57,7 +60,7 @@ class Engine:
         # the metering valve's coil (decisions log 23): the current, not the
         # duty, sets the opening; a hot coil or a low battery moves it
         self.vbat = 13.5             # V
-        self.r_coil = 10.0           # ohm (metering_unit_pwm.cir)
+        self.r_coil = 3.75           # ohm: measured 2.5-5 on the set (decisions log 25)
         self.i_mu = 0.0              # A, what ISNS_MU reads mid on-time
         self.load_kw = 0.0
         self.starter = False
@@ -144,11 +147,11 @@ class Engine:
                 self.fuel[k] = self.stuck_fuel_mg        # runaway: fuel regardless
         self.theta = new % 720
 
-        # rail: the coil current (tau 3 ms) sets the opening; full current,
-        # 13.5 V into 10 ohm, closes a normally-open valve
+        # rail: the coil current (tau 3 ms) sets the opening; I_CLOSE, the
+        # current assumed to close it (firmware MU_I_FULL), shuts a normally-open valve
         target = self.duty * self.vbat / self.r_coil
         self.i_mu += (target - self.i_mu) * (1 - math.exp(-dt / 0.003))
-        frac = min(1.0, self.i_mu / (13.5 / 10.0))
+        frac = min(1.0, self.i_mu / I_CLOSE)
         opening = frac if METER_NC else 1 - frac
         q = PUMP * rpm * opening - q_inj * CM3_PER_MG / dt - LEAK * self.rail_bar
         self.rail_bar = min(RELIEF, max(0.0, self.rail_bar + BAR_PER_CM3 * q * dt))

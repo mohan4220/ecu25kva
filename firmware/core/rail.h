@@ -12,7 +12,7 @@
 #include "ecu.h"
 
 #define METER_NC 0                   /* measured behaviour: see above */
-#define METER_CLOSED (METER_NC ? 0.0f : 1.0f)   /* duty that stops flow */
+#define METER_CLOSED (METER_NC ? 0.0f : 1.0f)   /* command that stops flow, in units of MU_I_FULL (actuate.h) */
 #define RAIL_KP 0.002f               /* calibration, duty/bar */
 #define RAIL_KI 0.01f                /* calibration, duty/(bar*s) */
 #define RAIL_OPEN_LIMP 0.3f          /* calibration: fixed opening while the rail sensor is faulted */

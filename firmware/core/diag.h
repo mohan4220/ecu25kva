@@ -52,7 +52,9 @@ extern const diag_def_t diag_def[DG_N];
 #define DG_BAT_EGR_HI 15.0f
 #define DG_MU_DRIVE 0.20f            /* here: duty above which the coil must carry current */
 #define DG_MU_OPEN_A 0.05f           /* here: at most this with the coil driven: open */
-#define DG_MU_MAX_A 2.5f             /* here: a 10 ohm coil at -40 C (7.5 ohm) and 16 V is 2.1 A */
+#define DG_MU_MAX_A 3.0f             /* here: above anything legitimate -- the loop holds ~1.35 A,
+                                      * feedforward alone at most 1.35*3.75/1.85 = 2.74 A (the
+                                      * coldest, lowest coil); under ISNS_MU's 3.3 A range */
 #define DG_RAIL_DEV_BAR 150.0f       /* here: off target by more than this ... */
 #define DG_RAIL_DEV_FRAC 0.25f       /* ... and this fraction of the target */
 #define DG_SPD_HIGH_RPM 1590.0f      /* high_speed_warning_limit 1590 */

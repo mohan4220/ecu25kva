@@ -496,33 +496,33 @@ def overload():
     return c
 
 def hot_coil():
-    """The metering cascade (decisions log 23): rail -> valve current -> PWM.
-    A coil 25 % hot (12.5 ohm) on a 12.0 V battery: the duty that gave the
-    right current cold now gives 29 % less. The inner loop must put the
-    current back, so the rail holds as in scenario 10."""
-    c = Checks("17 metering valve: hot coil, low battery, rail still within 5 %")
+    """The metering cascade (decisions log 23, 25): rail -> valve current ->
+    PWM, at the measured coil's worst corner for authority: the 5 ohm coil
+    hot (+125 C, 6.91 ohm) on an 11.0 V battery. The feedforward assumes
+    3.75 ohm, so it gives 46 % of the current; the inner loop must make up
+    the rest, at no load (the valve nearly shut) and at 20 kW."""
+    c = Checks("17 metering valve: 5 ohm coil hot (6.9 ohm) on 11 V, rail within 5 %")
     sim = Sim()
-    sim.eng.r_coil, sim.eng.vbat = 12.5, 12.0
+    sim.eng.r_coil, sim.eng.vbat = 6.91, 11.0
     sim._volts()
     sim.start(8.0)
+    # no load: the valve must nearly close. With the 10 ohm coil assumed
+    # until 18 Nov, a hot coil could not reach the current that closes it
+    # and the rail sat on the relief valve; the measured coil can.
+    xs = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if 6 * S <= t < 8 * S]
+    worst0 = max(abs(p / ps - 1) for p, ps in xs)
+    c.that("no load: worst deviation, fraction", worst0, 0.05, ok=worst0 <= 0.05)
     sim.eng.load_kw = 20
     sim.run(16.0)
     xs = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if 14 * S <= t < 16 * S]
     worst = max(abs(p / ps - 1) for p, ps in xs)
     c.that("20 kW: worst deviation, fraction", worst, 0.05, ok=worst <= 0.05)
     duty = sim.io.meter_duty
-    cold = sim.eng.i_mu / (13.5 / 10.0)        # the duty a cold coil at 13.5 V would need
-    want = (sim.eng.r_coil / sim.eng.vbat) / (10.0 / 13.5)    # 1.41: what Ohm's law needs
-    c.that("duty raised above the cold-coil duty, ratio", duty / cold, want, tol=0.03)
-    # Evidence, kept on purpose (decisions log 24). At no load the valve must
-    # nearly close, and a 12.5 ohm coil on 12.0 V reaches only 0.96 A of the
-    # 1.35 A that closes it: the rail sits on the relief valve. The rail
-    # deviation diagnosis (157/7) is what shows it; the 10 ohm coil is an
-    # assumption until the real metering unit's resistance is known.
-    peak = max(p for t, r, st, p, d, ps, w in sim.trace if 5 * S <= t < 8 * S)
-    c.that("evidence: no load, rail on the relief valve, bar", peak, 1800, ok=peak >= 1790, unit="bar")
-    c.that("evidence: the rail deviation diagnosis caught it (157/7)",
-           "stored" if (157, 7) in sim.stored() else "missed", 0, ok=(157, 7) in sim.stored())
+    nominal = sim.eng.i_mu * 3.75 / 13.5       # the duty a nominal coil at 13.5 V would need
+    want = (sim.eng.r_coil / sim.eng.vbat) / (3.75 / 13.5)    # 2.26: what Ohm's law needs
+    c.that("duty raised above the nominal coil's, ratio", duty / nominal, want, tol=0.05)
+    c.that("no rail deviation stored (157/7)", "none" if (157, 7) not in sim.stored() else "stored", 0,
+           ok=(157, 7) not in sim.stored())
     return c
 
 
@@ -532,8 +532,7 @@ def diagnoses():
     battery that stops charging. Both amber; the engine never stops."""
     c = Checks("18 diagnoses: EGR stuck open, then battery low -- amber, keeps running")
     sim = Sim().start(8.0)
-    sim.eng.load_kw = 10                       # loaded: unloaded at 11 V the valve cannot close
-                                               # (scenario 17's evidence), which is another fault
+    sim.eng.load_kw = 10                       # a loaded set
     sim.eng.v_override["v_egr"] = 2.5          # 50 % open, the target is shut
     sim.run(10.0)
     got = next((t for t, d in sim.dm1_after(8 * S) if (2791, 0) in d), None)

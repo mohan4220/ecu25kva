@@ -1892,6 +1892,67 @@ once.
 
 ---
 
+## 25. The metering valve's coil, measured: 2.5–5 Ω (18 November)
+
+The owner measured the set's metering unit (pin 88): **2.5–5 Ω**. Everything
+had assumed 10 Ω, a class guess from before any part was known. Bosch
+metering units are about 3 Ω, so this fits.
+
+**What it settled.** §24 found the valve out of authority: a hot 10 Ω coil on
+a low battery could not reach the 1.35 A that closes it, so at no load the
+rail sat on the relief valve. With the measured coil the worst corner (5 Ω at
++125 °C is 6.91 Ω) on 11 V still reaches 1.6 A. Scenario 17 now runs that
+corner and holds the rail within 3 % at no load and 1.3 % at 20 kW, with no
+rail-deviation fault.
+
+**What it changed:**
+- **The current loop** (`actuate.h`). Nominal is 3.75 Ω. The current that
+  closes the valve, 1.35 A (`MU_I_FULL`), stays an assumption and is now
+  separate from the coil: it is the metering unit's own data, from its part
+  number. Feedforward is command × 5.0625 V ÷ battery. The gains are scaled
+  by 3.75/10 so the loop keeps its dynamics (KP 0.075, KI 7.5). The
+  integral range is widened to 0.4 to cover 1.85–6.91 Ω. `ecu_mucur` is
+  regenerated; back-to-back exact.
+- **"Valve closed" is a current now, not a duty.** The trip and the reset
+  set a raw duty of 1.0. That was 1.35 A in a 10 Ω coil, but in a cold
+  1.85 Ω coil it is 7.3 A, or 8.6 A at 16 V. They now set the feedforward
+  duty for the closing current (`mu_ff`).
+- **The measurement is trusted only while it reads sane.** With 1347/5 or
+  1347/6 active the loop runs on feedforward alone, so a sense chain that
+  reads low cannot wind the duty up. Feedforward alone puts at most 2.74 A
+  into the coldest, lowest coil. So the over-current line moves from 2.5 A
+  to 3.0 A, above anything legitimate and inside ISNS_MU's 3.3 A range.
+- **R501 must be rated at least 0.5 W** (`bom_requirements.md` MU-ISENSE):
+  2.74 A is 0.37 W in 50 mΩ.
+- **The circuit block** (`metering_unit_pwm.cir`) runs 3.75 Ω, 11.25 mH
+  (keeping the 3 ms time constant, since the inductance is still
+  unmeasured), 18.75 % duty, and corners at 1.85 Ω and 6.91 Ω. Two new
+  facts came out of it:
+  - Open loop gives 0.52 A, not Ohm's 0.675 A. The freewheel diode's
+    0.7 V matters against only 2.5 V across the coil.
+  - At 100 Hz the current touches zero every period and no longer averages
+    like 1 and 10 kHz. 100 Hz is out; the firmware drives 1 kHz.
+- **The pin 21 current bound no longer adds the coil's freewheel current.**
+  D501 returns it into VBAT_PROT and back to the battery, so it runs
+  against pin 21's draw. Adding it was the safe direction at 0.86 A; at
+  2.5 A it would have failed the L101 heating check for a current flowing
+  the other way. The reverse current is bounded separately (2.48 A, under
+  F101).
+- **The SIL engine** uses a 3.75 Ω coil and the 1.35 A closing current.
+- **The Simulink whole-ECU plant** (`mdl_ecu25kva.m`) uses the same coil. Its check "current = duty × 1.35" only held for 10 Ω (where full duty was 1.35 A); it now checks current = duty × 13.5 V ÷ 3.75 Ω. 20/20.
+
+**Still open:**
+- The closing current (part number on the pump).
+- The coil's inductance.
+- **There is no fast hardware current trip on pin 88.** A stuck-on FET puts
+  8.6 A through R501, and only the 20 A fuse ends it.
+
+**Proven:** the metering block at all corners, the power block, unit tests on
+both builds (the loop at both corners, half and full command), back-to-back
+exact, and 18/18 scenarios on both builds.
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a

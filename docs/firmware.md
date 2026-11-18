@@ -307,7 +307,7 @@ each has its own debounce and healing time:
 | 2791/0 | EGR stuck open | duty below 5 %, position above 35 % | 1 s / 200 ms |
 | 2791/7 | EGR stuck shut | duty ≥ 90 %, position below 35 % | 1 s / 200 ms |
 | 1347/5 | Metering valve open load | duty > 20 %, coil current < 0.05 A (only with ISNS_MU) | 500 ms / at once |
-| 1347/6 | Metering valve over current | coil current > 2.5 A | 500 ms / at once |
+| 1347/6 | Metering valve over current | coil current > 3.0 A | 500 ms / at once |
 | 157/7 | Rail pressure off target | running, off by > 150 bar and > 25 % | 2 s / 1 s |
 | 190/16 | Speed high (warning) | running, above 1590 rpm | 2 s / 1 s |
 | 190/8 | Speed sensor | oil above 200 kPa, no crank tooth for 1 s | 2 s / at once |
@@ -317,6 +317,9 @@ each has its own debounce and healing time:
 
 Every threshold is calibration, from the 20 kVA set or chosen here. None is
 confirmed on this engine yet.
+
+When 1347/5 or 1347/6 is active, the metering loop stops trusting ISNS_MU
+and runs on feedforward alone (decisions log 25).
 
 ## 9. CAN (J1939, source address 234)
 

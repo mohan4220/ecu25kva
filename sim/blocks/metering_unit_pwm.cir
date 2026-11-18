@@ -5,21 +5,29 @@
 * high-pressure pump. It is a proportional solenoid, not a valve
 * that is either open or shut, and what positions it is the
 * AVERAGE current through the coil. The ECU's rail pressure loop
-* closes onto the rail pressure sensor (pins 32/35/08) and its
-* output is this PWM duty cycle.
+* closes onto the rail pressure sensor (pins 32/35/08); its output is
+* a current command, which the firmware's inner loop turns into this
+* PWM duty (decisions log 23).
 *
 * Spec section 2.2 corrected an earlier reading here: this is a
 * single low-side PWM output on pin 88, not an H-bridge. The
 * metering unit's other pin sits on fused battery (20 A, fuse
 * 8F1), so the ECU switches the return path only.
 *
-* Coil, typical for a unit of this size: 10 ohm, 30 mH. At 13.5 V
-* that is 1.35 A fully on, and an electrical time constant of
-* L/R = 3 ms -- which is long compared with any sensible PWM
-* period, and that is what makes the average-current control work.
+* COIL (18 Nov 2026, decisions log 25): the owner measured 2.5-5 ohm
+* on the set's metering unit. Before that this file assumed 10 ohm,
+* a class guess. Nominal here is the middle, 3.75 ohm. At 13.5 V a
+* nominal coil draws 3.6 A fully on, much more than it needs.
+* The inductance is still unmeasured: 11.25 mH keeps the 3 ms time
+* constant the firmware and the engine model were tuned to.
+*
+* THE OPERATING POINT: 0.675 A, half the 1.35 A that is assumed to
+* close the valve (MU_I_FULL; it comes from the metering unit's own
+* data, not yet known). At 3.75 ohm the duty for it is
+* 0.675 * 3.75 / 13.5 = 18.75 %.
 *
 * THE DESIGN CHOICE IS THE PWM FREQUENCY, and it is not simply
-* "as high as possible". Ripple current at 50% duty is
+* "as high as possible". Ripple current is
 *
 *     dI = V * D * (1-D) * T / L
 *
@@ -30,7 +38,7 @@
 * Too little dither and the valve is sticky; too much and the
 * ripple modulates rail pressure directly.
 *
-* Three frequencies are run at the same 50% duty so the trade is
+* Three frequencies are run at the same duty so the trade is
 * visible as numbers:
 *
 *     100 Hz   period 10 ms, comparable to the coil's own 3 ms
@@ -44,34 +52,34 @@
 * ============================================================
 
 .model NSW  SW(Ron=25m Roff=1e9 Vt=2.5 Vh=0.2)
-* Freewheel diode. Same argument as the relay driver: interrupting
-* 1.35 A in 30 mH with no path produces a spike that destroys the
-* switch. Here it does a second job -- it sets how fast the
-* current decays during the off-time, and so sets the ripple.
+* Freewheel diode. Interrupting the coil current with no path
+* produces a spike that destroys the switch. Here it does a second
+* job -- it sets how fast the current decays during the off-time,
+* and so sets the ripple.
 .model DFW  D(Is=1e-12 N=1.05 Rs=20m BV=200 IBV=1e-6)
 
 Vbat bat 0 DC 13.5
 
-* ---- 100 Hz ----
-Vg1 g1 0 PULSE(0 5 0 1u 1u 5m 10m)
-L1  bat a1 30m
-R1  a1  b1 10
+* ---- 100 Hz, 18.75 % ----
+Vg1 g1 0 PULSE(0 5 0 1u 1u 1.875m 10m)
+L1  bat a1 11.25m
+R1  a1  b1 3.75
 Vs1 b1  c1 0
 S1  c1  0  g1 0 NSW
 D1  c1  bat DFW
 
 * ---- 1 kHz ----
-Vg2 g2 0 PULSE(0 5 0 1u 1u 500u 1m)
-L2  bat a2 30m
-R2  a2  b2 10
+Vg2 g2 0 PULSE(0 5 0 1u 1u 187.5u 1m)
+L2  bat a2 11.25m
+R2  a2  b2 3.75
 Vs2 b2  c2 0
 S2  c2  0  g2 0 NSW
 D2  c2  bat DFW
 
 * ---- 10 kHz ----
-Vg3 g3 0 PULSE(0 5 0 100n 100n 50u 100u)
-L3  bat a3 30m
-R3  a3  b3 10
+Vg3 g3 0 PULSE(0 5 0 100n 100n 18.75u 100u)
+L3  bat a3 11.25m
+R3  a3  b3 3.75
 Vs3 b3  c3 0
 S3  c3  0  g3 0 NSW
 D3  c3  bat DFW
@@ -79,55 +87,45 @@ D3  c3  bat DFW
 * ============================================================
 * RESOLUTION -- branch 4: closed-loop (hysteretic) current control
 * ============================================================
-* Branches 1-3 are OPEN LOOP: a fixed duty cycle into a coil whose
-* resistance is copper. Copper moves 0.39%/C, so over the -40/+125 C
-* range this design has to survive, R goes 7.39 -> 13.82 ohm and the
-* mean current goes 0.862 -> 0.463 A against a 0.675 A target. That
-* is +28% / -31%, and it is NOT fixable by choosing a better part --
-* the tempco is a property of the metal.
+* Branches 1-3 are OPEN LOOP: a fixed duty into a coil whose
+* resistance spreads 2.5-5 ohm part to part and moves with copper's
+* 0.38 %/C on top. The corners this design has to survive are the
+* lowest coil cold and the highest coil hot:
 *
-* So this one is not answered by a part specification like
-* sensor_rail's PTC or mcu_pdn's bulk cap. It is answered by changing
-* what the driver does: regulate CURRENT, not duty. That is what
-* production metering-unit / MPROP drivers do, and this branch shows
-* the reason is not conservatism -- open loop simply cannot hold the
-* setpoint across the temperature range.
+*     2.5 ohm at -40 C  -> 1.85 ohm
+*     5 ohm at +125 C   -> 6.91 ohm
+*
+* At a fixed 18.75 % duty that is roughly 1.36 A and 0.37 A against
+* a 0.675 A target: twice and half. No better part fixes it; the
+* driver has to regulate CURRENT, not duty. That is what production
+* metering unit (MPROP) drivers do, and what the firmware does
+* (actuate.c mu_step on ISNS_MU).
 *
 * Modelled as a hysteretic (bang-bang) regulator, the simplest form
 * of current control and the one that needs no compensation network:
 * the switch closes while sensed current is below the setpoint and
 * opens above it. Bctl4 is the comparator -- 2.5 V is NSW's own
 * threshold, and the gain of 3 against the model's +/-0.2 V
-* hysteresis sets the regulation band at 0.4/3 = 0.133 A, about
-* +/-10% ripple around the setpoint. The band is a design choice, not
-* a limitation; a tighter one costs switching frequency.
+* hysteresis sets the regulation band at 0.4/3 = 0.133 A.
 *
-* Rsh4 is the sense element, 50 mOhm. It is in the model rather than
-* idealised away because it is a real part the schematic has to
-* carry, and because it is what makes this a SCHEMATIC requirement
-* and not just a firmware one:
-*
-*   BOM/schematic requirement (docs/bom_requirements.md, MU-ISENSE):
-*   low-side current sense on ECU pin 88's return -- 50 mOhm shunt,
-*   giving 33.75 mV at the 0.675 A setpoint, into either a
-*   current-sense amplifier feeding an ADC channel, or a gate driver
-*   with an integrated current-regulation comparator. 33.75 mV is too
-*   small to take straight to the S32K148's ADC at any useful
-*   resolution, so the amplifier is not optional.
+* Rsh4 is the sense element, R501, 50 mOhm: 33.75 mV at 0.675 A into
+* the INA181 (gain 20, 1 V/A), so ISNS_MU reads up to 3.3 A. With the
+* low-resistance coil the current can now exceed that: up to
+* 13.5/1.85 = 7.3 A (8.6 A at 16 V) at full duty. In normal running
+* the loop holds the current near its command, and the firmware stops
+* trusting the measurement when it reads open load or over current.
+* Then it falls back to feedforward, where the cold low coil is the
+* worst case (decisions log 25).
 *
 * The claim this branch makes, checked in run_sim.py at all three
-* temperature corners: mean current holds the 0.675 A setpoint within
-* the same +/-0.09 A band the open-loop checks use, at -40 C and
-* +125 C as well as nominal. Headroom is what makes that possible and
-* it is worth stating: at the hot corner the coil can draw at most
-* 13.5/13.82 = 0.977 A at 100% duty, so the 0.675 A setpoint is still
-* reachable with 45% margin. A hotter coil, or a lower battery, would
-* eventually run the regulator out of duty -- that bound is checked
-* too, not assumed.
+* corners: the mean current holds the 0.675 A setpoint within
+* +/-0.09 A. Headroom makes that possible: at the hot corner the coil
+* can still draw 13.5/6.91 = 1.95 A at 100 % duty, almost three times
+* the setpoint.
 * ============================================================
 Bctl4 ctl4 0 V = 2.5 + 3*(0.675 - abs(i(Vs4)))
-L4   bat a4 30m
-R4   a4  b4 10
+L4   bat a4 11.25m
+R4   a4  b4 3.75
 Rsh4 b4  s4 50m
 Vs4  s4  c4 0
 S4   c4  0  ctl4 0 NSW
@@ -139,29 +137,23 @@ D4   c4  bat DFW
 tran 5u 60m uic
 wrdata metering_unit_pwm.dat i(Vs1) i(Vs2) i(Vs3) i(Vs4)
 
-* ---- temperature corners: same three branches, R1/R2/R3 altered ----
-* Copper's resistance-temperature coefficient is a physical constant,
-* ~0.39%/C, sourced to copper itself: R = 10 * (1 + 0.0039*(T-25)).
-* Cold (-40C): R=7.39 ohm (-26%). Hot (+125C): R=13.82 ohm (+38%).
-* Done with `alter` + a second/third `tran`, not three more parallel
-* branches: running six-plus switched RL branches off one ideal DC
-* source in the same transient made ngspice's timestep collapse to
-* ~1e-18 s around 5.5 ms ("trouble with node a1/a2") even with each
-* corner given its own gate source -- a real ngspice convergence
-* limit of this topology, not a modelling choice. Altering the SAME
-* three branches' R and re-running keeps exactly the netlist's own
-* marginal complexity instead of adding to it.
-alter r1 = 7.39
-alter r2 = 7.39
-alter r3 = 7.39
-alter r4 = 7.39
+* ---- corners: the same branches, R altered ----
+* Done with `alter` + another `tran`, not more parallel branches:
+* six-plus switched RL branches off one ideal source made ngspice's
+* timestep collapse (a convergence limit of this topology).
+* Cold: the lowest coil, 2.5 ohm, at -40 C (x0.739).
+alter r1 = 1.85
+alter r2 = 1.85
+alter r3 = 1.85
+alter r4 = 1.85
 tran 5u 60m uic
 wrdata metering_unit_pwm_cold.dat i(Vs1) i(Vs2) i(Vs3) i(Vs4)
 
-alter r1 = 13.82
-alter r2 = 13.82
-alter r3 = 13.82
-alter r4 = 13.82
+* Hot: the highest coil, 5 ohm, at +125 C (x1.382).
+alter r1 = 6.91
+alter r2 = 6.91
+alter r3 = 6.91
+alter r4 = 6.91
 tran 5u 60m uic
 wrdata metering_unit_pwm_hot.dat i(Vs1) i(Vs2) i(Vs3) i(Vs4)
 .endc
@@ -172,145 +164,26 @@ wrdata metering_unit_pwm_hot.dat i(Vs1) i(Vs2) i(Vs3) i(Vs4)
 * RESULT NOTE -- dither is a specification we do not have
 * ------------------------------------------------------------
 * This block shows what each frequency does to ripple. It cannot
-* say which is RIGHT, because the correct dither amplitude is a
-* property of the specific metering unit's mechanics -- its
-* friction, its spring, its mass -- and that is manufacturer data
-* tied to the part number.
+* say which is RIGHT: the correct dither amplitude is a property of
+* the specific metering unit's mechanics (friction, spring, mass),
+* manufacturer data tied to the part number. The frequency is a
+* firmware constant, so it can be tuned on the machine.
 *
-* The same gap as U5's injector calibration, in a smaller form:
-* the electronics can be built to produce any dither asked for,
-* and nobody has told us what to ask for. What this design can do
-* is make the frequency a firmware constant rather than a
-* hardware one, so it can be tuned on the machine without
-* touching the board.
-*
-* Also not modelled: the coil's inductance is not constant. It
-* falls as the armature moves and as the core approaches
-* saturation, so real ripple at a given frequency varies across
-* the duty range. The 30 mH here is a fixed mid-travel estimate.
+* Also not modelled: the coil's inductance is not constant. It falls
+* as the armature moves and as the core approaches saturation. The
+* 11.25 mH here is an assumption, chosen to keep 3 ms.
 * ------------------------------------------------------------
 *
 * ------------------------------------------------------------
-* RESULT NOTE -- tolerance
+* RESULT NOTE -- history (decisions log 23, 25)
 * ------------------------------------------------------------
-* Two components, and they bind two different checks:
-*
-*   L (30 mH) sets ripple. +/-20% (wound-inductor bin, same as
-*   buck_preregulator's power inductor) moves ripple at 1 kHz from
-*   0.118 A (nominal) to 0.099 A (+20%) / 0.148 A (-20%), and at
-*   10 kHz from 0.012 A to 0.010 A / 0.015 A. Both stay inside their
-*   checks' tolerance bands (0.113+/-0.05 and 0.011+/-0.008) at
-*   either corner -- not sensitive. The "ripple scales as 1/f" check
-*   is even less sensitive: both frequencies scale with 1/L equally,
-*   so the ratio barely moves regardless of which way L goes.
-*
-*   R (10 ohm) sets mean current. 10 ohm is a class-typical figure
-*   for a coil this size, INFERRED -- no metering unit part number
-*   has been chosen. Wound-coil DC resistance commonly specifies at
-*   +/-10% (automotive solenoid/relay coil datasheets typically use
-*   this figure). Re-ran at R = 11 ohm (+10%, all three frequency
-*   branches together, since it is the same physical coil measured
-*   three ways) in a scratch copy, not this file:
-*
-*     R = 10 ohm (nominal)  mean current 0.634-0.639 A  PASS (want 0.675+/-0.09)
-*     R = 11 ohm (+10%)     mean current 0.577-0.581 A  FAIL (0.004-0.008 A under)
-*
-* FLIPS, narrowly, and only on the high-R side (R = 9 ohm/-10% gives
-* 0.709-0.710 A, comfortably inside). But look at what the three
-* frequencies do AT the corner: 0.5809 / 0.5807 / 0.5767 A -- they
-* still agree with each other to within a few mA, which is the
-* actual claim the header makes ("all three must produce the SAME
-* average current... the control law the pressure loop depends
-* on"). What fails is closeness to 0.675 A specifically, a number
-* that only means anything if the coil really is 10 ohm.
-*
-* THE TARGET IS NOT FULLY REAL here, in the same shape the review
-* flagged for uncited round numbers elsewhere: 0.675 A is not a
-* requirement anyone stated, it is this simulation's own prediction
-* from an assumed, unsourced coil resistance. The rail-pressure loop
-* is closed on the pressure sensor, not on an open-loop assumption
-* about coil current, so a coil that turns out to be 11 ohm does not
-* break anything the firmware depends on -- it just makes this one
-* check's target wrong. The real invariant (frequency-independence)
-* is what should gate PASS/FAIL here, and it does not move.
-*
-* Not fixed by widening the check's tolerance in this pass, because
-* that would be weakening a check to make a corner pass, which the
-* rules for this work explicitly rule out -- run_sim.py instead now
-* carries a comment on this check explaining the distinction, so a
-* future FAIL here is read correctly (coil resistance uncertainty,
-* not a broken control law) rather than chased as a design defect.
-* Also worth flagging and NOT modelled: copper's resistance rises
-* with temperature (~0.39%/degC), and this coil dissipates real
-* power (0.675 A^2 * 10 ohm =~ 4.6 W) inside an engine bay -- a hot
-* coil pushes R further in the SAME direction that already flips
-* this check, so treat the 11 ohm corner as optimistic, not
-* pessimistic, once self-heating is considered. That is a thermal
-* question this block does not simulate, the same kind of gap
-* transient_clamp's RESULT NOTE leaves open for TVS temperature
-* coefficient (2026-09-18 review F11) -- CLOSED for the TVS in this
-* pass, see that file's own TEMPERATURE section; the self-heating
-* question here specifically remains open, ambient is handled below.
-* ------------------------------------------------------------
-*
-* ------------------------------------------------------------
-* RESULT NOTE -- temperature
-* ------------------------------------------------------------
-* Closes the ambient half of the note above (self-heating is a
-* separate, still-open question -- see above). Copper's resistance-
-* temperature coefficient is a physical constant, ~0.39%/C, sourced
-* to copper itself rather than any specific part. Over the full
-* -40/+125 C ambient range (not counting any self-heating on top):
-* R = 10 ohm * (1 + 0.0039*(T-25)):
-*
-*     -40 C   R = 7.39 ohm  (-26%)
-*     +125 C  R = 13.82 ohm (+38%)
-*
-* Both are much larger swings than the +/-10% part-tolerance corner
-* already run above. Re-ran the full three-frequency network at both
-* in a scratch copy, not this file:
-*
-*                R=7.39 (cold)   R=10 (27C, nom)   R=13.82 (hot)
-*   mean i1 (A)     0.862           0.639              0.463
-*   mean i2 (A)     0.863           0.639              0.463
-*   mean i3 (A)     0.858           0.634              0.459
-*
-* BOTH CORNERS FAIL THE "0.675 A" CHECK, in OPPOSITE directions --
-* cold overshoots the 0.765 A ceiling by ~12%, hot undershoots the
-* 0.585 A floor by ~21%, both well past the already-flagged 11 ohm
-* corner's narrow miss (0.577-0.581 A). Ambient alone, no self-
-* heating stacked on top, is a bigger effect than the part-to-part
-* tolerance this file already used to make the point about the
-* target being unreal.
-*
-* THE INVARIANT THAT ACTUALLY MATTERS SURVIVES BOTH CORNERS: the
-* three frequencies still agree with each other to under 1% at
-* either temperature (0.862/0.863/0.858 cold; 0.463/0.463/0.459
-* hot), exactly the same shape the existing TOLERANCE section
-* already established for the +10% R corner. This is the same
-* conclusion, now shown to hold across the full ambient range, not
-* just a part-tolerance bin: a "0.675 A" FAIL at either temperature
-* extreme should be read as coil-resistance-vs-ambient doing exactly
-* what copper does, not as the control law failing. The control law
-* (frequency-independence) is what should gate PASS/FAIL, and it
-* does not move.
-*
-* MOSFET Ron (25 mOhm nominal, up to ~50 mOhm at a doubled hot
-* corner) was not separately swept: it is 500x smaller than the coil
-* resistance even at its own worst case, and this check's numbers
-* are utterly insensitive to it by construction.
-*
-* ENFORCED: the `alter`-based cold/hot re-runs in the .control block
-* above, and check_metering_unit_pwm in run_sim.py, turn BOTH halves
-* of this finding into checked claims, per the task's own instruction
-* to express both rather than pick one. The "0.675 A" target check is
-* the SAME check the nominal-27C lines already enforce -- running it
-* at a corner is not a new/arbitrary target, it's the same claim at a
-* condition the design has to survive, so it is allowed to genuinely
-* FAIL (both directions). The control-law invariant (the three
-* frequencies still agreeing with each other, under 1% spread) is a
-* separate, real, tolerance-checked claim that PASSES at both
-* corners -- that pass is what says the pressure loop's control law
-* is not what's broken; the coil-resistance assumption behind
-* "0.675 A" is.
+* Until 18 Nov this file assumed a 10 ohm, 30 mH coil, and its cold
+* and hot corners (7.39 / 13.82 ohm) missed the 0.675 A target by
+* +28 % / -31 %. That was the finding that put current control on
+* the board (R501, U501). The measured coil has a wider spread
+* (1.85-6.91 ohm with temperature), so the open-loop misses are
+* larger and current control matters more, not less. The control-law
+* invariant (the three frequencies agree with each other) is still
+* what says the PWM itself is sound, and it is checked at every
+* corner.
 * ------------------------------------------------------------

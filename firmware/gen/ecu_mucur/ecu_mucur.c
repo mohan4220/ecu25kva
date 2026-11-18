@@ -9,7 +9,7 @@
  *
  * Model version                  : 1.1
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Mon Nov 16 16:26:30 2026
+ * C/C++ source code generated on : Wed Nov 18 14:38:03 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: ARM Compatible->ARM Cortex-M
@@ -45,7 +45,7 @@ void ecu_mucur_step(RT_MODEL_ecu_mucur_T *const ecu_mucur_M, real32_T
     err = 13.5F;
   }
 
-  *ecu_mucur_Y_duty = 13.5F / err * ecu_mucur_U_cmd;
+  *ecu_mucur_Y_duty = 5.0625F / err * ecu_mucur_U_cmd;
   if (ecu_mucur_U_valid == 0) {
     ecu_mucur_DW->integ_z_DSTATE = 0.0F;
     if (*ecu_mucur_Y_duty < 0.0F) {
@@ -57,14 +57,14 @@ void ecu_mucur_step(RT_MODEL_ecu_mucur_T *const ecu_mucur_M, real32_T
     }
   } else {
     err = ecu_mucur_U_cmd - ecu_mucur_U_i_meas / 1.35F;
-    out_tmp = 0.2F * err;
+    out_tmp = 0.075F * err;
     out = (*ecu_mucur_Y_duty + ecu_mucur_DW->integ_z_DSTATE) + out_tmp;
     if (((out < 1.0F) || (err <= 0.0F)) && ((out > 0.0F) || (err >= 0.0F))) {
-      ecu_mucur_DW->integ_z_DSTATE += 20.0F * err * 0.001F;
-      if (ecu_mucur_DW->integ_z_DSTATE < -0.3F) {
-        ecu_mucur_DW->integ_z_DSTATE = -0.3F;
-      } else if (ecu_mucur_DW->integ_z_DSTATE > 0.3F) {
-        ecu_mucur_DW->integ_z_DSTATE = 0.3F;
+      ecu_mucur_DW->integ_z_DSTATE += 7.5F * err * 0.001F;
+      if (ecu_mucur_DW->integ_z_DSTATE < -0.4F) {
+        ecu_mucur_DW->integ_z_DSTATE = -0.4F;
+      } else if (ecu_mucur_DW->integ_z_DSTATE > 0.4F) {
+        ecu_mucur_DW->integ_z_DSTATE = 0.4F;
       }
     }
 

@@ -4,13 +4,13 @@
  *
  * METERING VALVE (pin 88): rail pressure -> valve current -> PWM.
  *   The rail PI's output is a CURRENT command, in units of the full
- *   current MU_I_FULL (so 1.0 = the coil at MU_V_NOM, as before). The
+ *   current MU_I_FULL (so 1.0 = the current that closes the valve). The
  *   inner loop feeds forward the battery voltage and closes on the coil
  *   current (ISNS_MU), so a hot coil or a sagging battery no longer moves
  *   the valve. This is what the old Bosch ECU does (its MeUn_iSet, field
  *   evidence 2026-10-14). Without a current measurement it is feedforward
- *   only; at MU_V_NOM, or with no battery reading, the duty is exactly the
- *   command, as before.
+ *   only: the duty is the command times MU_V_FULL / battery, so that a
+ *   nominal coil carries the commanded current.
  *
  * EGR VALVE (pins 59/81, position on pin 37): target position -> PID on
  *   position -> bridge duty. Derivative on the measurement (no kick when
@@ -23,14 +23,24 @@
 
 #include <stdint.h>
 
-#define MU_R_NOM 10.0f               /* assumed coil ohms (metering_unit_pwm.cir) */
-#define MU_V_NOM 13.5f               /* the battery the rail PI was tuned at */
-#define MU_I_FULL (MU_V_NOM / MU_R_NOM)   /* A: command 1.0 */
+/* The coil, MEASURED 18 Nov 2026 on the set's metering unit: 2.5-5 ohm
+ * (decisions log 25; the 10 ohm before was a class guess). Nominal is the
+ * middle. The current that closes the valve is still ASSUMED, 1.35 A
+ * (it comes from the unit's own data): command 1.0 means that current. */
+#define MU_R_NOM 3.75f               /* coil ohms, nominal (measured 2.5-5) */
+#define MU_I_FULL 1.35f              /* A: command 1.0, the valve closed (assumed) */
+#define MU_V_FULL 5.0625f            /* MU_I_FULL * MU_R_NOM: volts across the coil at command 1.0 */
+#define MU_V_NOM 13.5f               /* the battery when there is no plausible reading */
 #define MU_VBAT_MIN 6.0f             /* a 12 V system: outside this, assume MU_V_NOM */
 #define MU_VBAT_MAX 18.0f
-#define MU_KP 0.2f                   /* calibration, duty per unit of current error */
-#define MU_KI 20.0f                  /* calibration, duty/(unit*s): coil tau 3 ms */
-#define MU_INTEG_MAX 0.3f
+/* The gains in duty per unit of current error, scaled by 3.75/10 when the
+ * coil was measured so the loop keeps its dynamics (a lower-resistance
+ * coil gives more current per unit of duty). The integral covers the
+ * whole coil spread: 1.85 ohm (2.5 cold) to 6.91 ohm (5 hot) against the
+ * 3.75 feedforward, down to a 10 V battery. */
+#define MU_KP 0.075f                 /* calibration, duty per unit of current error */
+#define MU_KI 7.5f                   /* calibration, duty/(unit*s): coil tau 3 ms */
+#define MU_INTEG_MAX 0.4f
 
 #define EGR_KP 0.02f                 /* calibration, duty/% */
 #define EGR_KI 0.1f                  /* calibration, duty/(%*s) */
@@ -49,6 +59,12 @@ typedef struct { float integ, prev, dfilt; RT_MODEL_ecu_egrpos_T m; DW_ecu_egrpo
 typedef struct { float integ; } mu_t;
 typedef struct { float integ, prev, dfilt; } egrp_t;
 #endif
+
+/* The feedforward alone: the duty that makes a nominal coil carry cmd
+ * (units of MU_I_FULL) on this battery. Used where there is no loop yet:
+ * the trip and the reset, which until the coil was measured set a raw
+ * duty of 1.0 -- 1.35 A in a 10 ohm coil, 8.6 A in a cold 1.85 ohm one. */
+float mu_ff(float cmd, float v_bat);
 
 void  mu_reset(mu_t *m);
 /* cmd: the rail PI's output, current in units of MU_I_FULL. Returns the duty. */

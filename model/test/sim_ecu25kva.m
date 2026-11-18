@@ -44,7 +44,7 @@ check('J1939 EEC1 carries the speed (rpm)', abs(eec_rpm - at(rpm, 12.98)) < 20, 
 check('speed states: STEADY at 7.5 s', at(g('spd_state'), 7.5) == 3, at(g('spd_state'), 7.5));
 check('speed states: OPERATING again after the 20 kW step', any(g('spd_state').Data(g('spd_state').Time > 8 & g('spd_state').Time < 9) == 2), 2);
 check('EGR bridge coasts: no target yet (duty)', at(g('egr_duty'), 13) == 0, at(g('egr_duty'), 13));
-check('metering current = command x full current (A)', abs(at(g('i_mu'), 13) - at(g('duty'), 13) * 1.35) < 0.02, at(g('i_mu'), 13));
+check('metering current = duty x 13.5 V / 3.75 ohm, the measured coil (A)', abs(at(g('i_mu'), 13) - at(g('duty'), 13) * 13.5 / 3.75) < 0.02, at(g('i_mu'), 13));
 t = at(g('et1_tx'), 13);
 check('J1939 ET1 carries the coolant (degC)', abs(double(t(1)) - 40 - 85) <= 1, double(t(1)) - 40);
 f = figure('Visible', 'off', 'Position', [0 0 1000 800]);

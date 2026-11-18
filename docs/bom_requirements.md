@@ -272,6 +272,21 @@ at 100% duty, so the setpoint sits at 69% of the ceiling. That bound is
 checked, because a regulator out of headroom degrades silently back to
 open-loop behaviour rather than reporting anything.
 
+**Updated 18 Nov 2026 (decisions log 25): the coil was measured, 2.5–5 Ω,**
+not the 10 Ω assumed above. The corners are now 1.85 Ω (2.5 Ω at −40 °C) and
+6.91 Ω (5 Ω at +125 °C). Open loop misses the setpoint by +54 % and −58 %,
+so current control matters more. Closed loop still holds 0.675 A at every
+corner, and the hot corner's ceiling is 1.95 A (setpoint at 35 %).
+
+**New requirement from the measured coil: R501 must be rated at least
+0.5 W** (a 1206 current-sense part, not a general-purpose 1206 at
+0.25 W). The firmware falls back to feedforward when the current reads open
+or over. Then the coldest, lowest coil carries up to 2.74 A, which is 0.37 W
+in 50 mΩ. With nothing limiting it (a stuck-on FET), the coil draws 8.6 A at
+16 V, beyond anything R501 or the 3.3 A sense range survives. There is no
+fast hardware current trip on pin 88; the fuse (20 A, 8F1) is the last
+line.
+
 Checked by `metering_unit_pwm.cir`.
 
 ### `EGR-DRIVER` — EGR H-bridge

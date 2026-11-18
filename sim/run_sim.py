@@ -1858,34 +1858,47 @@ def check_emi_filter():
     # while its high side conducts, and never more than the inductor
     # current, so its AVERAGE input current cannot exceed the peak limit --
     # whatever the 5 V load turns out to be. LM5164 SNVSAU4D: IPEAK1 max
-    # 1.75 A. The metering freewheel current returns THROUGH this path;
-    # adding its magnitude over-states the total, the safe direction.
+    # 1.75 A.
+    # NOT the metering valve's freewheel current (corrected 18 Nov 2026,
+    # decisions log 25). D501 returns the coil's current INTO VBAT_PROT
+    # (netlist: D501 pin 1 on /VBAT_PROT), and it goes back to the battery
+    # through Q101 and pin 21 -- against the current pin 21 draws, never
+    # with it. Until 18 Nov this bound added it anyway (0.862 A, the old
+    # 10 ohm coil cold), the safe direction then. With the measured
+    # 2.5-5 ohm coil that would be ~2.5 A of current flowing the other way.
     i_buck = 1.75
     i_relays = 2 * 24.0 / 160.0          # two coils at a 24 V jump start
-    i_meter = 0.862                       # metering_unit_pwm, -40 C open loop
     i_vdd = 0.037                         # boost VDD feed, load-dump zener current
-    i21 = i_buck + i_relays + i_meter + i_vdd
+    i21 = i_buck + i_relays + i_vdd
     c.that("pin 21 DC current, upper bound (buck at its peak limit)", i21,
-           2.949, tol=0.002, unit="A")
+           2.087, tol=0.002, unit="A")
+    # the reverse half, bounded: the freewheel current at its worst, the
+    # firmware's feedforward fallback into the coldest, lowest coil
+    # (2.5 ohm at -40 C, 18.75 %... up to 37.5 % duty at command 1.0)
+    i_fw = (13.5 * 0.375 - 0.75 * 0.625) / 1.85
+    c.that("metering freewheel back through pin 21, worst (coil 1.85 ohm, fallback)", i_fw,
+           2.48, tol=0.02, unit="A")
+    c.that("  ... under F101 at 105 C (a fuse does not care which way)", 5.0 * 0.80 * 0.79 / i_fw,
+           1.27, tol=0.02, unit="x")
     # L101 = Wurth 7447709220: IR 5.3 A (40 K rise), Isat 6.5 A typ,
     # operating max 125 C. Rise scales as I^2.
     rise = 40.0 * (i21 / 5.3) ** 2
     c.that("L101 7447709220: saturation margin over the bound (Isat 6.5 A typ)",
-           6.5 / i21, 2.2, tol=0.05, unit="x")
+           6.5 / i21, 3.11, tol=0.05, unit="x")
     c.that("  ... self-heating at the bound, on a 105 C board", 105.0 + rise,
-           117.4, tol=0.2, unit="C")
+           111.2, tol=0.2, unit="C")
     c.that("  ... under its 125 C operating maximum", 105.0 + rise, 125.0,
            tol=None, ok=105.0 + rise < 125.0, unit="C")
     # L102 = Wurth 744314047: IR 18 A (50 K rise), Isat 9 A typ.
     c.that("L102 744314047: saturation margin (Isat 9 A typ)", 9.0 / i21,
-           3.05, tol=0.05, unit="x")
+           4.31, tol=0.05, unit="x")
     # F101 = 0437005.WRA: 80% continuous, then the temperature re-rating
     # curve -- 79% at 105 C, READ OFF THE DATASHEET'S GRAPH (85% at 75 C is
     # the one point the datasheet states in text, and the curve matches it).
     i_fuse = 5.0 * 0.80 * 0.79
     c.that("F101 0437005.WRA: continuous rating at 105 C (80% x 79%)", i_fuse,
            3.16, tol=0.01, unit="A")
-    c.that("  ... over the pin 21 bound by", i_fuse / i21, 1.07, tol=0.01,
+    c.that("  ... over the pin 21 bound by", i_fuse / i21, 1.51, tol=0.01,
            unit="x")
     c.that("  ... the largest 437A rating still rated 63 V (7 A is 35 V, "
            "under the 40 V load dump)", 63.0, 40.0, tol=None, ok=63.0 > 40.0,
@@ -2582,131 +2595,87 @@ def check_metering_unit_pwm():
         "metering_unit_pwm_cold.dat": ["time", "i100", "i1k", "i10k", "ireg"],
         "metering_unit_pwm_hot.dat": ["time", "i100", "i1k", "i10k", "ireg"],
     })
+    # The coil the owner measured, 2.5-5 ohm (18 Nov 2026, decisions log
+    # 25); nominal 3.75 ohm. Corners: the lowest coil cold (1.85 ohm) and
+    # the highest hot (6.91 ohm). The target, 0.675 A, is half the 1.35 A
+    # assumed to close the valve; 18.75 % duty is Ohm's law for it.
+
+    def tail_of(dc):
+        return dc["time"] > 50e-3
+
+    def means(dc):
+        tl = tail_of(dc)
+        return [float(np.abs(dc[k][tl]).mean()) for k in ("i100", "i1k", "i10k")]
+
     d = dd["metering_unit_pwm.dat"]
-    t = d["time"]
-    tail = t > 50e-3
+    tail = tail_of(d)
     i100, i1k, i10k = (np.abs(d[k][tail]) for k in ("i100", "i1k", "i10k"))
+    m100, m1k, m10k = means(d)
 
-    # The control law: average current must be the same at every frequency,
-    # or the pressure loop's gain depends on the PWM constant. 0.675 A is
-    # 13.5 V * 0.5 duty / 10 ohm -- the ideal value AT THE ASSUMED 10 ohm
-    # coil resistance, which is a class-typical figure, not a chosen part's
-    # datasheet number (see the netlist's tolerance note). The real claim
-    # this loop is checking is that the three frequencies AGREE with each
-    # other, not that any of them hits 0.675 A exactly -- a coil that turns
-    # out to be 11 ohm moves all three together and still passes the real
-    # invariant while missing this absolute figure. Kept as three separate
-    # checks against 0.675 rather than one mutual-agreement check because it
-    # also catches a frequency-dependent bug the agreement check alone could
-    # miss (e.g. all three drifting together with frequency).
-    for name, arr in (("100 Hz", i100), ("1 kHz", i1k), ("10 kHz", i10k)):
-        c.that(f"mean current at {name}", float(arr.mean()), 0.675, tol=0.09,
-               unit="A")
+    # OPEN LOOP at nominal: below Ohm's law. Only about 2.5 V sits across
+    # a 3.75 ohm coil at this duty, so the freewheel diode's ~0.7 V during
+    # the off-time is no longer small: (13.5*D - 0.75*(1-D))/R = 0.51 A.
+    # Evidence for current control, pinned to the produced value.
+    for name, m in (("1 kHz", m1k), ("10 kHz", m10k)):
+        c.that(f"evidence, OPEN LOOP: mean current at {name}, 18.75 % duty", m, 0.517,
+               tol=0.02, unit="A")
+    c.that("  ... under the 0.675 A Ohm's law gives: the diode drop", (m1k - 0.675) / 0.675 * 100,
+           -23.4, tol=3.0, unit="%")
 
-    # Ripple falls with frequency as V*D*(1-D)*T/L.
+    # Ripple falls with frequency as V*D*(1-D)*T/L (L 11.25 mH).
     r100 = float(i100.max() - i100.min())
     r1k = float(i1k.max() - i1k.min())
     r10k = float(i10k.max() - i10k.min())
-    c.that("ripple at 100 Hz", r100, 1.0, tol=None, ok=r100 > 0.5, unit="A")
-    c.that("  ... as fraction of mean", r100 / float(i100.mean()) * 100, 100,
-           tol=None, ok=r100 / float(i100.mean()) > 0.8, unit="%")
-    c.that("ripple at 1 kHz", r1k, 0.113, tol=0.05, unit="A")
-    c.that("ripple at 10 kHz", r10k, 0.011, tol=0.008, unit="A")
+    c.that("ripple at 1 kHz", r1k, 0.183, tol=0.03, unit="A")
+    c.that("ripple at 10 kHz", r10k, 0.0183, tol=0.004, unit="A")
     c.that("ripple scales as 1/f", r1k / r10k, 10.0, tol=None,
            ok=5 < r1k / r10k < 20, unit="x")
 
-    # 100 Hz is not dither, it is on/off. The coil's 3 ms time constant is
-    # comparable to the period, so the valve follows the PWM rather than
-    # its average.
-    c.that("100 Hz is not dither, it is chopping",
-           f"{r100/float(i100.mean())*100:.0f}% ripple -- valve follows the PWM",
-           None, ok=r100 / float(i100.mean()) > 0.8)
+    # 100 Hz is not dither, it is on/off -- and with this coil the current
+    # falls to ZERO in every off-time (discontinuous). Then the average no
+    # longer follows the duty the way the other two do: 100 Hz is out.
+    # The firmware drives 1 kHz (METER_PWM_HZ).
+    c.that("100 Hz is chopping: ripple as a fraction of the mean", r100 / m100 * 100, 300,
+           tol=None, ok=r100 / m100 > 0.8, unit="%")
+    c.that("  ... and it touches zero every period (discontinuous)", float(i100.min()), 0.0,
+           tol=0.01, unit="A")
 
-    # TEMPERATURE -- express both halves of the finding, per the task's own
-    # instruction for this block: the "0.675 A" target and the control-law
-    # invariant move in opposite directions at a temperature corner, and
-    # that split is itself the thing worth checking.
-    #
-    # Copper's ~0.39%/C resistance tempco is a physical constant (not
-    # INFERRED like most other corners in this pass): R = 10*(1+0.0039*
-    # (T-25)) gives 7.39 ohm at -40 C, 13.82 ohm at +125 C. ngspice's
-    # `option temp` does nothing for a plain resistor, so this is a
-    # component-value corner, done with `alter` on the SAME three
-    # branches (see the netlist's TEMPERATURE note for why three more
-    # parallel branches broke ngspice's convergence).
-    def tailc_of(dc):
-        return dc["time"] > 50e-3
-
-    def corner(fname):
+    # THE CONTROL LAW: the frequencies the firmware could use (1 and
+    # 10 kHz) give the same average, at every corner.
+    for label, fname, want_ol in (("25C nominal", "metering_unit_pwm.dat", 0.517),
+                                  ("-40C, 2.5 ohm", "metering_unit_pwm_cold.dat", 1.039),
+                                  ("+125C, 5 ohm", "metering_unit_pwm_hot.dat", 0.284)):
         dc = dd[fname]
-        tc = dc["time"]
-        tailc = tc > 50e-3
-        return (np.abs(dc["i100"][tailc]), np.abs(dc["i1k"][tailc]),
-                np.abs(dc["i10k"][tailc]))
+        _, a, b = means(dc)
+        spread = abs(a - b) / ((a + b) / 2) * 100
+        c.that(f"control law: 1 kHz and 10 kHz agree, {label}", spread, 0.0, tol=2.0, unit="%")
+        if fname != "metering_unit_pwm.dat":
+            # EVIDENCE: open loop at a corner, pinned to its produced value,
+            # and the miss against 0.675 A stated, so its size is not buried
+            c.that(f"  ... evidence, OPEN LOOP 1 kHz at {label}", a, want_ol, tol=0.03, unit="A")
+            c.that(f"  ... open loop misses 0.675 A at {label} by", (a - 0.675) / 0.675 * 100,
+                   {"-40C, 2.5 ohm": 53.9, "+125C, 5 ohm": -57.9}[label], tol=3.0, unit="%")
+        # RESOLVED: the current regulator holds the setpoint at every corner
+        ireg = np.abs(dc["ireg"][tail_of(dc)])
+        c.that(f"  ... RESOLVED, CLOSED LOOP: mean current at {label}", float(ireg.mean()), 0.675,
+               tol=0.09, unit="A")
 
-    for label, fname in (("-40C", "metering_unit_pwm_cold.dat"),
-                          ("+125C", "metering_unit_pwm_hot.dat")):
-        c100, c1k, c10k = corner(fname)
+    # Headroom: the hot, high coil can still draw 13.5/6.91 at 100 % duty.
+    i_max_hot = 13.5 / 6.91
+    c.that("closed loop needs duty headroom: max coil current, 5 ohm at +125C", i_max_hot, 1.954,
+           tol=0.01, unit="A")
+    c.that("  ... setpoint as a fraction of that ceiling", 0.675 / i_max_hot * 100, 34.5, tol=1.0,
+           unit="%")
+    # And the other end: the cold, low coil at full duty is what the
+    # sense chain and R501 must survive when the loop is not limiting it.
+    i_max_cold = 16.0 / 1.85
+    c.that("worst current with nothing limiting it: 2.5 ohm at -40C, 16 V", i_max_cold, 8.65,
+           tol=0.05, unit="A")
+    c.that("  ... beyond ISNS_MU's 3.3 A range (1 V/A into 3.3 V)", i_max_cold / 3.3, 2.6,
+           tol=0.1, unit="x")
 
-        # Half 1: the target check IS real (it's the same 0.675+/-0.09 A
-        # band the nominal checks above already enforce), so running it at
-        # a temperature corner and letting it fail is not manufacturing a
-        # verdict -- it is the same claim, at a condition the design has
-        # to survive. It fails in OPPOSITE directions at the two corners
-        # (cold overshoots, hot undershoots), which is itself informative:
-        # not a directional design flaw, just copper doing what copper does.
-        # EVIDENCE: these are the rows that produced the requirement for
-        # closed-loop current control. Each is pinned to its own produced
-        # value with a real tolerance -- not ok=True -- so the finding
-        # stays falsifiable, and a second row states the miss against the
-        # 0.675 A setpoint explicitly so the size of it is not buried.
-        want_ol = {"-40C": 0.862, "+125C": 0.462}[label]
-        for name, arr in (("100 Hz", c100), ("1 kHz", c1k), ("10 kHz", c10k)):
-            c.that(f"  ... evidence, OPEN LOOP: mean current at {name}, "
-                   f"{label} ambient", float(arr.mean()), want_ol, tol=0.02,
-                   unit="A")
-        ol_mean = float(np.mean([c100.mean(), c1k.mean(), c10k.mean()]))
-        c.that(f"  ... so open-loop duty misses the 0.675 A setpoint at "
-               f"{label} by", (ol_mean - 0.675) / 0.675 * 100,
-               {"-40C": 27.7, "+125C": -31.6}[label], tol=2.0, unit="%")
-
-        # Half 2: the control-law invariant -- the three frequencies must
-        # still agree with each other, which is the actual claim the
-        # pressure loop depends on (see the header). This is the check
-        # that should gate whether the DESIGN is broken, not the absolute
-        # target above. A real tolerance (2%), not ok=True: if the three
-        # frequencies ever diverge at a corner, this catches it.
-        means = np.array([c100.mean(), c1k.mean(), c10k.mean()])
-        spread_pct = float((means.max() - means.min()) / means.mean() * 100)
-        c.that(f"  ... control law: frequencies still agree, {label}",
-               spread_pct, 0.0, tol=2.0, unit="%")
-
-        # RESOLUTION: the hysteretic current regulator (branch 4). Same
-        # 0.675 +/- 0.09 A band the open-loop checks use, at the same
-        # corner -- this is the claim, not a relabelled pin.
-        ireg_c = np.abs(dd[fname]["ireg"][tailc_of(dd[fname])])
-        c.that(f"  ... RESOLVED, CLOSED LOOP: mean current at {label}",
-               float(ireg_c.mean()), 0.675, tol=0.09, unit="A")
-
-    # And the bound that makes closed-loop possible at all: at the hot
-    # corner the coil can only draw 13.5/13.82 = 0.977 A at 100% duty, so
-    # the regulator has to have duty left over at the setpoint. Checked,
-    # not assumed -- run the regulator out of headroom and it degrades
-    # silently back to open-loop behaviour.
-    i_max_hot = 13.5 / 13.82
-    c.that("closed loop needs duty headroom: max coil current at +125C",
-           i_max_hot, 0.977, tol=0.01, unit="A")
-    c.that("  ... setpoint as a fraction of that ceiling",
-           0.675 / i_max_hot * 100, 100.0, tol=None,
-           ok=0.675 / i_max_hot < 0.85, unit="%")
-
-    # Nominal too, so the regulator is shown working before the corners.
-    ireg_n = np.abs(d["ireg"][tail])
-    c.that("closed loop at nominal 25C", float(ireg_n.mean()), 0.675,
-           tol=0.09, unit="A")
-    rreg = float(ireg_n.max() - ireg_n.min())
-    c.that("  ... hysteresis band it actually regulates within", rreg, 0.133,
-           tol=0.06, unit="A")
+    rreg = float(np.abs(d["ireg"][tail]).max() - np.abs(d["ireg"][tail]).min())
+    c.that("hysteresis band the regulator actually holds", rreg, 0.133, tol=0.06, unit="A")
     return c
 
 

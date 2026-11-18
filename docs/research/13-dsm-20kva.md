@@ -21,7 +21,7 @@ map to the metering valve and the rail:
 | 20 kVA (rack) | This set |
 |---|---|
 | Rack position short to battery or ground (1210/3, /4) | Rail pressure sensor high or low (157/3, /4). This already existed |
-| Rack actuator over current (2551/6, above 4 A) | Metering valve over current, 1347/6 above 2.5 A. New. The coil draws about 1.35 A, not 4 A |
+| Rack actuator over current (2551/6, above 4 A) | Metering valve over current, 1347/6 above 3.0 A. New. The loop holds about 1.35 A; feedforward alone, at most 2.74 A |
 | Engine fuel rack position open (1210/8) | Metering valve open load, 1347/5. New |
 | Governing actuator stuck (241/7) | Rail pressure not following its target, 157/7. New |
 

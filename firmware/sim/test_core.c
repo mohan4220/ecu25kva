@@ -1003,7 +1003,7 @@ static void test_ecu_shutdown_valve_closed(void)      /* final review C1 */
     tick_t = t;
     io.ignition = 0;
     ticks(&io, 1, 1);
-    CHECK(io.state == ECU_SHUTDOWN && io.meter_duty == METER_CLOSED);
+    CHECK(io.state == ECU_SHUTDOWN && near(io.meter_duty, mu_ff(METER_CLOSED, io.v_bat), 1e-6f));
 }
 
 static void test_ecu_tick_before_edge(void)           /* final review I1 */
@@ -1776,7 +1776,7 @@ static void test_stop_switch(void)
     tick_t = t;
     io.stop_sw = 1;
     ticks(&io, 1, 1);
-    CHECK(io.state == ECU_SHUTDOWN && io.meter_duty == METER_CLOSED);
+    CHECK(io.state == ECU_SHUTDOWN && near(io.meter_duty, mu_ff(METER_CLOSED, io.v_bat), 1e-6f));
     CHECK(io.fault_n == 0);
     CHECK(dm1_first_spn(&io, 0));
     CHECK(!(dm1_lamps & (LAMP_RED | LAMP_PROTECT)));
@@ -1856,7 +1856,7 @@ static void test_diag_cond(void)
     in = dg_base(); in.i_mu_valid = 1; in.mu_duty = 0.5f; in.i_mu = 0.01f;
     CHECK(dg1(in, DG_MU_OPEN));
     in.i_mu_valid = 0;   CHECK(!dg1(in, DG_MU_OPEN));    /* production: no ISNS_MU */
-    in = dg_base(); in.i_mu_valid = 1; in.i_mu = 3.0f;
+    in = dg_base(); in.i_mu_valid = 1; in.i_mu = 3.2f;
     CHECK(dg1(in, DG_MU_OVERCUR));
     in.i_mu = 1.4f;      CHECK(!dg1(in, DG_MU_OVERCUR));
 
@@ -2071,34 +2071,46 @@ static void test_egr_stall(void)
 
 /* ---- the cascades (decisions log 23) ---- */
 
-/* The metering valve's inner loop: without a measurement it is the
- * command exactly at 13.5 V and scaled by the battery otherwise; with one,
- * it holds the commanded current through a 25 % hotter coil. */
+/* The metering valve's inner loop (decisions log 23, 25). Without a
+ * measurement the duty is the command times MU_V_FULL / battery; with
+ * one, it holds the commanded current at both corners of the measured
+ * coil: 2.5 ohm cold (1.85) and 5 ohm hot (6.91), on 11 to 16 V. */
+static float mu_coil(float cmd, float r, float vb, uint8_t valid, float *duty)
+{
+    mu_t m;
+    mu_reset(&m);
+    float i = 0, d = 0;
+    for (int k = 0; k < 3000; k++) {
+        d = mu_step(&m, cmd, i, valid, vb, 0.001f);
+        i += (d * vb / r - i) * (0.001f / 0.003f);           /* tau 3 ms */
+    }
+    if (duty) *duty = d;
+    return i;
+}
+
 static void test_metering_current_loop(void)
 {
     mu_t m;
     mu_reset(&m);
-    CHECK(mu_step(&m, 0.4f, 0, 0, 13.5f, 0.001f) == 0.4f);       /* nominal: unchanged */
-    CHECK(mu_step(&m, 0.4f, 0, 0, 0.0f, 0.001f) == 0.4f);        /* no battery reading */
-    CHECK(mu_step(&m, 0.4f, 0, 0, 24.0f, 0.001f) == 0.4f);       /* implausible for 12 V */
-    CHECK(near(mu_step(&m, 0.4f, 0, 0, 12.0f, 0.001f), 0.45f, 1e-5f));   /* 13.5/12 */
-    /* closed loop on a coil: i = duty * vbat / R, R hot = 12.5 ohm */
-    float r = 12.5f, vb = 13.5f, i = 0, duty = 0;
-    mu_reset(&m);
-    for (int k = 0; k < 2000; k++) {
-        duty = mu_step(&m, 0.5f, i, 1, vb, 0.001f);
-        i += (duty * vb / r - i) * (0.001f / 0.003f);           /* tau 3 ms */
-    }
-    CHECK(near(i, 0.5f * MU_I_FULL, 0.01f));                     /* the current, not the duty */
-    CHECK(duty > 0.6f);                                          /* it had to push harder */
-    /* feedforward only, the same hot coil: 20 % short */
-    mu_reset(&m);
-    i = 0;
-    for (int k = 0; k < 2000; k++) {
-        duty = mu_step(&m, 0.5f, i, 0, vb, 0.001f);
-        i += (duty * vb / r - i) * (0.001f / 0.003f);
-    }
-    CHECK(i < 0.85f * 0.5f * MU_I_FULL);
+    CHECK(near(mu_step(&m, 0.4f, 0, 0, 13.5f, 0.001f), 0.4f * MU_V_FULL / 13.5f, 1e-6f));
+    CHECK(near(mu_step(&m, 0.4f, 0, 0, 0.0f, 0.001f), 0.4f * MU_V_FULL / MU_V_NOM, 1e-6f));  /* no reading */
+    CHECK(near(mu_step(&m, 0.4f, 0, 0, 24.0f, 0.001f), 0.4f * MU_V_FULL / MU_V_NOM, 1e-6f)); /* implausible */
+    CHECK(near(mu_step(&m, 0.4f, 0, 0, 12.0f, 0.001f), 0.4f * MU_V_FULL / 12.0f, 1e-6f));
+    /* feedforward alone into a nominal coil: the commanded current */
+    CHECK(near(mu_coil(0.5f, MU_R_NOM, 13.5f, 0, NULL), 0.5f * MU_I_FULL, 0.01f));
+    /* closed loop, both corners, half and full command */
+    float d;
+    CHECK(near(mu_coil(0.5f, 6.91f, 11.0f, 1, &d), 0.5f * MU_I_FULL, 0.01f));
+    CHECK(near(mu_coil(1.0f, 6.91f, 11.0f, 1, &d), MU_I_FULL, 0.015f));     /* closes the valve */
+    CHECK(d > 0.8f);                                         /* it had to push: 0.85 duty */
+    CHECK(near(mu_coil(0.5f, 1.85f, 16.0f, 1, &d), 0.5f * MU_I_FULL, 0.01f));
+    CHECK(near(mu_coil(1.0f, 1.85f, 16.0f, 1, &d), MU_I_FULL, 0.015f));
+    CHECK(d < 0.2f);                                         /* and to hold back */
+    /* feedforward only, the corners miss: the hot high coil short, the
+     * cold low one over -- but under the 2.5 A over-current line even at
+     * command 1.0 on 13.5 V */
+    CHECK(mu_coil(0.5f, 6.91f, 11.0f, 0, NULL) < 0.6f * 0.5f * MU_I_FULL);
+    CHECK(mu_coil(1.0f, 1.85f, 13.5f, 0, NULL) < DG_MU_MAX_A);
 }
 
 /* The EGR position loop: it reaches a target on a motor-and-spring valve,

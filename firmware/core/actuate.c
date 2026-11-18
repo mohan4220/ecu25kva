@@ -10,6 +10,13 @@ float egr_target_pct(float fuel_mg)
     return table_lookup(EGR_Q, EGR_T, (int)(sizeof EGR_Q / sizeof EGR_Q[0]), fuel_mg);
 }
 
+float mu_ff(float cmd, float v_bat)
+{
+    float vb = (v_bat >= MU_VBAT_MIN && v_bat <= MU_VBAT_MAX) ? v_bat : MU_V_NOM;
+    float d = cmd * (MU_V_FULL / vb);
+    return d < 0 ? 0 : d > 1 ? 1 : d;
+}
+
 #ifndef ECU_MODEL    /* else generated: model/ecu_mucur.slx, ecu_egrpos.slx, via model_glue.c */
 static float clampf(float x, float lo, float hi) { return x < lo ? lo : x > hi ? hi : x; }
 
@@ -18,7 +25,7 @@ void mu_reset(mu_t *m) { m->integ = 0; }
 float mu_step(mu_t *m, float cmd, float i_meas, uint8_t valid, float v_bat, float dt_s)
 {
     float vb = (v_bat >= MU_VBAT_MIN && v_bat <= MU_VBAT_MAX) ? v_bat : MU_V_NOM;
-    float ff = cmd * (MU_V_NOM / vb);              /* exactly cmd at MU_V_NOM */
+    float ff = cmd * (MU_V_FULL / vb);             /* a nominal coil carries cmd * MU_I_FULL */
     if (!valid) {
         m->integ = 0;
         return clampf(ff, 0, 1);
