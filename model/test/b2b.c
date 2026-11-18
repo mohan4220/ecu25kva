@@ -30,6 +30,7 @@
 #include "ecu_mucur.h"
 #include "ecu_egrpos.h"
 #include "ecu_spdst.h"
+#include "ecu_deb.h"
 #include <string.h>
 
 /* A random input that holds for a random while: the guards count time,
@@ -286,5 +287,27 @@ int main(void)
       }
       report("speed states chart (mismatched ticks)", (double)bad, 0);
       printf("   ticks idle / operating / steady: %ld %ld %ld\n", n1, n2, n3); }
+    /* the fault debounce: one chart, many instances -- four at once on
+     * different times, so a shared state would show; times from 0 up */
+    { RT_MODEL_ecu_deb_T m[4]; DW_ecu_deb_T dw[4]; deb_t ref[4]; uint8_t y[4];
+      hold_t hc[4] = {{0}}, ht = {0}; uint16_t db[4], hl[4];
+      long n1 = 0; bad = 0;
+      for (int k = 0; k < 4; k++) {
+          uint8_t c0 = 0; uint16_t a0 = 0, b0 = 0;
+          m[k].dwork = &dw[k]; ecu_deb_initialize(&m[k], &c0, &a0, &b0, &y[k]); deb_reset(&ref[k]);
+          db[k] = (uint16_t)(k * 700); hl[k] = (uint16_t)(k * 300);
+      }
+      for (int i = 0; i < N; i++) {
+          if (held(&ht, 0, 1, 50000) > 0.999f)        /* now and then: new times */
+              for (int k = 0; k < 4; k++) { db[k] = (uint16_t)(rand() % 3000); hl[k] = (uint16_t)(rand() % 2000); }
+          for (int k = 0; k < 4; k++) {
+              uint8_t c = held(&hc[k], 0, 1, 2500) > 0.5f;
+              uint8_t a = deb_step(&ref[k], c, db[k], hl[k]);
+              ecu_deb_step(&m[k], c, db[k], hl[k], &y[k]);
+              bad += a != y[k]; n1 += a;
+          }
+      }
+      report("fault debounce chart x4 (mismatched)", (double)bad, 0);
+      printf("   ticks active: %ld\n", n1); }
     return fails != 0;
 }

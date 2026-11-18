@@ -18,6 +18,7 @@
 #include "service.h"
 #include "mode.h"
 #include "actuate.h"
+#include "diag.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { fails++; \
@@ -282,10 +283,10 @@ static void test_faults(void)
     faults_set(&t, 110, 3);
     faults_set(&t, 110, 3);
     CHECK(t.n == 1);
-    for (uint32_t i = 0; i < 9; i++) faults_set(&t, 200 + i, 4);
-    CHECK(t.n == 8);
+    for (uint32_t i = 0; i < FAULTS_MAX + 1; i++) faults_set(&t, 200 + i, 4);
+    CHECK(t.n == FAULTS_MAX);
     faults_clear(&t, 110, 3);
-    CHECK(t.n == 7);
+    CHECK(t.n == FAULTS_MAX - 1);
     for (int i = 0; i < t.n; i++) CHECK(t.f[i].spn == 200u + i && t.f[i].fmi == 4);
 }
 
@@ -369,9 +370,13 @@ static void ecu_up(ecu_io *io)
     memset(io, 0, sizeof *io);
     ecu_init(io);
     io->ignition = 1;
-    io->v_clt = io->v_oil = io->v_rail = io->v_boost = io->v_egr = 2.5f;
+    io->v_clt = io->v_rail = io->v_boost = 2.5f;
+    /* at rest: no oil pressure, the EGR valve shut (0.5 V is the bottom of
+     * a 0.5-4.5 V span). Mid-scale here would be an engine stopped with
+     * 500 kPa of oil and a coasting valve half open: real faults (diag.h) */
+    io->v_oil = io->v_egr = 0.5f;
     io->v_5v = 5.0f;
-    io->v_bat = 24.0f;
+    io->v_bat = 13.5f;                     /* 12 V system (refs/field-evidence-2026-10-14.md) */
     ecu_nvm_load(io, NULL, NULL, 0);
     eol_record r;
     eol_default(&r);
@@ -1786,6 +1791,165 @@ static void test_stop_switch(void)
     CHECK(io.state == ECU_WAIT);
 }
 
+/* ---- the engine-side diagnoses (diag.h, decisions log 24) ---- */
+
+/* deb_step: CLEAR until the condition holds deb_ms ticks, ACTIVE until it
+ * is absent heal_ms ticks; a tick the other way restarts the count. */
+static void test_deb(void)
+{
+    deb_t d; deb_reset(&d);
+    CHECK(deb_step(&d, 1, 3, 2) == 0);
+    CHECK(deb_step(&d, 1, 3, 2) == 0);
+    CHECK(deb_step(&d, 0, 3, 2) == 0);         /* a gap restarts the count */
+    CHECK(deb_step(&d, 1, 3, 2) == 0);
+    CHECK(deb_step(&d, 1, 3, 2) == 0);
+    CHECK(deb_step(&d, 1, 3, 2) == 1);         /* the third in a row */
+    CHECK(deb_step(&d, 0, 3, 2) == 1);
+    CHECK(deb_step(&d, 1, 3, 2) == 1);         /* back again: the heal restarts */
+    CHECK(deb_step(&d, 0, 3, 2) == 1);
+    CHECK(deb_step(&d, 0, 3, 2) == 0);         /* two absent in a row: healed */
+    deb_reset(&d);
+    CHECK(deb_step(&d, 1, 0, 0) == 1);         /* 0: at once, both ways */
+    CHECK(deb_step(&d, 0, 0, 0) == 0);
+}
+
+static diag_in_t dg_base(void)
+{
+    diag_in_t in = { .running = 1, .ign_on = 1, .rpm = 1500, .v_bat = 13.8f,
+                     .egr_pos_ok = 1, .rail_set = 800, .rail_bar = 800, .rail_ok = 1,
+                     .oil_kpa = 400, .oil_ok = 1, .i_egr_f = 1.0f, .i_mu = 1.0f };
+    return in;
+}
+
+static uint8_t dg1(diag_in_t in, int which)
+{
+    uint8_t c[DG_N];
+    diag_cond(&in, c);
+    return c[which];
+}
+
+static void test_diag_cond(void)
+{
+    diag_in_t in = dg_base();
+    uint8_t c[DG_N];
+    diag_cond(&in, c);
+    for (int i = 0; i < DG_N; i++) CHECK(c[i] == 0);   /* a healthy running engine */
+
+    in = dg_base(); in.egr_duty = 0.5f; in.i_egr_f = 0.05f;
+    CHECK(dg1(in, DG_EGR_OPEN));
+    in.egr_duty = -0.5f; CHECK(dg1(in, DG_EGR_OPEN));    /* either direction */
+    in.i_egr_f = 0.5f;   CHECK(!dg1(in, DG_EGR_OPEN));
+    in.i_egr_f = 0.05f; in.egr_off = 1; CHECK(!dg1(in, DG_EGR_OPEN));   /* the stall guard has it off */
+    in.egr_off = 0; in.v_bat = 9.0f;   CHECK(!dg1(in, DG_EGR_OPEN));    /* battery out of the window */
+    in.v_bat = 0;                      CHECK(dg1(in, DG_EGR_OPEN));     /* not measured: diagnosed */
+
+    in = dg_base(); in.egr_duty = 0; in.egr_pos = 50;
+    CHECK(dg1(in, DG_EGR_STUCK_OPEN));
+    in.egr_pos = 20;     CHECK(!dg1(in, DG_EGR_STUCK_OPEN));
+    in.egr_pos = 50; in.egr_pos_ok = 0; CHECK(!dg1(in, DG_EGR_STUCK_OPEN));
+    in.egr_pos_ok = 1; in.running = 0;  CHECK(!dg1(in, DG_EGR_STUCK_OPEN));
+
+    in = dg_base(); in.egr_duty = EGR_DUTY_MAX; in.egr_pos = 10;
+    CHECK(dg1(in, DG_EGR_STUCK_SHUT));          /* reachable: this bridge tops out at 0.95 */
+    in.egr_duty = 0.5f;  CHECK(!dg1(in, DG_EGR_STUCK_SHUT));
+
+    in = dg_base(); in.i_mu_valid = 1; in.mu_duty = 0.5f; in.i_mu = 0.01f;
+    CHECK(dg1(in, DG_MU_OPEN));
+    in.i_mu_valid = 0;   CHECK(!dg1(in, DG_MU_OPEN));    /* production: no ISNS_MU */
+    in = dg_base(); in.i_mu_valid = 1; in.i_mu = 3.0f;
+    CHECK(dg1(in, DG_MU_OVERCUR));
+    in.i_mu = 1.4f;      CHECK(!dg1(in, DG_MU_OVERCUR));
+
+    in = dg_base(); in.rail_bar = 500;  CHECK(dg1(in, DG_RAIL_DEV));
+    in.rail_bar = 700;   CHECK(!dg1(in, DG_RAIL_DEV));   /* 100 bar: inside */
+    in.rail_set = 300; in.rail_bar = 140; CHECK(dg1(in, DG_RAIL_DEV));
+    in.rail_ok = 0;      CHECK(!dg1(in, DG_RAIL_DEV));   /* the sensor fault says it already */
+
+    in = dg_base(); in.rpm = 1600; CHECK(dg1(in, DG_SPD_HIGH));
+    in.rpm = 1580;       CHECK(!dg1(in, DG_SPD_HIGH));
+
+    in = dg_base(); in.running = 0; in.stopped = 1; in.oil_kpa = 300;
+    CHECK(dg1(in, DG_SPD_ERRATIC) && !dg1(in, DG_OIL_PLAUS));
+    in.oil_kpa = 150;    CHECK(!dg1(in, DG_SPD_ERRATIC) && dg1(in, DG_OIL_PLAUS));
+    in.oil_kpa = 50;     CHECK(!dg1(in, DG_SPD_ERRATIC) && !dg1(in, DG_OIL_PLAUS));
+    in.oil_kpa = 300; in.oil_ok = 0; CHECK(!dg1(in, DG_SPD_ERRATIC));
+    in.oil_ok = 1; in.stopped = 0;   CHECK(!dg1(in, DG_SPD_ERRATIC));   /* teeth: turning */
+
+    in = dg_base(); in.v_bat = 15.0f; CHECK(dg1(in, DG_BAT_HIGH));
+    in.v_bat = 14.6f;    CHECK(!dg1(in, DG_BAT_HIGH));   /* this set's own charging voltage */
+    in.v_bat = 11.0f;    CHECK(dg1(in, DG_BAT_LOW));
+    in.running = 0;      CHECK(!dg1(in, DG_BAT_LOW));    /* cranking dips are not a fault */
+    in.running = 1; in.v_bat = 0; CHECK(!dg1(in, DG_BAT_LOW));   /* not measured */
+}
+
+/* The valve coasts (target 0) but reads half open: amber after 1 s,
+ * the engine keeps running, healed 200 ms after it reads shut. */
+static void test_diag_egr_stuck_open(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    ecu_hold(&io, 1500, 3000, &t, &tooth);
+    CHECK(io.fault_n == 0);
+    io.v_egr = 2.5f;                                    /* 50 % open */
+    ecu_hold(&io, 1500, 900, &t, &tooth);
+    CHECK(io.fault_n == 0);
+    ecu_hold(&io, 1500, 200, &t, &tooth);
+    CHECK(io.fault_n == 1 && dtc_active(2791, 0) && io.state == ECU_RUN);
+    ecu_hold(&io, 1500, 1000, &t, &tooth);             /* a DM1 broadcast, still turning */
+    CHECK(spin_spn == 2791 && spin_fmi == 0 && spin_lamps == LAMP_AMBER);
+    io.v_egr = 0.5f;
+    ecu_hold(&io, 1500, 250, &t, &tooth);
+    CHECK(io.fault_n == 0 && !dtc_active(2791, 0));
+}
+
+/* 1600 rpm, under the 1650 trip: the high-speed warning, AMBER -- the
+ * lamp rule used to call every speed fault but underspeed red. */
+static void test_diag_speed_high(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    ecu_hold(&io, 1500, 3000, &t, &tooth);
+    ecu_hold(&io, 1600, 1900, &t, &tooth);
+    CHECK(io.fault_n == 0);
+    ecu_hold(&io, 1600, 200, &t, &tooth);
+    CHECK(io.fault_n == 1 && dtc_active(SPN_SPEED, 16) && io.state == ECU_RUN);
+    ecu_hold(&io, 1600, 1000, &t, &tooth);
+    CHECK(spin_spn == SPN_SPEED && spin_fmi == 16 && spin_lamps == LAMP_AMBER);
+}
+
+static void test_diag_battery_low(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    ecu_hold(&io, 1500, 3000, &t, &tooth);
+    io.v_bat = 11.0f;                                   /* charging lost */
+    ecu_hold(&io, 1500, 4900, &t, &tooth);
+    CHECK(io.fault_n == 0);
+    ecu_hold(&io, 1500, 200, &t, &tooth);
+    CHECK(io.fault_n == 1 && dtc_active(168, 18) && io.state == ECU_RUN);
+    io.v_bat = 13.8f;
+    ecu_hold(&io, 1500, 10, &t, &tooth);
+    CHECK(io.fault_n == 0);                             /* heals at once */
+}
+
+/* Engine stopped, ignition on. 150 kPa: the oil sensor reads high (100/2).
+ * 500 kPa: nothing reads that at rest but a turning engine -- the speed
+ * sensor is the suspect (190/8). */
+static void test_diag_oil_at_rest(void)
+{
+    ecu_io io;
+    ecu_up(&io);
+    io.v_oil = 0.5f + 4.0f * 0.15f;                     /* 150 kPa */
+    ticks(&io, 1990, 1);
+    CHECK(io.fault_n == 0);
+    ticks(&io, 20, 1);
+    CHECK(io.fault_n == 1 && dtc_active(100, 2));
+    io.v_oil = 2.5f;                                    /* 500 kPa */
+    ticks(&io, 2010, 1);
+    CHECK(io.fault_n == 1 && !dtc_active(100, 2) && dtc_active(SPN_SPEED, 8));
+    CHECK(io.state != ECU_SHUTDOWN);
+}
+
 /* Pin 21: water in fuel. Amber after WIF_MS, never a stop; a blip shorter
  * than WIF_MS does nothing; clears after WIF_MS dry. */
 static void test_water_in_fuel(void)
@@ -2105,6 +2269,12 @@ int main(void)
     test_afterrun_cancelled_by_ignition();
     test_stop_switch();
     test_water_in_fuel();
+    test_deb();
+    test_diag_cond();
+    test_diag_egr_stuck_open();
+    test_diag_speed_high();
+    test_diag_battery_low();
+    test_diag_oil_at_rest();
     test_isotp_roundtrip();
     test_isotp_lost_cf();
     test_link_roundtrip();

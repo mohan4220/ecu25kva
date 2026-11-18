@@ -23,7 +23,8 @@
 enum { TRIP_NONE, TRIP_OVERSPEED, TRIP_SYNC, TRIP_IGN, TRIP_STOP, TRIP_BOOST };
 
 typedef struct { uint32_t spn; uint8_t fmi, oc; } fault_t;
-typedef struct { fault_t f[8]; uint8_t n; } faults_t;
+#define FAULTS_MAX 16                /* active at once; DM1 carries them all (BAM) */
+typedef struct { fault_t f[FAULTS_MAX]; uint8_t n; } faults_t;
 
 int  safety_check(float rpm, uint8_t crank_fault, uint8_t ignition, int running);
 void faults_set(faults_t *t, uint32_t spn, uint8_t fmi);

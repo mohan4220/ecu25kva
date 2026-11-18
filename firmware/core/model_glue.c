@@ -384,4 +384,21 @@ void spdst_step(uint8_t running, float rpm, float target, uint32_t idle_ms,
     *state = spdst_state;
 }
 
+/* ---- a fault's debounce: model/ecu_deb.slx ----
+ * Many instances, so the state is the caller's (deb_t), and so is the
+ * output: the chart writes act only in its entry actions. */
+void deb_reset(deb_t *d)
+{
+    uint8_t c = 0;
+    uint16_t a = 0, b = 0;
+    d->m.dwork = &d->dw;
+    ecu_deb_initialize(&d->m, &c, &a, &b, &d->act);
+}
+
+uint8_t deb_step(deb_t *d, uint8_t cond, uint16_t deb_ms, uint16_t heal_ms)
+{
+    ecu_deb_step(&d->m, cond, deb_ms, heal_ms, &d->act);
+    return d->act;
+}
+
 #endif

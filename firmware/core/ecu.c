@@ -17,6 +17,7 @@
 #include "link.h"
 #include "mode.h"
 #include "actuate.h"
+#include "diag.h"
 
 #define SPN_PROGRAM 628u             /* program memory */
 #define FMI_CALIBRATION 13u          /* out of calibration: no end-of-line record */
@@ -40,6 +41,8 @@ static gov_t gov;
 static rail_t rail;
 static mu_t mu;                      /* metering valve: the current loop */
 static egrp_t egrp;                  /* EGR valve: the position loop */
+static deb_t dg[DG_N];               /* one debounce per diagnosis (diag.h) */
+static float egr_i_f;                /* EGR current, filtered over the PWM */
 static faults_t faults;
 static nvm_image img;                /* live: the tick updates it */
 static nvm_image out;                /* sealed copy the host writes */
@@ -133,6 +136,9 @@ static void reset_all(ecu_io *io)
     mu_reset(&mu);
     egrp_reset(&egrp);
     spdst_reset();
+    for (int i = 0; i < DG_N; i++)
+        deb_reset(&dg[i]);
+    egr_i_f = 0;
     io->egr_duty = 0;
     io->spd_state = SPD_OFF;
     bam_n = bam_i = 0;
@@ -351,11 +357,37 @@ static void mirror_sensor_faults(ecu_io *io)
     }
 }
 
+/* The engine-side diagnoses (diag.h, decisions log 24): every one amber,
+ * each debounced and healed on its own times. Steps after this tick's
+ * actuator commands, so the "driven" conditions see what was driven. */
+static void diagnose(ecu_io *io, float rail_set)
+{
+    egr_i_f += DG_EGR_I_ALPHA * (io->i_egr - egr_i_f);
+    diag_in_t in = {
+        .running = io->state == ECU_RUN, .ign_on = io->state != ECU_OFF,
+        .stopped = tooth_ms >= ECU_STOPPED_MS, .rpm = io->rpm, .v_bat = io->v_bat,
+        .egr_duty = io->egr_duty, .i_egr_f = egr_i_f, .egr_pos = sens.val[S_EGR],
+        .egr_pos_ok = !sens.fmi[S_EGR], .egr_off = io->egr_off,
+        .mu_duty = io->meter_duty, .i_mu = io->i_mu, .i_mu_valid = io->i_mu_valid,
+        .rail_set = rail_set, .rail_bar = sens.val[S_RAIL], .rail_ok = !sens.fmi[S_RAIL],
+        .oil_kpa = sens.val[S_OIL], .oil_ok = !sens.fmi[S_OIL],
+    };
+    uint8_t c[DG_N];
+    diag_cond(&in, c);
+    for (int i = 0; i < DG_N; i++) {
+        const diag_def_t *f = &diag_def[i];
+        if (deb_step(&dg[i], c[i], f->deb_ms, f->heal_ms))
+            fault_raise(io, f->spn, f->fmi);
+        else
+            fault_drop(io, f->spn, f->fmi);
+    }
+}
+
 static uint8_t lamps(void)
 {
     uint8_t l = 0;
     for (int i = 0; i < faults.n; i++)
-        l |= ((faults.f[i].spn == SPN_SPEED && faults.f[i].fmi != FMI_LOW_MODERATE)
+        l |= ((faults.f[i].spn == SPN_SPEED && faults.f[i].fmi == 0)
               || faults.f[i].spn == SPN_POS
               || (faults.f[i].spn == SPN_BOOST_RAIL && faults.f[i].fmi == FMI_HIGH_SEVERE))
              ? LAMP_RED | LAMP_PROTECT        /* shutdown: the DSE stops only on Protect */
@@ -708,16 +740,17 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
         gov_step(&gov, rpm, io->droop_sw, idle, 0.001f);
     /* metering valve, a cascade: rail pressure -> valve current -> PWM */
     float cmd;
+    float rail_set = rail_set_bar(io->state == ECU_RUN ? gov.fuel : FUEL_START_MG);
     if (io->state == ECU_CRANK || io->state == ECU_RUN)
         cmd = sens.fmi[S_RAIL] ? RAIL_DUTY_LIMP
-            : rail_step(&rail, rail_set_bar(io->state == ECU_RUN ? gov.fuel : FUEL_START_MG),
-                        sens.val[S_RAIL], 0.001f);
+            : rail_step(&rail, rail_set, sens.val[S_RAIL], 0.001f);
     else
         cmd = METER_CLOSED;
     io->meter_duty = mu_step(&mu, cmd, io->i_mu, io->i_mu_valid, io->v_bat, 0.001f);
     /* EGR valve, a cascade: target position -> position PID -> bridge */
     io->egr_duty = egrp_step(&egrp, egr_target_pct(io->state == ECU_RUN ? gov.fuel : 0), sens.val[S_EGR],
                              (uint8_t)(io->state == ECU_RUN && !io->egr_off && !sens.fmi[S_EGR]), 0.001f);
+    diagnose(io, rail_set);
 
     send_can(io);
 

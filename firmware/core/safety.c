@@ -24,7 +24,7 @@ static int find(const faults_t *t, uint32_t spn, uint8_t fmi)
 /* ponytail: occurrence count is always 1; real counting needs NVM (S32K148 port) */
 void faults_set(faults_t *t, uint32_t spn, uint8_t fmi)
 {
-    if (find(t, spn, fmi) >= 0 || t->n >= 8)
+    if (find(t, spn, fmi) >= 0 || t->n >= FAULTS_MAX)
         return;
     t->f[t->n++] = (fault_t){ spn, fmi, 1 };
 }

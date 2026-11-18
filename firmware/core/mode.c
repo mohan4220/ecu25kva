@@ -234,4 +234,28 @@ void spdst_step(uint8_t running, float rpm, float target, uint32_t idle_ms,
     *state = sp_state;
 }
 
+/* ---- a fault's debounce and healing ---- */
+
+void deb_reset(deb_t *d) { d->n = 0; d->act = 0; }
+
+uint8_t deb_step(deb_t *d, uint8_t cond, uint16_t deb_ms, uint16_t heal_ms)
+{
+    if (!d->act) {
+        if (cond && d->n + 1 >= deb_ms) {
+            d->act = 1;
+            d->n = 0;
+        } else {
+            d->n = cond ? (uint16_t)(d->n + 1) : 0;
+        }
+    } else {
+        if (!cond && d->n + 1 >= heal_ms) {
+            d->act = 0;
+            d->n = 0;
+        } else {
+            d->n = cond ? 0 : (uint16_t)(d->n + 1);
+        }
+    }
+    return d->act;
+}
+
 #endif

@@ -6,6 +6,7 @@ Each scenario is a claim from the spec (section 7) that must hold.
     .venv/bin/python firmware/sim/run_sil.py           # run all
     .venv/bin/python firmware/sim/run_sil.py runaway   # run matching scenarios
 """
+import ctypes as C
 import pathlib
 import shutil
 import statistics
@@ -205,6 +206,14 @@ class Sim:
 
     def dm1_after(self, t_us):
         return [(t, dtcs(d)) for t, p, d in self.can if p == DM1 and t >= t_us]
+
+    def stored(self):
+        """{(spn, fmi): active} from the live fault memory, every DTC however
+        many (DM1 above one fault is a multi-packet BAM)."""
+        lib = self.ecu.lib
+        lib.ecu_nvm_live.restype = C.c_void_p
+        img = C.string_at(lib.ecu_nvm_live(), IMAGE_LEN)
+        return {(d["spn"], d["fmi"]): d["active"] for d in decode(img)["dtcs"]}
 
 
 # ---- scenarios ------------------------------------------------------------
@@ -505,6 +514,44 @@ def hot_coil():
     cold = sim.eng.i_mu / (13.5 / 10.0)        # the duty a cold coil at 13.5 V would need
     want = (sim.eng.r_coil / sim.eng.vbat) / (10.0 / 13.5)    # 1.41: what Ohm's law needs
     c.that("duty raised above the cold-coil duty, ratio", duty / cold, want, tol=0.03)
+    # Evidence, kept on purpose (decisions log 24). At no load the valve must
+    # nearly close, and a 12.5 ohm coil on 12.0 V reaches only 0.96 A of the
+    # 1.35 A that closes it: the rail sits on the relief valve. The rail
+    # deviation diagnosis (157/7) is what shows it; the 10 ohm coil is an
+    # assumption until the real metering unit's resistance is known.
+    peak = max(p for t, r, st, p, d, ps, w in sim.trace if 5 * S <= t < 8 * S)
+    c.that("evidence: no load, rail on the relief valve, bar", peak, 1800, ok=peak >= 1790, unit="bar")
+    c.that("evidence: the rail deviation diagnosis caught it (157/7)",
+           "stored" if (157, 7) in sim.stored() else "missed", 0, ok=(157, 7) in sim.stored())
+    return c
+
+
+def diagnoses():
+    """The 20 kVA DSM sheet's diagnoses on this engine (decisions log 24):
+    an EGR valve that reads half open while the bridge coasts, then a
+    battery that stops charging. Both amber; the engine never stops."""
+    c = Checks("18 diagnoses: EGR stuck open, then battery low -- amber, keeps running")
+    sim = Sim().start(8.0)
+    sim.eng.load_kw = 10                       # loaded: unloaded at 11 V the valve cannot close
+                                               # (scenario 17's evidence), which is another fault
+    sim.eng.v_override["v_egr"] = 2.5          # 50 % open, the target is shut
+    sim.run(10.0)
+    got = next((t for t, d in sim.dm1_after(8 * S) if (2791, 0) in d), None)
+    c.that("DM1 carries 2791/0 within 2 s, s", (got - 8 * S) / S if got else 99, 2,
+           ok=got is not None and got - 8 * S <= 2 * S, unit="s")
+    if got:
+        lamp = next(d for t, p, d in sim.can if p == DM1 and t == got)[0]
+        c.that("amber lamp only, not Protect", hex(lamp), 0, ok=lamp == 0x04)
+    sim.eng.vbat = 11.0                        # the alternator has stopped charging
+    sim._volts()
+    sim.run(17.0)
+    st = sim.stored()
+    c.that("battery low stored and active (168/18)", "yes" if st.get((168, 18)) else "no", 0,
+           ok=bool(st.get((168, 18))))
+    extra = sorted(k for k in st if k not in ((2791, 0), (168, 18)))
+    c.that("nothing else stored", " ".join(f"{a}/{b}" for a, b in extra) or "none", 0, ok=not extra)
+    c.that("never shut down", "ok" if sim.trip() is None else "tripped", 0,
+           ok=sim.trip() is None and sim.io.state == RUN)
     return c
 
 
@@ -512,7 +559,8 @@ SCENARIOS = {f.__name__: f for f in (start, load_step, load_reject, droop, runaw
                                      crank_loss, ignition_off, sensor_open,
                                      can_content, rail, watchdog,
                                      history_after_power_cycle, torn_save,
-                                     dm2_dm3_over_can, lost_tooth, overload, hot_coil)}
+                                     dm2_dm3_over_can, lost_tooth, overload, hot_coil,
+                                     diagnoses)}
 
 
 def main():

@@ -57,7 +57,8 @@ nothing inside the core changes.
 | `core/govern.c` | Speed governor: PI, setpoint ramp, droop |
 | `core/rail.c` | Rail-pressure loop on the metering valve |
 | `core/sensors.c` | Volts to engineering units, range faults |
-| `core/safety.c` | The trip decision and the table of active faults |
+| `core/safety.c` | The trip decision and the table of active faults (16 at once) |
+| `core/diag.c` | The engine-side diagnoses from the 20 kVA set's DSM sheet: 11 conditions, all amber; each debounced by `deb_step` (decisions log 24) |
 | `core/mode.c` | The engine state machine and the guards that keep their own time (boost, EGR stall, water in fuel, underspeed, main relay), stepped by `ecu.c` (§17) |
 | `core/model_glue.c` | `ECU_MODEL` builds: the same functions from the code generated out of `model/` (§17) |
 | `gen/` | The C Embedded Coder generated from the Simulink/Stateflow models in `model/`. Committed; do not edit |
@@ -295,6 +296,27 @@ on DM1, so a unit that skipped the line says so on the DSE's screen.
   "not available" (0xFF) is sent on CAN.
 - The coolant low limit is 0.1 V, not 0.2 V. 0.2 V is a real 129 °C, and
   a hot engine must not be mistaken for a shorted sensor.
+
+**Engine-side diagnoses** (`core/diag.h`, decisions log 24, from the 20 kVA
+set's DSM sheet). All of them are **amber**, the engine keeps running, and
+each has its own debounce and healing time:
+
+| Code | Fault | Condition | Set / clear |
+|---|---|---|---|
+| 2791/5 | EGR open load | \|duty\| > 20 %, filtered current ≤ 0.1 A, running, 10–15 V | 200 / 130 ms |
+| 2791/0 | EGR stuck open | duty below 5 %, position above 35 % | 1 s / 200 ms |
+| 2791/7 | EGR stuck shut | duty ≥ 90 %, position below 35 % | 1 s / 200 ms |
+| 1347/5 | Metering valve open load | duty > 20 %, coil current < 0.05 A (only with ISNS_MU) | 500 ms / at once |
+| 1347/6 | Metering valve over current | coil current > 2.5 A | 500 ms / at once |
+| 157/7 | Rail pressure off target | running, off by > 150 bar and > 25 % | 2 s / 1 s |
+| 190/16 | Speed high (warning) | running, above 1590 rpm | 2 s / 1 s |
+| 190/8 | Speed sensor | oil above 200 kPa, no crank tooth for 1 s | 2 s / at once |
+| 100/2 | Oil pressure at rest | engine stopped, 100–200 kPa | 2 s / at once |
+| 168/16 | Battery high | above 14.8 V | 5 s / at once |
+| 168/18 | Battery low | running, below 11.9 V | 5 s / at once |
+
+Every threshold is calibration, from the 20 kVA set or chosen here. None is
+confirmed on this engine yet.
 
 ## 9. CAN (J1939, source address 234)
 

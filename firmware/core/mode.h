@@ -54,6 +54,20 @@ void spdst_reset(void);
 void spdst_step(uint8_t running, float rpm, float target, uint32_t idle_ms,
                 uint8_t *idle, uint8_t *state);
 
+/* ---- a fault's debounce and healing (decisions log 24): one instance per
+ * diagnosis in diag.h. CLEAR until the condition has held deb_ms ticks,
+ * then ACTIVE until it has been absent heal_ms ticks (0: at once); a tick
+ * the other way restarts the count. Unlike the guards above it has many
+ * instances, so its state is the caller's. ---- */
+#ifdef ECU_MODEL
+#include "ecu_deb.h"
+typedef struct { uint8_t act; RT_MODEL_ecu_deb_T m; DW_ecu_deb_T dw; } deb_t;
+#else
+typedef struct { uint16_t n; uint8_t act; } deb_t;
+#endif
+void    deb_reset(deb_t *d);
+uint8_t deb_step(deb_t *d, uint8_t cond, uint16_t deb_ms, uint16_t heal_ms);   /* 1 = active */
+
 /* ---- main relay: held with the ignition, then the after-run ---- */
 void relay_reset(void);
 void relay_step(uint8_t ignition, uint8_t stopped, uint8_t written,

@@ -1812,6 +1812,86 @@ this firmware, saying so. It was left alone as asked.
 
 ---
 
+## 24. The 20 kVA set's fault diagnoses, adapted (18 November)
+
+The owner sent the 20 kVA genset's DSM sheet: a fault-diagnosis table with
+SPN and FMI, detection conditions, debounce and healing times, and lamp
+actions. They asked whether it helps, then said to continue. Transcribed,
+mapped row by row and flagged in `docs/research/13-dsm-20kva.md`.
+
+**It is the same kind of correction as §23.** The 20 kVA engine has a fuel
+rack; this one is common rail. So its rack faults become the metering valve's
+and the rail's, and the EGR rows carry over almost as written, because the
+EGR hardware is the same kind of thing.
+
+**What went in:** `firmware/core/diag.c` holds 11 conditions, every one
+**amber**:
+- **EGR (SPN 2791):** open load (/5), stuck open (/0) and stuck shut (/7),
+  diagnosed only from 10 to 15 V.
+- **Metering valve (SPN 1347):** open load (/5) and over current (/6).
+- **Rail pressure:** not following its target (157/7).
+- **Speed:** a high-speed warning at 1590 rpm (190/16), and turning on oil
+  pressure with no crank teeth (190/8).
+- **Oil pressure with the engine stopped** (100/2).
+- **Battery:** high (168/16), and low while running (168/18).
+
+Each condition has its own debounce and healing time (`diag_def`), stepped by
+one Stateflow chart, `ecu_deb`, with an instance per diagnosis. It is the
+19th component model, and back-to-back it is exact over four instances at
+once.
+
+**What did not go in, on purpose:**
+- **The DSE keeps** oil and coolant shutdowns, fuel level, charging, crank
+  attempts and the maintenance timers. The MD1CS162 has no pins for them, and
+  "follow only Bosch".
+- **No battery shutdowns.** A battery is no reason to stop a genset.
+- **Only standard J1939 codes,** so the DSE4522 shows the right text. The
+  sheet uses FMI 22 (which J1939 doesn't define) and the maker's own SPNs.
+
+**The sheet's mistakes, not copied:**
+- Speed sensor erratic as written fires at standstill.
+- The battery and alternator shutdowns aren't limited to running, so they
+  would trip during cranking.
+- The battery warnings use the shutdown enables.
+- Three EGR codes share one condition.
+- Two resistance bands look like normal readings.
+- A filter row has no variable.
+
+**Found on the way:**
+- **The lamp rule called every speed fault red except underspeed.** A
+  high-speed warning would have lit red and set Protect, and the DSE stops on
+  Protect. Red is now overspeed only (FMI 0).
+- **The unit tests powered the ECU from 24 V,** stale from before the field
+  evidence settled a 12 V system. They also held every sensor at mid-scale,
+  which is a stopped engine with 500 kPa of oil and a coasting EGR valve half
+  open. Both are real faults now, so the test rig reads 13.5 V, 0 kPa and the
+  valve shut.
+- **The metering valve runs out of authority at no load on a hot coil or a
+  low battery.** The rail deviation diagnosis caught it in scenario 17: a
+  12.5 Ω coil on 12.0 V reaches 0.96 A of the 1.35 A that closes the
+  normally-open valve. From 4.2 to 8.8 s, at no load, the rail sits on the
+  relief valve at 1800 bar against 827. The scenario only checked 14–16 s
+  at 20 kW, so this was never seen. At 11 V a cold coil (1.1 A) does the
+  same. **It rests on the 10 Ω coil, which is an assumption.** Bosch
+  metering units are nearer 3 Ω, and then the authority is ample. The real
+  metering unit's coil resistance settles it, so read it off the part or
+  measure it. Scenario 17 now keeps it as evidence, and scenario 18 runs
+  loaded.
+- **The fault table held 8 active faults.** It now holds 16; DM1 sends
+  more than one as a BAM.
+
+**Proven:**
+- Unit tests for the debounce, every condition and its gating, and four
+  end-to-end cases, all on both builds.
+- Back-to-back exact.
+- Scenario 18: EGR stuck open, then a battery that stops charging. Both
+  amber, nothing else stored, the engine never stops.
+- 18/18 scenarios on both builds.
+
+**ABI unchanged (4).** `diag` reads only fields that already existed.
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a
