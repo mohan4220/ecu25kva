@@ -37,6 +37,7 @@
 
 static crank_t crank;
 static sens_t sens;
+static sens_aux_t bts;          /* pin 79, charge-air temperature (decisions log 33) */
 static gov_t gov;
 static rail_t rail;
 static mu_t mu;                      /* metering valve: the current loop */
@@ -124,6 +125,7 @@ static void reset_all(ecu_io *io)
 {
     crank_reset(&crank);
     sens_reset(&sens);
+    sens_aux_reset(&bts);
     gov_reset(&gov, 0, 0);
     rail_reset(&rail);
     memset(&faults, 0, sizeof faults);
@@ -355,6 +357,11 @@ static void mirror_sensor_faults(ecu_io *io)
         if (sens.fmi[i])
             fault_raise(io, sens_spn[i], sens.fmi[i]);
     }
+    for (uint8_t fmi = 3; fmi <= 4; fmi++)
+        if (bts.fmi != fmi)
+            fault_drop(io, SENS_AUX_SPN, fmi);
+    if (bts.fmi)
+        fault_raise(io, SENS_AUX_SPN, bts.fmi);
 }
 
 /* The engine-side diagnoses (diag.h, decisions log 24): every one amber,
@@ -427,6 +434,8 @@ static void send_can(ecu_io *io)
     }
     if (ms % 1000 == 0) {
         j1939_et1(&f, sens.val[S_CLT], !sens.fmi[S_CLT]);
+        queue(io, &f);
+        j1939_ic1(&f, bts.val, !bts.fmi);
         queue(io, &f);
         pend_dm1 = 1;
     }
@@ -725,6 +734,7 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     crank_poll(&crank, t_us);
     const float v[S_N] = { io->v_clt, io->v_oil, io->v_rail, io->v_boost, io->v_egr };
     sens_step_1ms(&sens, v, io->v_5v);
+    sens_aux_step_1ms(&bts, io->v_bts, io->v_5v);
     mirror_sensor_faults(io);
     water_in_fuel(io);
 
@@ -770,6 +780,7 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     io->fuel_mg = io->state == ECU_RUN ? gov.fuel : io->state == ECU_CRANK ? FUEL_START_MG : 0;
     io->rail_bar = sens.val[S_RAIL];
     io->clt_c = sens.val[S_CLT];
+    io->bts_c = bts.val;
     io->oil_kpa = sens.val[S_OIL];
     io->fault_n = faults.n;
     io->synced = (uint8_t)crank_synced(&crank);

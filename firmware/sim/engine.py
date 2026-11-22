@@ -57,6 +57,7 @@ def _ntc_volts(t_c):
     k = min(int((t_c - NTC_T[0]) // 10), len(NTC_T) - 2)
     f = (t_c - NTC_T[k]) / 10.0
     r = math.exp(math.log(NTC_R[k]) + f * (math.log(NTC_R[k + 1]) - math.log(NTC_R[k])))
+    r = r * 260e3 / (r + 260e3)              # the 100k + 160k divider across it
     return 5.0 * r / (r + 2490)
 
 
@@ -175,6 +176,7 @@ class Engine:
         load = self.load_kw / 20
         return {
             "v_clt": 5.0 if self.clt_open else _ntc_volts(self.clt_c),
+            "v_bts": _ntc_volts(35 + 20 * load),       # charge air: 35 degC idle, 55 at 20 kW
             "v_oil": _lin(400 * self.rpm / 1500, 0, 1000),
             "v_rail": _lin(self.rail_bar, 0, 1800),
             "v_boost": _lin(100 + 100 * load, 50, 400),

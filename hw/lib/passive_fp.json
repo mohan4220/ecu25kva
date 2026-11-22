@@ -354,16 +354,6 @@
   "value": "100nF",
   "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
  },
- "C606": {
-  "footprint": "Capacitor_SMD:C_0603_1608Metric",
-  "value": "22nF",
-  "why": "4.4 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
- },
- "C607": {
-  "footprint": "Capacitor_SMD:C_0603_1608Metric",
-  "value": "100nF",
-  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
- },
  "C608": {
   "footprint": "Capacitor_SMD:C_0603_1608Metric",
   "value": "22nF",
@@ -384,16 +374,6 @@
   "value": "100nF",
   "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
  },
- "C612": {
-  "footprint": "Capacitor_SMD:C_0603_1608Metric",
-  "value": "22nF",
-  "why": "4.4 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
- },
- "C613": {
-  "footprint": "Capacitor_SMD:C_0603_1608Metric",
-  "value": "100nF",
-  "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
- },
  "C614": {
   "footprint": "Capacitor_SMD:C_0603_1608Metric",
   "value": "100nF",
@@ -405,6 +385,16 @@
   "why": "5.5 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
  },
  "C616": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "22nF",
+  "why": "4.4 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C617": {
+  "footprint": "Capacitor_SMD:C_0603_1608Metric",
+  "value": "22nF",
+  "why": "4.4 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
+ },
+ "C618": {
   "footprint": "Capacitor_SMD:C_0603_1608Metric",
   "value": "22nF",
   "why": "4.4 V peak, needs >= 25 V; KEMET X7R AUTO 0603 25 V"
@@ -964,16 +954,6 @@
   "value": "1k",
   "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
  },
- "R612": {
-  "footprint": "Resistor_SMD:R_0603_1608Metric",
-  "value": "1k",
-  "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
- },
- "R613": {
-  "footprint": "Resistor_SMD:R_0603_1608Metric",
-  "value": "1k",
-  "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
- },
  "R614": {
   "footprint": "Resistor_SMD:R_0603_1608Metric",
   "value": "1k",
@@ -990,16 +970,6 @@
   "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
  },
  "R617": {
-  "footprint": "Resistor_SMD:R_0603_1608Metric",
-  "value": "1k",
-  "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
- },
- "R618": {
-  "footprint": "Resistor_SMD:R_0603_1608Metric",
-  "value": "1k",
-  "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
- },
- "R619": {
   "footprint": "Resistor_SMD:R_0603_1608Metric",
   "value": "1k",
   "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
@@ -1028,6 +998,56 @@
   "footprint": "Resistor_SMD:R_0603_1608Metric",
   "value": "1k",
   "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R625": {
+  "footprint": "Resistor_SMD:R_1210_3225Metric",
+  "value": "2.49k",
+  "why": "73.3 V peak, 231.3 mW cont; 1210 = 200 V, 294 mW at 105 C"
+ },
+ "R626": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "100k",
+  "why": "73.3 V peak, 5.8 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R627": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "160k",
+  "why": "4.4 V peak, 0.1 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R628": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "1k",
+  "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R629": {
+  "footprint": "Resistor_SMD:R_1210_3225Metric",
+  "value": "2.49k",
+  "why": "73.3 V peak, 231.3 mW cont; 1210 = 200 V, 294 mW at 105 C"
+ },
+ "R630": {
+  "footprint": "Resistor_SMD:R_0805_2012Metric",
+  "value": "100k",
+  "why": "73.3 V peak, 5.8 mW cont; 0805 = 150 V, 74 mW at 105 C"
+ },
+ "R631": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "160k",
+  "why": "4.4 V peak, 0.1 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R632": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "1k",
+  "why": "5.5 V peak, 30.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+ },
+ "R633": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "0",
+  "why": "0R jumper"
+ },
+ "R634": {
+  "footprint": "Resistor_SMD:R_0603_1608Metric",
+  "value": "0",
+  "why": "0R jumper"
  },
  "R701": {
   "footprint": "Resistor_SMD:R_0603_1608Metric",

@@ -16,6 +16,7 @@ uint32_t j1939_id(uint8_t prio, uint32_t pgn, uint8_t sa);
 void j1939_eec1(ecu_can *f, float rpm);
 void j1939_et1(ecu_can *f, float clt_c, int valid);
 void j1939_eflp1(ecu_can *f, float oil_kpa, int valid);
+void j1939_ic1(ecu_can *f, float intake_c, int valid);   /* PGN 65270, SPN 105 */
 int  j1939_dm1(ecu_can *out, int max, const faults_t *t, uint8_t lamps);
 
 #define PGN_DM2 65227u

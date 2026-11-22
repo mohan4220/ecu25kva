@@ -86,6 +86,8 @@ NET_V = {
     "/IN_IGNITION_H": HARNESS, "/SW_COOLANT_C": HARNESS,
     "/SW_DROOP_C": HARNESS, "/EGR_HIGH_59": BAT, "/EGR_LOW_81": BAT,
     "/RAIL_P_IN": HARNESS, "/CAM_FREQ_46": HARNESS,
+    "/COOLANT_T_IN": HARNESS, "/BOOST_T_IN": HARNESS,   # bare NTCs (decisions log 33)
+    "/SGND_34": HARNESS, "/SGND_36": HARNESS,
     "/rails/SW": BAT,
     "/power_input/VBAT_EMI1": BAT,    # between L1 and the ferrite
     "Net-(U201-EN{slash}UVLO)": (6.0, 18.3),   # 24.9k/(75k+24.9k) of rail

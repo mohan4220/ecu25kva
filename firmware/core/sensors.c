@@ -28,6 +28,7 @@ void sens_trim(const float gain[S_N + 1], const float offset[S_N + 1])
 #endif
 
 #define NTC_PULLUP 2490.0f
+#define NTC_LOAD 260000.0f           /* 100k + 160k divider across the NTC (decisions log 33) */
 #define NTC_N 20
 
 /* The coolant sensor, Bosch 0 281 002 209 (owner, 22 Nov 2026; decisions
@@ -56,7 +57,8 @@ static float ntc_degc(float r)
 float sens_convert(int ch, float v)
 {
     if (ch == S_CLT) {
-        float r = NTC_PULLUP * v / (5.0f - v);
+        float r = NTC_PULLUP * v / (5.0f - v);       /* the NTC in parallel with NTC_LOAD */
+        r = r < NTC_LOAD ? r * NTC_LOAD / (NTC_LOAD - r) : 1e9f;
         return ntc_degc(r);
     }
     return span_lo[ch] + (v - 0.5f) / 4.0f * (span_hi[ch] - span_lo[ch]);
@@ -100,3 +102,36 @@ void sens_step_1ms(sens_t *s, const float v[S_N], float v_5v)
     }
 }
 #endif
+
+/* Pin 79, the charge-air NTC in the boost sensor (Bosch 0 281 006 102,
+ * decisions log 33): the same front end and table as the coolant, its own
+ * fault timing, no end-of-line trim. Outside the Simulink sensors model
+ * for now, so both builds run this C. */
+void sens_aux_reset(sens_aux_t *a)
+{
+    a->val = SENS_AUX_DEFAULT;
+    a->bad_ms = 0;
+    a->fmi = 0;
+}
+
+void sens_aux_step_1ms(sens_aux_t *a, float v, float v_5v)
+{
+    if (!(v_5v >= 4.5f && v_5v <= 5.5f))
+        v_5v = 5.0f;
+    float vr = v * 5.0f / v_5v;
+    uint8_t now = !(vr <= SENS_V_HI) ? 3 : vr < sens_v_lo[S_CLT] ? 4 : 0;
+    if ((now != 0) != (a->fmi != 0)) {
+        if (++a->bad_ms >= SENS_FAULT_MS) {
+            a->fmi = now;
+            a->bad_ms = 0;
+        }
+    } else {
+        a->bad_ms = 0;
+        if (now != 0)
+            a->fmi = now;
+    }
+    if (a->fmi != 0)
+        a->val = SENS_AUX_DEFAULT;
+    else if (now == 0)
+        a->val = sens_convert(S_CLT, vr);
+}

@@ -9,7 +9,7 @@
  *
  * Model version                  : 1.1
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Sun Nov 22 23:07:16 2026
+ * C/C++ source code generated on : Sun Nov 22 23:36:05 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: ARM Compatible->ARM Cortex-M
@@ -108,6 +108,12 @@ void ecu_sensors_step(RT_MODEL_ecu_sensors_T *const ecu_sensors_M, real32_T
     } else if (now == 0) {
       if (i == 0) {
         vr = 2490.0F * vr / (5.0F - vr);
+        if (vr < 260000.0F) {
+          vr = vr * 260000.0F / (260000.0F - vr);
+        } else {
+          vr = 1.0E+9F;
+        }
+
         if (vr >= 45313.0F) {
           ecu_sensors_DW->val_z_DSTATE[0] = -40.0F;
         } else if (vr <= 57.0F) {

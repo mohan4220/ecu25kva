@@ -2698,6 +2698,29 @@ def check_ntc_frontend():
            tol=0.5, unit="mW")
     c.that("  ... error at ~2 mW/C dissipation constant",
            float(pd[mid]) * 1e3 / 2.0, 1.4, tol=0.3, unit="degC")
+
+    # AS BUILT, 22 Nov 2026 (decisions log 33): U2 is answered -- pins 33
+    # and 79 are bare Bosch NTCs (2.5 kohm at 20 C; Bosch's table in
+    # sensors.c), on 2.49k to 5V_SENSOR_A and a 100k + 160k divider, not
+    # the INA592 (18k +/-20 % on +IN). The checks that decide the values:
+    rp, load = 2490.0, 260e3
+    par = lambda r: r * load / (r + load)
+    v = lambda r: 5.0 * par(r) / (par(r) + rp)
+    v_open = 5.0 * load / (load + rp)
+    v_cold = v(45313 * 1.06)                 # -40 C, +6 %
+    c.that("as built: open sensor at the pin", v_open, 4.953, tol=0.005, unit="V")
+    c.that("  ... coldest real sensor (-40 C, +6 %)", v_cold, 4.708, tol=0.005, unit="V")
+    c.that("  ... the 4.8 V open limit lies between them", 4.8, 4.8, tol=None,
+           ok=v_cold < 4.8 < v_open, unit="V")
+    c.that("  ... and the 0.1 V short limit under the hottest (150 C, 57 ohm)", v(57), 0.112,
+           tol=0.003, unit="V")
+    ina = lambda rin: 5.0 * (rin / (1 + rin / 1e12)) / (rin + rp)
+    c.that("WAS (INA592 18k +/-20 %): open sensor read 4.26-4.48 V, under the 4.8 V limit",
+           ina(14.4e3), 4.26, tol=0.01, unit="V")
+    c.that("self-heating at 20 C (2.5 kohm, 1 mA)", (5.0 / (2500 + rp)) ** 2 * 2500 * 1e3, 2.51,
+           tol=0.05, unit="mW")
+    c.that("resolution at 100 C, at the pin", (v(187) - v(144)) / 10 * 1e3, 7.4, tol=0.3,
+           unit="mV/C")
     return c
 
 

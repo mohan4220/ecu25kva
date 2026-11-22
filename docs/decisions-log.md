@@ -2200,6 +2200,62 @@ Above 150 °C it holds 150 until the short fault (below 0.1 V).
 20 °C value and tolerance. A check on the set: unplugged, the sensor's
 resistance at a known coolant temperature, e.g. 323 Ω at 80 °C.
 
+
+## 33. The boost sensor's NTC answers U2, and two faults on the sensor inputs (22 November)
+
+The owner gave the boost sensor's part number, **Bosch 0 281 006 102**.
+Bosch's catalogue lists it as a **DS-S3-TF**:
+- 50–400 kPa absolute;
+- 4.75–5.25 V supply, output load −1 to +0.5 mA, 1 ms response;
+- −40 to 130 °C;
+- **pin 2 an NTC**, pin 1 ground, pin 3 +5 V, pin 4 output.
+
+Bosch's pinout wires pin 2 to ECU pin 79 (`I_A_BTS`) and pin 1 to pin 34.
+**That answers U2:** the charge-air element is a bare thermistor. The
+boost pressure scaling (50–400 kPa at 0.5–4.5 V) was already right.
+
+Following it through the boards found two faults, both there since the
+schematic was first drawn:
+
+1. **The sensor grounds went nowhere.** SGND_34 and SGND_36 reached only
+   the INA592s' −IN. Pin 34 (`G_R_BPS`) is the ground of the boost and
+   coolant sensors, and pin 36 of the oil and EGR position sensors. Their
+   supply current had no return, so those four sensors could not have
+   worked. `sensor_differential.cir` modelled a grounded return the
+   schematic did not have. Fixed: **R633 and R634, 0 Ω, tie them to GND.**
+2. **The coolant NTC (pin 33) had no pull-up**, and nor would pin 79. Both
+   were drawn as INA592 channels, which suit a sensor that drives its
+   output. The firmware assumed a 2.49k pull-up the board did not have.
+   - The INA592's +IN is 18k to ground, ±20 % absolute. Adding a pull-up in
+     front of it would put an open sensor at 4.3–4.5 V, on top of a −40 °C
+     one.
+   - Fixed: **a 2.49k 0.1 % pull-up to 5V_SENSOR_A, then 100k/160k**. That
+     is a 260k load the firmware takes out exactly (`NTC_LOAD`). An open
+     sensor reads 4.95 V and −40 °C reads 4.71 V, so the common 4.8 V open
+     limit separates them.
+   - Two INA592s go (×5 → ×3). The ADC scaling for those pins goes from
+     G = ½ to 16/26.
+
+**Charge-air temperature in the firmware:**
+- It is read from pin 79 with the same table (`sens_aux_step_1ms`).
+- Its faults are SPN 105 FMI 3/4.
+- It is sent to the DSE as J1939 IC1, SPN 105, every second.
+- The channel sits outside the five-sensor arrays, so the end-of-line
+  record keeps its format.
+- **ABI 5** adds `v_bts` and `bts_c`. The Rust simulator lags, as before.
+- Not yet in the Simulink sensors model: both builds run the C.
+- The table is the coolant's, Bosch's 2.5 kΩ NTC. It is the same Bosch
+  family, but not confirmed for this part.
+
+**Boards:**
+- **Prototype:** migration `ntc` drops U602, U605 and their tails, and
+  `sync` places the new parts. The old channels keep their reference
+  numbers as "ghosts", so no other part renumbers.
+- **Production:** rebuilt.
+
+**Self-heating:** 2.5 mW in the NTC at 20 °C. That is about 1.4 °C in
+still air, much less in coolant or moving charge air.
+
 ---
 
 ## Where these came from

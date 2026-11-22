@@ -45,7 +45,7 @@
 #define ECU_USB_IN 64
 #define ECU_USB_OUT 512
 #ifndef ECU_ABI_VERSION
-#define ECU_ABI_VERSION 4u           /* bump whenever ecu_io or an entry point changes */
+#define ECU_ABI_VERSION 5u           /* bump whenever ecu_io or an entry point changes */
 #endif
 
 /* Exported from a Windows DLL (the simulator's loadable firmware) */
@@ -117,6 +117,9 @@ typedef struct {
     uint8_t i_mu_valid;              /* input: 1 = i_mu is a real measurement */
     float egr_duty;                  /* output: EGR bridge, -1..1, + opens; 0 = coast */
     uint8_t spd_state;               /* status: 0 off, 1 idle, 2 operating, 3 steady */
+    /* ABI 5: charge-air temperature, pin 79 (22 Nov 2026, decisions log 33) */
+    float v_bts;                     /* input: pin 79 volts, the boost sensor's NTC */
+    float bts_c;                     /* status: charge-air degC (40 while faulted) */
 } ecu_io;
 
 ECU_API void ecu_init(ecu_io *io);

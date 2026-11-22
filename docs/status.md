@@ -986,6 +986,7 @@ Updated 22 November 2026, after the owner's measured values (decisions log §24�
   - metering valve part 0 928 400 820: closing current 1.8 A from Bosch's family data (§27); a hot coil below 12.4 V cannot close it (157/7, amber)
   - main and buzzer relays: both on KOEL relay board 4H.865.27.0.00, 5–10 A at 250 VAC/30 VDC (§26). Kept (the Bosch ECU runs with it). The block bounds (9.3 A running, 14.2 A EGR stall) are pessimistic: **clamp terminal 87 on the running set** to settle it
   - injector 0 445 B76 1X3: no public coil data, unchanged; coil resistance wanted
+  - boost sensor Bosch 0 281 006 102 (§33): **U2 answered (bare NTC on pin 79). Found: the sensor grounds SGND_34/36 went nowhere, and the NTC pins had no pull-up.** Fixed on both boards; charge-air temperature read (SPN 105, IC1), ABI 5
   - coolant sensor Bosch 0 281 002 209 (§32): **the beta law read 2.8 °C high at 100 °C**; now Bosch's NTC table
   - oil pressure sensor Honeywell PX3AN2BF010BSDAX (§31): 0–10 bar, 0.5–4.5 V, diagnostics rails caught as 100/3, /4; as the firmware scales it
   - rail pressure sensor Bosch 0 281 006 425 (§30): 1800 bar, as the firmware scales it; check ~0.5 V at pin 35 (to 08) with the engine stopped

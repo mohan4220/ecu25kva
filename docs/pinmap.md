@@ -107,12 +107,12 @@ connector pins is accounted for, not silently dropped.
 |---|---|---|---|---|---|---|
 | 11 | Boost sensor 5V excitation | `5V_SENSOR` distribution | — | — | — | Power net, not an MCU input |
 | 41 | Boost pressure | Differential (shared gnd 34) | `PTA1` | ADC0_SE1 | Hi-Z, no pull | |
-| 79 | Boost temperature | Differential or NTC — **U2 open, topology TBD** | `PTA3` | ADC1_SE1 | Hi-Z, no pull | One ADC pin serves either candidate front-end in `ntc_frontend.cir`; the pin choice does not depend on U2's answer |
-| 34 | Sensor ground (boost+coolant) | Instrumentation-amp reference | — | — | — | Analog ground-plane net, not a GPIO |
-| 33 | Coolant temperature | Differential (shared gnd 34) | `PTA6` | ADC0_SE2 | Hi-Z, no pull | |
+| 79 | Charge-air temperature | **Bare Bosch NTC** (in 0 281 006 102): 2.49k 0.1 % pull-up to 5V_SENSOR_A, 100k/160k, ADC tail | `PTA3` | ADC1_SE1 | Hi-Z, no pull | U2 answered 22 Nov 2026 by the sensor's data sheet (decisions log §33). SPN 105, J1939 IC1 |
+| 34 | Sensor ground (boost+coolant) | **Tied to GND** through R633 (0 Ω), and the boost INA592's reference | — | — | — | Carries the sensors' supply current. **Until 22 Nov 2026 it reached only the INA592s' −IN** (decisions log §33) |
+| 33 | Coolant temperature | **Bare Bosch NTC** (0 281 002 209): 2.49k 0.1 % pull-up to 5V_SENSOR_A, 100k/160k, ADC tail | `PTA6` | ADC0_SE2 | Hi-Z, no pull | Had no pull-up until 22 Nov 2026 (decisions log §33) |
 | 15 | EGR 5V excitation | `5V_SENSOR` distribution | — | — | — | Power net |
 | 37 | EGR position | Differential (shared gnd 36) | `PTA15` | ADC1_SE12 | Hi-Z, no pull | |
-| 36 | Sensor ground (EGR+oil) | Instrumentation-amp reference | — | — | — | Analog ground-plane net |
+| 36 | Sensor ground (EGR+oil) | **Tied to GND** through R634 (0 Ω), and the INA592s' reference | — | — | — | As pin 34 (decisions log §33) |
 | 39 | Oil pressure 5V excitation | `5V_SENSOR` distribution | — | — | — | Power net |
 | 80 | Oil pressure | Differential (shared gnd 36) | `PTA7` | ADC0_SE3 | Hi-Z, no pull | |
 | 32 | Rail pressure 5V excitation | `5V_SENSOR` distribution | — | — | — | Power net |

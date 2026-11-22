@@ -471,8 +471,15 @@ BOOST_OVP_MIGRATE = dict(renames={}, drop=(), refit=("R403", "U301"))
 # the water-in-fuel sensor's load. R818 10k 0805 -> 3.3k 1210 (24 V
 # continuous across it), R819 4.7k -> 1.5k, same 0603.
 WIF_MIGRATE = dict(renames={}, drop=(), refit=("R818", "R819"))
+# NTC-INPUTS (22 Nov 2026, decisions log 33): pins 33 and 79 are bare Bosch
+# NTCs, so their INA592 channels go (U602, U605 and their tails) and sync
+# places new NTC channels (2.49k pull-up, 100k/160k) and the two 0 ohm
+# sensor-ground ties, SGND_34 / SGND_36 to GND.
+NTC_MIGRATE = dict(renames={}, drop=("U602", "U605", "D605", "D608", "R612", "R613",
+                                     "R618", "R619", "C606", "C607", "C612", "C613"),
+                   refit=())
 MIGRATIONS = {"bosch": BOSCH_MIGRATE, "stop_kill": STOP_KILL_MIGRATE,
-              "boost_ovp": BOOST_OVP_MIGRATE, "wif": WIF_MIGRATE}
+              "boost_ovp": BOOST_OVP_MIGRATE, "wif": WIF_MIGRATE, "ntc": NTC_MIGRATE}
 
 
 def migrate_inputs(renames):
@@ -607,7 +614,18 @@ def migrate(path, renames, drop, refit, links=()):
 
     live = set(nets) | {""}
     gone = 0
-    for t in list(board.GetTracks()) + list(board.Zones()):
+    # After Remove() on footprints, KiCad 10's pcbnew can hand back
+    # Tracks() as a bare SwigPyObject (22 Nov 2026). Then the board is
+    # saved without this pass: run the same migration again, which finds
+    # nothing to drop and clears the copper.
+    try:
+        items = list(board.GetTracks()) + list(board.Zones())
+    except (TypeError, AttributeError):
+        pcbnew.SaveBoard(path, board, True)
+        print("  parts removed and saved; run this migration again to clear "
+              "their copper", flush=True)
+        os._exit(0)
+    for t in items:
         if t.GetNetname() not in live:
             board.Remove(t)
             gone += 1

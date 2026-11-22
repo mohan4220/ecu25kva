@@ -134,10 +134,14 @@ static void test_sens_convert(void)
      * DSE's 100 degC warning and 104 degC stop, and at the ends */
     {
         static const float t[] = { -40, 0, 80, 100, 150 }, r[] = { 45313, 5896, 323, 187, 57 };
+        /* with the 100k + 160k divider across the NTC (decisions log 33) */
+#define NTC_V(r) (5.0f * ((r) * 260e3f / ((r) + 260e3f)) / ((r) * 260e3f / ((r) + 260e3f) + 2490.0f))
         for (int i = 0; i < 5; i++)
-            CHECK(fabsf(sens_convert(S_CLT, 5.0f * r[i] / (r[i] + 2490.0f)) - t[i]) <= 0.1f);
+            CHECK(fabsf(sens_convert(S_CLT, NTC_V(r[i])) - t[i]) <= 0.1f);
         float r104 = expf(logf(187.0f) + 0.4f * (logf(144.0f) - logf(187.0f)));
-        CHECK(fabsf(sens_convert(S_CLT, 5.0f * r104 / (r104 + 2490.0f)) - 104.0f) <= 0.1f);
+        CHECK(fabsf(sens_convert(S_CLT, NTC_V(r104)) - 104.0f) <= 0.1f);
+        /* the 4.8 V open limit lies between the coldest sensor and none */
+        CHECK(NTC_V(45313.0f * 1.06f) < SENS_V_HI && 5.0f * 260e3f / (260e3f + 2490.0f) > SENS_V_HI);
         CHECK(sens_convert(S_CLT, 4.79f) == -40.0f);          /* colder than the table */
         CHECK(sens_convert(S_CLT, 0.105f) == 150.0f);         /* hotter */
     }
@@ -194,6 +198,24 @@ static void test_sens_oil_px3(void)
     sens_reset(&s); all_volts(v, 2.5f); v[S_OIL] = 4.5f;              /* 10 bar: in range */
     for (int i = 0; i < 100; i++) sens_step_1ms(&s, v, 5.0f);
     CHECK(s.fmi[S_OIL] == 0);
+}
+
+/* Pin 79, charge-air temperature (decisions log 33): the coolant's table,
+ * its own fault, SPN 105, and IC1 to the DSE. */
+static void test_sens_aux_bts(void)
+{
+    sens_aux_t a; sens_aux_reset(&a);
+    for (int i = 0; i < 100; i++) sens_aux_step_1ms(&a, NTC_V(1175.0f), 5.0f);   /* 40 degC */
+    CHECK(a.fmi == 0 && fabsf(a.val - 40.0f) <= 0.1f);
+    for (int i = 0; i < 100; i++) sens_aux_step_1ms(&a, NTC_V(323.0f), 5.0f);    /* 80 degC */
+    CHECK(fabsf(a.val - 80.0f) <= 0.1f);
+    for (int i = 0; i < 100; i++) sens_aux_step_1ms(&a, 4.95f, 5.0f);            /* open */
+    CHECK(a.fmi == 3 && a.val == SENS_AUX_DEFAULT);
+    ecu_can f;
+    j1939_ic1(&f, 55.0f, 1);
+    CHECK(((f.id >> 8) & 0xFFFF) == 65270 && f.data[2] == 95 && f.data[0] == 0xFF);
+    j1939_ic1(&f, 55.0f, 0);
+    CHECK(f.data[2] == 0xFF);
 }
 
 static void test_sens_5v_short(void)
@@ -403,7 +425,7 @@ static void ecu_up(ecu_io *io)
     memset(io, 0, sizeof *io);
     ecu_init(io);
     io->ignition = 1;
-    io->v_clt = io->v_rail = io->v_boost = 2.5f;
+    io->v_clt = io->v_rail = io->v_boost = io->v_bts = 2.5f;
     /* at rest: no oil pressure, the EGR valve shut (0.5 V is the bottom of
      * a 0.5-4.5 V span). Mid-scale here would be an engine stopped with
      * 500 kPa of oil and a coasting valve half open: real faults (diag.h) */
@@ -2245,6 +2267,7 @@ int main(void)
     test_sens_low();
     test_sens_5v_short();
     test_sens_oil_px3();
+    test_sens_aux_bts();
     test_gov();
     test_rail();
     test_inject_dur();

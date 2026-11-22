@@ -35,11 +35,12 @@ static void read_inputs(void)
     io.stop_sw = (uint8_t)pin_get(P_STOP);         /* contact to ground: closed = pad high */
     io.diag_sw = (uint8_t)pin_get(P_DIAG);
     io.droop_sw = (uint8_t)pin_get(P_DROOP);
-    io.v_clt = adc_pin_v(AN_CLT) / G_DIFF;
+    io.v_clt = adc_pin_v(AN_CLT) / G_RATIO;          /* NTC channel, 100k/160k (decisions log 33) */
     io.v_oil = adc_pin_v(AN_OIL) / G_DIFF;
     io.v_rail = adc_pin_v(AN_RAIL) / G_RATIO;
     io.v_boost = adc_pin_v(AN_BOOST) / G_DIFF;
     io.v_egr = adc_pin_v(AN_EGR_POS) / G_DIFF;
+    io.v_bts = adc_pin_v(AN_BOOST_T) / G_RATIO;
     io.v_5v = adc3_pin_v(AN_5V) / G_5V_MON;
     io.v_bat = adc_pin_v(AN_VBAT) / G_VBAT;
     io.v_sync = adc_pin_v(AN_SYNC) / G_SYNC;

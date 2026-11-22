@@ -23,6 +23,14 @@ extern const float sens_default[S_N];
 
 void  sens_reset(sens_t *s);
 void  sens_step_1ms(sens_t *s, const float v[S_N], float v_5v);
+
+/* Pin 79, charge-air temperature (decisions log 33): one NTC channel on
+ * its own, so the end-of-line record keeps its S_N + 1 trims. */
+#define SENS_AUX_SPN 105u           /* J1939 intake manifold 1 temperature */
+#define SENS_AUX_DEFAULT 40.0f      /* degC while faulted */
+typedef struct { float val; uint16_t bad_ms; uint8_t fmi; } sens_aux_t;
+void  sens_aux_reset(sens_aux_t *a);
+void  sens_aux_step_1ms(sens_aux_t *a, float v, float v_5v);
 float sens_convert(int ch, float v_ratiometric);
 /* End-of-line trims, v * gain + offset before conversion: S_N inputs,
  * then the 5 V reference. Kept across sens_reset. */

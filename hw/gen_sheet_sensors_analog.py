@@ -223,6 +223,90 @@ def differential_channel(sh, x0, y, sig_net, gnd_net, out_net, label, note):
     gnd_below(sh, cx, uy + 19.81)
 
 
+def ghost(sh, fn, *args):
+    """Run a channel builder for its reference numbers only.
+
+    Pins 33 and 79 were INA592 channels until 22 Nov 2026; every part
+    after them on this sheet keeps the reference it had on the routed
+    board if the old channels still take their numbers. Their drawing is
+    thrown away (decisions log 33)."""
+    n_items, n_inst, n_uid = len(sh.items), len(sh.instances), sh._n
+    fn(sh, *args)
+    del sh.items[n_items:]
+    del sh.instances[n_inst:]
+    sh._n = n_uid
+
+
+NTC_PULLUP_NOTE = ("Bosch NTC on a shared sensor ground (refs/bosch-pinout-"
+                   "md1cs162.md): the sensor is a bare thermistor from this pin "
+                   "to pin 34. 2.49k 0.1 % to 5V_SENSOR_A, which the firmware "
+                   "scales against (NTC_PULLUP). 0.1 % because it IS the "
+                   "measurement.")
+
+
+def ntc_channel(sh, x0, y, in_net, out_net, label):
+    """A bare NTC: pull-up, then a light divider into the ADC tail.
+
+    The divider is 100k/160k, the same 16/26 ratio as the ratiometric
+    channels but ten times lighter: the NTC sees 260k, so an open sensor
+    reads 4.95 V and the coldest one (-40 C, 45 kohm) 4.70 V, and the
+    common 4.8 V open-circuit limit still lies between them. The firmware
+    takes the 260k out exactly (sensors.c NTC_LOAD). Not the INA592: its
+    +IN is 18k to ground +/-20 %, which would put an open sensor
+    (4.3-4.5 V) on top of a -40 C one.
+    """
+    sh.text(label, x0, y - 30.0, size=1.6)
+    sh.hlabel(in_net, x0, y, shape="input")
+    chain = Rail(sh, y)
+    chain.to(x0)
+    px = x0 + 14.0
+    sh.place("Device:R", "R", px, y - 12.0, "2.49k",
+             fields={"Tag": "NTC-PULLUP", "Tolerance": "0.1%",
+                     "Source": "sensors.c NTC_PULLUP; decisions log 33",
+                     "Note": NTC_PULLUP_NOTE})
+    a = pin_xy(*PINS["Device:R"]["1"], px, y - 12.0, 0)
+    b = pin_xy(*PINS["Device:R"]["2"], px, y - 12.0, 0)
+    top, bot = (a, b) if a[1] < b[1] else (b, a)
+    cx, cy = chain.to(px, tap=True)
+    sh.wire(cx, cy, bot[0], bot[1])
+    sh.wire(top[0], top[1], top[0], top[1] - 4.0)
+    sh.hlabel("5V_SENSOR_A", top[0], top[1] - 4.0, shape="input", rot=90)
+    sx = x0 + 30.0
+    sh.place("Device:R", "R", sx, y, "100k", rot=90,
+             fields={"Tolerance": "0.1%", "Source": "decisions log 33",
+                     "Note": "100k/160k: 16/26 like the ratiometric "
+                             "channels, a 260k load on the NTC that the "
+                             "firmware takes out (NTC_LOAD)."})
+    ra = pin_xy(*PINS["Device:R"]["1"], sx, y, 90)
+    rb = pin_xy(*PINS["Device:R"]["2"], sx, y, 90)
+    r_in, r_out = (ra, rb) if ra[0] < rb[0] else (rb, ra)
+    chain.to(r_in[0])
+    node = Rail(sh, y)
+    node.to(r_out[0])
+    vshunt(sh, "Device:R", "R", x0 + 50.0, y + 18.0, "160k",
+           {"Tolerance": "0.1%", "Source": "decisions log 33"}, node)
+    adc_tail(sh, node, x0 + 66.0, y, out_net)
+
+
+def sgnd_tie(sh, x, y, net, pin, which):
+    """A sensor ground to the board's ground, at the connector side.
+
+    Until 22 Nov 2026 SGND_34 and SGND_36 reached only the INA592s' -IN:
+    the sensors on them had no return for their supply current (decisions
+    log 33). Bosch's G_R_* pins are the sensors' grounds; the current
+    returns here."""
+    sh.text(f"ECU pin {pin} -- sensor ground ({which}) to GND", x, y - 9.0,
+             size=1.6)
+    sh.hlabel(net, x, y, shape="input")
+    rail = Rail(sh, y)
+    rail.to(x)
+    vshunt(sh, "Device:R", "R", x + 20.0, y + 10.0, "0",
+           {"Tag": "SGND-TIE", "Source": "decisions log 33",
+            "Note": f"{which}: their supply currents return through this. "
+                    "A 0 ohm link, so the tie point can take a ferrite "
+                    "later without a new footprint."}, rail)
+
+
 def excitation(sh):
     """5V_SENSOR leaves this board on five connector pins."""
     y = 300.0
@@ -352,15 +436,13 @@ def notes(sh):
         "was found, and INA2132's 'G = 1/2' is a single-ended "
         "attenuator, not a difference stage.\n"
         "\n"
-        "BOOST TEMPERATURE (PTA3, connector pin 79) is drawn differential "
-        "like its neighbours, but U2 is still open: whether that element "
-        "is a ratiometric sensor or a bare\n"
-        "NTC is unmeasured. ntc_frontend.cir already chose between the two "
-        "NTC options if it turns out to be one -- a 2.2k pull-up to 5 V, "
-        "not a 100 uA current source,\n"
-        "because the source needs 5.9 V of compliance at -40 C and the "
-        "rail is 5 V. That is a populate-time change to this channel, not "
-        "a redesign.\n"
+        "COOLANT (pin 33) AND CHARGE-AIR (pin 79) TEMPERATURE are bare "
+        "Bosch NTCs to pin 34 (U2 answered 22 Nov 2026 by the sensor's\n"
+        "data sheet, decisions log 33): 2.49k pull-up to 5V_SENSOR_A, then "
+        "100k/160k -- not the INA592, whose 18k +IN load would hide an "
+        "open sensor. SGND_34\n"
+        "and SGND_36 are tied to GND here: they are the sensors' grounds "
+        "and carry their supply current.\n"
         "\n"
         "BARO (PTD18) is drawn: NXP MPXHZ6115A, spec sec.7 deviation #2, "
         "on-PCB behind a vented port. AEC-Q100 is not stated in its "
@@ -414,7 +496,10 @@ def build():
          "the input leg; that is a populate change, not a redesign."),
     ]
     for x0, y, sig, gnd, out, label, note in diffs:
-        differential_channel(sh, x0, y, sig, gnd, out, label, note)
+        if sig in ("COOLANT_T_IN", "BOOST_T_IN"):    # bare NTCs: see ntc_channel
+            ghost(sh, differential_channel, x0, y, sig, gnd, out, label, note)
+        else:
+            differential_channel(sh, x0, y, sig, gnd, out, label, note)
 
     excitation(sh)
     baro(sh)
@@ -432,6 +517,16 @@ def build():
                          "load on any analog output. A 40 V short puts "
                          "12.5 V on the node, which the ADC tail's clamp "
                          "and 1k take.")
+    # Pins 33 and 79 as bare NTCs, and the two sensor grounds tied to GND
+    # (22 Nov 2026, decisions log 33). Placed last, as above.
+    ntc_channel(sh, 330.0, 110.0, "COOLANT_T_IN", "COOLANT_T",
+                "ECU pin 33 -- coolant temperature, Bosch NTC 0 281 002 209, "
+                "return pin 34 -> PTA6")
+    ntc_channel(sh, 40.0, 228.0, "BOOST_T_IN", "BOOST_T",
+                "ECU pin 79 -- charge-air temperature, the NTC in Bosch "
+                "0 281 006 102 (DS-S3-TF), return pin 34 -> PTA3")
+    sgnd_tie(sh, 480.0, 300.0, "SGND_34", 34, "boost P&T, coolant")
+    sgnd_tie(sh, 480.0, 340.0, "SGND_36", 36, "oil, EGR position")
     notes(sh)
     # The sheet's one HIERARCHICAL 3V3_MCU, for the BAV199-Q clamps --
     # every clamp names the rail with a local label, which alone would

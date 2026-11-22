@@ -358,6 +358,29 @@ the buzzer relay (pin 69) are both on it, as PCB relays.
 are lighter than the 160 Ω assumed, so pins 50 and 69 have more margin,
 not less. No change on the board.
 
+### `NTC-PULLUP` — pins 33 and 79, the bare NTCs, and `SGND-TIE`
+
+**22 Nov 2026, decisions log §33.** Coolant (Bosch 0 281 002 209, pin 33)
+and charge-air temperature (the NTC inside the boost sensor, Bosch 0 281
+006 102, pin 79) are bare thermistors to the sensor ground, pin 34.
+
+| Part | Value | Why |
+|---|---|---|
+| R625, R629 | **2.49k 0.1 %, 1210** | The pull-up to 5V_SENSOR_A. It IS the measurement, hence 0.1 %. 1210 for 24 V across it on a short (0.23 W) |
+| R626, R630 | **100k 0.1 %** | With 160k: a 260k load the firmware takes out exactly (`NTC_LOAD`) |
+| R627, R631 | **160k 0.1 %** | 16/26, as the ratiometric channels |
+| R633, R634 | **0 Ω** | SGND_34 and SGND_36 to GND: the sensors' ground return |
+
+Why 260k: an open sensor reads 4.95 V, the coldest real one (−40 °C,
+45.3 kΩ +6 %) 4.71 V, and the common 4.8 V open limit lies between them.
+The INA592 could not do this: its 18k ±20 % load put an open sensor at
+4.3–4.5 V, on top of a −40 °C one. At 20 °C the NTC carries 1 mA (2.5 mW).
+
+**SGND-TIE:** until 22 Nov the two sensor grounds reached only the INA592s'
+−IN, so the boost, coolant, oil and EGR position sensors had no return for
+their supply current. Bosch's `G_R_*` pins are those sensors' grounds. A
+0 Ω link, so a ferrite can go in later without a new footprint.
+
 ### `EGR-DRIVER` — EGR H-bridge
 
 A bridge driver with **internal DIR/PWM decode** — one logic input pair
@@ -600,7 +623,7 @@ not constraints.
 | Supervisor | **TPS3850G33DRCT** | ±4% window variant, so its undervoltage trip clears the MCU's own LVD by 143 mV rather than 44 mV. |
 | Injector boost controller | **TPS40210QDGQRQ1** | Chosen on its **200 ns maximum off-time** — the one spec that makes 94% duty reachable at the 6 V cranking corner. See below. |
 | Gate drivers, all eight gates | **AUIRS2181STR** ×5 | **No cross-conduction interlock** — the injector's high and low switches are in series with the coil and must both be on. See below. |
-| Difference amplifiers | **INA592IDR** ×5 | Native G = ½, 88 dB CMRR min against a 60 dB floor the discrete network could not reach. **Not AEC-Q100** — see below. |
+| Difference amplifiers | **INA592IDR** ×3 (boost pressure, EGR position, oil; the two NTC pins left them 22 Nov, decisions log §33) | Native G = ½, 88 dB CMRR min against a 60 dB floor the discrete network could not reach. **Not AEC-Q100** — see below. |
 | Barometric sensor | **MPXHZ6115A6T1** | Spec §7 deviation 2, on-PCB behind a vented port. AEC-Q100 **not stated** in its datasheet — see below. |
 | EGR bridge drivers | **AUIRS2184STR** ×2 | One input per leg: each leg's high and low exclusive by construction. See `EGR-DRIVER`. |
 | Negative-clamp control | **TLV3201AQDCKRQ1** + **UCC27517AQDBVRQ1** | A low-side ideal diode: engage below −100 mV, release above −6.8 mV. See `NEG-CLAMP`. |
@@ -936,7 +959,9 @@ keeps the relay off while the GPIO is Hi-Z from reset. The existing
 ### `INA592IDR` — the difference amplifiers, and a stronger argument
 
 **TI SBOS914F**, October 2018, revised April 2021. Retrieved and
-text-extracted. Five, one per differential channel on `sensors_analog`.
+text-extracted. Three since 22 Nov 2026, one per differential channel on `sensors_analog` (pins 41, 37, 80). Pins 33 and 79 are bare NTCs and have their own front end: see `NTC-PULLUP`.
+
+**Its input is not high impedance:** +IN is 12k into the op amp's + terminal, which has 6k to REF, so 18k to ground, and the data sheet gives the resistors **±20 % absolute**. For a sensor that drives its output that is nothing; for an NTC with a pull-up it is a parallel resistor nobody knows to better than 20 %.
 
 | | |
 |---|---|

@@ -59,6 +59,8 @@ class IO(C.Structure):
         # the cascades, ABI 4 (16 Nov 2026)
         ("i_mu", C.c_float), ("i_mu_valid", C.c_uint8),
         ("egr_duty", C.c_float), ("spd_state", C.c_uint8),
+        # charge-air temperature, ABI 5 (22 Nov 2026, decisions log 33)
+        ("v_bts", C.c_float), ("bts_c", C.c_float),
     ]
 
 
@@ -226,7 +228,7 @@ class Unit:
             self.app.init()
             io = self.app.io
             io.ignition = 1
-            io.v_clt = io.v_oil = io.v_rail = io.v_boost = io.v_egr = 2.5
+            io.v_clt = io.v_oil = io.v_rail = io.v_boost = io.v_egr = io.v_bts = 2.5
             io.v_5v = 5.0
             io.v_bat = 24.0
             self.app.nvm_load(b"", b"")
