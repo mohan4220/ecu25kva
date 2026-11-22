@@ -163,6 +163,27 @@ static void test_sens_low(void)
     CHECK(s.fmi[S_OIL] == 4);
 }
 
+/* The oil sensor is a Honeywell PX3AN2BF010BSDAX (owner, 22 Nov 2026;
+ * decisions log 31): 0-10 bar sealed gauge, 0.5-4.5 V ratiometric, with
+ * diagnostics on. A fault inside it rails the output at 2.5 % or 97.5 %
+ * of the supply; both must read as a sensor fault, and full scale as
+ * 1000 kPa. */
+static void test_sens_oil_px3(void)
+{
+    CHECK(fabsf(sens_convert(S_OIL, 0.5f) - 0.0f) <= 0.5f);
+    CHECK(fabsf(sens_convert(S_OIL, 4.5f) - 1000.0f) <= 0.5f);
+    sens_t s; float v[S_N];
+    sens_reset(&s); all_volts(v, 2.5f); v[S_OIL] = 0.025f * 5.0f;     /* lower rail */
+    for (int i = 0; i < 100; i++) sens_step_1ms(&s, v, 5.0f);
+    CHECK(s.fmi[S_OIL] == 4);
+    sens_reset(&s); all_volts(v, 2.5f); v[S_OIL] = 0.975f * 5.0f;     /* upper rail */
+    for (int i = 0; i < 100; i++) sens_step_1ms(&s, v, 5.0f);
+    CHECK(s.fmi[S_OIL] == 3);
+    sens_reset(&s); all_volts(v, 2.5f); v[S_OIL] = 4.5f;              /* 10 bar: in range */
+    for (int i = 0; i < 100; i++) sens_step_1ms(&s, v, 5.0f);
+    CHECK(s.fmi[S_OIL] == 0);
+}
+
 static void test_sens_5v_short(void)
 {
     sens_t s; float v[S_N];
@@ -2211,6 +2232,7 @@ int main(void)
     test_sens_open();
     test_sens_low();
     test_sens_5v_short();
+    test_sens_oil_px3();
     test_gov();
     test_rail();
     test_inject_dur();

@@ -7,7 +7,9 @@ const float sens_v_lo[S_N] = { 0.1f, 0.2f, 0.2f, 0.2f, 0.2f };
 
 /* 0.5-4.5 V linear spans (assumed): oil, rail, boost, EGR. The rail's
  * 1800 bar is the part's own range (Bosch 0 281 006 425, an 1800 bar
- * RDS4-family sensor; decisions log 30); its curve is still assumed. */
+ * RDS4-family sensor; decisions log 30); its curve is still assumed.
+ * The oil's 0-10 bar, 0.5-4.5 V is the part's own data sheet: Honeywell
+ * PX3AN2BF010BSDAX, sealed gauge, diagnostics on (decisions log 31). */
 static const float span_lo[S_N] = { 0, 0, 0, 50.0f, 0 };
 static const float span_hi[S_N] = { 0, 1000.0f, 1800.0f, 400.0f, 100.0f };
 

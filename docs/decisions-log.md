@@ -2136,6 +2136,38 @@ What it means in volts, on a 5 V supply:
 pin 35 (signal) to pin 08 (its ground) should read about 0.5 V. Below 0.2 V or
 above 4.8 V the firmware calls the sensor faulty (SPN 157 FMI 4 / 3).
 
+
+## 31. The oil pressure sensor: Honeywell PX3AN2BF010BSDAX (22 November)
+
+The owner gave the oil pressure sensor's part number, a **Honeywell PX3**
+heavy-duty transducer. Honeywell's PX3 data sheet decodes it as:
+
+| Code | Means |
+|---|---|
+| A | Metri-Pack 150 connector |
+| N2 | 1/8-27 NPT port |
+| B, F | brass housing, F-code O-ring |
+| 010B | **0–10 bar** |
+| S | sealed gauge |
+| DA | **ratiometric 5 V, 10–90 % of supply (0.5–4.5 V), diagnostics on** |
+
+Its other figures:
+- 5 V ±0.25 V supply, 3.0 mA max, protected to ±16 V;
+- total error band ±1.0 % FSS (±10 kPa) from −20 to 85 °C;
+- response under 2 ms.
+
+**This is what the firmware assumed:** oil at 0.5–4.5 V = 0–1000 kPa
+(`sensors.c`), now from the part's own data sheet. **Its diagnostics mode
+fits the fault checks.** An internal fault (EEPROM, bridge, low supply)
+rails the output at 2.5 % (0.125 V) or 97.5 % (4.875 V), and so does a
+lost ground. The firmware's limits, 0.2 V (oil) and 4.8 V, catch both, as
+SPN 100 FMI 4 / 3. The new unit test `test_sens_oil_px3` checks the two
+rails and full scale. No code change, only the comment.
+
+On the set: oil is pin 80, with its own return on 36. Engine stopped, it
+should read 0.5 V; the oil-at-rest diagnosis (100/2) uses 100 kPa
+(0.9 V).
+
 ---
 
 ## Where these came from
