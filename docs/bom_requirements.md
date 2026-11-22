@@ -337,6 +337,23 @@ capacitors, which a 250 VAC general-purpose relay is not rated for. **Still
 needed from the relay's data: its coil resistance.** The design assumes
 160 Ω (`main_relay.cir`); pin 50's FET and TVS are sized from it.
 
+**The buzzer relay's part number, 22 Nov 2026 (owner): 4H.865.27.0.00.**
+This is a KOEL spare, sold as a **"2½-relay board, 12 V DC"**, not as a
+single relay. Two things follow, both still to confirm on the set:
+- **The main relay is probably on the same board.** "5–10 A at 250 VAC /
+  30 VDC" is how a PCB relay is rated, not an automotive one. If it is,
+  the 30 A requirement above means a separate relay, or a different
+  board, for the replacement ECU.
+- **The Bosch ECU has run with this board,** so the real running current
+  is below the sum of block bounds above. That sum is pessimistic, and
+  meant to be. **The measurement that settles it:** clamp the main relay's
+  feed (terminal 87) on the running set, at no load and at full load.
+  Then compare it with the 10 A rating.
+
+12 V PCB relay coils are typically 0.36–0.53 W, about 270–400 Ω. Those
+are lighter than the 160 Ω assumed, so pins 50 and 69 have more margin,
+not less. No change on the board.
+
 ### `EGR-DRIVER` — EGR H-bridge
 
 A bridge driver with **internal DIR/PWM decode** — one logic input pair

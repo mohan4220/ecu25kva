@@ -1994,6 +1994,11 @@ main-relay line. The block bounds, added:
 12 V automotive relay of **30 A or more** (`bom_requirements.md`
 MAIN-RELAY), checked in `check_main_relay`. The relay's coil resistance is
 still needed; 160 Ω is assumed.
+**22 November:** the owner gave the buzzer relay's part number,
+**4H.865.27.0.00**. It is a KOEL "2½-relay board, 12 V DC", so the main
+relay is probably on it too, as a PCB relay. Since the Bosch ECU runs with
+it, the next measurement is a clamp-meter reading of terminal 87's current
+on the running set (`bom_requirements.md` MAIN-RELAY).
 
 **Found on the way: the electronics feed's checks still said "pin 21".**
 That was the KOEL harness reading. Since the Bosch pinout (§18) it has been
