@@ -2096,6 +2096,28 @@ def check_cam_frontend():
            inj * 1e3, 3.0, tol=None, ok=inj < 3e-3, unit="mA")
     c.that("  ... fault current limited to", i_f * 1e3, 5.0, tol=None,
            ok=i_f < 5e-3, unit="mA")
+
+    # THE REAL SENSOR (owner, 22 Nov 2026: Bosch 0 281 002 667, Hall speed
+    # sensor; decisions log 29). Bosch's aftermarket catalogue table: 5 V
+    # rated, 4.7-18 V, 5.6 mA typical; output sinks 0-20 mA, saturation
+    # <= 0.5 V; switching <= 1 / 15 us; air gap 0.2-1.8 mm; 0-4500 rpm.
+    i_sink = 5.25 / 10e3                        # R1 10k from the highest rail
+    c.that("Hall 0 281 002 667: sink current through the 10k pull-up", i_sink * 1e3, 0.525,
+           tol=0.01, unit="mA")
+    c.that("  ... inside its 0-20 mA output rating", 20.0 / (i_sink * 1e3), 38.1, tol=0.5, unit="x")
+    c.that("  ... its low (<= 0.5 V saturation) under the pad's 0.99 V (0.3*VDD)", 0.5, 0.99,
+           tol=None, ok=0.5 < 0.99, unit="V")
+    tau = 1 / (1 / 10e3 + 1 / 16e3) * 22e-9
+    c.that("  ... the 22 nF filter's delay to mid-rail, against its 15 us switching", 0.69 * tau * 1e6,
+           93, tol=3, unit="us")
+    c.that("  ... as crank angle at 1500 rpm (the cam only picks the cycle)", 0.69 * tau * 1500 * 6,
+           0.84, tol=0.03, unit="deg")
+    c.that("  ... its supply, 5V_SENSOR nominal, inside 4.7-18 V", 5.0, 4.7, tol=None,
+           ok=4.7 <= 5.0 <= 18.0, unit="V")
+    c.that("  ... evidence: a healthy group in another group's short (sensor_rail) vs its 4.7 V",
+           4.69 - 4.7, -0.01, tol=0.005, unit="V")
+    c.that("  ... cam speed at the 1650 rpm trip, under its 4500 rpm", 1650 / 2, 825, tol=None,
+           ok=1650 / 2 < 4500, unit="rpm")
     return c
 
 

@@ -986,6 +986,7 @@ Updated 22 November 2026, after the owner's measured values (decisions log §24�
   - metering valve part 0 928 400 820: closing current 1.8 A from Bosch's family data (§27); a hot coil below 12.4 V cannot close it (157/7, amber)
   - main and buzzer relays: both on KOEL relay board 4H.865.27.0.00, 5–10 A at 250 VAC/30 VDC (§26). Kept (the Bosch ECU runs with it). The block bounds (9.3 A running, 14.2 A EGR stall) are pessimistic: **clamp terminal 87 on the running set** to settle it
   - injector 0 445 B76 1X3: no public coil data, unchanged; coil resistance wanted
+  - cam sensor Bosch Hall 0 281 002 667 (§29): 5 V, open collector, as designed; the cam wheel's segment count is still open
   - crank sensor Bosch DG-6-K 0 281 002 214 (§28): 860 Ω, 370 mH; up to 45 V at 1500 rpm, 0.51 V cranking. The front end passes every corner, no change
 - **Not pushed:** the commits since a7afe1b stay local until all the values are in.
 

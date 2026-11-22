@@ -2087,6 +2087,35 @@ every corner above passes. These are now checks in
 **Still worth doing on the machine:** the crank sensor's voltage while
 cranking, cold. It confirms the real gap.
 
+
+## 29. The cam (segment) sensor: Bosch Hall, 0 281 002 667 (22 November)
+
+The owner gave the camshaft segment sensor's part number. Bosch's
+aftermarket catalogue (2013/2014, "Hall speed sensor without cable") has
+this exact number:
+- supply: 5 V rated, range 4.7–18 V, 5.6 mA typical;
+- output: open collector, sinks 0–20 mA, saturation ≤ 0.5 V, switching ≤ 1 µs / 15 µs;
+- air gap 0.2–1.8 mm, speed 0–4500 rpm, −40 to +150 °C.
+
+It is what `cam_frontend.cir` assumed from the pinout: a 3-pin, open
+collector Hall sensor on 5V_SENSOR (pin 45). New checks in
+`check_cam_frontend`:
+- the 10k pull-up sinks 0.53 mA, 38× inside the rating;
+- the saturated low (≤ 0.5 V) is under the pad's 0.99 V;
+- the 22 nF filter delays the edge 93 µs, 0.84° of crank at 1500 rpm,
+  which is irrelevant for a sensor that only picks the cycle;
+- the cam turns at 825 rpm at the trip.
+
+**One near miss, kept as evidence:** in `sensor_rail.cir`, a healthy
+sensor group holds 4.69 V during a short on another group, at the
+stacked cold corner. That is 10 mV under this sensor's 4.7 V minimum,
+during a fault only. The nominal rail is 5.0 V.
+
+**Open: how many segments the cam wheel has.** The firmware's decoder
+(`crank.h`) expects one cam pulse per cycle. "Segment sensor" may mean a
+wheel with several segments, typically one per cylinder plus a marker.
+That changes the decoder, not the circuit.
+
 ---
 
 ## Where these came from
