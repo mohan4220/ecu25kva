@@ -1932,9 +1932,9 @@ rail-deviation fault.
     0.7 V matters against only 2.5 V across the coil.
   - At 100 Hz the current touches zero every period and no longer averages
     like 1 and 10 kHz. 100 Hz is out; the firmware drives 1 kHz.
-- **The pin 21 current bound no longer adds the coil's freewheel current.**
+- **The electronics feed's current bound (pin 04; the check still said "pin 21" until §26) no longer adds the coil's freewheel current.**
   D501 returns it into VBAT_PROT and back to the battery, so it runs
-  against pin 21's draw. Adding it was the safe direction at 0.86 A; at
+  against the feed's draw. Adding it was the safe direction at 0.86 A; at
   2.5 A it would have failed the L101 heating check for a current flowing
   the other way. The reverse current is bounded separately (2.48 A, under
   F101).
@@ -1950,6 +1950,52 @@ rail-deviation fault.
 **Proven:** the metering block at all corners, the power block, unit tests on
 both builds (the loop at both corners, half and full command), back-to-back
 exact, and 18/18 scenarios on both builds.
+
+---
+
+## 26. The water-in-fuel sensor's load, and the main relay's contacts (21–22 November)
+
+The owner sent two more values: the water-in-fuel sensor (pin 21),
+**20–50 mA and 1–4.7 kΩ**, and the main relay, **5–10 A at 250 VAC / 30 VDC**.
+
+**Water in fuel.** The two numbers can't describe one thing: 1–4.7 kΩ at
+12 V passes 2.6–12 mA, not 20–50 mA. So they're read as the sensor's
+**supply current** (drawn from the main-relay line, not the ECU) and the
+**load its output wants** at pin 21. If the sensor's label says otherwise,
+this reading is the one to revisit (`bom_requirements.md` WIF-LOAD).
+
+The standard input channel is about 10 kΩ once its transistor conducts: too
+light. Pin 21 alone changes:
+- **R818 goes 10k → 3.3k.** It is now a 1210: `assign_passives.py` sizes it
+  for 24 V continuous across it, which is 0.16 W.
+- **R819 goes 4.7k → 1.5k,** so the threshold stays where the other
+  channels have it.
+
+The sensor sees 3.4–3.6 kΩ from 9 to 16 V at −40 and +125 °C. An open
+output reads dry, and 6 V reads water. `discrete_input.cir` has a new
+branch, W21, that checks all of it. The routed prototype took the change
+through a migration (`WIF_MIGRATE`, refit R818/R819), then `sync`,
+`finish` and `fab`: 26/26 tests pass, 0 design-rule errors, 0 unrouted.
+The production board was rebuilt; 16 parts of the discrete block repacked.
+The firmware doesn't change: active high, 2 s debounce.
+
+**The main relay is off-board, but what flows through its contacts is
+ours.** Terminal 87 feeds pins 04 and 06 (10 A fuse each) and the
+main-relay line. The block bounds, added:
+- **8.83 A running.**
+- **13.8 A with the EGR stalled,** for up to 1.5 s per try.
+- The fuses behind it allow 20 A.
+
+**A 5 A relay is undersized. A 10 A relay has 13 % margin running, is
+1.38× over in a stall, and would weld before a fuse blew.** Requirement: a
+12 V automotive relay of **30 A or more** (`bom_requirements.md`
+MAIN-RELAY), checked in `check_main_relay`. The relay's coil resistance is
+still needed; 160 Ω is assumed.
+
+**Found on the way: the electronics feed's checks still said "pin 21".**
+That was the KOEL harness reading. Since the Bosch pinout (§18) it has been
+pin 04 (F101 sits on V_BAT_1R), and the labels now say so. The numbers were
+always pin 04's.
 
 ---
 

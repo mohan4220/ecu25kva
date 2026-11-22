@@ -1165,14 +1165,14 @@
   "why": "3.6 V peak, 1.3 mW cont; 0603 = 75 V, 59 mW at 105 C"
  },
  "R818": {
-  "footprint": "Resistor_SMD:R_0805_2012Metric",
-  "value": "10k",
-  "why": "73.3 V peak, 57.6 mW cont; 0805 = 150 V, 74 mW at 105 C"
+  "footprint": "Resistor_SMD:R_1210_3225Metric",
+  "value": "3.3k",
+  "why": "73.3 V peak, 174.5 mW cont; 1210 = 200 V, 294 mW at 105 C"
  },
  "R819": {
   "footprint": "Resistor_SMD:R_0603_1608Metric",
-  "value": "4.7k",
-  "why": "1.1 V peak, 0.2 mW cont; 0603 = 75 V, 59 mW at 105 C"
+  "value": "1.5k",
+  "why": "1.1 V peak, 0.7 mW cont; 0603 = 75 V, 59 mW at 105 C"
  },
  "R820": {
   "footprint": "Resistor_SMD:R_0603_1608Metric",

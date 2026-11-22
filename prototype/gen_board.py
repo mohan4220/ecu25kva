@@ -467,8 +467,12 @@ STOP_KILL_MIGRATE = dict(renames={}, drop=(), refit=("Q301",))
 # R402), and its routing cut the pour in two: R437 moves to the column of
 # the other new parts (MOVES), left of the pour.
 BOOST_OVP_MIGRATE = dict(renames={}, drop=(), refit=("R403", "U301"))
+# WIF-LOAD (21 Nov 2026, decisions log 26): pin 21's input resistors set
+# the water-in-fuel sensor's load. R818 10k 0805 -> 3.3k 1210 (24 V
+# continuous across it), R819 4.7k -> 1.5k, same 0603.
+WIF_MIGRATE = dict(renames={}, drop=(), refit=("R818", "R819"))
 MIGRATIONS = {"bosch": BOSCH_MIGRATE, "stop_kill": STOP_KILL_MIGRATE,
-              "boost_ovp": BOOST_OVP_MIGRATE}
+              "boost_ovp": BOOST_OVP_MIGRATE, "wif": WIF_MIGRATE}
 
 
 def migrate_inputs(renames):

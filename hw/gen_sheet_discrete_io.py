@@ -54,7 +54,7 @@ def vshunt(sh, libid, prefix, x, y, value, fields, rail, rot=0):
     gnd_below(sh, bo[0], bo[1])
 
 
-def buffered_input(sh, x0, y, in_net, out_net, label, pullup=None):
+def buffered_input(sh, x0, y, in_net, out_net, label, pullup=None, r_in=None, r_base=None):
     """discrete_input.cir since 22 Sep 2026: an NPN buffer, not a clamp.
 
     IN -> 10k -> base; 4.7k and 4.7 uF base to ground; BAV199-Q lower
@@ -85,12 +85,13 @@ def buffered_input(sh, x0, y, in_net, out_net, label, pullup=None):
         sh.label("5V_MAIN", t[0], t[1] - 6.35)
 
     sx = x0 + 34.0
-    sh.place("Device:R", "R", sx, y, "10k", rot=90,
-             fields={"Source": "discrete_input.cir R1",
-                     "Note": "10k, not 100k: 1.1 mA of wetting current "
-                             "through a closed contact at 12 V. Non-gold "
-                             "contacts at 0.1 mA oxidise open in the "
-                             "field."})
+    # r_in / r_base: (value, Source, Note) for a channel whose sender sets
+    # its own load -- the water-in-fuel sensor (decisions log 26)
+    rv, rs, rn = r_in or ("10k", "discrete_input.cir R1",
+                          "10k, not 100k: 1.1 mA of wetting current "
+                          "through a closed contact at 12 V. Non-gold "
+                          "contacts at 0.1 mA oxidise open in the field.")
+    sh.place("Device:R", "R", sx, y, rv, rot=90, fields={"Source": rs, "Note": rn})
     ra = pin_xy(*PINS["Device:R"]["1"], sx, y, 90)
     rb = pin_xy(*PINS["Device:R"]["2"], sx, y, 90)
     r_in, r_out = (ra, rb) if ra[0] < rb[0] else (rb, ra)
@@ -98,10 +99,10 @@ def buffered_input(sh, x0, y, in_net, out_net, label, pullup=None):
     base = Rail(sh, y)
     base.to(r_out[0])
     sh.label(out_net + "_B", r_out[0], y)
-    vshunt(sh, "Device:R", "R", x0 + 50.0, y + 18.0, "4.7k",
-           {"Source": "discrete_input.cir R2",
-            "Note": "Holds the base off: a harness floating at 1 V reads "
-                    "inactive even with a typical part at 125 C"}, base)
+    bv, bs, bn = r_base or ("4.7k", "discrete_input.cir R2",
+                            "Holds the base off: a harness floating at 1 V reads "
+                            "inactive even with a typical part at 125 C")
+    vshunt(sh, "Device:R", "R", x0 + 50.0, y + 18.0, bv, {"Source": bs, "Note": bn}, base)
     vshunt(sh, "Device:C", "C", x0 + 62.0, y + 18.0, "4.7uF",
            {"Source": "discrete_input.cir C1",
             "Note": "(10k || 4.7k) x 4.7 uF = 15 ms debounce"}, base)
@@ -430,6 +431,21 @@ def notes(sh):
         40.0, 392.0, size=1.6)
 
 
+# The water-in-fuel sensor (Bosch F 002 H23 583), owner's data 21 Nov 2026:
+# 20-50 mA, 1-4.7 kOhm. Read as its supply current (from the main-relay
+# line, not the ECU) and the LOAD its output wants: 1-4.7 kOhm at pin 21.
+# The standard channel is ~10k on when on, too light. 3.3k in: 3.5 kOhm
+# at 12-16 V. 1.5k to ground keeps the threshold at ~1.9 V, where the
+# 10k/4.7k channel had it. decisions log 26; discrete_input.cir branch W21.
+WIF_R_IN = ("3.3k", "discrete_input.cir R1w21; decisions log 26",
+            "Sets pin 21's load for the WIF sensor: 3.5 kOhm at 12-16 V, inside "
+            "its 1-4.7 kOhm. 0805 rated 0.25 W or more (anti-surge): 0.16 W "
+            "at a 24 V jump start, 0.47 W for the 400 ms load dump")
+WIF_R_BASE = ("1.5k", "discrete_input.cir R2w21; decisions log 26",
+              "With 3.3k in: ON above ~1.9 V at pin 21, as the 10k/4.7k "
+              "channels; holds the base off when the sensor output is open")
+
+
 def build():
     schlib.verify_pins()
     sh = Sheet("Discrete I/O: switch inputs, relay drivers, ignition wake",
@@ -454,14 +470,15 @@ def build():
          "ECU pin 23 -- droop switch, contact to ground -> PTD7"),
         # Bosch pins, 8 Nov 2026 (decisions log sec.18).
         (320.0, 180.0, "IN_WIF_H", "IN_WIF", None,
-         "ECU pin 21 -- water in fuel, active high -> PTD6"),
+         "ECU pin 21 -- water in fuel, active high -> PTD6", WIF_R_IN, WIF_R_BASE),
         (600.0, 60.0, "SW_DIAG_C", "SW_DIAG", "10k",
          "ECU pin 14 -- diagnosis request, contact to ground -> PTD8"),
         (600.0, 120.0, "SW_STOP_C", "SW_STOP", "10k",
          "ECU pin 25 -- stop / emergency switch, contact to ground -> PTD9"),
     ]
-    for x0, y, innet, outnet, pu, label in rows:
-        buffered_input(sh, x0, y, innet, outnet, label, pullup=pu)
+    for x0, y, innet, outnet, pu, label, *rr in rows:
+        buffered_input(sh, x0, y, innet, outnet, label, pullup=pu,
+                       r_in=rr[0] if rr else None, r_base=rr[1] if rr else None)
     # The sheet's one HIERARCHICAL 3V3_MCU, for the pad pull-ups.
     sh.wire(460.0, 226.0, 466.0, 226.0)
     sh.hlabel("3V3_MCU", 460.0, 226.0, shape="input", rot=180)

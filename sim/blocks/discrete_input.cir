@@ -81,6 +81,26 @@ Rpt  vdd pt 10k
 Vtr  sw 0 PWL(0 0  0.999m 0  1m 12  1.4m 12  1.5m 0  2.1m 0
 + 2.2m 12  2.6m 12  2.7m 0  3.3m 0  3.4m 12  3.8m 12
 + 3.9m 0  4.4m 0  4.5m 12  60m 12)
+* ---- W21: pin 21, the water-in-fuel sensor (decisions log 26) ----
+* The sensor (Bosch F 002 H23 583) wants a load of 1-4.7 kOhm on its
+* output (owner's data, 21 Nov 2026). The standard channel above is
+* ~10 kOhm once the base conducts: too light. 3.3k in and 1.5k base to
+* ground: ~3.5 kOhm at 12-16 V, and the threshold stays near 1.9 V.
+* Vmx/Vmy measure the current the sensor sees.
+Vmx  in  inx 0
+R1x  inx bx  3.3k
+R2x  bx  0   1.5k
+C1x  bx  0   4.7u
+Dnx  0   bx  DBAV
+Qx   px  bx  0 QWEAK
+Rpx  vdd px  10k
+Vmy  in  iny 0
+R1y  iny by  3.3k
+R2y  by  0   1.5k
+C1y  by  0   4.7u
+Dny  0   by  DBAV
+Qy   py  by  0 QTYP
+Rpy  vdd py  10k
 R1b  sw bb 10k
 R2b  bb 0 4.7k
 C1b  bb 0 4.7u
@@ -106,10 +126,12 @@ Rpp  vdd pp 10k
 set temp=-40
 dc Vin -24 40 0.1
 wrdata discrete_input_weak_cold.dat v(pw) v(bw)
+wrdata discrete_input_wif_cold.dat v(px) v(bx) i(Vmx)
 * Typical part, hot: where does it turn on by accident?
 set temp=125
 dc Vin -24 40 0.1
 wrdata discrete_input_typ_hot.dat v(pt) v(bt)
+wrdata discrete_input_wif_hot.dat v(py) v(by) i(Vmy)
 * Pull-up channel, contact open, weak and cold
 set temp=-40
 op

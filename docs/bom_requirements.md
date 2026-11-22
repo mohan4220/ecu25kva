@@ -289,6 +289,48 @@ line.
 
 Checked by `metering_unit_pwm.cir`.
 
+### `WIF-LOAD` — pin 21's load for the water-in-fuel sensor
+
+**Owner's data, 21 Nov 2026:** the sensor (Bosch F 002 H23 583) is 20–50 mA
+and 1–4.7 kΩ. Read here as its **supply current** (it draws that from the
+main-relay line, not from the ECU) and the **load its output wants**, 1 to
+4.7 kΩ at pin 21. The 20–50 mA can't be the current through 1–4.7 kΩ: at
+12 V that would be only 2.6–12 mA. **If the label says otherwise, this
+reading is the one to revisit.**
+
+The standard input channel (10k in, 4.7k base to ground) is about 10 kΩ
+once the transistor conducts: too light for the sensor. Pin 21 now has
+**R818 3.3k and R819 1.5k**:
+- The load is 3.4–3.6 kΩ from 9 to 16 V, at −40 and +125 °C.
+- The threshold is about 1.4–1.9 V, where the other channels have it.
+- An open output (no water) reads dry.
+
+R818 is **1210**. At 24 V continuous (a jump start or a short to battery)
+it dissipates 0.16 W, which is over an 0805's 74 mW at 105 °C
+(`assign_passives.py`). Checked by `discrete_input.cir`, branch W21.
+
+### `MAIN-RELAY` — the contacts of the main relay (off-board, pin 50)
+
+**Owner's relay, 21 Nov 2026: 5–10 A at 250 VAC / 30 VDC.** Its contacts
+(terminal 87) feed pins 04 and 06, each behind a 10 A fuse, and the
+main-relay line: the metering unit, the WIF sensor and the buzzer relay
+coil. Each block's bound, added up:
+
+| | Current |
+|---|---|
+| Running: electronics 2.09 + injector RMS 3.80 + EGR 1.45 + metering 1.35 + WIF 0.05 + buzzer coil 0.09 | **8.83 A** |
+| EGR stalled (up to 1.5 s before the guard coasts it, three tries) | **13.8 A** |
+| What the fuses behind it allow before one blows (2 × 10 A, Bosch drawing) | **20 A** |
+
+**A 5 A relay is undersized** (1.77× over). A 10 A relay carries the running
+load with 13 % margin, is 1.38× over during an EGR stall, and would weld
+before either 10 A fuse blew. **Requirement: an automotive 12 V relay rated
+30 A or more**, an ISO mini relay as the Bosch drawing's terminals
+(30/85/86/87) suggest. It also has to make into the board's bulk
+capacitors, which a 250 VAC general-purpose relay is not rated for. **Still
+needed from the relay's data: its coil resistance.** The design assumes
+160 Ω (`main_relay.cir`); pin 50's FET and TVS are sized from it.
+
 ### `EGR-DRIVER` — EGR H-bridge
 
 A bridge driver with **internal DIR/PWM decode** — one logic input pair

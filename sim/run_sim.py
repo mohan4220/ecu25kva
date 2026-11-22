@@ -113,6 +113,8 @@ def check_discrete_input():
         "discrete_input_pullup_open.dat": ["sweep", "pad", "harness"],
         "discrete_input_pullup_closed.dat": ["sweep", "pad", "harness"],
         "discrete_input_tran.dat": ["time", "pad", "sw"],
+        "discrete_input_wif_cold.dat": ["vin", "pad", "base", "i"],
+        "discrete_input_wif_hot.dat": ["vin", "pad", "base", "i"],
     })
     # S32K1xx data sheet Rev.15, Table 17 at VDD = 3.3 V: VIH 0.7 VDD,
     # VIL 0.3 VDD; pad limits -0.3 .. VDD + 0.3.
@@ -167,6 +169,42 @@ def check_discrete_input():
            tol=0.2, unit="ms")
     c.that("contact wetting current at 12 V (>= 1 mA for non-gold contacts)",
            (12.0 - 0.8) / 10e3 * 1e3, 1.12, tol=0.01, unit="mA")
+
+    # -- W21: pin 21, the water-in-fuel sensor (decisions log 26). Its
+    # output wants a load of 1-4.7 kOhm (owner's data, 21 Nov 2026) --
+    wc, wh = d["discrete_input_wif_cold.dat"], d["discrete_input_wif_hot.dat"]
+    for tag, r in (("weak, -40 C", wc), ("typical, 125 C", wh)):
+        c.that(f"WIF: pad max over -24..40 V in ({tag})", float(r["pad"].max()), VMAX,
+               tol=None, ok=float(r["pad"].max()) <= 3.31, unit="V")
+        c.that(f"WIF: pad min over -24..40 V in ({tag})", float(r["pad"].min()), -0.3,
+               tol=None, ok=float(r["pad"].min()) >= 0.0, unit="V")
+        for v in (9.0, 12.0, 16.0):
+            i = abs(float(np.interp(v, r["vin"], r["i"])))
+            c.that(f"WIF: load the sensor sees at {v:.0f} V ({tag}), 1-4.7 k", v / i / 1e3, 3.5,
+                   tol=None, ok=1.0 <= v / i / 1e3 <= 4.7, unit="kOhm")
+    c.that("WIF: base at -24 V reverse battery, against VEBO 6 V",
+           float(np.interp(-24.0, wc["vin"], wc["base"])), -1.0, tol=None,
+           ok=float(np.interp(-24.0, wc["vin"], wc["base"])) > -1.2, unit="V")
+    at6 = float(np.interp(6.0, wc["vin"], wc["pad"]))
+    c.that("WIF: 6 V on the relay line, hFE 30, -40 C: pad reads LOW (water)", at6, VIL,
+           tol=None, ok=at6 <= 0.4, unit="V")
+    off = wh["vin"][np.argmax(wh["pad"] < VIH)]
+    c.that("WIF: typical part, 125 C: input that first pulls the pad below VIH", float(off),
+           1.5, tol=None, ok=off > 1.0, unit="V")
+    c.that("  ... so an open sensor output (no water) reads dry",
+           float(np.interp(1.0, wh["vin"], wh["pad"])), VIH, tol=None,
+           ok=float(np.interp(1.0, wh["vin"], wh["pad"])) >= VIH, unit="V")
+    # R818's power: 24 V continuous is a jump start or a short to battery;
+    # assign_passives sized it 1210 (294 mW at 105 C) from the same rule
+    for v, lim, why in ((16.0, 0.294, "charging"), (24.0, 0.294, "jump start, continuous")):
+        i = abs(float(np.interp(v, wc["vin"], wc["i"])))
+        c.that(f"WIF: R818 (3.3k 1210) at {v:.0f} V, {why}", i * i * 3.3e3, lim, tol=None,
+               ok=i * i * 3.3e3 < lim, unit="W")
+    i40 = abs(float(np.interp(40.0, wc["vin"], wc["i"])))
+    c.that("  ... 40 V load dump (400 ms pulse, not continuous)", i40 * i40 * 3.3e3, 0.46,
+           tol=0.03, unit="W")
+    c.that("WIF: debounce time constant (3.3k || 1.5k) x 4.7 uF", (3.3e3 * 1.5e3 / 4.8e3) * 4.7e-6 * 1e3,
+           4.85, tol=0.05, unit="ms")
     return c
 
 
@@ -246,7 +284,7 @@ def check_sensor_ratiometric():
     return c
 
 
-# F101, pin 21's board fuse: Littelfuse 0437005.WRA (437A series, 1206,
+# F101, the electronics feed's board fuse (pin 04 since the Bosch pinout, decisions log 18; pin 21 before): Littelfuse 0437005.WRA (437A series, 1206,
 # AEC-Q200), datasheet revised 09/08/21, chosen 8 Oct 2026. Nominal
 # melting I2t is measured at a 1 ms opening time. The 20% ceiling for a
 # REPEATED pulse is the common fuse-fatigue rule of thumb, not a figure
@@ -1106,6 +1144,26 @@ def check_main_relay():
     e = 0.5 * 1.2 * (14.4 / 160.0) ** 2
     c.that("  coil energy per release, into the TVS (400 W SMA)", e * 1e3,
            10.0, tol=None, ok=e < 10e-3, unit="mJ")
+
+    # THE CONTACTS (owner's relay, 21 Nov 2026: 5-10 A at 250 VAC / 30 VDC;
+    # decisions log 26). Relay 87 feeds pins 04 and 06, each behind a 10 A
+    # fuse, and the main-relay line (metering unit, WIF sensor, buzzer
+    # relay coil). Each figure is its own block's bound, added: pessimistic,
+    # the safe direction for a contact rating.
+    i_04 = 2.087 + 3.797        # electronics bound (emi_filter) + injector RMS (power_path)
+    i_06 = 1.452                # EGR running (egr_hbridge)
+    i_line = 1.35 + 0.05 + 14.4 / 160.0   # metering at the closing current, WIF 50 mA, buzzer coil
+    i_run = i_04 + i_06 + i_line
+    c.that("main relay contacts, running: pins 04 + 06 + the main-relay line", i_run, 8.83,
+           tol=0.02, unit="A")
+    c.that("  ... evidence: over a 5 A relay (the low end of 5-10 A) by", i_run / 5.0, 1.77,
+           tol=0.02, unit="x")
+    c.that("  ... a 10 A relay's margin over it", 10.0 / i_run, 1.13, tol=0.02, unit="x")
+    i_stall = i_04 + 6.4 + i_line
+    c.that("  ... EGR stalled (up to 1.5 s, three tries): over a 10 A relay by", i_stall / 10.0,
+           1.38, tol=0.02, unit="x")
+    c.that("  ... the fuses behind it (2 x 10 A, Bosch drawing): what it must carry before one blows",
+           20.0, 20.0, tol=None, ok=True, unit="A")
     return c
 
 
@@ -1711,7 +1769,7 @@ def check_feed_emi():
     c.that("unfiltered VBAT_EGR: worst over the Class 5 average limit",
            av, 48.4, tol=1.0, unit="dB")
     c.that("  ... so the feeds need a filter of their own",
-           "pin 21's filter no longer carries these currents", None,
+           "the electronics feed's filter no longer carries these currents", None,
            ok=av > 0)
 
     for label, col, src in (("VBAT_INJ", "rxc", inj), ("VBAT_EGR", "rxd", egr),
@@ -1853,7 +1911,9 @@ def check_emi_filter():
     # the right gate to begin with, is the same open measurement question
     # the "is 40 dB enough" line above already leaves open.
 
-    # ---- what pin 21 carries since POWER-PATH (8 Oct 2026) ----
+    # ---- what the electronics feed carries (pin 04 since the Bosch pinout,
+    # decisions log 18 -- the KOEL harness reading had it on pin 21; F101
+    # sits on V_BAT_1R, pin 04, in the netlist) ----
     # An upper bound, not an estimate: the buck draws input current only
     # while its high side conducts, and never more than the inductor
     # current, so its AVERAGE input current cannot exceed the peak limit --
@@ -1862,7 +1922,7 @@ def check_emi_filter():
     # NOT the metering valve's freewheel current (corrected 18 Nov 2026,
     # decisions log 25). D501 returns the coil's current INTO VBAT_PROT
     # (netlist: D501 pin 1 on /VBAT_PROT), and it goes back to the battery
-    # through Q101 and pin 21 -- against the current pin 21 draws, never
+    # through Q101 and pin 04 -- against the current the feed draws, never
     # with it. Until 18 Nov this bound added it anyway (0.862 A, the old
     # 10 ohm coil cold), the safe direction then. With the measured
     # 2.5-5 ohm coil that would be ~2.5 A of current flowing the other way.
@@ -1870,13 +1930,13 @@ def check_emi_filter():
     i_relays = 2 * 24.0 / 160.0          # two coils at a 24 V jump start
     i_vdd = 0.037                         # boost VDD feed, load-dump zener current
     i21 = i_buck + i_relays + i_vdd
-    c.that("pin 21 DC current, upper bound (buck at its peak limit)", i21,
+    c.that("electronics feed (pin 04) DC current, upper bound (buck at its peak limit)", i21,
            2.087, tol=0.002, unit="A")
     # the reverse half, bounded: the freewheel current at its worst, the
     # firmware's feedforward fallback into the coldest, lowest coil
     # (2.5 ohm at -40 C, 18.75 %... up to 37.5 % duty at command 1.0)
     i_fw = (13.5 * 0.375 - 0.75 * 0.625) / 1.85
-    c.that("metering freewheel back through pin 21, worst (coil 1.85 ohm, fallback)", i_fw,
+    c.that("metering freewheel back through the feed, worst (coil 1.85 ohm, fallback)", i_fw,
            2.48, tol=0.02, unit="A")
     c.that("  ... under F101 at 105 C (a fuse does not care which way)", 5.0 * 0.80 * 0.79 / i_fw,
            1.27, tol=0.02, unit="x")
@@ -1898,7 +1958,7 @@ def check_emi_filter():
     i_fuse = 5.0 * 0.80 * 0.79
     c.that("F101 0437005.WRA: continuous rating at 105 C (80% x 79%)", i_fuse,
            3.16, tol=0.01, unit="A")
-    c.that("  ... over the pin 21 bound by", i_fuse / i21, 1.51, tol=0.01,
+    c.that("  ... over the feed's bound by", i_fuse / i21, 1.51, tol=0.01,
            unit="x")
     c.that("  ... the largest 437A rating still rated 63 V (7 A is 35 V, "
            "under the 40 V load dump)", 63.0, 40.0, tol=None, ok=63.0 > 40.0,
