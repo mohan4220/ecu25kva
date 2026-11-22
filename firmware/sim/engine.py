@@ -45,8 +45,18 @@ def _lin(x, lo, hi):
     return 0.5 + 4.0 * (x - lo) / (hi - lo)
 
 
+# The coolant sensor, Bosch 0 281 002 209: Bosch's 2.5 kohm NTC table
+# (firmware sensors.c ntc_t / ntc_r; decisions log 32), interpolated in ln(R).
+NTC_T = [-40, -30, -20, -10, 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]
+NTC_R = [45313, 26114, 15462, 9397, 5896, 3792, 2500, 1707, 1175, 834,
+         596, 436, 323, 243, 187, 144, 113, 89, 71, 57]
+
+
 def _ntc_volts(t_c):
-    r = 2500 * math.exp(3450 * (1 / (t_c + 273.15) - 1 / 293.15))
+    t_c = min(max(t_c, NTC_T[0]), NTC_T[-1])
+    k = min(int((t_c - NTC_T[0]) // 10), len(NTC_T) - 2)
+    f = (t_c - NTC_T[k]) / 10.0
+    r = math.exp(math.log(NTC_R[k]) + f * (math.log(NTC_R[k + 1]) - math.log(NTC_R[k])))
     return 5.0 * r / (r + 2490)
 
 

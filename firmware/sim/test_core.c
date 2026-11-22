@@ -129,6 +129,18 @@ static void all_volts(float v[S_N], float x) { for (int i = 0; i < S_N; i++) v[i
 static void test_sens_convert(void)
 {
     CHECK(fabsf(sens_convert(S_CLT, 2.5f) - 20.1f) <= 0.5f);
+    /* Bosch's NTC table (0 281 002 209, decisions log 32): its own points,
+     * through the 2490 ohm pull-up, read back within 0.1 degC -- at the
+     * DSE's 100 degC warning and 104 degC stop, and at the ends */
+    {
+        static const float t[] = { -40, 0, 80, 100, 150 }, r[] = { 45313, 5896, 323, 187, 57 };
+        for (int i = 0; i < 5; i++)
+            CHECK(fabsf(sens_convert(S_CLT, 5.0f * r[i] / (r[i] + 2490.0f)) - t[i]) <= 0.1f);
+        float r104 = expf(logf(187.0f) + 0.4f * (logf(144.0f) - logf(187.0f)));
+        CHECK(fabsf(sens_convert(S_CLT, 5.0f * r104 / (r104 + 2490.0f)) - 104.0f) <= 0.1f);
+        CHECK(sens_convert(S_CLT, 4.79f) == -40.0f);          /* colder than the table */
+        CHECK(sens_convert(S_CLT, 0.105f) == 150.0f);         /* hotter */
+    }
     CHECK(fabsf(sens_convert(S_OIL, 2.5f) - 500.0f) <= 0.5f);
     CHECK(fabsf(sens_convert(S_RAIL, 4.5f) - 1800.0f) <= 0.5f);
     CHECK(fabsf(sens_convert(S_BOOST, 0.5f) - 50.0f) <= 0.5f);

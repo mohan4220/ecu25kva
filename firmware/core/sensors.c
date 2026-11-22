@@ -27,15 +27,37 @@ void sens_trim(const float gain[S_N + 1], const float offset[S_N + 1])
 
 #endif
 
-#define NTC_R25 2500.0f             /* assumed: ohms at 20 degC */
-#define NTC_BETA 3450.0f
 #define NTC_PULLUP 2490.0f
+#define NTC_N 20
+
+/* The coolant sensor, Bosch 0 281 002 209 (owner, 22 Nov 2026; decisions
+ * log 32): NTC, 2.5 kohm +/-6 % at 20 degC. Bosch's characteristic for its
+ * 2.5 kohm NTC family (NTC M12-H), -40..150 degC. Interpolated in ln(R),
+ * which is close to how an NTC behaves between points. The beta law used
+ * until 22 Nov (beta 3450) read 2.8 degC high at 100 degC and 3.9 at 110:
+ * the DSE warns at 100 and stops at 104 on the temperature this sends. */
+static const float ntc_t[NTC_N] = { -40, -30, -20, -10, 0, 10, 20, 30, 40, 50,
+                                    60, 70, 80, 90, 100, 110, 120, 130, 140, 150 };
+static const float ntc_r[NTC_N] = { 45313, 26114, 15462, 9397, 5896, 3792, 2500, 1707, 1175, 834,
+                                    596, 436, 323, 243, 187, 144, 113, 89, 71, 57 };
+
+static float ntc_degc(float r)
+{
+    if (!(r < ntc_r[0]))                  /* colder than the table, or NaN */
+        return ntc_t[0];
+    if (r <= ntc_r[NTC_N - 1])
+        return ntc_t[NTC_N - 1];
+    int k = 0;
+    while (r <= ntc_r[k + 1])
+        k++;
+    return ntc_t[k] + (ntc_t[k + 1] - ntc_t[k]) * (logf(ntc_r[k] / r) / logf(ntc_r[k] / ntc_r[k + 1]));
+}
 
 float sens_convert(int ch, float v)
 {
     if (ch == S_CLT) {
         float r = NTC_PULLUP * v / (5.0f - v);
-        return 1.0f / (1.0f / 293.15f + logf(r / NTC_R25) / NTC_BETA) - 273.15f;
+        return ntc_degc(r);
     }
     return span_lo[ch] + (v - 0.5f) / 4.0f * (span_hi[ch] - span_lo[ch]);
 }

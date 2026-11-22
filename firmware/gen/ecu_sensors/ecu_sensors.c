@@ -9,7 +9,7 @@
  *
  * Model version                  : 1.1
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Mon Nov 16 14:16:07 2026
+ * C/C++ source code generated on : Sun Nov 22 23:07:16 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: ARM Compatible->ARM Cortex-M
@@ -31,20 +31,31 @@ void ecu_sensors_step(RT_MODEL_ecu_sensors_T *const ecu_sensors_M, real32_T
 {
   DW_ecu_sensors_T *ecu_sensors_DW = ecu_sensors_M->dwork;
   int32_T i;
+  int32_T k;
+  int32_T tmp_0;
+  int32_T tmp_1;
   real32_T v5;
+  real32_T val_z_DSTATE_tmp;
+  real32_T val_z_DSTATE_tmp_0;
   real32_T vr;
   uint32_T tmp;
   uint16_T bad_z_DSTATE;
-  int8_T d;
+  int8_T e;
   uint8_T fmi_z_DSTATE;
   uint8_T now;
   static const int16_T c[5] = { 90, 300, 1000, 100, 0 };
 
-  static const int8_T d_0[5] = { 0, 0, 0, 50, 0 };
+  static const uint16_T d[20] = { 45313U, 26114U, 15462U, 9397U, 5896U, 3792U,
+    2500U, 1707U, 1175U, 834U, 596U, 436U, 323U, 243U, 187U, 144U, 113U, 89U,
+    71U, 57U };
 
-  static const int16_T e[5] = { 0, 1000, 1800, 400, 100 };
+  static const int8_T e_0[5] = { 0, 0, 0, 50, 0 };
 
-  static const real32_T f[5] = { 0.1F, 0.2F, 0.2F, 0.2F, 0.2F };
+  static const int16_T f[5] = { 0, 1000, 1800, 400, 100 };
+
+  static const real32_T g[5] = { 0.1F, 0.2F, 0.2F, 0.2F, 0.2F };
+
+  int32_T exitg1;
 
   /* MATLAB Function: '<Root>/convert' incorporates:
    *  Inport: '<Root>/gain'
@@ -63,7 +74,7 @@ void ecu_sensors_step(RT_MODEL_ecu_sensors_T *const ecu_sensors_M, real32_T
       5.0F / v5;
     if (vr > 4.8F) {
       now = 3U;
-    } else if (vr < f[i]) {
+    } else if (vr < g[i]) {
       now = 4U;
     } else {
       now = 0U;
@@ -96,12 +107,48 @@ void ecu_sensors_step(RT_MODEL_ecu_sensors_T *const ecu_sensors_M, real32_T
       ecu_sensors_DW->val_z_DSTATE[i] = c[i];
     } else if (now == 0) {
       if (i == 0) {
-        ecu_sensors_DW->val_z_DSTATE[0] = 1.0F / (logf(2490.0F * vr / (5.0F - vr)
-          / 2500.0F) / 3450.0F + 0.003411223F) - 273.15F;
+        vr = 2490.0F * vr / (5.0F - vr);
+        if (vr >= 45313.0F) {
+          ecu_sensors_DW->val_z_DSTATE[0] = -40.0F;
+        } else if (vr <= 57.0F) {
+          ecu_sensors_DW->val_z_DSTATE[0] = 150.0F;
+        } else {
+          k = 1;
+          do {
+            exitg1 = 0;
+            if (k > 2147483646) {
+              tmp_0 = MAX_int32_T;
+            } else {
+              tmp_0 = k + 1;
+            }
+
+            if (vr <= d[tmp_0 - 1]) {
+              if (k <= 2147483646) {
+                k++;
+              }
+            } else {
+              exitg1 = 1;
+            }
+          } while (exitg1 == 0);
+
+          if (k > 2147483646) {
+            tmp_0 = MAX_int32_T;
+            tmp_1 = MAX_int32_T;
+          } else {
+            tmp_0 = k + 1;
+            tmp_1 = k + 1;
+          }
+
+          val_z_DSTATE_tmp = d[k - 1];
+          val_z_DSTATE_tmp_0 = (real32_T)(k - 1) * 10.0F - 40.0F;
+          ecu_sensors_DW->val_z_DSTATE[0] = (((real32_T)(tmp_0 - 1) * 10.0F -
+            40.0F) - val_z_DSTATE_tmp_0) * (logf(val_z_DSTATE_tmp / vr) / logf
+            (val_z_DSTATE_tmp / (real32_T)d[tmp_1 - 1])) + val_z_DSTATE_tmp_0;
+        }
       } else {
-        d = d_0[i];
-        ecu_sensors_DW->val_z_DSTATE[i] = (vr - 0.5F) / 4.0F * (real32_T)(e[i] -
-          d) + (real32_T)d;
+        e = e_0[i];
+        ecu_sensors_DW->val_z_DSTATE[i] = (vr - 0.5F) / 4.0F * (real32_T)(f[i] -
+          e) + (real32_T)e;
       }
     }
 
@@ -112,7 +159,7 @@ void ecu_sensors_step(RT_MODEL_ecu_sensors_T *const ecu_sensors_M, real32_T
     ecu_sensors_Y_val[i] = ecu_sensors_DW->val_z_DSTATE[i];
 
     /* Outport: '<Root>/fmi' */
-    ecu_sensors_Y_fmi[i] = fmi_z_DSTATE;
+    ecu_sensors_Y_fmi[i] = ecu_sensors_DW->fmi_z_DSTATE[i];
   }
 
   /* End of MATLAB Function: '<Root>/convert' */

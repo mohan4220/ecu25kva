@@ -2168,6 +2168,38 @@ On the set: oil is pin 80, with its own return on 36. Engine stopped, it
 should read 0.5 V; the oil-at-rest diagnosis (100/2) uses 100 kPa
 (0.9 V).
 
+
+## 32. The coolant sensor: Bosch 0 281 002 209, and Bosch's NTC table (22 November)
+
+The owner gave the coolant sensor's part number. Bosch lists it as an
+NTC, **2.5 kΩ ±6 % at 20 °C**, which is the firmware's assumed 20 °C point.
+Bosch Motorsport publishes the characteristic of its 2.5 kΩ NTC (NTC
+M12-H), −40 to 150 °C, ±1.4 °C at 25 °C and ±0.8 °C at 100 °C.
+
+**The firmware's beta law (β 3450) did not follow it at the hot end:**
+
+| Real | 60 °C | 80 °C | 100 °C | 110 °C | 130 °C |
+|---|---|---|---|---|---|
+| Read with β 3450 | 60.7 | 81.7 | **102.8** | **113.9** | 135.9 |
+
+This matters because the ECU sends the temperature to the DSE in ET1, and
+the DSE warns at 100 °C and stops at 104 °C. **A real 101 °C coolant would
+have stopped the set.**
+
+**Fixed:**
+- Bosch's 20-point table is in `sensors.c` (`ntc_t`, `ntc_r`), interpolated in ln(R).
+- The Simulink `ecu_sensors` model reads it through `ecu_params`. Wrapped C tables are now read as one row.
+- The model is regenerated and checked bit-exact against the C (b2b).
+- The PC engine model and the Simulink plant use the same table.
+- `test_sens_convert` checks the table's own points (−40, 0, 80, 100, 150 °C) and 104 °C to 0.1 °C, and both ends.
+
+Below −40 °C the reading holds −40 until the open-circuit fault (above 4.8 V).
+Above 150 °C it holds 150 until the short fault (below 0.1 V).
+
+**The table is the family's, from Bosch Motorsport,** and matches this part's
+20 °C value and tolerance. A check on the set: unplugged, the sensor's
+resistance at a known coolant temperature, e.g. 323 Ω at 80 °C.
+
 ---
 
 ## Where these came from
