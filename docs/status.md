@@ -983,7 +983,9 @@ Updated 22 November 2026, after the owner's measured values (decisions log §24�
 - **Measured values from the engine, applied as they arrive** (memory: one push after the last one):
   - metering valve coil, pin 88: 2.5–5 Ω (§25). Still needed: its closing current and inductance;
   - water-in-fuel sensor, pin 21: 20–50 mA, 1–4.7 kΩ (§26). R818 3.3k/1210, R819 1.5k; the reading is to be confirmed from the sensor's label;
-  - main relay: 5–10 A at 250 VAC/30 VDC (§26). **Too small:** the contacts carry 8.8 A running and 13.8 A with the EGR stalled; specify a 30 A+ automotive relay. Its coil resistance is still needed (160 Ω assumed).
+  - metering valve part 0 928 400 820: closing current 1.8 A from Bosch's family data (§27); a hot coil below 12.4 V cannot close it (157/7, amber)
+  - main and buzzer relays: both on KOEL relay board 4H.865.27.0.00, 5–10 A at 250 VAC/30 VDC (§26). Kept (the Bosch ECU runs with it). The block bounds (9.3 A running, 14.2 A EGR stall) are pessimistic: **clamp terminal 87 on the running set** to settle it
+  - injector 0 445 B76 1X3: no public coil data, unchanged; coil resistance wanted
 - **Not pushed:** the commits since a7afe1b stay local until all the values are in.
 
 ### Where it stands
