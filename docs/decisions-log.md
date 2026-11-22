@@ -2054,6 +2054,39 @@ rail loop could not have reached idle current. `MU_I_FULL`, command 1.0
 **Still to confirm on the bench:** the closing current itself, and the
 coil inductance, with the real unit on a current-controlled supply.
 
+
+## 28. The crank speed sensor: Bosch DG-6-K, 0 281 002 214 (22 November)
+
+The owner gave the crank sensor's part number. Bosch's sensor catalogue
+gives the DG-6-K family's data:
+- winding resistance 860 Ω ±10 % at 20 °C, rising 0.4 %/°C;
+- inductance 370 ± 60 mH at 1 kHz;
+- 20–7000 rpm on a 60-2 wheel, the same as this engine's;
+- output 210 V peak at a 0.3 mm gap and 7000 rpm, and 170 mV at 1.5 mm
+  and 50 rpm.
+
+The design had assumed 20 V at 1500 rpm and 2 V at cranking. Scaled by
+speed, the real sensor gives:
+
+| | Real sensor | Design |
+|---|---|---|
+| 1500 rpm, tightest gap | **45 V** | 20 V assumed |
+| 1650 rpm (the trip), tightest gap | 49.5 V | under the SMAJ48CA's 53.3 V minimum breakdown |
+| Where the TVS starts to clip | 1777 rpm | clipping keeps the zero crossing, so no teeth are lost |
+| Clamp current per leg at 1650 rpm | 4.6 mA | 4.7k per leg |
+| 150 rpm cranking, widest gap | **0.51 V** | 2.6× the ±198 mV hysteresis |
+| Slowest speed still seen at 1.5 mm | 58 rpm | |
+| Coil at 1500 Hz | 3.6 kΩ | 1.7 % lost into the 100k bias |
+
+**No circuit change.** The front end was sized for a signal 2.25× smaller
+at speed, but its zero-crossing design doesn't depend on amplitude, and
+every corner above passes. These are now checks in
+`check_vr_conditioner`. The TVS note on the schematic still says "about
+20 V at 1500 rpm"; its conclusion (48 V clears the trip) holds.
+
+**Still worth doing on the machine:** the crank sensor's voltage while
+cranking, cold. It confirms the real gap.
+
 ---
 
 ## Where these came from

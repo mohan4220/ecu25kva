@@ -2002,6 +2002,37 @@ def check_vr_conditioner():
                unit="us")
         c.that("  ... jitter across the window", float(gaps.std()) * 1e6, 0.0,
                tol=8.0, unit="us")
+
+    # THE REAL SENSOR (owner, 22 Nov 2026: Bosch DG-6-K 0 281 002 214;
+    # decisions log 28). Bosch's family table: 860 ohm +/-10 %, 370 +/-60 mH,
+    # 210 V peak at 0.3 mm and 7000 rpm, 170 mV at 1.5 mm and 50 rpm, on a
+    # 60-2 wheel, the same as this engine's. Amplitude taken proportional
+    # to speed from each point (Faraday; the first order).
+    v_hi = lambda rpm: 210.0 * rpm / 7000.0     # 0.3 mm: the tightest gap
+    v_lo = lambda rpm: 0.170 * rpm / 50.0       # 1.5 mm: the widest
+    c.that("DG-6-K at 1500 rpm, 0.3 mm gap (the block assumed 20 V)", v_hi(1500), 45.0,
+           tol=0.5, unit="V")
+    tvs_vbr_min = 53.3                          # SMAJ48CA (VR-CLAMP) breakdown, minimum
+    c.that("  ... at the 1650 rpm trip: under the TVS's breakdown", v_hi(1650), 49.5, tol=None,
+           ok=v_hi(1650) < tvs_vbr_min, unit="V")
+    c.that("  ... the speed where the TVS starts to clip (edges are kept: clipping keeps the crossing)",
+           tvs_vbr_min / 210.0 * 7000.0, 1777, tol=5, unit="rpm")
+    # Clamp current per leg: the coil's 860 ohm (lowest, -10 % at -40 C)
+    # plus two 4.7k legs; the clamps hold each leg near the rails.
+    i_leg = (v_hi(1650) - 3.3) / (0.9 * 860 * 0.76 + 2 * 4700)
+    c.that("  ... clamp current at 1650 rpm (BAV199-Q, low leakage)", i_leg * 1e3, 4.6, tol=0.2,
+           unit="mA")
+    vh = 0.198                                  # the hysteresis window, each side
+    c.that("cranking, 150 rpm at the widest gap: amplitude", v_lo(150), 0.51, tol=0.01, unit="V")
+    c.that("  ... over the +/-198 mV hysteresis by", v_lo(150) / vh, 2.58, tol=0.05, unit="x")
+    c.that("  ... the slowest speed it still sees at 1.5 mm", vh / 0.170 * 50.0, 58.2, tol=1.0,
+           unit="rpm")
+    # The coil's own impedance at the rated tooth rate, against the 100k
+    # bias: it does not load the signal.
+    z_coil = abs(complex(860, 2 * np.pi * 1500 * 0.370))
+    c.that("coil impedance at 1500 Hz (860 ohm, 370 mH)", z_coil, 3590, tol=50, unit="ohm")
+    c.that("  ... loss into the 100k bias legs", z_coil / (z_coil + 2 * 4700 + 200e3) * 100, 1.7,
+           tol=0.2, unit="%")
     return c
 
 

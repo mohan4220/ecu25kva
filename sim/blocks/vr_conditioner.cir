@@ -13,6 +13,15 @@
 *     1500 rpm, 60 teeth  ->  1500 Hz, roughly 20 V peak
 *      150 rpm, cranking  ->   150 Hz, roughly  2 V peak
 *
+* THE REAL SENSOR (22 Nov 2026, decisions log 28): Bosch DG-6-K,
+* 0 281 002 214. Bosch's table: 860 ohm, 370 mH, 210 V at 0.3 mm and
+* 7000 rpm, 170 mV at 1.5 mm and 50 rpm. By speed: up to 45 V at
+* 1500 rpm (tight gap) and down to 0.51 V cranking at 150 rpm (wide
+* gap). The 20 V / 2 V estimates above sit inside that range, and the
+* edge counts below don't depend on amplitude above the hysteresis.
+* run_sim.py checks the real sensor's corners against the TVS and
+* the hysteresis.
+*
 * A 10:1 amplitude swing across the operating range, and the low
 * end is the end you need to get the engine started. That single
 * fact decides the topology, and it is why a fixed comparator
