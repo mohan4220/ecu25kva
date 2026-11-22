@@ -68,7 +68,7 @@ simulation results and spec text, not re-derived):
 | Injector hold current | 8–13 A family envelope, ~10 A used in sim | `boost_converter.cir`, memo 04 |
 | Boost rail voltage | **100 V**, chosen mid-envelope (memo 04: 65–115 V) and matched to memo 10's turn-off clamp recommendation | `boost_converter.cir`, `injector_turnoff.cir` |
 | Turn-off topology | Recirculation into the same 100 V/47 µF boost reservoir, not freewheel-to-battery, not Zener active clamp | memo 10 (settled, not reopened here) |
-| Metering unit | 1 low-side PWM channel, current sense, battery-fed through fuse `8F1`, ~0.6–1.35 A class current, no boost, no bank-sharing | spec §2.2, `metering_unit_pwm.cir` |
+| Metering unit | 1 low-side PWM channel, current sense, battery-fed through fuse `8F1`, up to 1.8 A (closed; idle 1.38–1.43 A, decisions log 27), no boost, no bank-sharing | spec §2.2, `metering_unit_pwm.cir` |
 | EGR | H-bridge, pins 59/81, not yet designed | status.md §2 — explicitly out of this decision's scope; none of the candidates evaluated below are H-bridge parts |
 | Fail-safe | Every driver gate (88, 73/07/29, 03/05) held off by hardware during reset/brownout, independent of GPIO state | spec §4, memo 11, `supervisor.cir` |
 
@@ -409,7 +409,7 @@ MC33816 and L9781 exist for. The recommendation above (discrete, keep the 100 V 
 driven by the voltage mismatch, not by the current or channel count, which both
 candidates handle comfortably via external FETs.
 
-**Metering unit (88):** a single low-side PWM channel, ~0.6–1.35 A, no boost, no
+**Metering unit (88):** a single low-side PWM channel, up to 1.8 A, no boost, no
 bank-sharing, current sense against a rail-pressure control loop
 (`metering_unit_pwm.cir`). **None of the four evaluated candidates are a sensible fit
 for this channel at all** — MC33816 and L9781 are five-to-eleven-channel high-voltage

@@ -749,8 +749,8 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     /* the measurement is trusted only while it reads neither open load nor
      * over current (diag.h): a sense chain that reads low would otherwise
      * wind the duty up, and the measured 2.5-5 ohm coil can then draw
-     * 8.6 A cold. Feedforward alone holds the coldest, lowest coil under
-     * 2.5 A (decisions log 25). */
+     * 8.6 A cold. Feedforward alone gives the coldest, lowest coil at most
+     * 3.65 A at command 1.0 (decisions log 25, 27). */
     uint8_t mu_meas = io->i_mu_valid && !dg[DG_MU_OPEN].act && !dg[DG_MU_OVERCUR].act;
     io->meter_duty = mu_step(&mu, cmd, io->i_mu, mu_meas, io->v_bat, 0.001f);
     /* EGR valve, a cascade: target position -> position PID -> bridge */

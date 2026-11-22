@@ -496,33 +496,47 @@ def overload():
     return c
 
 def hot_coil():
-    """The metering cascade (decisions log 23, 25): rail -> valve current ->
-    PWM, at the measured coil's worst corner for authority: the 5 ohm coil
-    hot (+125 C, 6.91 ohm) on an 11.0 V battery. The feedforward assumes
-    3.75 ohm, so it gives 46 % of the current; the inner loop must make up
-    the rest, at no load (the valve nearly shut) and at 20 kW."""
-    c = Checks("17 metering valve: 5 ohm coil hot (6.9 ohm) on 11 V, rail within 5 %")
+    """The metering cascade (decisions log 23, 25, 27): rail -> valve
+    current -> PWM, at the measured coil's worst corner for authority: the
+    5 ohm coil hot (+125 C, 6.91 ohm). The feedforward assumes 3.75 ohm, so
+    the inner loop must make up the rest. On 13.5 V it can: the rail holds
+    at no load (the valve nearly shut) and at 20 kW. On 11 V (charging
+    lost) the coil cannot reach the 1.8 A that closes the valve (11 / 6.91
+    = 1.59 A): at no load the rail runs high, and that is what 157/7 is
+    for -- amber, the engine keeps running."""
+    c = Checks("17 metering valve: 5 ohm coil hot (6.9 ohm): rail holds on 13.5 V; on 11 V, 157/7")
     sim = Sim()
-    sim.eng.r_coil, sim.eng.vbat = 6.91, 11.0
+    sim.eng.r_coil, sim.eng.vbat = 6.91, 13.5
     sim._volts()
     sim.start(8.0)
-    # no load: the valve must nearly close. With the 10 ohm coil assumed
-    # until 18 Nov, a hot coil could not reach the current that closes it
-    # and the rail sat on the relief valve; the measured coil can.
     xs = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if 6 * S <= t < 8 * S]
     worst0 = max(abs(p / ps - 1) for p, ps in xs)
-    c.that("no load: worst deviation, fraction", worst0, 0.05, ok=worst0 <= 0.05)
+    c.that("13.5 V, no load: worst deviation, fraction", worst0, 0.05, ok=worst0 <= 0.05)
     sim.eng.load_kw = 20
     sim.run(16.0)
     xs = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if 14 * S <= t < 16 * S]
     worst = max(abs(p / ps - 1) for p, ps in xs)
-    c.that("20 kW: worst deviation, fraction", worst, 0.05, ok=worst <= 0.05)
+    c.that("13.5 V, 20 kW: worst deviation, fraction", worst, 0.05, ok=worst <= 0.05)
     duty = sim.io.meter_duty
     nominal = sim.eng.i_mu * 3.75 / 13.5       # the duty a nominal coil at 13.5 V would need
-    want = (sim.eng.r_coil / sim.eng.vbat) / (3.75 / 13.5)    # 2.26: what Ohm's law needs
+    want = (sim.eng.r_coil / sim.eng.vbat) / (3.75 / 13.5)    # 1.84: what Ohm's law needs
     c.that("duty raised above the nominal coil's, ratio", duty / nominal, want, tol=0.05)
     c.that("no rail deviation stored (157/7)", "none" if (157, 7) not in sim.stored() else "stored", 0,
            ok=(157, 7) not in sim.stored())
+    # EVIDENCE: the same coil on 11 V cannot close the valve at no load
+    sim = Sim()
+    sim.eng.r_coil, sim.eng.vbat = 6.91, 11.0
+    sim._volts()
+    sim.start(8.0)
+    xs = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if 6 * S <= t < 8 * S]
+    worst11 = max(p / ps - 1 for p, ps in xs)
+    c.that("evidence, 11 V no load: the rail runs high, fraction", worst11, 0.05, tol=None,
+           ok=worst11 > 0.05)
+    c.that("  ... the coil at its ceiling, A", sim.eng.i_mu, 11.0 / 6.91, tol=0.05)
+    c.that("  ... rail deviation stored (157/7), amber", "stored" if (157, 7) in sim.stored() else "none", 0,
+           ok=(157, 7) in sim.stored())
+    c.that("  ... and the engine keeps running", sim.io.state, RUN, tol=None,
+           ok=sim.trip() is None and sim.io.state == RUN)
     return c
 
 

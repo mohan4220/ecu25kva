@@ -38,7 +38,7 @@ def friction(rpm):
     return 10 + 0.006 * rpm          # N m
 
 
-I_CLOSE = 1.35                       # A, closes the metering valve (assumed; firmware MU_I_FULL)
+I_CLOSE = 1.8                        # A, closes the metering valve (Bosch family max; firmware MU_I_FULL)
 
 
 def _lin(x, lo, hi):

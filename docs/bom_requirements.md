@@ -324,12 +324,12 @@ coil. Each block's bound, added up:
 
 | | Current |
 |---|---|
-| Running: electronics 2.09 + injector RMS 3.80 + EGR 1.45 + metering 1.35 + WIF 0.05 + buzzer coil 0.09 | **8.83 A** |
-| EGR stalled (up to 1.5 s before the guard coasts it, three tries) | **13.8 A** |
+| Running: electronics 2.09 + injector RMS 3.80 + EGR 1.45 + metering 1.80 (closed) + WIF 0.05 + buzzer coil 0.09 | **9.28 A** |
+| EGR stalled (up to 1.5 s before the guard coasts it, three tries) | **14.2 A** |
 | What the fuses behind it allow before one blows (2 × 10 A, Bosch drawing) | **20 A** |
 
-**A 5 A relay is undersized** (1.77× over). A 10 A relay carries the running
-load with 13 % margin, is 1.38× over during an EGR stall, and would weld
+**A 5 A relay is undersized** (1.86× over). A 10 A relay carries the running
+load with 8 % margin, is 1.42× over during an EGR stall, and would weld
 before either 10 A fuse blew. **Requirement: an automotive 12 V relay rated
 30 A or more**, an ISO mini relay as the Bosch drawing's terminals
 (30/85/86/87) suggest. It also has to make into the board's bulk

@@ -1152,16 +1152,16 @@ def check_main_relay():
     # the safe direction for a contact rating.
     i_04 = 2.087 + 3.797        # electronics bound (emi_filter) + injector RMS (power_path)
     i_06 = 1.452                # EGR running (egr_hbridge)
-    i_line = 1.35 + 0.05 + 14.4 / 160.0   # metering at the closing current, WIF 50 mA, buzzer coil
+    i_line = 1.8 + 0.05 + 14.4 / 160.0    # metering at the closing current, WIF 50 mA, buzzer coil
     i_run = i_04 + i_06 + i_line
-    c.that("main relay contacts, running: pins 04 + 06 + the main-relay line", i_run, 8.83,
+    c.that("main relay contacts, running: pins 04 + 06 + the main-relay line", i_run, 9.28,
            tol=0.02, unit="A")
-    c.that("  ... evidence: over a 5 A relay (the low end of 5-10 A) by", i_run / 5.0, 1.77,
+    c.that("  ... evidence: over a 5 A relay (the low end of 5-10 A) by", i_run / 5.0, 1.86,
            tol=0.02, unit="x")
-    c.that("  ... a 10 A relay's margin over it", 10.0 / i_run, 1.13, tol=0.02, unit="x")
+    c.that("  ... a 10 A relay's margin over it", 10.0 / i_run, 1.08, tol=0.02, unit="x")
     i_stall = i_04 + 6.4 + i_line
     c.that("  ... EGR stalled (up to 1.5 s, three tries): over a 10 A relay by", i_stall / 10.0,
-           1.38, tol=0.02, unit="x")
+           1.42, tol=0.02, unit="x")
     c.that("  ... the fuses behind it (2 x 10 A, Bosch drawing): what it must carry before one blows",
            20.0, 20.0, tol=None, ok=True, unit="A")
     return c
@@ -2657,8 +2657,9 @@ def check_metering_unit_pwm():
     })
     # The coil the owner measured, 2.5-5 ohm (18 Nov 2026, decisions log
     # 25); nominal 3.75 ohm. Corners: the lowest coil cold (1.85 ohm) and
-    # the highest hot (6.91 ohm). The target, 0.675 A, is half the 1.35 A
-    # assumed to close the valve; 18.75 % duty is Ohm's law for it.
+    # the highest hot (6.91 ohm). The target, 0.675 A, is a point low in
+    # the valve's range (it closes by 1.8 A, idles at 1.38-1.43 A: Bosch
+    # family data, decisions log 27); 18.75 % duty is Ohm's law for it.
 
     def tail_of(dc):
         return dc["time"] > 50e-3
@@ -2726,6 +2727,12 @@ def check_metering_unit_pwm():
            tol=0.01, unit="A")
     c.that("  ... setpoint as a fraction of that ceiling", 0.675 / i_max_hot * 100, 34.5, tol=1.0,
            unit="%")
+    # The valve closes at 1.8 A (decisions log 27): on 13.5 V the hot
+    # coil has 8 % to spare; below 12.4 V it cannot close the valve.
+    c.that("  ... the closing current, 1.8 A, as a fraction of that ceiling", 1.8 / i_max_hot * 100,
+           92.1, tol=1.0, unit="%")
+    c.that("  ... the battery below which the hot coil cannot reach 1.8 A", 1.8 * 6.91, 12.44,
+           tol=0.02, unit="V")
     # And the other end: the cold, low coil at full duty is what the
     # sense chain and R501 must survive when the loop is not limiting it.
     i_max_cold = 16.0 / 1.85

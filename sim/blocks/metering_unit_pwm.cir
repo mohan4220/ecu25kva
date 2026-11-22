@@ -21,10 +21,12 @@
 * The inductance is still unmeasured: 11.25 mH keeps the 3 ms time
 * constant the firmware and the engine model were tuned to.
 *
-* THE OPERATING POINT: 0.675 A, half the 1.35 A that is assumed to
-* close the valve (MU_I_FULL; it comes from the metering unit's own
-* data, not yet known). At 3.75 ohm the duty for it is
-* 0.675 * 3.75 / 13.5 = 18.75 %.
+* THE OPERATING POINT: 0.675 A, a point low in the valve's range.
+* Bosch's data for its metering units (the set's is 0 928 400 820)
+* puts idle at 1.38-1.43 A and the maximum, taken as closed
+* (MU_I_FULL), at 1.8 A (decisions log 27). Until 22 Nov this file
+* called 0.675 A half of an assumed 1.35 A. At 3.75 ohm the duty for
+* it is 0.675 * 3.75 / 13.5 = 18.75 %.
 *
 * THE DESIGN CHOICE IS THE PWM FREQUENCY, and it is not simply
 * "as high as possible". Ripple current is
@@ -121,7 +123,8 @@ D3  c3  bat DFW
 * corners: the mean current holds the 0.675 A setpoint within
 * +/-0.09 A. Headroom makes that possible: at the hot corner the coil
 * can still draw 13.5/6.91 = 1.95 A at 100 % duty, almost three times
-* the setpoint.
+* the setpoint, and 8 % over the 1.8 A that closes the valve. Below
+* 12.4 V the hot coil cannot close it.
 * ============================================================
 Bctl4 ctl4 0 V = 2.5 + 3*(0.675 - abs(i(Vs4)))
 L4   bat a4 11.25m

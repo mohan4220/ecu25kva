@@ -25,22 +25,27 @@
 
 /* The coil, MEASURED 18 Nov 2026 on the set's metering unit: 2.5-5 ohm
  * (decisions log 25; the 10 ohm before was a class guess). Nominal is the
- * middle. The current that closes the valve is still ASSUMED, 1.35 A
- * (it comes from the unit's own data): command 1.0 means that current. */
+ * middle. The current that closes the valve: 1.8 A, the maximum working
+ * current published for Bosch's metering units (the set's is 0 928 400
+ * 820, owner 22 Nov; decisions log 27). The same data puts idle at
+ * 1.38-1.43 A, which the 1.35 A assumed before could not reach. Command
+ * 1.0 means this current. Family data, not the part's own sheet. */
 #define MU_R_NOM 3.75f               /* coil ohms, nominal (measured 2.5-5) */
-#define MU_I_FULL 1.35f              /* A: command 1.0, the valve closed (assumed) */
-#define MU_V_FULL 5.0625f            /* MU_I_FULL * MU_R_NOM: volts across the coil at command 1.0 */
+#define MU_I_FULL 1.8f               /* A: command 1.0, the valve closed (Bosch family max, 1.8 A) */
+#define MU_V_FULL 6.75f              /* MU_I_FULL * MU_R_NOM: volts across the coil at command 1.0 */
 #define MU_V_NOM 13.5f               /* the battery when there is no plausible reading */
 #define MU_VBAT_MIN 6.0f             /* a 12 V system: outside this, assume MU_V_NOM */
 #define MU_VBAT_MAX 18.0f
 /* The gains in duty per unit of current error, scaled by 3.75/10 when the
- * coil was measured so the loop keeps its dynamics (a lower-resistance
- * coil gives more current per unit of duty). The integral covers the
- * whole coil spread: 1.85 ohm (2.5 cold) to 6.91 ohm (5 hot) against the
- * 3.75 feedforward, down to a 10 V battery. */
-#define MU_KP 0.075f                 /* calibration, duty per unit of current error */
-#define MU_KI 7.5f                   /* calibration, duty/(unit*s): coil tau 3 ms */
-#define MU_INTEG_MAX 0.4f
+ * coil was measured, and by 1.8/1.35 when the unit grew to 1.8 A, so the
+ * loop keeps its dynamics in amps. The integral covers the whole coil
+ * spread: 1.85 ohm (2.5 cold) to 6.91 ohm (5 hot) against the 3.75
+ * feedforward, at command 1.0 from 13.5 V up (+0.42 duty for the hot
+ * coil). Below about 12.4 V the hot 5 ohm coil cannot reach 1.8 A at
+ * all (12.4 / 6.91); the running set charges at 14.5 V. */
+#define MU_KP 0.1f                   /* calibration, duty per unit of current error */
+#define MU_KI 10.0f                  /* calibration, duty/(unit*s): coil tau 3 ms */
+#define MU_INTEG_MAX 0.5f
 
 #define EGR_KP 0.02f                 /* calibration, duty/% */
 #define EGR_KI 0.1f                  /* calibration, duty/(%*s) */
@@ -63,7 +68,8 @@ typedef struct { float integ, prev, dfilt; } egrp_t;
 /* The feedforward alone: the duty that makes a nominal coil carry cmd
  * (units of MU_I_FULL) on this battery. Used where there is no loop yet:
  * the trip and the reset, which until the coil was measured set a raw
- * duty of 1.0 -- 1.35 A in a 10 ohm coil, 8.6 A in a cold 1.85 ohm one. */
+ * duty of 1.0 -- 1.35 A in a 10 ohm coil, 8.6 A in a cold 1.85 ohm one.
+ * The trip and the reset use it for one tick; the loop takes over next. */
 float mu_ff(float cmd, float v_bat);
 
 void  mu_reset(mu_t *m);

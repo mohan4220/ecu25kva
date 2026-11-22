@@ -2000,6 +2000,51 @@ That was the KOEL harness reading. Since the Bosch pinout (§18) it has been
 pin 04 (F101 sits on V_BAT_1R), and the labels now say so. The numbers were
 always pin 04's.
 
+
+## 27. The metering valve's closing current: 1.8 A, from Bosch's data (22 November)
+
+The owner gave the metering valve's part number, **Bosch 0 928 400 820**
+(it was already confirmed against the drawing on 10 November). There is
+no public datasheet for that number. Published Bosch metering-unit data
+(third-party service pages, the same family) gives:
+
+| | Bosch family data | This firmware before |
+|---|---|---|
+| Coil resistance, 20 °C | 2.3–3.15 Ω | measured on the set: 2.5–5 Ω (§25) |
+| Idle current | **1.38–1.43 A** | the valve closed at 1.35 A |
+| Maximum working current | **1.8 A** | — |
+
+**The 1.35 A assumed since §23 is below the published idle current,** so the
+rail loop could not have reached idle current. `MU_I_FULL`, command 1.0
+("closed"), is now **1.8 A**:
+- `MU_V_FULL` becomes 6.75 V (1.8 × 3.75).
+- The loop gains are scaled by 1.8/1.35, to keep the loop's dynamics in amps: `MU_KP` 0.1, `MU_KI` 10.
+- `MU_INTEG_MAX` goes to 0.5. The hot 5 Ω coil at 13.5 V needs +0.42 of duty over the feedforward.
+
+**What it costs:**
+- **A hot 5 Ω coil (6.91 Ω) cannot reach 1.8 A below about 12.4 V.** The set
+  charges at 14.5 V, so it only matters with charging lost. Then the loop
+  saturates at full duty: 1.59 A on 11 V. That is tested in `test_core.c`
+  and pinned in `check_metering_unit_pwm`. **The engine scenario found what
+  it means:** at no load on 11 V the valve can't shut far enough, so the rail
+  runs 95 % over its target. That leaves it to the pump's pressure-limiting
+  valve, and 157/7 (amber) is stored; the engine keeps running. Scenario 17
+  now checks that the rail holds on 13.5 V (within 3 %) and pins the 11 V
+  case as evidence. Before, it ran only at 11 V. If the bench shows the real
+  closing current is nearer idle than 1.8 A, the 11 V case goes away.
+- **Feedforward alone** (once the measurement is distrusted, 1347/5 or /6)
+  gives the cold 2.5 Ω coil up to 3.65 A at command 1.0. That is over the
+  3.0 A line, and was 2.74 A before. Up to idle current it stays under the
+  line.
+- **The main relay's running load** goes from 8.83 A to **9.28 A**, and to
+  14.2 A with the EGR stalled. A 10 A relay now has 8 % margin. The 30 A+
+  requirement stands.
+- **The SIL engine and the Simulink plant** close the valve at 1.8 A.
+  `ecu_mucur` is regenerated.
+
+**Still to confirm on the bench:** the closing current itself, and the
+coil inductance, with the real unit on a current-controlled supply.
+
 ---
 
 ## Where these came from

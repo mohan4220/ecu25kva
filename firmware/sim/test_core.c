@@ -2101,16 +2101,22 @@ static void test_metering_current_loop(void)
     /* closed loop, both corners, half and full command */
     float d;
     CHECK(near(mu_coil(0.5f, 6.91f, 11.0f, 1, &d), 0.5f * MU_I_FULL, 0.01f));
-    CHECK(near(mu_coil(1.0f, 6.91f, 11.0f, 1, &d), MU_I_FULL, 0.015f));     /* closes the valve */
-    CHECK(d > 0.8f);                                         /* it had to push: 0.85 duty */
+    CHECK(near(mu_coil(1.0f, 6.91f, 13.5f, 1, &d), MU_I_FULL, 0.015f));     /* closes the valve */
+    CHECK(d > 0.85f);                                        /* it had to push: 0.92 duty */
+    /* on 11 V the hot 5 ohm coil cannot reach 1.8 A: the loop saturates
+     * at full duty, 11 / 6.91 = 1.59 A (decisions log 27) */
+    CHECK(near(mu_coil(1.0f, 6.91f, 11.0f, 1, &d), 11.0f / 6.91f, 0.02f));
+    CHECK(d > 0.99f);
     CHECK(near(mu_coil(0.5f, 1.85f, 16.0f, 1, &d), 0.5f * MU_I_FULL, 0.01f));
     CHECK(near(mu_coil(1.0f, 1.85f, 16.0f, 1, &d), MU_I_FULL, 0.015f));
-    CHECK(d < 0.2f);                                         /* and to hold back */
+    CHECK(d < 0.25f);                                        /* and to hold back: 0.21 duty */
     /* feedforward only, the corners miss: the hot high coil short, the
-     * cold low one over -- but under the 2.5 A over-current line even at
-     * command 1.0 on 13.5 V */
+     * cold low one over. Up to idle (1.4 A) the cold low coil stays under
+     * the over-current line; at command 1.0 it goes over (3.65 A), and
+     * feedforward alone only runs once the measurement is distrusted */
     CHECK(mu_coil(0.5f, 6.91f, 11.0f, 0, NULL) < 0.6f * 0.5f * MU_I_FULL);
-    CHECK(mu_coil(1.0f, 1.85f, 13.5f, 0, NULL) < DG_MU_MAX_A);
+    CHECK(mu_coil(1.4f / MU_I_FULL, 1.85f, 13.5f, 0, NULL) < DG_MU_MAX_A);
+    CHECK(mu_coil(1.0f, 1.85f, 13.5f, 0, NULL) > DG_MU_MAX_A);
 }
 
 /* The EGR position loop: it reaches a target on a motor-and-spring valve,
