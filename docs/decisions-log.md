@@ -2116,6 +2116,26 @@ during a fault only. The nominal rail is 5.0 V.
 wheel with several segments, typically one per cylinder plus a marker.
 That changes the decoder, not the circuit.
 
+
+## 30. The rail pressure sensor: Bosch 0 281 006 425 (22 November)
+
+The owner gave the rail pressure sensor's part number. Listings give it
+as an **1800 bar** Bosch rail sensor, M18 × 1.5, cross-referenced to
+Cummins 5.9 L parts (0 281 002 851, 5093112AA). That is the RDS4 family.
+The firmware already scales the rail at 0.5–4.5 V = 0–1800 bar
+(`sensors.c`), so the range now comes from the part; the 0.5–4.5 V curve
+is still the common Bosch one, not this part's own data sheet. No change
+in code, only the comment.
+
+What it means in volts, on a 5 V supply:
+- 0 bar (engine stopped) is 0.50 V;
+- the rail table's 827 bar at no load is 2.34 V;
+- its 1171 bar at full load is 3.10 V.
+
+**A check on the set confirms the curve.** Ignition on, engine stopped:
+pin 35 (signal) to pin 08 (its ground) should read about 0.5 V. Below 0.2 V or
+above 4.8 V the firmware calls the sensor faulty (SPN 157 FMI 4 / 3).
+
 ---
 
 ## Where these came from

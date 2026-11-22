@@ -5,7 +5,9 @@ const uint32_t sens_spn[S_N] = { 110, 100, 157, 102, 27 };
 const float sens_default[S_N] = { 90.0f, 300.0f, 1000.0f, 100.0f, 0.0f };
 const float sens_v_lo[S_N] = { 0.1f, 0.2f, 0.2f, 0.2f, 0.2f };
 
-/* 0.5-4.5 V linear spans (assumed): oil, rail, boost, EGR */
+/* 0.5-4.5 V linear spans (assumed): oil, rail, boost, EGR. The rail's
+ * 1800 bar is the part's own range (Bosch 0 281 006 425, an 1800 bar
+ * RDS4-family sensor; decisions log 30); its curve is still assumed. */
 static const float span_lo[S_N] = { 0, 0, 0, 50.0f, 0 };
 static const float span_hi[S_N] = { 0, 1000.0f, 1800.0f, 400.0f, 100.0f };
 
