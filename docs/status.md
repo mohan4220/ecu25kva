@@ -972,15 +972,19 @@ Everything left changes a value or closes a register entry.
 
 ## 9. Resume here — next session
 
-Updated 8 November 2026, after the Bosch pinout (decisions log §18). Every check passes:
-- 26/26 circuit simulations
-- the netlist gate, with **0 open items**
-- the firmware unit tests, 7 bootloader tests, 16/16 engine scenarios and the service tool end to end
-- the PCB rules and generator self-tests
-- the board check, including the schematic links and parity (on Windows, pins on auto-named nets are checked against the exported netlist: HANDOFF §2)
-- all 26 prototype tests (9 Nov)
+Updated 22 November 2026, after the owner's measured values (decisions log §24–26). `./verify.sh --boards` passes every stage:
+- the circuit simulations, the production netlist, the symbol library, the prototype schematic and its MCU pins
+- the firmware unit tests (hand-written and model-generated builds), the bootloader tests, the models against the hand-written C (b2b), and **18/18 engine scenarios** on both builds
+- the service tool, the STM32G474 chip layer
+- the production board check and all 26 prototype tests
 
-**On Windows** these all run with KiCad 10's bundled Python and ngspice, plus `zig cc` (pip `ziglang`) for the firmware. See HANDOFF §2.
+**Since 8 November:**
+- **Diagnoses from the 20 kVA set's DSM sheet** (§24, `docs/research/13-dsm-20kva.md`): 11 amber faults (EGR open/stuck, metering valve open/over current, rail deviation, speed high/erratic, oil at rest, battery high/low) with debounce and heal, as Simulink chart `ecu_deb`.
+- **Measured values from the engine, applied as they arrive** (memory: one push after the last one):
+  - metering valve coil, pin 88: 2.5–5 Ω (§25). Still needed: its closing current and inductance;
+  - water-in-fuel sensor, pin 21: 20–50 mA, 1–4.7 kΩ (§26). R818 3.3k/1210, R819 1.5k; the reading is to be confirmed from the sensor's label;
+  - main relay: 5–10 A at 250 VAC/30 VDC (§26). **Too small:** the contacts carry 8.8 A running and 13.8 A with the EGR stalled; specify a 30 A+ automotive relay. Its coil resistance is still needed (160 Ω assumed).
+- **Not pushed:** the commits since a7afe1b stay local until all the values are in.
 
 ### Where it stands
 - **Schematic:** complete, 405 parts, **on Bosch's pinout** since 8 Nov (decisions log §18). Regenerating it is deterministic.
@@ -989,7 +993,7 @@ Updated 8 November 2026, after the Bosch pinout (decisions log §18). Every chec
 - **Firmware:** runs on the PC, calibrated from the old ECU's own recording (§14). **Service link (20 October):** a bootloader with the image header written last, the end-of-line record with its analog trims, an underspeed warning (SPN 190 FMI 18, amber, no shutdown), and a laptop tool (`firmware/tools/ecu_service.py`) over USB or CAN channel 2, all proven on the PC (decisions log §16, firmware guide §16). The prototype's STM32G474 chip layer is written (14 Nov, `firmware/stm32/`, decisions log §21), checked on the PC, not yet on a board; the S32K148's is still to write.
 - **Simulator (20 October):** `simulator/`, mode 1 (firmware only). `ecusim` is a single Rust program. It runs the unchanged firmware against the engine model, live or from `.seq` scripts, at 1× to about 100×, and traces everything in a browser. Firmware builds load from the UI. The 16 SIL scenarios pass as scripts. Guide `simulator/README.md`; decisions log §17. Modes 2 (board fed over USB) and 3 (bench rig) are next.
 - **Safety change written up, not yet wired:** the overspeed trip opens the main relay's coil feed (spec §3 item 7, which supersedes item 6's pin 04).
-- **Stale since 8 Nov:** the Rust simulator's build (its source is updated to ABI 3).
+- **Stale:** the Rust simulator lags the firmware ABI (left alone until asked).
 - **The prototype is on the Bosch pinout as of 9 Nov.** Placement and routing were updated in place; decisions log §18.
 
 ### Waiting on the machine (inspection brief)
