@@ -328,27 +328,31 @@ coil. Each block's bound, added up:
 | EGR stalled (up to 1.5 s before the guard coasts it, three tries) | **14.2 A** |
 | What the fuses behind it allow before one blows (2 × 10 A, Bosch drawing) | **20 A** |
 
-**A 5 A relay is undersized** (1.86× over). A 10 A relay carries the running
-load with 8 % margin, is 1.42× over during an EGR stall, and would weld
-before either 10 A fuse blew. **Requirement: an automotive 12 V relay rated
-30 A or more**, an ISO mini relay as the Bosch drawing's terminals
-(30/85/86/87) suggest. It also has to make into the board's bulk
-capacitors, which a 250 VAC general-purpose relay is not rated for. **Still
+**Confirmed 22 Nov 2026 (owner): the main relay is on the KOEL relay
+board 4H.865.27.0.00, with the buzzer relay.** It is the set's own part,
+and the Bosch ECU runs with it, so **it stays: the ECU is the part being
+replaced, not the relay board.** What follows is the check, not a
+replacement:
+- Against a 10 A contact, the block bounds give 8 % margin running, and
+  1.42× over for up to 1.5 s (three tries) with the EGR stalled. A 5 A
+  reading of the rating would be 1.86× over.
+- Those bounds are each block's worst case, added up. The real current is
+  lower, and **a clamp-meter reading of terminal 87 on the running set**
+  (no load and full load) is what the ECU's draw is held to. It must not
+  draw more than the Bosch ECU did.
+- **If the reading leaves little margin,** the fix is on the ECU's side:
+  a lower EGR stall limit, a shorter stall time, or a softer inrush into
+  the bulk capacitors. Not a different relay.
+
+Before this was known, an automotive 30 A relay was the requirement. It is
+kept as the fallback if the measurement shows the board's relay
+overloaded. **Still
 needed from the relay's data: its coil resistance.** The design assumes
 160 Ω (`main_relay.cir`); pin 50's FET and TVS are sized from it.
 
-**The buzzer relay's part number, 22 Nov 2026 (owner): 4H.865.27.0.00.**
-This is a KOEL spare, sold as a **"2½-relay board, 12 V DC"**, not as a
-single relay. Two things follow, both still to confirm on the set:
-- **The main relay is probably on the same board.** "5–10 A at 250 VAC /
-  30 VDC" is how a PCB relay is rated, not an automotive one. If it is,
-  the 30 A requirement above means a separate relay, or a different
-  board, for the replacement ECU.
-- **The Bosch ECU has run with this board,** so the real running current
-  is below the sum of block bounds above. That sum is pessimistic, and
-  meant to be. **The measurement that settles it:** clamp the main relay's
-  feed (terminal 87) on the running set, at no load and at full load.
-  Then compare it with the 10 A rating.
+**Both relays' part number, 22 Nov 2026 (owner): 4H.865.27.0.00,** a KOEL
+spare sold as a **"2½-relay board, 12 V DC"**. The main relay (pin 50) and
+the buzzer relay (pin 69) are both on it, as PCB relays.
 
 12 V PCB relay coils are typically 0.36–0.53 W, about 270–400 Ω. Those
 are lighter than the 160 Ω assumed, so pins 50 and 69 have more margin,

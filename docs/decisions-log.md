@@ -1994,11 +1994,15 @@ main-relay line. The block bounds, added:
 12 V automotive relay of **30 A or more** (`bom_requirements.md`
 MAIN-RELAY), checked in `check_main_relay`. The relay's coil resistance is
 still needed; 160 Ω is assumed.
-**22 November:** the owner gave the buzzer relay's part number,
-**4H.865.27.0.00**. It is a KOEL "2½-relay board, 12 V DC", so the main
-relay is probably on it too, as a PCB relay. Since the Bosch ECU runs with
-it, the next measurement is a clamp-meter reading of terminal 87's current
-on the running set (`bom_requirements.md` MAIN-RELAY).
+**22 November: the requirement is reversed.** The owner gave the part
+number of both the buzzer relay and the main relay, **4H.865.27.0.00**. It
+is a KOEL "2½-relay board, 12 V DC", with both as PCB relays. It is the
+set's own part and the Bosch ECU runs with it, so it stays; the ECU is
+what gets replaced. The 30 A relay becomes the fallback. What decides it
+is a clamp-meter reading of terminal 87 on the running set; the ECU must
+not draw more than the Bosch one did. If the margin is thin, the fix is
+on the ECU's side: the EGR stall limit and time, and the inrush into the
+bulk capacitors (`bom_requirements.md` MAIN-RELAY).
 
 **Found on the way: the electronics feed's checks still said "pin 21".**
 That was the KOEL harness reading. Since the Bosch pinout (§18) it has been
