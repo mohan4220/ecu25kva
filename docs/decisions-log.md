@@ -1963,6 +1963,9 @@ The owner sent two more values: the water-in-fuel sensor (pin 21),
 **supply current** (drawn from the main-relay line, not the ECU) and the
 **load its output wants** at pin 21. If the sensor's label says otherwise,
 this reading is the one to revisit (`bom_requirements.md` WIF-LOAD).
+The owner confirmed the part on 22 November, **Bosch F 002 H23 583**. Its
+public listings give no electrical data, so the count of wires on its
+connector (3 = active, as read; 2 = a probe to ground) is what settles it.
 
 The standard input channel is about 10 kΩ once its transistor conducts: too
 light. Pin 21 alone changes:

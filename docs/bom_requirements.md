@@ -298,6 +298,12 @@ main-relay line, not from the ECU) and the **load its output wants**, 1 to
 12 V that would be only 2.6–12 mA. **If the label says otherwise, this
 reading is the one to revisit.**
 
+**Part number confirmed by the owner, 22 Nov 2026: Bosch F 002 H23 583.**
+Public catalogues list it only as a "water sensor, fuel system", with no
+electrical data. What settles the reading is its connector: **3 wires**
+(supply, ground, output: an active sensor, as read here) or **2 wires** (a
+probe that is switched to ground, which would need a pull-up instead).
+
 The standard input channel (10k in, 4.7k base to ground) is about 10 kΩ
 once the transistor conducts: too light for the sensor. Pin 21 now has
 **R818 3.3k and R819 1.5k**:
