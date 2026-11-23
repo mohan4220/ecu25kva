@@ -50,7 +50,12 @@ extern const diag_def_t diag_def[DG_N];
 #define DG_EGR_POS_PCT 35.0f         /* EGR_stuck_Pos_thres 35 % */
 #define DG_BAT_EGR_LO 10.0f          /* EGR diagnosed only inside 10..15 V (EGR_loBatt/High_batt) */
 #define DG_BAT_EGR_HI 15.0f
-#define DG_MU_DRIVE 0.20f            /* here: duty above which the coil must carry current */
+#define DG_MU_EXPECT_A 0.25f         /* here: the coil must carry current once even the highest
+                                      * coil (MU_R_HI) would draw this at the duty and battery:
+                                      * a fixed 20 % duty missed a cold 1.85 ohm coil, which
+                                      * runs a loaded set at 15 % (decisions log 34) */
+#define DG_MU_R_HI 6.91f             /* = MU_R_HI (actuate.h): 5 ohm at +125 C */
+#define DG_MU_DRIVEN(duty, vb) ((duty) * (vb) / DG_MU_R_HI > DG_MU_EXPECT_A)
 #define DG_MU_OPEN_A 0.05f           /* here: at most this with the coil driven: open */
 #define DG_MU_MAX_A 3.0f             /* here: above anything legitimate -- the loop holds at most
                                       * 1.8 A (closed); under ISNS_MU's 3.3 A range. Feedforward

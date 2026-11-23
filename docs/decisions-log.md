@@ -2243,7 +2243,7 @@ schematic was first drawn:
 - The channel sits outside the five-sensor arrays, so the end-of-line
   record keeps its format.
 - **ABI 5** adds `v_bts` and `bts_c`. The Rust simulator lags, as before.
-- Not yet in the Simulink sensors model: both builds run the C.
+- In Simulink since §34 (`ecu_sensaux`).
 - The table is the coolant's, Bosch's 2.5 kΩ NTC. It is the same Bosch
   family, but not confirmed for this part.
 
@@ -2255,6 +2255,66 @@ schematic was first drawn:
 
 **Self-heating:** 2.5 mW in the NTC at 20 °C. That is about 1.4 °C in
 still air, much less in coolant or moving charge air.
+
+
+## 34. Fixes without new data: the metering valve when its reading fails, and the netlist gate (23 November)
+
+The owner asked for everything fixable without new data to be fixed.
+
+**The netlist gate now asks the questions §33's faults escaped** (`hw/check_netlist.py`, both boards):
+- pins 34 and 36 must reach GND through 10 Ω or less;
+- pins 33 and 79 need one pull-up to 5V_SENSOR, and no INA592.
+
+Run against the design as it was before §33 (9ee3025), all four fail and
+name the parts. **Pin audit:** every one of Bosch's 46 pins was checked (the other 48 are unconnected, as on the drawing)
+against the netlist. The sensor returns 08, 30 and 44 go straight to GND,
+the CAN channels match Bosch (55/77 J1939 at 250k, 87/86 service at 1000k),
+and nothing else was found. **Open:** the EGR position sensor's type
+(Padmini, pin 37). If it is a bare potentiometer, the INA592's 18k load
+bends it by up to 6 %.
+
+**The metering valve when its current reading fails** (prototype only:
+production has no ISNS_MU). A new scenario, 19, cut the reading at 20 kW
+on the cold 2.5 Ω coil. That found three things:
+
+1. **The loop trusted an impossible reading for 500 ms**, the DTC's
+   debounce, and wound its integral up. **The coil drew 3.7 A.** Now a
+   reading that cannot be right stops being trusted after
+   `MU_DISTRUST_MS`, 10 ms or three coil time constants. "Cannot be right"
+   means driven with no current, or over 3 A. The DTC keeps its 500 ms.
+2. **Open load was judged by duty above 20 %.** A cold 1.85 Ω coil runs a
+   loaded set at 15 % on 14.5 V, so a dead reading there was never
+   flagged. Now it is judged by the current the highest coil (6.91 Ω)
+   would draw at that duty and battery: over 0.25 A, the coil must show
+   current (`DG_MU_DRIVEN`).
+3. **The fallback assumed a nominal 3.75 Ω coil**, so a cold one got up to
+   twice its current.
+   - Now, while the reading is trusted and above 0.9 A, the coil's
+     resistance as the loop sees it (duty × battery ÷ current) is learned,
+     with τ 1 s. Above 0.9 A the freewheel diode's drop is under 8 %.
+   - The fallback scales its command by learned ÷ nominal.
+   - With nothing learned (production, or a reading bad from power-up)
+     it stays nominal. Assuming the lowest coil there would leave a
+     nominal one unable ever to close the valve.
+
+**Scenario 19 now:** 1347/5 is raised, the coil peaks at 1.43 A (never
+over 1.8 A), the rail holds within 8.5 % at 20 kW, and the engine keeps
+running. **19/19 scenarios** on both builds.
+
+**Charge-air temperature in Simulink:** a new component model,
+`ecu_sensaux` (20 models now), matches `sens_aux_step_1ms` bit for bit in
+b2b, both FMIs included.
+
+**Left for data, not design:**
+- the EGR position sensor's type;
+- the cam wheel's segment count;
+- the main relay's measured current, which sets whether the EGR stall
+  limit or the bulk-capacitor inrush needs to come down;
+- the metering valve's bench closing current and inductance;
+- the injector's coil resistance.
+
+The INA592's AEC-Q100 status is a production question, deferred with the
+production board (owner, 23 Nov: the prototype first).
 
 ---
 

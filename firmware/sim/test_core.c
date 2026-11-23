@@ -1911,6 +1911,11 @@ static void test_diag_cond(void)
     in = dg_base(); in.i_mu_valid = 1; in.mu_duty = 0.5f; in.i_mu = 0.01f;
     CHECK(dg1(in, DG_MU_OPEN));
     in.i_mu_valid = 0;   CHECK(!dg1(in, DG_MU_OPEN));    /* production: no ISNS_MU */
+    /* by the current the highest coil would draw (decisions log 34): a cold
+     * coil's 15 % at 14.5 V is driven; 10 % on 13.8 V (0.20 A) is not */
+    in = dg_base(); in.i_mu_valid = 1; in.i_mu = 0.01f; in.v_bat = 14.5f; in.mu_duty = 0.15f;
+    CHECK(dg1(in, DG_MU_OPEN));
+    in.v_bat = 13.8f; in.mu_duty = 0.10f; CHECK(!dg1(in, DG_MU_OPEN));
     in = dg_base(); in.i_mu_valid = 1; in.i_mu = 3.2f;
     CHECK(dg1(in, DG_MU_OVERCUR));
     in.i_mu = 1.4f;      CHECK(!dg1(in, DG_MU_OVERCUR));
@@ -2172,6 +2177,30 @@ static void test_metering_current_loop(void)
     CHECK(mu_coil(0.5f, 6.91f, 11.0f, 0, NULL) < 0.6f * 0.5f * MU_I_FULL);
     CHECK(mu_coil(1.4f / MU_I_FULL, 1.85f, 13.5f, 0, NULL) < DG_MU_MAX_A);
     CHECK(mu_coil(1.0f, 1.85f, 13.5f, 0, NULL) > DG_MU_MAX_A);
+    /* THE FALLBACK (decisions log 34). Never learned: nominal, as before.
+     * Learned on the coldest lowest coil: it gets the command, not 3.65 A. */
+    CHECK(mu_fallback_cmd(0.6f, MU_R_NOM) == 0.6f);
+    CHECK(mu_coil(mu_fallback_cmd(1.0f, MU_R_LO), 1.85f, 16.0f, 0, NULL) <= MU_I_FULL * 1.01f);
+    /* learned on a hot 5 ohm coil (6.91), then the reading is lost: the
+     * fallback still carries the command, within the learning's 8 % */
+    {
+        static const float rr[] = { 6.91f, 1.85f };
+        for (int c = 0; c < 2; c++) {
+            mu_t m; mu_reset(&m);
+            float i = 0, d = 0, r = MU_R_LO;
+            for (int k = 0; k < 8000; k++) {
+                r = mu_r_learn(r, d, 13.5f, i);
+                d = mu_step(&m, 0.7f, i, 1, 13.5f, 0.001f);
+                i += (d * 13.5f / rr[c] - i) * (0.001f / 0.003f);
+            }
+            CHECK(fabsf(r - rr[c]) / rr[c] < 0.03f);          /* this model has no diode drop */
+            CHECK(fabsf(mu_coil(mu_fallback_cmd(0.7f, r), rr[c], 13.5f, 0, NULL) - 0.7f * MU_I_FULL)
+                  < 0.08f * 0.7f * MU_I_FULL);
+        }
+    }
+    /* no learning below MU_R_LEARN_A or with an implausible battery */
+    CHECK(mu_r_learn(3.0f, 0.3f, 13.5f, 0.5f) == 3.0f);
+    CHECK(mu_r_learn(3.0f, 0.3f, 30.0f, 1.2f) == 3.0f);
 }
 
 /* The EGR position loop: it reaches a target on a motor-and-spring valve,

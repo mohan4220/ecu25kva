@@ -75,6 +75,7 @@ go to the command window and to a dialog.
 | `ecu_mucur` | Simulink | metering valve current loop, the inner stage of rail → current → PWM (`actuate.c` `mu_step`) |
 | `ecu_egrpos` | Simulink | EGR valve position PID, derivative on the measurement (`egrp_step`) |
 | `ecu_spdst` | Stateflow | speed states: OFF, IDLE, OPERATING, STEADY; the governor's idle input (`spdst_step`) |
+| `ecu_sensaux` | Simulink | pin 79, charge-air temperature: the coolant's NTC table and front end, its own range fault (`sens_aux_step_1ms`, decisions log 33/34) |
 | `ecu_deb` | Stateflow | a fault's debounce and healing, one chart with an instance per diagnosis: the 11 engine-side diagnoses of `diag.h` (`deb_step`) |
 
 They have no rate of their own (sample-time independent). They take the

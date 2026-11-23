@@ -30,6 +30,7 @@
 #include "ecu_relay.h"
 #include "sensors.h"
 #include "ecu_sensors.h"
+#include "ecu_sensaux.h"
 #include "j1939.h"
 #include "ecu_j1939.h"
 #include "actuate.h"
@@ -294,6 +295,28 @@ void sens_step_1ms(sens_t *s, const float v[S_N], float v_5v)
     ecu_sensors_step(&sens_m, in, v_5v, trim_g, trim_o, s->val, s->fmi);
     for (int i = 0; i < S_N; i++)
         s->bad_ms[i] = sens_dw.bad_z_DSTATE[i];
+}
+
+/* ---- pin 79, charge-air temperature: model/ecu_sensaux.slx ----
+ * One instance, as the sensors. (decisions log 33, 34) */
+static RT_MODEL_ecu_sensaux_T aux_m;
+static DW_ecu_sensaux_T aux_dw;
+
+void sens_aux_reset(sens_aux_t *a)
+{
+    float v = 0, v5 = 0;
+    aux_m.dwork = &aux_dw;
+    ecu_sensaux_initialize(&aux_m, &v, &v5, &a->val, &a->fmi);
+    a->val = SENS_AUX_DEFAULT;
+    a->bad_ms = 0;
+    a->fmi = 0;
+}
+
+void sens_aux_step_1ms(sens_aux_t *a, float v, float v_5v)
+{
+    aux_m.dwork = &aux_dw;
+    ecu_sensaux_step(&aux_m, v, v_5v, &a->val, &a->fmi);
+    a->bad_ms = aux_dw.bad_z_DSTATE;
 }
 
 /* ---- J1939 periodic PGNs: model/ecu_j1939.slx ("Set PGNs") ----

@@ -568,12 +568,42 @@ def diagnoses():
     return c
 
 
+
+def sense_lost():
+    """The metering valve's current reading fails on a running engine
+    (decisions log 34): the cold 2.5 ohm coil (1.85 ohm) on a charging
+    battery, learned while the reading was good, then ISNS_MU reads 0.
+    1347/5 is raised, the loop falls back to feedforward on the LEARNED
+    resistance, and the coil never sees more than the closing current."""
+    c = Checks("19 metering current reading lost: fallback on the learned coil, rail holds")
+    sim = Sim()
+    sim.eng.r_coil, sim.eng.vbat = 1.85, 14.5
+    sim._volts()
+    sim.start(8.0)
+    sim.eng.load_kw = 20
+    sim.run(14.0)                              # learning, at load
+    sim.eng.v_override["i_mu"] = 0.0           # the sense chain reads nothing
+    peak = 0.0
+    for k in range(80):                        # 8 s, sampled every 100 ms
+        sim.run(14.0 + 0.1 * (k + 1))
+        peak = max(peak, sim.eng.i_mu)
+    xs = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if 20 * S <= t < 22 * S]
+    worst = max(abs(p / ps - 1) for p, ps in xs)
+    c.that("open-load raised (1347/5)", "stored" if (1347, 5) in sim.stored() else "none", 0,
+           ok=(1347, 5) in sim.stored())
+    c.that("coil current never over the 1.8 A that closes the valve", peak, 1.8, tol=None,
+           ok=peak <= 1.8 * 1.05, unit="A")
+    c.that("20 kW on the fallback: rail worst deviation, fraction", worst, 0.10, ok=worst <= 0.10)
+    c.that("the engine keeps running", sim.io.state, RUN, tol=None,
+           ok=sim.trip() is None and sim.io.state == RUN)
+    return c
+
 SCENARIOS = {f.__name__: f for f in (start, load_step, load_reject, droop, runaway,
                                      crank_loss, ignition_off, sensor_open,
                                      can_content, rail, watchdog,
                                      history_after_power_cycle, torn_save,
                                      dm2_dm3_over_can, lost_tooth, overload, hot_coil,
-                                     diagnoses)}
+                                     diagnoses, sense_lost)}
 
 
 def main():

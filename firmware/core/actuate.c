@@ -17,6 +17,22 @@ float mu_ff(float cmd, float v_bat)
     return d < 0 ? 0 : d > 1 ? 1 : d;
 }
 
+float mu_r_learn(float r, float duty, float v_bat, float i_meas)
+{
+    if (!(v_bat >= MU_VBAT_MIN && v_bat <= MU_VBAT_MAX) || !(i_meas >= MU_R_LEARN_A)
+        || !(duty > 0.05f && duty < 0.95f))
+        return r;
+    float x = duty * v_bat / i_meas;
+    x = x < MU_R_LO ? MU_R_LO : x > MU_R_HI ? MU_R_HI : x;
+    return r + (x - r) * MU_R_ALPHA;
+}
+
+float mu_fallback_cmd(float cmd, float r)
+{
+    r = r < MU_R_LO ? MU_R_LO : r > MU_R_HI ? MU_R_HI : r;
+    return cmd * (r / MU_R_NOM);
+}
+
 #ifndef ECU_MODEL    /* else generated: model/ecu_mucur.slx, ecu_egrpos.slx, via model_glue.c */
 static float clampf(float x, float lo, float hi) { return x < lo ? lo : x > hi ? hi : x; }
 

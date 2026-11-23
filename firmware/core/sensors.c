@@ -105,8 +105,8 @@ void sens_step_1ms(sens_t *s, const float v[S_N], float v_5v)
 
 /* Pin 79, the charge-air NTC in the boost sensor (Bosch 0 281 006 102,
  * decisions log 33): the same front end and table as the coolant, its own
- * fault timing, no end-of-line trim. Outside the Simulink sensors model
- * for now, so both builds run this C. */
+ * fault timing, no end-of-line trim. */
+#ifndef ECU_MODEL    /* else generated: model/ecu_sensaux.slx, via model_glue.c */
 void sens_aux_reset(sens_aux_t *a)
 {
     a->val = SENS_AUX_DEFAULT;
@@ -135,3 +135,4 @@ void sens_aux_step_1ms(sens_aux_t *a, float v, float v_5v)
     else if (now == 0)
         a->val = sens_convert(S_CLT, vr);
 }
+#endif

@@ -72,6 +72,26 @@ typedef struct { float integ, prev, dfilt; } egrp_t;
  * The trip and the reset use it for one tick; the loop takes over next. */
 float mu_ff(float cmd, float v_bat);
 
+/* THE COIL'S OWN RESISTANCE, learned (decisions log 34). Feedforward alone
+ * (no trusted current reading) assumed the nominal 3.75 ohm, which drives
+ * the cold 2.5 ohm coil to 3.65 A at command 1.0, twice its 1.8 A. Now:
+ * while ISNS_MU is trusted and above MU_R_LEARN_A, the resistance the
+ * loop actually sees (duty x battery / current) is filtered into r; the
+ * fallback scales its command by r / MU_R_NOM. Never learned -- production
+ * has no ISNS_MU, so there the fallback IS the normal mode -- r stays
+ * MU_R_NOM, as before: the rail loop around it sets the current the valve
+ * needs, and only a command saturated at "closed" can overdrive a cold
+ * low coil (3.65 A). Assuming MU_R_LO there instead would leave a nominal
+ * coil unable ever to close the valve. Above MU_R_LEARN_A the freewheel
+ * diode's drop is under 8 % of the reading. */
+#define MU_R_LO 1.85f                /* 2.5 ohm at -40 C */
+#define MU_R_HI 6.91f                /* 5 ohm at +125 C */
+#define MU_R_LEARN_A 0.9f            /* learn only above this current */
+#define MU_R_ALPHA 0.001f            /* per 1 ms: tau 1 s */
+#define MU_DISTRUST_MS 10            /* an impossible reading this long: feedforward (3 coil taus) */
+float mu_r_learn(float r, float duty, float v_bat, float i_meas);
+float mu_fallback_cmd(float cmd, float r);
+
 void  mu_reset(mu_t *m);
 /* cmd: the rail PI's output, current in units of MU_I_FULL. Returns the duty. */
 float mu_step(mu_t *m, float cmd, float i_meas, uint8_t valid, float v_bat, float dt_s);

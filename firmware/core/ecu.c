@@ -38,6 +38,8 @@
 static crank_t crank;
 static sens_t sens;
 static sens_aux_t bts;          /* pin 79, charge-air temperature (decisions log 33) */
+static float mu_r = MU_R_NOM;   /* the metering coil's learned ohms (actuate.h, decisions log 34) */
+static uint16_t mu_bad_ms;      /* how long ISNS_MU has read impossibly (decisions log 34) */
 static gov_t gov;
 static rail_t rail;
 static mu_t mu;                      /* metering valve: the current loop */
@@ -141,12 +143,14 @@ static void reset_all(ecu_io *io)
     for (int i = 0; i < DG_N; i++)
         deb_reset(&dg[i]);
     egr_i_f = 0;
+    mu_r = MU_R_NOM;
+    mu_bad_ms = 0;
     io->egr_duty = 0;
     io->spd_state = SPD_OFF;
     bam_n = bam_i = 0;
     pend_dm1 = pend_dm2 = pend_dm4 = pend_hours = 0;
     inject_cancel(io->inj);
-    io->meter_duty = mu_ff(METER_CLOSED, io->v_bat);   /* the closing current, not a raw 1.0 */
+    io->meter_duty = mu_ff(mu_fallback_cmd(METER_CLOSED, mu_r), io->v_bat);   /* learned ohms, else nominal */
     io->state = mode_cmd(MODE_RESET, 0, 0, 0);
     io->fault_n = io->synced = 0;
     io->rpm = io->fuel_mg = 0;
@@ -204,7 +208,7 @@ static void trip(ecu_io *io, int why)
     }
     io->state = mode_cmd(MODE_TRIP, 0, 0, 0);
     inject_cancel(io->inj);
-    io->meter_duty = mu_ff(METER_CLOSED, io->v_bat);   /* the closing current, not a raw 1.0 */
+    io->meter_duty = mu_ff(mu_fallback_cmd(METER_CLOSED, mu_r), io->v_bat);   /* one tick; the loop follows */
     io->egr_duty = 0;
 }
 
@@ -759,10 +763,21 @@ void ecu_tick_1ms(ecu_io *io, uint32_t t_us)
     /* the measurement is trusted only while it reads neither open load nor
      * over current (diag.h): a sense chain that reads low would otherwise
      * wind the duty up, and the measured 2.5-5 ohm coil can then draw
-     * 8.6 A cold. Feedforward alone gives the coldest, lowest coil at most
-     * 3.65 A at command 1.0 (decisions log 25, 27). */
-    uint8_t mu_meas = io->i_mu_valid && !dg[DG_MU_OPEN].act && !dg[DG_MU_OVERCUR].act;
-    io->meter_duty = mu_step(&mu, cmd, io->i_mu, mu_meas, io->v_bat, 0.001f);
+     * 8.6 A cold. Feedforward alone then uses the coil's learned
+     * resistance, so a reading lost on the prototype does not overdrive
+     * the coil; never learned, the nominal (decisions log 25, 27, 34). */
+    /* An impossible reading stops being trusted after MU_DISTRUST_MS, not
+     * after the DTC's 500 ms: in scenario 19 (23 Nov) a reading lost at 20 kW wound the
+     * integral up for those 500 ms and drew 3.7 A from a cold coil. */
+    uint8_t mu_odd = io->i_mu_valid && ((DG_MU_DRIVEN(io->meter_duty, io->v_bat) && io->i_mu < DG_MU_OPEN_A)
+                                        || io->i_mu > DG_MU_MAX_A);
+    mu_bad_ms = mu_odd ? (mu_bad_ms < 0xFFFFu ? (uint16_t)(mu_bad_ms + 1) : mu_bad_ms) : 0;
+    uint8_t mu_meas = io->i_mu_valid && mu_bad_ms < MU_DISTRUST_MS
+                      && !dg[DG_MU_OPEN].act && !dg[DG_MU_OVERCUR].act;
+    if (mu_meas)          /* the duty that made this current: last tick's */
+        mu_r = mu_r_learn(mu_r, io->meter_duty, io->v_bat, io->i_mu);
+    io->meter_duty = mu_step(&mu, mu_meas ? cmd : mu_fallback_cmd(cmd, mu_r), io->i_mu, mu_meas,
+                             io->v_bat, 0.001f);
     /* EGR valve, a cascade: target position -> position PID -> bridge */
     io->egr_duty = egrp_step(&egrp, egr_target_pct(io->state == ECU_RUN ? gov.fuel : 0), sens.val[S_EGR],
                              (uint8_t)(io->state == ECU_RUN && !io->egr_off && !sens.fmi[S_EGR]), 0.001f);

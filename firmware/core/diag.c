@@ -35,7 +35,7 @@ void diag_cond(const diag_in_t *in, uint8_t c[DG_N])
                            && in->egr_pos < DG_EGR_POS_PCT;
 
     /* the metering valve: only where ISNS_MU is measured */
-    c[DG_MU_OPEN] = in->i_mu_valid && in->mu_duty > DG_MU_DRIVE && in->i_mu < DG_MU_OPEN_A;
+    c[DG_MU_OPEN] = in->i_mu_valid && DG_MU_DRIVEN(in->mu_duty, in->v_bat) && in->i_mu < DG_MU_OPEN_A;
     c[DG_MU_OVERCUR] = in->i_mu_valid && in->i_mu > DG_MU_MAX_A;
 
     float dev = absf(in->rail_set - in->rail_bar);

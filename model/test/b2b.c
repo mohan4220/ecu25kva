@@ -25,6 +25,7 @@
 #include "sensors.h"
 #include "j1939.h"
 #include "ecu_sensors.h"
+#include "ecu_sensaux.h"
 #include "ecu_j1939.h"
 #include "actuate.h"
 #include "ecu_mucur.h"
@@ -221,6 +222,27 @@ int main(void)
       report("sensors: values", worst, 0);
       report("sensors: FMIs (mismatched)", (double)bad, 0);
       printf("   channel-ticks at FMI 3 / FMI 4: %ld %ld\n", n1, n2); }
+    /* pin 79, charge-air temperature (ecu_sensaux, decisions log 33/34):
+     * volts across the NTC range and beyond, a sagging 5 V, resets */
+    { RT_MODEL_ecu_sensaux_T m; DW_ecu_sensaux_T dw; sens_aux_t ref; float val, zv = 0, z5 = 0;
+      uint8_t fmi; hold_t hv = {0}, h5 = {0};
+      m.dwork = &dw; sens_aux_reset(&ref);
+      ecu_sensaux_initialize(&m, &zv, &z5, &val, &fmi);
+      double worst = 0; bad = 0; n1 = n2 = 0;
+      for (int i = 0; i < N; i++) {
+          if (rand() % 300000 == 0) { sens_aux_reset(&ref); ecu_sensaux_initialize(&m, &zv, &z5, &val, &fmi); }
+          float v = held(&hv, -0.5f, 5.3f, 400), v5 = held(&h5, 4.3f, 5.7f, 3000);
+          if (rand() % 5000 == 0) v = sens_v_lo[S_CLT];
+          if (rand() % 5000 == 0) v = SENS_V_HI;
+          sens_aux_step_1ms(&ref, v, v5);
+          ecu_sensaux_step(&m, v, v5, &val, &fmi);
+          double d = fabs((double)val - (double)ref.val);
+          if (d > worst) worst = d;
+          bad += fmi != ref.fmi; n1 += ref.fmi == 3; n2 += ref.fmi == 4;
+      }
+      report("charge-air temperature: values", worst, 0);
+      report("charge-air temperature: FMIs (mismatched)", (double)bad, 0);
+      printf("   ticks at FMI 3 / FMI 4: %ld %ld\n", n1, n2); }
     /* J1939 PGN data: every byte, from inside and outside every range */
     { RT_MODEL_ecu_j1939_T m; uint8_t y[4][8]; ecu_can f;
       bad = 0;
