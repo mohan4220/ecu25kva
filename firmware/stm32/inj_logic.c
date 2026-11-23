@@ -104,6 +104,8 @@ void inj_timer(inj_t *s, uint32_t now)
     if (s->active >= 0) {
         if (!before(now, s->end)) {
             s->n_done++;
+            if (s->phase == PH_HOLD_ON && (uint32_t)(now - s->hold_on_at) >= INJ_HOLD_SHORT_US)
+                s->n_hold_short++;
             finish(s);
         } else if (s->phase == PH_PEAK && !before(now, s->peak_by)) {
             s->n_peak_timeout++;
@@ -125,7 +127,6 @@ void inj_timer(inj_t *s, uint32_t now)
 
 void inj_cross(inj_t *s, uint32_t now)
 {
-    (void)now;
     if (s->active < 0)
         return;
     int b = s->bank;
@@ -143,6 +144,7 @@ void inj_cross(inj_t *s, uint32_t now)
             return;
         s->gates = (uint8_t)(s->gates | bat_bit[b]);
         s->phase = PH_HOLD_ON;
+        s->hold_on_at = now;
         s->watch = W_ABOVE;
         s->lvl = s->c_hi;
         break;

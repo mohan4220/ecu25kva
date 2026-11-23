@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "ecu.h"
 
-typedef struct { uint32_t done, late, overlap, peak_timeout, over, capped; } inj_stats;
+typedef struct { uint32_t done, late, overlap, peak_timeout, over, capped, hold_short; } inj_stats;
 
 void inj_hw_init(void);               /* after adc_init and timebase_init */
 void inj_hw_sync(const ecu_io *io);   /* after ecu_crank_edge / ecu_tick_1ms */

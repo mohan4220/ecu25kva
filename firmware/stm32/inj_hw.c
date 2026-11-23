@@ -189,5 +189,6 @@ const inj_stats *inj_hw_stats(void)
     st.peak_timeout = S.n_peak_timeout;
     st.over = S.n_over;
     st.capped = S.n_capped;
+    st.hold_short = S.n_hold_short;
     return &st;
 }

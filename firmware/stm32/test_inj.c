@@ -21,6 +21,7 @@ typedef struct {
     uint32_t t_off;                   /* when every gate went off, us */
     int broken_sense, stuck_high;
     int bank_seen;                    /* the high side that fired: 0 A, 1 B */
+    double r;                         /* coil resistance, ohm (0 = the nominal 0.5) */
 } coil_t;
 
 static double sense(const coil_t *c, uint8_t gates)
@@ -35,7 +36,7 @@ static double sense(const coil_t *c, uint8_t gates)
 /* run from t0 to t1 us; the timer runs on whole microseconds */
 static void run(inj_t *s, coil_t *c, uint32_t t0, uint32_t t1, uint32_t hold_from, uint32_t hold_to)
 {
-    const double L = 200e-6, R = 0.5, dt = 0.05e-6;
+    const double L = 200e-6, R = c->r > 0 ? c->r : 0.5, dt = 0.05e-6;
     double t = t0, next_adc = t0;
     uint32_t us = t0;
     uint8_t prev = 0;
@@ -189,6 +190,24 @@ int main(void)
     run(&s, &c, 0, 82000, 0, 0);
     CHECK(s.n_done == 3 && s.n_overlap == 0 && s.n_late == 0, "cycle done %u", s.n_done);
 
-    printf(fails ? "%d FAILED\n" : "inj: 11 cases pass\n", fails);
+    CHECK(s.n_hold_short == 0, "hold short %u on the nominal coil", s.n_hold_short);
+
+    /* 12. the owner's rating, 0.2-2.0 ohm (decisions log 38). 0.2 holds;
+     * 2.0 at 20 C is 2.83 hot (125 C): it cannot reach 9 A from 13.5 V, and is counted */
+    fresh(&s, &c);
+    c.r = 0.2;                        /* L/R = 1 ms: the fall from the peak to 9 A */
+    inj_command(&s, 0, 1000, 1500);   /* through D_fw takes ~0.55 ms, so the hold */
+    run(&s, &c, 0, 3000, 1700, 2450); /* is judged from 1.7 ms */
+    CHECK(c.hold_min > INJ_HOLD_LO_A - 0.5 && c.hold_max < INJ_HOLD_HI_A + 0.5 && s.n_hold_short == 0,
+          "0.2 ohm hold %.2f..%.2f A, short %u", c.hold_min, c.hold_max, s.n_hold_short);
+    fresh(&s, &c);
+    c.r = 2.83;
+    inj_command(&s, 0, 1000, 1500);
+    run(&s, &c, 0, 3000, 1400, 2450);
+    CHECK(s.n_peak_timeout == 0 && s.n_done == 1, "2.83 ohm: peak reached (timeout %u)", s.n_peak_timeout);
+    CHECK(s.n_hold_short == 1 && c.hold_max < INJ_HOLD_LO_A, "2.83 ohm: hold %.2f A max, short %u",
+          c.hold_max, s.n_hold_short);
+
+    printf(fails ? "%d FAILED\n" : "inj: 12 cases pass\n", fails);
     return fails != 0;
 }

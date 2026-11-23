@@ -2468,9 +2468,9 @@ current the stage is checked against.
   sooner; the hold chops faster. Nothing is sized against it.
 - **The high end is not.** The 10 A hold comes from the battery through
   the blocking diode (~0.9 V) and about 0.15 Ω of path. The highest coil
-  that still holds 10 A is **0.80 Ω at 13.5 V and 0.70 Ω at 12 V**
-  (room-temperature reading, +38 % hot). A 2 Ω coil, hot, carries at
-  most 3.8 A from 12 V.
+  that still holds 10 A is **0.79 Ω at 13.5 V and 0.68 Ω at 12 V**
+  (rated at 20 °C, the owner's reference; +41 % at 125 °C). A 2 Ω coil,
+  hot (2.83 Ω), carries at most 3.7 A from 12 V.
 - **But a 1–2 Ω coil would also not be an 18 A / 10 A injector.** More
   turns need less current; the peak and hold figures would change with
   it. Bosch's CRI solenoid injectors are usually a few tenths of an ohm,
@@ -2484,6 +2484,26 @@ gives the peak and hold currents directly, which is what the firmware
 (`board.h` `INJ_PEAK_A`, `INJ_HOLD_*`) actually needs.
 
 `check_injector_boost` now checks the highest coil the hold tolerates.
+
+**The owner's rating, 23 Nov: 0.2–2.0 Ω at 20 °C.** A band that wide (10:1) is a
+tester's pass/fail range for solenoid injectors in general: an open or a
+shorted coil fails it. It is not this coil's value, so the numbers above
+stand. What changed so the bench finds out at once, whatever the coil:
+- **the peak** (from 100 V) is set by the inductance, not the resistance:
+  18 A in 37–50 µs from 0.2 to 2.8 Ω (2.0 Ω hot) at 200 µH. Inside the
+  60 µs timeout up to about 1.4 Ω even with the inductance 20 % high and
+  the boost sagged to 85 V;
+- **the hold** is now watched: an injection that ends with the battery
+  high side on for 200 µs (`INJ_HOLD_SHORT_US`) without reaching 11 A is
+  counted, `n_hold_short`, in `inj_hw_stats()`. A normal hold climbs from
+  9 to 11 A in about 30 µs. `test_inj.c` case 12: 0.2 Ω holds 9–11 A,
+  2.83 Ω (2.0 Ω hot) reaches the peak and is counted;
+- bring-up step 4 now measures the coil first and checks the hold band.
+
+If the coil turns out above about 0.7 Ω, it is a different injector
+family from the CRI-2 figures assumed: its peak and hold currents (in
+`board.h`) come from a clamp-probe recording on the old ECU, not from
+here.
 
 ---
 

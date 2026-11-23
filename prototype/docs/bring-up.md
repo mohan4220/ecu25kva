@@ -110,6 +110,8 @@ With firmware firing one injection at 1 ms:
 - **TP15/TP16** (ISNS_INJ) should show the current rising to the 18 A peak in about **38 µs**, from the boost rail (`injector_boost.cir`).
 - After turn-off, the current should fall in about **36 µs** (`injector_turnoff.cir`).
 - **BOOST_100V** should be back at its setpoint before the next cylinder, 26.67 ms later.
+- **The hold, with a real injector:** between the peak and the end, the current should chop between **9 and 11 A**. If it levels off below 9 A instead, the battery cannot push the hold through that coil (above about 0.7 Ω at 20 °C, on 12 V; decisions log §38); the stage counts it in `inj_hw_stats()->hold_short` (read it with the debugger). Then the hold currents in `firmware/stm32/board.h` must come from the injector itself: clamp a current probe on an injector wire with the old ECU running the engine and read its peak and hold.
+- **The coil resistance first, injector disconnected:** short the meter leads and note the reading, then measure the injector and subtract. Measure at room temperature, near 20 °C (the rating's reference): copper changes 0.4 %/°C. The owner's rating is 0.2–2.0 Ω at 20 °C, which is a tester's pass band, not this coil's value.
 
 ### 4b. The metering valve (pin 88)
 

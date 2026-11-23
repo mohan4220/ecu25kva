@@ -110,6 +110,8 @@ enum { AN_5V, AN_BARO, AN_VREFINT, AN_N3 };
 #define INJ_PEAK_A 18.0f              /* injector_boost.cir: needle lifts at ~18 A */
 #define INJ_HOLD_LO_A 9.0f            /* hold band around the ~10 A the sim used */
 #define INJ_HOLD_HI_A 11.0f
+#define INJ_HOLD_SHORT_US 200u           /* battery on this long below HI: the hold is out of reach
+                                          * (LO to HI takes ~30 us on a 0.5 ohm coil; decisions log 38) */
 #define INJ_OVER_A 26.0f              /* any phase: all gates off */
 #define INJ_PEAK_MAX_US 60u           /* 38 us nominal, 45 worst; past this the sense is broken */
 #define INJ_CAP_US 5000u              /* no single injection longer, whatever the core asks */

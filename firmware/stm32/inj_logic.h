@@ -17,7 +17,12 @@
  * Safety, independent of the core: no peak within INJ_PEAK_MAX_US ends
  * the injection (a broken sense must not hold 100 V on a coil); over
  * INJ_OVER_A in any phase ends it; no injection is longer than
- * INJ_CAP_US; a start found more than INJ_LATE_US late is skipped. */
+ * INJ_CAP_US; a start found more than INJ_LATE_US late is skipped.
+ *
+ * Counted, not acted on: an injection that ends with the battery high side
+ * on for INJ_HOLD_SHORT_US without reaching INJ_HOLD_HI_A. The coil is
+ * then too resistive for the battery to hold (decisions log 38): the
+ * hold currents in board.h must come from the real injector. */
 #ifndef INJ_LOGIC_H
 #define INJ_LOGIC_H
 
@@ -43,6 +48,7 @@ typedef struct {
     int8_t active;                    /* cylinder being injected, -1 none */
     uint8_t phase;
     uint32_t end, peak_by;            /* of the active injection */
+    uint32_t hold_on_at;              /* when the battery high side last went on */
     uint8_t gates;                    /* the gate bits to drive */
     uint8_t watch;                    /* W_*: the watchdog's direction */
     uint8_t bank;                     /* 0 A, 1 B: which shunt the ADC reads */
@@ -51,6 +57,7 @@ typedef struct {
     uint16_t c_peak, c_lo, c_hi, c_over;
     /* counters, for the bench and the logs */
     uint32_t n_done, n_late, n_overlap, n_peak_timeout, n_over, n_capped;
+    uint32_t n_hold_short;            /* injections whose hold the battery could not reach */
 } inj_t;
 
 void inj_init(inj_t *s);
