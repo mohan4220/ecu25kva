@@ -857,6 +857,22 @@ def check_injector_boost():
         # the question this block exists to ask.
         c.that(f"  ... time to 18 A from 100 V boost, {label} ambient",
                t_bstc * 1e6, 38, tol=4, unit="us")
+    # THE COIL'S RESISTANCE (owner, 23 Nov 2026: "0.2-2 ohm, not sure").
+    # The hold comes from the battery, so the coil must let 10 A through
+    # from what is left after the blocking diode (150 V / 20 A ultrafast,
+    # about 0.9 V at 10 A) and the path: low-side FET 39 mOhm hot, 5 mOhm
+    # shunt, battery FET ~40 mOhm hot, two 1.5 m leads, fuse and input
+    # chain -- 0.15 ohm in all, a round figure. Copper +38 % hot (as above).
+    # The low end (0.2 ohm) only reaches the peak sooner; the high end
+    # decides whether the hold can be held at all.
+    VF, R_PATH, I_HOLD, HOT = 0.9, 0.15, 10.0, 1.38
+    for vb in (13.5, 12.0):
+        r_hot = (vb - VF) / I_HOLD - R_PATH
+        c.that("  highest coil R (at 25 C) that holds 10 A from %.1f V" % vb,
+               r_hot / HOT, 0.5, tol=None, ok=r_hot / HOT > 0.5, unit="ohm")
+    r_2 = (12.0 - VF) / (2.0 * HOT + R_PATH)
+    c.that("  ... a 2 ohm coil, hot, from 12 V: the most it can carry (evidence)",
+           r_2, I_HOLD, tol=None, ok=r_2 < I_HOLD, unit="A")
     return c
 
 

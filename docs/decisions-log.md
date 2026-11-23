@@ -2461,6 +2461,29 @@ No change to either board. **Still needed: the coil's resistance** (a
 meter across the two pins, injector disconnected), which sets the hold
 current the stage is checked against.
 
+**The owner's estimate, 23 Nov: 0.2–2 Ω, not sure.** The design uses
+0.5 Ω (0.37–0.69 Ω over temperature). What the range means:
+- **The low end is harmless.** A lower resistance reaches the 18 A peak
+  sooner; the hold chops faster. Nothing is sized against it.
+- **The high end is not.** The 10 A hold comes from the battery through
+  the blocking diode (~0.9 V) and about 0.15 Ω of path. The highest coil
+  that still holds 10 A is **0.80 Ω at 13.5 V and 0.70 Ω at 12 V**
+  (room-temperature reading, +38 % hot). A 2 Ω coil, hot, carries at
+  most 3.8 A from 12 V.
+- **But a 1–2 Ω coil would also not be an 18 A / 10 A injector.** More
+  turns need less current; the peak and hold figures would change with
+  it. Bosch's CRI solenoid injectors are usually a few tenths of an ohm,
+  which is inside the design.
+
+So the reading decides it. **How to measure 0.2–0.5 Ω with a multimeter:**
+touch the leads together and note the reading (lead resistance, often
+0.1–0.3 Ω), then measure the injector, disconnected, and subtract. Better:
+a clamp-on current probe on one injector wire with the old ECU running
+gives the peak and hold currents directly, which is what the firmware
+(`board.h` `INJ_PEAK_A`, `INJ_HOLD_*`) actually needs.
+
+`check_injector_boost` now checks the highest coil the hold tolerates.
+
 ---
 
 
