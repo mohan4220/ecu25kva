@@ -72,8 +72,10 @@ over = @(c) clt2.Time(find(clt2.Data > c, 1));           % the ECU's own reading
 t_lvl = first(14); t_low = first(11); t_warn = first(12); t_stop = first(13);
 check('111/18 coolant level, 5 s after the switch opens (s)', abs(t_lvl - (5 + P.dg_deb(14) / 1000)) < 0.005, t_lvl);
 check('168/18 battery low, 10 s after 9.2 V while running (s)', abs(t_low - (4 + P.dg_deb(11) / 1000)) < 0.005, t_low);
-check('110/16 coolant warning, 2 s past 100 degC read (s)', abs(t_warn - (over(100) + P.dg_deb(12) / 1000)) < 0.005, t_warn);
-check('110/0 coolant stop, 2 s past 104 degC read (s)', abs(t_stop - (over(104) + P.dg_deb(13) / 1000)) < 0.005, t_stop);
+check(sprintf('110/16 coolant warning, %g s past %g degC read (s)', P.dg_deb(12) / 1000, P.DG_CLT_WARN_C), ...
+      abs(t_warn - (over(P.DG_CLT_WARN_C) + P.dg_deb(12) / 1000)) < 0.005, t_warn);
+check(sprintf('110/0 coolant stop, %g s past %g degC read (s)', P.dg_deb(13) / 1000, P.DG_CLT_STOP_C), ...
+      abs(t_stop - (over(P.DG_CLT_STOP_C) + P.dg_deb(13) / 1000)) < 0.005, t_stop);
 check('amber faults: still RUN just before the coolant stop', at(mode2, t_stop - 0.01) == 3, at(mode2, t_stop - 0.01));
 check('Protect lit with the coolant stop', at(g2('protect'), t_stop) == 1, at(g2('protect'), t_stop));
 t_shut = mode2.Time(find(mode2.Time >= t_stop & mode2.Data == 4, 1));

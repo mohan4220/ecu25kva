@@ -1,5 +1,8 @@
 # The 25 kVA ECU in Simulink and Stateflow
 
+**New to the model?** Start with the learning path, `docs/simulink-learning.md`:
+eight lessons with exercises. This page is the reference.
+
 The ECU's application as models that Embedded Coder turns into the C the
 board runs. Open **`ecu25kva.slx`**: it is the whole ECU in one model,
 and its buttons generate the code, build the firmware and flash the board.
@@ -121,7 +124,7 @@ firmware builds without MATLAB.
 | Test | What it shows |
 |---|---|
 | `firmware/sim` unit tests, built with `ECU_MODEL` | every firmware unit test passes on the generated code |
-| SIL scenarios, `ECU_LIB=libecu_model` | the 16 engine scenarios pass on it |
+| SIL scenarios, `ECU_LIB=libecu_model` | the 19 engine scenarios pass on it |
 | `test/run_b2b.sh` | each generated model against its hand-written C, on millions of random inputs. The PI loops, injector law, trip decision, all six charts, the sensor conversion, the J1939 bytes, both cascade loops and the speed states agree **exactly**; the two tables within one or two units in the last place |
 | `test/sim_ecu25kva.m` | the whole model, closed loop, two runs: start, load, stop, the sensor chain, the injection, the J1939 frames; then the protection (battery low, coolant level, coolant 100 / 104 °C, Protect, the DSE's shutdown) |
 | `firmware/stm32/test_image.py` | the image built from this code is one the bootloader accepts |

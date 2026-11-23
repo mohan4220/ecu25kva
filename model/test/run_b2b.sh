@@ -18,4 +18,4 @@ OUT="${TMPDIR:-/tmp}/b2b$EXE"
 GI=$(for d in gen/*/; do printf -- "-I%s " "$d"; done)
 $CC -std=c99 -Wall -Wextra -O2 -ffp-contract=off -Icore $GI -o "$OUT" \
     ../model/test/b2b.c core/govern.c core/rail.c core/inject.c core/safety.c \
-    core/mode.c core/crank.c core/sensors.c core/j1939.c core/actuate.c core/nvm.c core/log.c gen/*/*.c -lm && "$OUT"
+    core/mode.c core/diag.c core/crank.c core/sensors.c core/j1939.c core/actuate.c core/nvm.c core/log.c gen/*/*.c -lm && "$OUT"

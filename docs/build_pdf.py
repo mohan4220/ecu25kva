@@ -69,6 +69,8 @@ BOOK = [
      "Setting up on another machine, what is verified, what is open, the traps"),
     ("00b-sop", "SOP.md", "Standard Operating Procedure",
      "How to work: circuits, schematics and boards, the Simulink model, checks and release"),
+    ("00c-simulink", "simulink-learning.md", "SOP: Learning the Simulink Model",
+     "Eight lessons with exercises: the model, one signal end to end, the code, the proof, changing it"),
     ("01-handbook", "handbook/index.html", "Field Handbook",
      "The machine, its interface, the circuits in narrative, and how to run it"),
     ("02-sensors", "handbook/sensors.html", "Sensor Reference",
