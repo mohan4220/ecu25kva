@@ -214,6 +214,7 @@ component models; the buttons turn your edit into a board you can flash.
 | Model | Kind | Does |
 | --- | --- | --- |
 | `ecu_sensors` | Simulink | volts to °C, kPa, bar; range faults |
+| `ecu_sensaux` | Simulink | charge-air temperature, pin 79 (the boost sensor's NTC, Bosch table) |
 | `ecu_safety` | Simulink | the trip decision: overspeed, lost crank, ignition off |
 | `ecu_mode` | Stateflow | engine states OFF, WAIT, CRANK, RUN, SHUTDOWN |
 | `ecu_spdst` | Stateflow | speed states OFF, IDLE, OPERATING, STEADY |
@@ -225,6 +226,11 @@ component models; the buttons turn your edit into a board you can flash.
 | `ecu_boostg`, `ecu_boostm` | Stateflow | 100 V boost rail: trip and warnings |
 | `ecu_egrg`, `ecu_wifg`, `ecu_underg`, `ecu_relay` | Stateflow | EGR stall, water in fuel, underspeed, main relay |
 | `ecu_j1939` | Simulink | J1939 message data to the DSE4522 |
+| `ecu_deb` | Stateflow | the amber diagnoses (EGR, metering valve, rail, speed, oil, battery, coolant level): debounce and heal |
+
+Twenty models in all; `model/model_list.m` is the list the build and the
+back-to-back test use. The cam decoder (`crank.c`) and the injector stage
+(`firmware/stm32/inj_logic.c`) are hand-written C only.
 
 **Change something**
 
@@ -284,7 +290,10 @@ model change.
       (the combined book is `docs/pdf/ECU-Bible.pdf`)
 - [ ] Commit: `git add -A` then `git commit -m "<what changed and why>"`,
       no AI credit lines (project rule)
-- [ ] Push (`git push`) only after someone has reviewed it
+- [ ] Push (`git push`) only after someone has reviewed it, and only when the
+      owner says so. Pushing never deletes anything: every earlier version
+      stays in the history (GitHub: a file's **History**; here: `git log`).
+      Never force-push.
 
 ## 7. Troubleshooting
 
@@ -303,7 +312,10 @@ find it here, then rerun the same step.
 | Simulink: "Input data dependency violation" / algebraic loop | an output feeds back to an input in the same step | put a Unit Delay in the loop (the measurement reads the previous step) |
 | MATLAB exits with only "MATLAB error" | another MATLAB session was still closing | wait a minute and run again |
 | Flash: "no ST-LINK tool found" | programmer software not installed | install STM32CubeProgrammer (or OpenOCD), or the J-Link software |
-| Rust simulator refuses the firmware: "ABI 4" | its binding is older than the firmware | known and left for now (decisions log §23) |
+| Rust simulator refuses the firmware: "ABI …" | its binding is older than the firmware (ABI 6 since 23 Nov 2026) | known and left alone until asked |
+| A schematic generator run on its own: `FileNotFoundError … /usr/share/kicad/symbols` | it needs the KiCad 7.0.11 symbol library path, which `verify.sh` sets | `export KICAD_SYMBOL_DIR="C:/Users/<you>/opt/kicad7-libs/kicad-symbols-7.0.11"` first |
+| A docs build stops: `UnicodeDecodeError: 'charmap' codec` | Windows reads the text as the old code page | `export PYTHONUTF8=1`, then rerun |
+| `git push`: "the remote end hung up" / "Connection was reset" | one push too large (the PDFs; the pack is about 200 MB) | push in batches: `git -c http.postBuffer=524288000 push origin <commit>:refs/heads/master`, oldest first, then `master` |
 | Board blinks the LED at 2 Hz | the 8 MHz crystal did not start; running on the internal clock | check Y301 and its capacitors |
 
 ## 8. Rules that must not be broken
