@@ -110,7 +110,9 @@ simulator, provided the simulator is a known-good version.
    just to make it pass: write down why the new limit is right, beside it.
 3. Run the block, then all blocks.
 4. Carry the new part values into the schematic generator (SOP 2), and into
-   the circuit page: `.venv/Scripts/python.exe sim/build_circuit_page.py`.
+   the circuit page: `.venv/Scripts/python.exe sim/draw_schematics.py`, then
+   `.venv/Scripts/python.exe sim/build_circuit_page.py` (set `PYTHONUTF8=1` on
+   Windows, or the build stops on a character it cannot decode).
 5. Write the reason in `docs/decisions-log.md`.
 
 **The word FAIL inside a `.cir` file is not a failure.** The result notes

@@ -49,7 +49,7 @@ Prefer the browser? Three of those are live HTML:
 |---|---|
 | `docs/pdf/` | Every document as PDF — one file each, plus the combined bible |
 | `docs/handbook/index.html` | The handbook: machine, 94-pin interface, the circuits in narrative, how a runaway gets stopped |
-| `docs/handbook/circuits.html` | Circuit reference — all 17 blocks, each with schematic, reasoning, simulated result and model limits |
+| `docs/handbook/circuits.html` | Circuit reference — 24 blocks, each with schematic, reasoning, simulated result and model limits |
 | `docs/handbook/sensors.html` | Sensor reference — every sensor, what it measures, how it's read, what the data drives |
 | `docs/superpowers/specs/` | The reconciled specification — the binding source of truth |
 | `refs/` | The OEM wiring diagram, the DSE4522 configuration, machine photographs, and the extracted pinout |

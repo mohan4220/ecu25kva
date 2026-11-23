@@ -208,22 +208,24 @@ html{scroll-behavior:smooth}
   <div class="sensor">
     <header><h3>Crankshaft speed</h3><span class="pins">pins 52 / 74 / 30</span><span class="tag live">on ECU</span></header>
     <dl>
-      <dt>Measures</dt><dd>Crank angular position and speed, from a toothed wheel. Nominal running speed <b>1500 rpm</b>; must also resolve cranking speed, roughly 100–250 rpm.</dd>
-      <dt>Signal</dt><dd><b>Variable reluctance</b>, differential. <span class="w cyan">Frequency I/P High</span> on pin 52, <span class="w black">Frequency I/P Low</span> on pin 74, <span class="w black">sensor ground</span> on pin 30. Twisted pair. Output is AC whose amplitude scales with speed — near-zero while cranking, several volts at idle.</dd>
-      <dt>Acquisition</dt><dd>Zero-cross adaptive-threshold conditioner producing one clean digital edge per tooth, into a FlexTimer input capture channel. Every edge is timestamped; at 1500 rpm with a 60-tooth wheel that is an edge every <b>667 µs</b>. The missing-tooth gap gives the angular reference.</dd>
-      <dt>Used for</dt><dd><b>Speed governing</b> — the primary feedback for the metering unit loop. <b>Injection timing</b> — every injection event is scheduled against crank angle derived from here. <b>Overspeed shutdown</b> — the ECU's own first line of defence. <b>Crank sequencing</b> — the starter is disengaged the moment speed crosses the catch threshold. <b>Reported over CAN</b> in EEC1, PGN 61444.</dd>
-      <dt>Fault detection</dt><dd>Missing edges, implausible tooth intervals, or loss of the sync gap. Loss of crank signal on a running engine is a shutdown, not an alarm — the ECU can no longer time injection.</dd>
+      <dt>Part</dt><dd><b>Bosch DG-6-K, 0 281 002 214</b> (owner, 22 Nov 2026). Catalogue: <b>860 Ω, 370 mH</b>; about <b>170 mV</b> at 50 rpm and a 1.5 mm gap, up to <b>210 V</b> at 7000 rpm and 0.3 mm (decisions log §28).</dd>
+      <dt>Measures</dt><dd>Crank angular position and speed, from a 60−2 toothed wheel. Nominal running speed <b>1500 rpm</b>; must also resolve cranking speed, roughly 100–250 rpm.</dd>
+      <dt>Signal</dt><dd><b>Variable reluctance</b>, differential, twisted. Bosch: sensor pin 1 to <span class="m">I_F_CRSNEG</span> (pin 74), pin 2 to <span class="m">I_F_CRSPOS</span> (pin 52), pin 3 to <span class="m">G_R_CRS</span> (pin 30, shield / return). The amplitude scales with speed: about 0.5 V while cranking, up to about 45 V at 1500 rpm.</dd>
+      <dt>Acquisition</dt><dd>Zero-cross comparator with hysteresis producing one clean digital edge per tooth, into a timer input-capture channel. Every edge is timestamped; at 1500 rpm that is an edge every <b>667 µs</b>. The missing-tooth gap gives the angular reference.</dd>
+      <dt>Used for</dt><dd><b>Speed governing</b>, <b>injection timing</b> (every injection is scheduled against crank angle from here), <b>overspeed shutdown</b> at 1650 rpm inside the tooth interrupt, and <b>reported over CAN</b> in EEC1, PGN 61444.</dd>
+      <dt>Fault detection</dt><dd>A gap in the wrong place, no gap where one belongs, or no tooth for 50 ms. Loss of crank signal on a running engine is a shutdown, not an alarm: the ECU can no longer time injection.</dd>
     </dl>
   </div>
 
   <div class="sensor">
     <header><h3>Camshaft position</h3><span class="pins">pins 45 / 46 / 44</span><span class="tag live">on ECU</span></header>
     <dl>
-      <dt>Measures</dt><dd>Which half of the four-stroke cycle the crank angle refers to. One pulse per two crank revolutions.</dd>
-      <dt>Signal</dt><dd><b>Hall effect</b>, already a clean digital square wave — which is why it needs no conditioning IC and has no Low pin. <span class="w red">Switch Battery 5 V</span> on pin 45, <span class="w cyan">Frequency I/P</span> on pin 46, <span class="w black">sensor ground</span> on pin 44.</dd>
-      <dt>Acquisition</dt><dd>Pull-up to the protected sensor rail, straight into a second FlexTimer capture channel. One event per 80 ms at running speed.</dd>
-      <dt>Used for</dt><dd><b>Cylinder phase</b>, and only that. The crank sensor says the engine is at 15° before top dead centre; the cam sensor says whether that is cylinder 1's compression stroke or its exhaust stroke. Without it you can measure speed perfectly and still inject into the wrong cylinder.</dd>
-      <dt>Fault detection</dt><dd>Absent pulse, or a pulse at the wrong crank angle relative to the sync gap. Loss after sync is survivable for a while — the engine can run on the last known phase — but it must not be allowed to re-sync blind.</dd>
+      <dt>Part</dt><dd><b>Bosch Hall segment sensor, 0 281 002 667</b> (owner, 22 Nov 2026): 5 V rated (4.7–18 V), open collector sinking 0–20 mA, saturation ≤ 0.5 V (decisions log §29).</dd>
+      <dt>Measures</dt><dd>Which of the two crank revolutions is cylinder 1’s firing stroke. <b>The cam wheel’s segment count is not confirmed</b>, so the ECU does not assume one.</dd>
+      <dt>Signal</dt><dd><b>Hall effect</b>, a clean digital square wave. Bosch: sensor pin 3 to <span class="m">O_V_5VCAS</span> (pin 45), pin 2 to <span class="m">I_F_CAS</span> (pin 46), pin 1 to <span class="m">G_R_CAS</span> (pin 44); the three wires twisted.</dd>
+      <dt>Acquisition</dt><dd>10 kΩ pull-up to the sensor rail with 16 kΩ to ground (so the pad never sees 5 V), 22 nF and a 3.3 V clamp, into a timer capture channel.</dd>
+      <dt>Used for</dt><dd><b>Cylinder phase</b>, and only that. The decoder <b>learns the wheel</b>: it notes each revolution’s cam edges (how many, and where), and two whole revolutions that differ teach it which is which. One segment, three plus one, two plus two all work; a wheel whose two revolutions look alike is never phased, because not injecting is safer than injecting 360° out (decisions log §39).</dd>
+      <dt>Fault detection</dt><dd>A revolution that matches neither learned pattern drops the phase until the next one agrees; one stray edge costs at most one revolution, repeated misses make it learn again. On a wheel other than one segment, cylinder 1’s firing TDC is checked with a timing light at bring-up.</dd>
     </dl>
   </div>
 </section>
@@ -234,33 +236,35 @@ html{scroll-behavior:smooth}
   <div class="sensor">
     <header><h3>Rail pressure</h3><span class="pins">pins 32 / 35 / 08</span><span class="tag live">on ECU</span></header>
     <dl>
-      <dt>Measures</dt><dd>Common-rail fuel pressure. Typically <b>250–1800 bar</b> on an engine of this class — <b>inferred</b>, the exact range needs the sensor part number.</dd>
-      <dt>Signal</dt><dd>Ratiometric <b>0.5–4.5 V</b>. <span class="w red">Switch Battery 5 V</span> on pin 32, <span class="w magenta">Analog I/P</span> on pin 35, <span class="w black">sensor ground</span> on pin 08 — a <b>dedicated</b> ground, not spliced with any other sensor. That is deliberate: this is the most accuracy-critical analog channel on the engine, and a shared return would inject other sensors' currents into its reference.</dd>
-      <dt>Acquisition</dt><dd>Ratiometric front-end into the ADC. Sampled fast — <b>1 kHz</b> or better, <b>inferred</b> — because it is the feedback for a closed loop that has to reject the pressure ripple every injection event causes.</dd>
-      <dt>Used for</dt><dd><b>Closed-loop rail pressure control</b>: the error between measured and target pressure drives the fuel metering unit's PWM duty. Also sets the <b>injection quantity calculation</b> — the same pulse width delivers more fuel at higher rail pressure, so quantity is always a function of both. <b>Over-pressure protection</b> is a hard shutdown.</dd>
-      <dt>Fault detection</dt><dd>Out-of-range reading, or pressure that fails to follow a metering unit command — which distinguishes a dead sensor from a stuck metering unit. Loss of rail pressure feedback means injection quantity becomes unknown; treat as shutdown.</dd>
+      <dt>Part</dt><dd><b>Bosch 0 281 006 425</b>, 1800 bar, RDS4 family (owner, 22 Nov 2026; decisions log §30).</dd>
+      <dt>Measures</dt><dd>Common-rail fuel pressure, <b>0–1800 bar</b>. The setpoint is about 830 bar at no load and follows fuel.</dd>
+      <dt>Signal</dt><dd>Ratiometric <b>0.5–4.5 V = 0–1800 bar</b>. Bosch: sensor pin 3 to <span class="m">O_V_5VRAILPS</span> (pin 32), pin 2 to <span class="m">I_A_RAILPS</span> (pin 35), pin 1 to <span class="m">G_R_RAILPS</span> (pin 08), a <b>dedicated</b> ground. With the engine stopped pin 35 reads about 0.5 V against 08.</dd>
+      <dt>Acquisition</dt><dd>10k / 16k divider (×16/26), 22 nF and clamp into the ADC, read ratiometrically against the sensor rail.</dd>
+      <dt>Used for</dt><dd><b>The outer loop of the rail cascade</b>: rail error sets the metering valve’s current target. The same pulse width delivers more fuel at higher pressure, so injected quantity always uses both.</dd>
+      <dt>Fault detection</dt><dd>Out of range (FMI 3 / 4), and <b>157/7</b> (amber) when the rail stays more than 150 bar and 25 % off its target: the valve can no longer hold it.</dd>
     </dl>
   </div>
 
   <div class="sensor">
     <header><h3>Fuel metering unit current</h3><span class="pins">pin 88, sensed on-board</span><span class="tag live">on ECU</span></header>
     <dl>
-      <dt>Measures</dt><dd>Current through the metering unit solenoid — the actuator's own feedback, not an external sensor.</dd>
-      <dt>Signal</dt><dd>Shunt and amplifier on the ECU's low-side driver. The metering unit itself is only 2-pin: <span class="w red">battery</span> via the 20 A fuse, and <span class="w black">PWM low side</span> to pin 88.</dd>
-      <dt>Acquisition</dt><dd>ADC channel synchronised to the PWM cycle, so current is sampled at a consistent point in the switching period rather than at random phase.</dd>
-      <dt>Used for</dt><dd><b>Inner loop of the rail pressure cascade.</b> Rail pressure sets a target current; current control sets PWM duty. Two loops because solenoid force follows current, and current follows duty only loosely once coil temperature and battery voltage move. Also gives <b>open and short circuit detection</b> on the actuator.</dd>
-      <dt>Fault detection</dt><dd>Zero current with duty commanded means an open coil or blown fuse. Full current at zero duty means a shorted driver — which is dangerous, since it drives the rail to maximum pressure.</dd>
+      <dt>Part</dt><dd><b>Bosch CB18, 0 928 400 820</b> (owner): a proportional solenoid, <b>normally open</b>, no diode inside. Coil 2.5–5 Ω measured (§25); about <b>1.8 A</b> closes it (Bosch family data, §27).</dd>
+      <dt>Signal</dt><dd>Two pins. Bosch: valve pin 1 to ECU pin 88, valve pin 2 to the <b>main-relay line</b>, the two twisted. The ECU switches the low side; the freewheel diode D501 is on the board.</dd>
+      <dt>Acquisition</dt><dd>A 50 mΩ shunt and amplifier on the low side, sampled in step with the 1 kHz PWM.</dd>
+      <dt>Used for</dt><dd><b>Inner loop of the rail cascade.</b> Rail pressure sets a current target; current control sets PWM duty, so coil temperature and battery voltage drop out. The coil’s resistance is learned while running, for the fallback.</dd>
+      <dt>Fault detection</dt><dd>Open load judged against the current the duty should give; over-current; a reading that is physically impossible is distrusted within 10 ms and the valve runs on the learned coil (scenario 19, §34). Because the valve is normally open, a dead driver means <b>full flow</b>: the rail limit and 157/7 act, and stopping cuts the injectors.</dd>
     </dl>
   </div>
 
   <div class="sensor">
     <header><h3>Injector current, ×3</h3><span class="pins">pins 73 / 07 / 29, sensed on-board</span><span class="tag live">on ECU</span></header>
     <dl>
-      <dt>Measures</dt><dd>Current through each injector solenoid during its firing event. Peak <b>12–24 A</b>, hold <b>8–13 A</b>.</dd>
-      <dt>Signal</dt><dd>Sense resistor in each low-side leg, read by the driver IC's own current comparators.</dd>
-      <dt>Acquisition</dt><dd>The MC33816 regulates current in hardware against programmed thresholds — the MCU sets the profile, the driver enforces it microsecond by microsecond. Far too fast for firmware to close.</dd>
-      <dt>Used for</dt><dd><b>Peak-and-hold profile enforcement.</b> A high current opens the needle, then a lower current holds it, because holding at peak would cook the solenoid. Also <b>injector diagnosis</b>: a coil that fails open or short shows up immediately in the current trace.</dd>
-      <dt>Fault detection</dt><dd>Failure to reach peak within the expected time means an open coil or a collapsed boost rail. The handbook's injector chart shows why that timing is diagnostic — the rise time is set by the rail voltage and the coil, so a slow rise means one of them is wrong.</dd>
+      <dt>Part</dt><dd><b>Bosch CRI-2-16, 0 445 B76 1X3</b>: a bare two-pin solenoid, no diode, its wires twisted. Coil rated <b>0.2–2.0 Ω at 20 °C</b> (owner; a tester’s pass band, §38).</dd>
+      <dt>Measures</dt><dd>Current through each injector during its firing: <b>18 A peak</b> from the 100 V boost rail, then a <b>9–11 A hold</b> from the battery.</dd>
+      <dt>Signal</dt><dd>A 5 mΩ shunt per bank (cylinders 1 + 3 on high side 03, cylinder 2 on 05), amplified ×20.</dd>
+      <dt>Acquisition</dt><dd>Discrete FETs, no driver IC (memo 12). The MCU’s ADC watchdog fires on each threshold crossing and the stage switches in that interrupt; turn-off returns the coil’s energy to the boost reservoir.</dd>
+      <dt>Used for</dt><dd><b>Peak-and-hold.</b> The peak opens the needle; the lower hold keeps it open without cooking the coil. The hold comes from the battery, so it reaches 10 A only on a coil up to <b>0.79 Ω (13.5 V) / 0.68 Ω (12 V)</b> at 20 °C.</dd>
+      <dt>Fault detection</dt><dd>No peak within 60 µs ends the injection (a dead sense must not hold 100 V on a coil); over 26 A ends it; no injection is longer than 5 ms. A hold the battery cannot reach is counted (<span class="m">hold_short</span>) for the bench.</dd>
     </dl>
   </div>
 </section>
@@ -271,44 +275,43 @@ html{scroll-behavior:smooth}
   <div class="sensor">
     <header><h3>Boost pressure</h3><span class="pins">pins 11 / 41 / 34</span><span class="tag live">on ECU</span></header>
     <dl>
-      <dt>Measures</dt><dd>Absolute pressure in the intake manifold, downstream of the turbocharger and aftercooler. Typically <b>1–3 bar absolute</b> on a turbocharged engine of this size — <b>inferred</b>.</dd>
-      <dt>Signal</dt><dd>Ratiometric 0.5–4.5 V. One half of a <b>four-pin combination sensor</b> shared with manifold air temperature: <span class="w red">Switch Battery 5 V</span> on pin 11, <span class="w magenta">Analog I/P Pressure</span> on pin 41, <span class="w black">sensor ground</span> on pin 34 shared with both legs and with the coolant sensor.</dd>
-      <dt>Acquisition</dt><dd>Ratiometric front-end into the ADC. <b>100 Hz</b> is ample — manifold pressure changes with turbo speed, which has real inertia. <b>Inferred.</b></dd>
-      <dt>Used for</dt><dd><b>Air mass estimation</b>, with air temperature, via the ideal gas law — and air mass is what sets the <b>smoke-limit fuelling cap</b>. A diesel that injects more fuel than its air charge can burn produces visible smoke and heat rather than torque, so the fuelling limit tracks boost. Also <b>EGR control</b>, since EGR displaces fresh air, and <b>turbo overspeed protection</b>.</dd>
-      <dt>Fault detection</dt><dd>Range check, plus plausibility against barometric pressure at rest — with the engine stopped, manifold pressure must read close to ambient. A sensor that fails high would silently allow over-fuelling, so this one defaults conservative on fault.</dd>
+      <dt>Part</dt><dd><b>Bosch DS-S3-TF, 0 281 006 102</b>: pressure and temperature in one sensor (owner, 22 Nov 2026; §33).</dd>
+      <dt>Measures</dt><dd>Absolute pressure in the intake manifold, after the turbocharger and aftercooler.</dd>
+      <dt>Signal</dt><dd>Ratiometric. Bosch: sensor pin 3 to <span class="m">O_V_5VBPS</span> (pin 11), pin 4 to <span class="m">I_A_BPS</span> (pin 41), pin 1 to <span class="m">G_R_BPS</span> (pin 34) through splice V3, shared with the coolant sensor.</dd>
+      <dt>Acquisition</dt><dd>INA592 difference amplifier (gain ½) against the shared return, then the 22 nF clamp into the ADC. The sensor ground SGND_34 is tied to the board ground by R633, 0 Ω.</dd>
+      <dt>Used for</dt><dd><b>Air charge</b> for the smoke limit, and reported over CAN.</dd>
+      <dt>Fault detection</dt><dd>Range check (FMI 3 / 4).</dd>
     </dl>
   </div>
 
   <div class="sensor">
-    <header><h3>Manifold air temperature</h3><span class="pins">pin 79</span><span class="tag open">topology open — U2</span></header>
+    <header><h3>Charge-air temperature</h3><span class="pins">pin 79</span><span class="tag live">on ECU</span></header>
     <dl>
-      <dt>Measures</dt><dd>Intake charge temperature after the aftercooler. Roughly <b>−20 to +100 °C</b>.</dd>
-      <dt>Signal</dt><dd><span class="w magenta">Analog I/P Temperature</span> on pin 79, sharing the combination sensor's supply and ground. <b>Whether it is an NTC or a conditioned ratiometric output is unresolved.</b> The wire colour class cannot distinguish them — the coolant NTC uses the same magenta class. Industry convention for combination pressure-and-temperature sensors is an NTC element, so that is the working assumption.</dd>
-      <dt>Acquisition</dt><dd>Pull-up divider if NTC, ratiometric front-end if not. The board carries a <b>DNP pull-up footprint</b> so either works without a respin — the cheapest possible insurance against a question we cannot currently answer.</dd>
-      <dt>Used for</dt><dd><b>Air density correction.</b> Boost pressure alone does not give air mass; the same pressure at 20 °C and at 80 °C is meaningfully different charge. Feeds the same smoke-limit calculation. Also <b>intercooler diagnostics</b> — a rising delta over ambient means the aftercooler is fouling.</dd>
-      <dt>Fault detection</dt><dd>Range check, and plausibility against coolant temperature at cold start: on a machine that has stood overnight, intake air, coolant and ambient should all agree within a few degrees. That check is free and catches a surprising number of wiring errors.</dd>
+      <dt>Part</dt><dd>The NTC inside the boost sensor, <b>Bosch 0 281 006 102</b>. <b>U2 answered 22 Nov 2026: a bare NTC</b> (§33).</dd>
+      <dt>Measures</dt><dd>Intake charge temperature after the aftercooler.</dd>
+      <dt>Signal</dt><dd>Bosch: sensor pin 2 to <span class="m">I_A_BTS</span> (pin 79); its return is the boost sensor’s, pin 34.</dd>
+      <dt>Acquisition</dt><dd>The same front end as coolant: a <b>2.49 kΩ 0.1 %</b> pull-up to the sensor rail, then 100k / 160k, 22 nF and clamp into the ADC. The firmware takes the divider’s loading out and reads Bosch’s NTC table in ln R.</dd>
+      <dt>Used for</dt><dd><b>Reported over CAN</b>: SPN 105 in IC1, PGN 65270.</dd>
+      <dt>Fault detection</dt><dd>Its own debounced range fault (open reads high, short reads low); while faulted a fixed default is sent.</dd>
     </dl>
   </div>
 
   <div class="sensor">
     <header><h3>EGR valve position</h3><span class="pins">pins 15 / 37 / 36</span><span class="tag live">on ECU</span></header>
     <dl>
-      <dt>Measures</dt><dd>Actual position of the EGR valve, 0–100% travel.</dd>
-      <dt>Signal</dt><dd>Ratiometric potentiometer. <span class="w red">Switch Battery 5 V</span> on pin 15, <span class="w magenta">Analog I/P</span> wiper on pin 37, <span class="w black">sensor ground</span> on pin 36. Shares its five-pin connector with the actuator's own <span class="w magenta">EGR High</span> and <span class="w black">EGR Low</span> drive pins.</dd>
-      <dt>Acquisition</dt><dd>Ratiometric front-end into the ADC, <b>100 Hz</b>, matched to the valve's mechanical response. <b>Inferred.</b></dd>
-      <dt>Used for</dt><dd><b>Closed-loop EGR position control</b> — the H-bridge drives until measured position matches demand. EGR rate is one of the two things this engine uses to meet its NOx limit, the other being injection timing, which is exactly why the certification question in the handbook bites so hard. Also <b>stuck-valve detection</b>.</dd>
-      <dt>Fault detection</dt><dd>Position failing to follow demand within a timeout means a stuck valve, a failed motor, or a broken position sensor — distinguishable by whether current is flowing. A stuck-open EGR valve at load is a derate condition.</dd>
+      <dt>Part</dt><dd>Padmini EGR valve: a DC motor (H-bridge on 59 / 81) and a <b>potentiometer</b> (owner’s drawing, 23 Nov 2026; §36).</dd>
+      <dt>Measures</dt><dd>Actual position of the EGR valve, 0–100 % travel.</dd>
+      <dt>Signal</dt><dd>Bosch: pot pin 3 to <span class="m">O_V_5VEGR</span> (pin 15), wiper pin 5 to <span class="m">I_A_EGR</span> (pin 37), pin 4 to <span class="m">G_R_EGR</span> (pin 36) through splice V4, shared with the oil sensor. Motor pins 1 / 2 to 59 / 81, twisted.</dd>
+      <dt>Acquisition</dt><dd>A plain 100k / 160k divider with <b>no pull-up</b>, 22 nF and clamp: under 0.3 % of full scale for a 5 kΩ track. The firmware assumes 0.5–4.5 V for 0–100 % until the stops are measured on the bench.</dd>
+      <dt>Used for</dt><dd><b>Closed-loop EGR position control</b> through the H-bridge, and <b>stuck-valve diagnosis</b>.</dd>
+      <dt>Fault detection</dt><dd>An open wiper reads 0 V (FMI 4). Stuck open or shut is judged from drive, current and position (amber). A stalled motor (over 5 A for 1.5 s) coasts and retries; the third stall holds it off.</dd>
     </dl>
   </div>
 
   <div class="sensor">
-    <header><h3>Intake throttle position</h3><span class="pins">6-pin connector, routing unknown</span><span class="tag open">unresolved — U8</span></header>
+    <header><h3>Intake throttle</h3><span class="pins">no ECU pin</span><span class="tag open">not on Bosch’s drawing</span></header>
     <dl>
-      <dt>Measures</dt><dd>Intake throttle plate position. On a CPCB IV+ diesel the throttle is not a power control — it creates intake depression to drive EGR flow when the pressure differential is otherwise insufficient.</dd>
-      <dt>Signal</dt><dd><b>Six pins</b>, which is two more than a motor pair plus a three-wire position sensor accounts for. The extra two are unexplained. It does not appear on any ECU pin traced in the wiring diagram — it may belong to a variant, or route somewhere we have not found.</dd>
-      <dt>Acquisition</dt><dd>Not designed. Blocked until the connector is traced on the engine.</dd>
-      <dt>Used for</dt><dd>If present: <b>EGR flow authority at low load</b>, and <b>a clean shutdown</b> — closing the throttle starves the engine of air and stops it smoothly.</dd>
-      <dt>Fault detection</dt><dd>Not designed.</dd>
+      <dt>Status</dt><dd><b>Closed 10 Nov 2026 (U8).</b> Bosch’s terminal diagram gives a throttle no pin, so the ECU drives none. The owner’s “throttle” is fuelling to reach and hold 1500 rpm: the speed governor, through the injectors and the metering valve.</dd>
     </dl>
   </div>
 </section>
@@ -323,33 +326,35 @@ html{scroll-behavior:smooth}
   <div class="sensor">
     <header><h3>Coolant temperature</h3><span class="pins">pin 33</span><span class="tag live">on ECU</span></header>
     <dl>
-      <dt>Measures</dt><dd>Engine coolant temperature, <b>−40 to +130 °C</b>. Normal running is roughly 80–95 °C.</dd>
-      <dt>Signal</dt><dd><b>NTC thermistor, two wires only</b> — no excitation pin, unlike the ratiometric sensors. <span class="w magenta">Analog I/P</span> on pin 33; its <span class="w black">sensor ground</span> does not get its own ECU pin but splices into the boost sensor's return at pin 34.</dd>
-      <dt>Acquisition</dt><dd>Pull-up divider into the ADC, linearised in firmware against the sensor's resistance-temperature table. <b>2 Hz is plenty</b> — an engine block's thermal time constant is tens of seconds. The pull-up is chosen to put maximum sensitivity around 85 °C, where the decisions are.</dd>
-      <dt>Used for</dt><dd><b>Cold-start fuelling enrichment</b> — a cold diesel needs more fuel and earlier injection to light off. <b>Overheat derate then shutdown.</b> <b>EGR inhibit when cold</b>, since EGR on a cold engine fouls the intake. <b>Reported over CAN</b> in ET1, PGN 65262.</dd>
-      <dt>Fault detection</dt><dd>Open circuit reads full pull-up voltage and short reads zero — both outside any physical temperature, so both are unambiguous. Critically, <b>an open circuit must not read as "very cold"</b>, which would trigger enrichment on a hot engine. The independent coolant switch below exists precisely because this channel can fail.</dd>
+      <dt>Part</dt><dd><b>Bosch 0 281 002 209</b>, NTC M12-H, 2.5 kΩ at 20 °C (owner, 22 Nov 2026; §32).</dd>
+      <dt>Measures</dt><dd>Engine coolant temperature. Normal running is roughly 80–95 °C.</dd>
+      <dt>Signal</dt><dd><b>NTC thermistor, two wires.</b> Bosch: sensor pin 1 to <span class="m">I_A_CTS</span> (pin 33), pin 2 through splice V3 to pin 34.</dd>
+      <dt>Acquisition</dt><dd>A <b>2.49 kΩ 0.1 %</b> pull-up to the sensor rail, then 100k / 160k, 22 nF and clamp into the ADC. Converted with <b>Bosch’s own resistance table</b>, interpolated in ln R (a beta law read 2.8 °C high at 100 °C).</dd>
+      <dt>Used for</dt><dd><b>Engine protection by the ECU</b>: amber warning at <b>100 °C</b> (back at 98), red shutdown with Protect at <b>104 °C</b> (back at 102). The 25 kVA set’s DSE has its own coolant alarms at 150 / 200 °C, so it never acts and relies on the ECU (§35). <b>Reported over CAN</b> in ET1, PGN 65262.</dd>
+      <dt>Fault detection</dt><dd>Open circuit reads high and short reads low, both outside any physical temperature (FMI 3 / 4). An open circuit must not read as “very cold”.</dd>
     </dl>
   </div>
 
   <div class="sensor">
-    <header><h3>Coolant temperature switch</h3><span class="pins">pin 43, return on 01 / 02</span><span class="tag live">on ECU</span></header>
+    <header><h3>Coolant level switch</h3><span class="pins">pin 43</span><span class="tag live">on ECU</span></header>
     <dl>
-      <dt>Measures</dt><dd>A single over-temperature threshold. Not a measurement — a trip.</dd>
-      <dt>Signal</dt><dd><span class="w cyan">Digital I/P</span> on pin 43, switch-to-return. Its return leg is one of the <span class="m">G_G_B</span> pins.</dd>
-      <dt>Acquisition</dt><dd>Pull-up and RC debounce into a GPIO, polled at <b>10 ms</b>.</dd>
-      <dt>Used for</dt><dd><b>A second, independent path to overheat shutdown.</b> This is the same design instinct as the overspeed discussion in the handbook: the analog coolant channel and this switch fail in different ways, so requiring only one of them to trip means a single sensor failure cannot leave the engine cooking. It is cheap redundancy on the failure that quietly destroys engines.</dd>
-      <dt>Fault detection</dt><dd>Wired normally-closed where possible, so an open harness reads as tripped rather than as healthy.</dd>
+      <dt>Measures</dt><dd><b>Coolant level</b>, not temperature (owner, 23 Nov 2026; §35). Bosch names the pin <span class="m">I_S_CLS</span>, coolant switch, to terminal 31.</dd>
+      <dt>Signal</dt><dd>A switch to ground; <b>closed = level OK</b>.</dd>
+      <dt>Acquisition</dt><dd>The common NPN input buffer, debounced.</dd>
+      <dt>Used for</dt><dd>Open for 5 s: <b>SPN 111 FMI 18, amber</b>; the engine keeps running. Sent in EFL/P1 byte 8.</dd>
+      <dt>Fault detection</dt><dd>A broken wire reads as low level, the safe direction.</dd>
     </dl>
   </div>
 
   <div class="sensor">
     <header><h3>Lubricating oil pressure</h3><span class="pins">pins 39 / 80</span><span class="tag live">on ECU</span></header>
     <dl>
-      <dt>Measures</dt><dd>Engine oil gallery pressure, typically <b>0–10 bar</b>. Normal running above roughly 2 bar; idle above roughly 1 bar. <b>Inferred.</b></dd>
-      <dt>Signal</dt><dd>Ratiometric 0.5–4.5 V, three pins: <span class="w red">Switch Battery 5 V</span> on pin 39, <span class="w magenta">Analog I/P</span> on pin 80, and a <span class="w black">sensor ground</span> that splices with the EGR sensor's into pin 36.</dd>
-      <dt>Acquisition</dt><dd>Ratiometric front-end into the ADC at <b>10 Hz</b>. <b>Inferred</b> — oil pressure responds within a revolution, but no decision needs faster.</dd>
-      <dt>Used for</dt><dd><b>Low oil pressure shutdown</b>, the single most important protection on any engine — bearing damage from oil starvation happens in seconds. The threshold is <b>speed-dependent</b>: pressure that is normal at idle is a fault at rated speed, so the limit is a function of the crank sensor's reading. Also <b>start inhibit</b> until pressure builds, and reported over CAN in EFL/P1, PGN 65263.</dd>
-      <dt>Fault detection</dt><dd>Range check. The dangerous failure is reading high when pressure is actually low, so a plausibility check against engine state helps: with the engine stopped, oil pressure must read near zero. A sensor that reads 3 bar on a stopped engine is lying.</dd>
+      <dt>Part</dt><dd><b>Honeywell PX3AN2BF010BSDAX</b>: 0–10 bar sealed gauge, 0.5–4.5 V, with diagnostic rails at 2.5 % and 97.5 % (owner, 22 Nov 2026; §31).</dd>
+      <dt>Measures</dt><dd>Engine oil gallery pressure, <b>0–10 bar</b>.</dd>
+      <dt>Signal</dt><dd>Bosch: sensor B to <span class="m">O_V_5VOPS</span> (pin 39), C to <span class="m">I_A_OPS</span> (pin 80), A (ground) through splice V4 to pin 36. <b>The ground is twisted with the 5 V wire</b>; the “76” beside it on the drawing is a line reference, not an ECU pin.</dd>
+      <dt>Acquisition</dt><dd>INA592 difference amplifier (gain ½) against the shared return SGND_36, which is tied to the board ground by R634, 0 Ω.</dd>
+      <dt>Used for</dt><dd><b>Reported over CAN</b> in EFL/P1, PGN 65263; the DSE4522 shuts the set down below 0.99 bar, so low-oil protection is the panel’s. With the engine stopped the ECU cross-checks it: 1–2 bar is an implausible oil reading, over 2 bar with no crank teeth says the speed signal is wrong (both amber, §24).</dd>
+      <dt>Fault detection</dt><dd>Range, including the sensor’s own diagnostic rails (FMI 3 / 4), and the stopped-engine cross-check above.</dd>
     </dl>
   </div>
 </section>
@@ -360,11 +365,10 @@ html{scroll-behavior:smooth}
   <div class="sensor">
     <header><h3>Battery voltage, ×2</h3><span class="pins">pins 04 / 06</span><span class="tag live">on ECU</span></header>
     <dl>
-      <dt>Measures</dt><dd>Voltage on two separately fused battery rails, <b>6–40 V</b> covering cranking sag through clamped load dump. Nominal 12 V, charging 13.5–14.4 V.</dd>
-      <dt>Signal</dt><dd>Two <span class="w red">DC positive</span> feeds, <span class="m">V_V_BAT_1R</span> and <span class="m">V_V_BAT_2R</span>, each behind its own 10 A fuse.</dd>
-      <dt>Acquisition</dt><dd><b>120 kΩ / 10 kΩ</b> divider into the ADC — no active conditioning, this is a slow rail rather than a delicate signal. <b>10 Hz.</b> The divider value was corrected from an inherited 75 kΩ / 10 kΩ that would have put 4.69 V on a 3.3 V pin.</dd>
-      <dt>Used for</dt><dd><b>Low and high battery alarms.</b> <b>Charging system diagnosis</b> — voltage that never rises above resting means the alternator is not charging. <b>Injector timing compensation</b>, since boost converter recharge time depends on supply voltage. And because the two rails are separately fused, <b>comparing them infers a blown fuse</b> without a dedicated fuse-status circuit. Reported over CAN in VEP1, PGN 65271.</dd>
-      <dt>Fault detection</dt><dd>The two channels check each other: they should track within a volt. A persistent divergence means a fuse, a corroded connection, or a failed divider.</dd>
+      <dt>Measures</dt><dd>The two feeds from the main relay’s contact, <span class="m">V_V_BAT_1R</span> (04: electronics and injectors) and <span class="m">V_V_BAT_2R</span> (06: EGR), each behind its own 10 A fuse. <b>The board’s only supply</b>: there is no permanent battery feed.</dd>
+      <dt>Acquisition</dt><dd>120 kΩ / 10 kΩ divider into the ADC, one on each ADC instance so both are sampled together.</dd>
+      <dt>Used for</dt><dd><b>Battery alarms, from the 25 kVA set’s own DSE settings</b> (§35): high above <b>15.0 V</b> (back below 14.5), low below <b>9.5 V</b> (back above 10.0), 10 s each, amber. Also the metering valve’s feedforward and the EGR diagnosis window.</dd>
+      <dt>Fault detection</dt><dd>The two channels should track; a persistent difference means a fuse or a connection.</dd>
     </dl>
   </div>
 
@@ -372,10 +376,10 @@ html{scroll-behavior:smooth}
     <header><h3>Ignition / run request</h3><span class="pins">pin 71</span><span class="tag live">on ECU</span></header>
     <dl>
       <dt>Measures</dt><dd>Whether the panel is commanding the engine to run.</dd>
-      <dt>Signal</dt><dd><span class="w red">Switched battery</span>, active high. Downstream of the GCU's 70 A ignition relay.</dd>
-      <dt>Acquisition</dt><dd>Zener-clamped bias network into a GPIO — not a divider, for the reason given in the handbook. Polled at <b>10 ms</b>.</dd>
-      <dt>Used for</dt><dd><b>Run enable and orderly shutdown.</b> Losing this input is the normal stop request: the ECU stops injection, closes the throttle if fitted, and reports the stop over CAN. It is also, per the handbook's safety section, the <b>signalling half of a path whose other half is physical</b> — the same relay that drops this input is believed to remove power from the fuel system entirely, which is what makes a hung ECU survivable.</dd>
-      <dt>Fault detection</dt><dd>Not detectable as an open circuit — an open wire and a genuine stop request are electrically identical. That is an accepted limitation of matching the OEM harness, and it is recorded in the FMEA rather than engineered around, because changing the sense would break compatibility.</dd>
+      <dt>Signal</dt><dd><span class="m">I_S_T15</span>, switched battery from a GCU relay whose contact is fed from terminal 30 through 5 A; active high.</dd>
+      <dt>Acquisition</dt><dd>The common input buffer, and <b>also the wake</b>: pin 71 turns on a second FET on pin 50, so the main relay closes in hardware and the board powers up (Bosch wiring, §18).</dd>
+      <dt>Used for</dt><dd><b>Run enable, and the after-run.</b> Ignition off: the ECU stops the engine, saves its fault memory, and only then releases the main relay, at most 60 s later.</dd>
+      <dt>Fault detection</dt><dd>An open wire and a genuine stop request look the same; that is accepted, since both stop the engine.</dd>
     </dl>
   </div>
 </section>
@@ -391,15 +395,19 @@ html{scroll-behavior:smooth}
     <table>
       <thead><tr><th>Input</th><th>Pin</th><th>Sense</th><th>What it does</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td class="k">Audio abort</td><td class="pin">20</td><td><span class="w red">active high</span></td><td>Silences the buzzer without clearing the underlying fault. The fault stays active, the annunciator stays lit, and only the noise stops — so an operator can think without losing the alarm.</td><td>Confirmed</td></tr>
-        <tr><td class="k">Override SS</td><td class="pin">24</td><td><span class="w red">active high</span></td><td>Function genuinely unconfirmed. Labelled <span class="m">OVERSIDE SWITCH</span> at the ECU and <span class="m">-S7 Override SS SW</span> at the panel — <strong>one switch, not two</strong>, despite earlier documents listing an overspeed switch and an override switch separately.</td><td>Open</td></tr>
-        <tr><td class="k">Droop select</td><td class="pin">23</td><td><span class="w cyan">switch to return</span></td><td>Selects droop versus isochronous governing. In droop, speed falls slightly as load rises, which lets multiple sets share load without fighting. Isochronous holds speed exactly, which is right for a set running alone.</td><td>Confirmed</td></tr>
+        <tr><td class="k">Audio abort</td><td class="pin">20</td><td><span class="w red">active high</span></td><td>Silences the buzzer without clearing the underlying fault.</td><td>Confirmed</td></tr>
+        <tr><td class="k">Override switch</td><td class="pin">24</td><td><span class="w red">active high</span></td><td>Bosch <span class="m">I_S_OS</span>. Read and reported; its function in the panel is still to be confirmed.</td><td>Open</td></tr>
+        <tr><td class="k">Droop select</td><td class="pin">23</td><td><span class="w cyan">switch to return</span></td><td>Selects 4 % droop versus isochronous governing.</td><td>Confirmed</td></tr>
+        <tr><td class="k">Diagnosis request</td><td class="pin">14</td><td><span class="w cyan">switch to return</span></td><td>Bosch <span class="m">I_S_DIA</span>, from a GCU relay.</td><td>Confirmed</td></tr>
+        <tr><td class="k">Stop / emergency switch</td><td class="pin">25</td><td><span class="w cyan">switch to return</span></td><td>Bosch <span class="m">I_S_STST</span>, the engine-compartment stop button.</td><td>Confirmed</td></tr>
+        <tr><td class="k">Water in fuel</td><td class="pin">21</td><td><span class="w red">active high</span></td><td><b>Bosch F 002 H23 583</b>, three wires: sensor pin 1 ground, pin 3 the main-relay line, pin 2 to the ECU; water closes 3 to 2. R818 3.3k / R819 1.5k (§26).</td><td>Confirmed</td></tr>
+        <tr><td class="k">Synchronisation</td><td class="pin">09</td><td>analog</td><td>Bosch <span class="m">I_A_SYNC</span>, wired direct from the GCU; read, its function configured later.</td><td>Confirmed</td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="note warn">
-    <span class="lbl">Do not wire control logic to pin 24 yet</span>
+    <span class="lbl">Pin 24 is read, not acted on</span>
     <p>The override switch's actual function is a guess. Read its state, log it, report it
     over CAN — but do not let it change what the engine does until somebody has confirmed
     what the panel intends by it. A switch whose meaning you have assumed is worse than a
@@ -416,8 +424,7 @@ html{scroll-behavior:smooth}
     <span class="m">234</span> (engine) and <span class="m">44</span> (instrumentation).
     Its analogue inputs A and B are configured <i>Not Used</i> for exactly that reason.</p>
     <p>Two consequences for this design. Those four values are no longer optional
-    instrumentation — the controller's protections act on them, at 0.99 bar oil pressure
-    and 200 °C coolant. And <b>ECU Data Fail is configured to shut the set down</b>, so
+    instrumentation — the controller's protections act on them, at 0.99 bar oil pressure. Its coolant alarms on the 25 kVA set are 150 / 200 °C, which never act, so the ECU protects at 100 / 104 °C. And <b>ECU Data Fail is configured to shut the set down</b>, so
     our CAN transmission is itself a watchdog held by another device. Engine speed is the
     uncomfortable one: the controller's overspeed trip reads the number we send, which is
     why handbook §04 now calls a standalone trip module mandatory.</p>
@@ -435,7 +442,7 @@ html{scroll-behavior:smooth}
       <thead><tr><th>Sensor</th><th>Goes to</th><th>Signal</th><th>Used for</th></tr></thead>
       <tbody>
         <tr><td class="k">Fuel level</td><td>Panel via XC pin 22</td><td>Resistive float sender, 2-pin</td><td>Tank level display and low-fuel alarm. <strong>Not an ECU signal</strong> — earlier documents wrongly gave it an ECU front-end.</td></tr>
-        <tr><td class="k">Water in fuel</td><td>Panel via XC pin 16/1</td><td>Conductivity probe, 3-pin with built-in electronics</td><td>Water-in-fuel warning. Water in a common-rail system destroys injectors, so this is a genuine alarm. <strong>Not an ECU signal.</strong></td></tr>
+        <tr><td class="k">Water in fuel</td><td><b>ECU pin 21</b> (Bosch drawing)</td><td>Bosch F 002 H23 583, 3-pin</td><td>The KOEL harness diagram sent it to the panel; Bosch’s drawing, which this design follows, puts it on the ECU (see §06).</td></tr>
         <tr><td class="k">Catalyst temperature</td><td>Unresolved — U9</td><td>2-pin, one sensor only</td><td>DOC inlet or outlet temperature. Earlier documents specified three EGT channels; the diagram shows one.</td></tr>
         <tr><td class="k">Alternator voltage &amp; frequency</td><td>GCU terminals 27–30</td><td>3-phase AC sense, sampled at 5 kHz</td><td>Output metering, and — per the handbook's safety section — <strong>the GCU's only engine speed source</strong>. On a 4-pole alternator 1500 rpm is rigidly 50 Hz, which is what makes overspeed detection possible without an ECU.</td></tr>
         <tr><td class="k">Load current</td><td>GCU terminals 35–42</td><td>Current transformers</td><td>Load metering, overload protection, load-dependent start/stop.</td></tr>
@@ -500,7 +507,7 @@ html{scroll-behavior:smooth}
         <tr><td class="k">Digital in</td><td class="n">5</td><td class="n">5</td><td class="n">abundant GPIO</td><td class="n">ample</td></tr>
         <tr><td class="k">CAN</td><td class="n">2</td><td class="n">2</td><td class="n">3 FlexCAN</td><td class="n">1 spare</td></tr>
         <tr><td class="k">I²C</td><td class="n">1</td><td class="n">1</td><td class="n">2 LPI2C</td><td class="n">1 spare</td></tr>
-        <tr><td class="k">SPI</td><td class="n">1 (injector driver)</td><td class="n">2</td><td class="n">3 LPSPI</td><td class="n">1 spare</td></tr>
+        <tr><td class="k">SPI</td><td class="n">0 (discrete injector stage)</td><td class="n">2</td><td class="n">3 LPSPI</td><td class="n">1 spare</td></tr>
       </tbody>
     </table>
   </div>
@@ -513,8 +520,8 @@ html{scroll-behavior:smooth}
 </section>
 
 <footer class="doc">
-  <span>Sensor Reference · Rev 1 · 13 September 2026</span>
-  <span><a href="index.html">Field Handbook</a> · derived from Kirloskar 08-GP3-60-001</span>
+  <span>Sensor Reference · Rev 2 · 23 November 2026</span>
+  <span><a href="index.html">Field Handbook</a> · from Bosch terminal diagram 0 462 YU4 15D, the owner’s part numbers, and Kirloskar 08-GP3-60-001</span>
 </footer>
 
 </div>

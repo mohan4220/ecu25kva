@@ -411,18 +411,13 @@ def sensors():
         d += last
         tag(d, out)
 
-    # differential: drawn once (coolant)
-    d += elm.Dot(open=True).label("pin 33\nCOOLANT_T_IN", "left")
-    gap(d, 1.2)
-    d += (op := elm.Opamp().flip().anchor("in2").label("U602 INA592\ngain 1/2", "top", ofst=0.3))
-    d += elm.Line().left().at(op.in1).length(1.2)
-    d += elm.Dot(open=True).label("pin 34 (SGND_34)", "left")
-    d.here = op.out
-    d += elm.Resistor().right().label("R612\n1k", "top")
-    shunt(d, elm.Capacitor(), "C606 22 nF\nD605 BAV199\nclamp")
-    gap(d, 2.4)
-    d += elm.Resistor().right().label("R613\n1k", "top")
-    tag(d, "COOLANT_T → ADC")
+    # bare NTC, drawn once (coolant, pin 33): pull-up to 5V_SENSOR_A, then the
+    # light divider into the usual clamp and series resistor (decisions log 33)
+    row(0, "pin 33\nCOOLANT_T_IN", elm.Resistor().right().label("R626\n100k", "top"),
+        [(elm.Resistor(), "R627\n160k"), (elm.Capacitor(), "C617 22 nF\nD610")],
+        elm.Resistor().right().label("R628\n1k", "top"), "COOLANT_T  (×16/26)")
+    d += elm.Dot().at((0.6, 0))
+    d += elm.Resistor().up().at((0.6, 0)).label("R625 2.49k 0.1 %\nto 5V_SENSOR_A", "right")
     row(-8, "pin 35\nRAIL_P_IN", elm.Resistor().right().label("R607\n10k", "top"),
         [(elm.Resistor(), "R608\n16k"), (elm.Capacitor(), "C603 22 nF\nD603")],
         elm.Resistor().right().label("R609\n1k", "top"), "RAIL_P  (×16/26)")
@@ -615,10 +610,11 @@ PANELS = [
      metering_egr, "EGR drivers U504/U505 AUIRS2184S (IN from EGR_IN1/IN2), gates R503–R506 470 Ω, "
      "bootstraps D502/D503 + C504/C506 1 µF · ~SD = EGR_SD: R508 1k from EGR_EN, R509 10k down, kill Q507 · "
      "U503 INA181A1 on R507 → ISNS_EGR (0.4 V/A)"),
-    ("sens", "6  Analog sensors", "Drawn once each: a differential channel, the ratiometric rail channel and a "
-     "battery divider. Every channel ends 1k → 22 nF + BAV199 clamp → 1k → ADC.",
+    ("sens", "6  Analog sensors", "Drawn once each: a bare-NTC channel (coolant), the ratiometric rail channel and a "
+     "battery divider. Every channel ends in a 22 nF + BAV199 clamp → 1k → ADC.",
      sensors, "Baro U606 MPXHZ6115A → R620 10k / R621 16k, C615 → BARO · SYNC pin 09: R622 22k / R623 10k, "
-     "C616, D609, R624 1k · V_BAT_2R (pin 06): R604 120k / R605 10k, C602, D602, R606 1k"),
+     "C616, D609, R624 1k · V_BAT_2R (pin 06): R604 120k / R605 10k, C602, D602, R606 1k · "
+     "sensor grounds SGND_34 / SGND_36 tied to GND by R633 / R634 0 Ω"),
     ("speed", "7  Speed inputs", "Crank VR → zero-cross comparator with hysteresis (edges from 0.21 V at cranking). "
      "Cam Hall open-collector → divider to 3.3 V.", speed, "C703 100 nF across U701"),
     ("disc", "8  Discrete inputs and relays", "Drawn: ignition input and the main relay. Every input is the same "
@@ -632,15 +628,15 @@ REPEATS = {
             [["bank A, cyl 1 (pin 03, 73)", "Q408", "Q409, D408", "U402 / U403", "Q412 (kill Q413)", "D412", "R428 / U406"],
              ["bank A, cyl 3 (pin 03, 07)", "Q408", "Q409, D408", "U403", "Q414 (kill Q415)", "D413", "R428 / U406"],
              ["bank B, cyl 2 (pin 05, 29)", "Q410", "Q411, D410", "U404 / U405", "Q416 (kill Q417)", "D414", "R429 / U407"]]),
-    "sens": ("Differential channels (INA592, gain 1/2)", ["signal", "pin (return)", "amp", "series", "clamp node", "to MCU"],
-             [["boost pressure", "41 (34)", "U601", "R610 1k", "C604, D604", "R611 1k → BOOST_P"],
-              ["coolant", "33 (34)", "U602", "R612 1k", "C606, D605", "R613 1k → COOLANT_T"],
-              ["EGR position", "37 (36)", "U603", "R614 1k", "C608, D606", "R615 1k → EGR_POS"],
-              ["oil pressure", "80 (36)", "U604", "R616 1k", "C610, D607", "R617 1k → OIL_P"],
-              ["boost temp.", "79 (34)", "U605", "R618 1k", "C612, D608", "R619 1k → BOOST_T"]]),
+    "sens": ("Analog sensor channels", ["signal", "pin (return)", "front end", "series / divider", "clamp node", "to MCU"],
+             [["boost pressure", "41 (34)", "U601 INA592, gain 1/2", "R610 1k", "C604, D604", "R611 1k → BOOST_P"],
+              ["oil pressure", "80 (36)", "U604 INA592, gain 1/2", "R616 1k", "C610, D607", "R617 1k → OIL_P"],
+              ["coolant (bare NTC)", "33 (34)", "R625 2.49k pull-up", "R626 100k / R627 160k", "C617, D610", "R628 1k → COOLANT_T"],
+              ["boost temp. (bare NTC)", "79 (34)", "R629 2.49k pull-up", "R630 100k / R631 160k", "C618, D611", "R632 1k → BOOST_T"],
+              ["EGR position (pot)", "37 (36)", "no pull-up", "R635 100k / R636 160k", "C619, D612", "R637 1k → EGR_POS"]]),
     "disc": ("Input channels (NPN buffer, inverted)", ["input", "pin", "series", "pull-up (harness)", "base R ‖ C", "NPN", "pad pull-up"],
              [["ignition", "71", "R807 10k", "—", "R808 4.7k ‖ C803", "Q803", "R809 10k"],
-              ["water in fuel", "21", "R818 10k", "—", "R819 4.7k ‖ C806", "Q806", "R820 10k"],
+              ["water in fuel", "21", "R818 3.3k", "—", "R819 1.5k ‖ C806", "Q806", "R820 10k"],
               ["audio abort", "20", "R801 10k", "—", "R802 4.7k ‖ C801", "Q801", "R803 10k"],
               ["override start/stop", "24", "R804 10k", "—", "R805 4.7k ‖ C802", "Q802", "R806 10k"],
               ["coolant switch", "43", "R811 10k", "R810 10k", "R812 4.7k ‖ C804", "Q804", "R813 10k"],
@@ -703,7 +699,7 @@ def main():
     cells.append(f"<div class='panel'><h2>10  Connector and how to read this page</h2>"
                  f"<p class='legend'><b>Same name = same wire.</b> A flag such as <b>VBAT_PROT</b> in one panel is "
                  f"connected to every other flag with that name. Values are the production netlist's "
-                 f"(hw/, 17 Nov 2026). Prototype: the same circuits; MCU STM32G474, screw terminals instead of J1001.</p>"
+                 f"(hw/, 23 Nov 2026). Prototype: the same circuits; MCU STM32G474, screw terminals instead of J1001.</p>"
                  f"{pins}</div>")
     page = (f"<title>ECU system circuit</title><style>{CSS}</style>"
             f"<h1>Genset ECU (25 kVA) — the whole circuit on one page</h1>"

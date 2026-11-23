@@ -253,11 +253,12 @@ html{scroll-behavior:smooth}
 <section id="interface">
   <div class="sechead"><i>02</i><h2>The 94-pin interface</h2></div>
   <div class="col">
-  <p>The OEM ECU presents one 94-pin connector. The troubleshooting diagram traces
-  <strong>44 of those pins</strong>; the other 50 — power grounds, unused positions,
-  whatever drives the intake throttle — are simply not on a document written for field
-  technicians. A genuine drop-in replacement needs the connector part number to get
-  the rest.</p>
+  <p>The OEM ECU presents one 94-pin connector (Bosch 1 928 405 192 / 194, code C).
+  <strong>Bosch's own terminal diagram for this engine, 0 462 YU4 15D (MD1CS162-3.21,
+  KOEL CPCB4+ 3 cyl), uses 46 of them</strong>, and it is the master pinout: where the
+  KOEL troubleshooting diagram disagrees, Bosch wins (8 Nov 2026). Pins 26, 42, 67 and
+  91 were removed in its second edition. The table below is Bosch's, checked pin by pin
+  against the board on 23 Nov 2026 (<span class="m">refs/bosch-pinout-md1cs162.md</span>).</p>
 
   <p>Every wire in the diagram is colour-coded by signal class, and that code is
   load-bearing rather than cosmetic: it is how we established that the discrete inputs
@@ -278,27 +279,30 @@ html{scroll-behavior:smooth}
     <table>
       <thead><tr><th>Pin</th><th>Signal</th><th>Class</th><th>Front-end</th></tr></thead>
       <tbody>
-        <tr><td class="pin">21</td><td class="k">Battery + feed</td><td><span class="w red">supply</span></td><td>EMI filter → fuse → TVS → reverse-battery FET</td></tr>
-        <tr><td class="pin">04 / 06</td><td class="k">V_V_BAT_1R / 2R</td><td><span class="w red">supply</span></td><td>120 k / 10 k divider → ADC · 10 A fused each · 04 feeds the injector, 06 the EGR bridge (POWER-PATH, 8 Oct 2026)</td></tr>
-        <tr><td class="pin">09</td><td class="k">Synchronization ground</td><td><span class="w red">?</span></td><td>Function unresolved</td></tr>
-        <tr><td class="pin">11 / 41 / 79 / 34</td><td class="k">Boost pressure + air temp</td><td><span class="w magenta">analog</span></td><td>Combo sensor, 4-pin, shared supply and ground</td></tr>
-        <tr><td class="pin">33</td><td class="k">Coolant temperature</td><td><span class="w magenta">analog</span></td><td>NTC, pull-up divider · ground splices to 34</td></tr>
-        <tr><td class="pin">32 / 35 / 08</td><td class="k">Rail pressure</td><td><span class="w magenta">analog</span></td><td>Ratiometric · dedicated sensor ground</td></tr>
-        <tr><td class="pin">39 / 80</td><td class="k">Oil pressure</td><td><span class="w magenta">analog</span></td><td>Ratiometric · ground splices to 36</td></tr>
-        <tr><td class="pin">15 / 37 / 36</td><td class="k">EGR position</td><td><span class="w magenta">analog</span></td><td>Potentiometer, shares EGR connector</td></tr>
-        <tr><td class="pin">52 / 74 / 30</td><td class="k">Crankshaft speed</td><td><span class="w cyan">frequency</span></td><td>Variable reluctance, differential, twisted pair</td></tr>
-        <tr><td class="pin">45 / 46 / 44</td><td class="k">Camshaft position</td><td><span class="w cyan">frequency</span></td><td>Hall effect, already digital</td></tr>
-        <tr><td class="pin">43 / 23</td><td class="k">Coolant switch · droop switch</td><td><span class="w cyan">digital</span></td><td>Switch-to-return + debounce</td></tr>
-        <tr><td class="pin">20 / 24 / 71</td><td class="k">Audio abort · override · ignition</td><td><span class="w red">switched batt</span></td><td><strong>Active high</strong> — zener clamp, see §03</td></tr>
-        <tr><td class="pin">01 / 02</td><td class="k">G_G_B AT1 / AT2</td><td><span class="w black">ground</span></td><td>Switch returns, or main power grounds — unresolved</td></tr>
-        <tr><td class="pin">88</td><td class="k">Fuel metering unit</td><td><span class="w black">PWM low side</span></td><td>Low-side driver + current sense</td></tr>
-        <tr><td class="pin">59 / 81</td><td class="k">EGR high / low</td><td><span class="w magenta">PWM</span></td><td>H-bridge, position feedback on pin 37</td></tr>
+        <tr><td class="pin">04 / 06</td><td class="k">V_V_BAT_1R / 2R</td><td><span class="w red">supply</span></td><td>From the main relay's contact, 10 A fuse each: <b>the board's only supply</b>. 04 feeds the electronics and injectors, 06 the EGR bridge</td></tr>
+        <tr><td class="pin">01 / 02</td><td class="k">G_G_BAT1 / 2</td><td><span class="w black">ground</span></td><td>Power ground, via splice V2, ≤ 1.0 m</td></tr>
+        <tr><td class="pin">71</td><td class="k">I_S_T15, ignition</td><td><span class="w red">switched batt</span></td><td>Active high, from a GCU relay. Also wakes the board: closes the main relay in hardware</td></tr>
+        <tr><td class="pin">50</td><td class="k">O_S_MRLY, main relay</td><td><span class="w black">low side</span></td><td>Coil 85; 86 on terminal 30. N-FET with a TVS, no flyback diode (the relay carries a resistor across its coil)</td></tr>
+        <tr><td class="pin">69</td><td class="k">O_T_BUZZ, buzzer relay</td><td><span class="w black">low side</span></td><td>Coil fed from the main-relay line. Both relays: KOEL board 4H.865.27.0.00</td></tr>
+        <tr><td class="pin">11 / 41 / 79 / 34</td><td class="k">Boost pressure + air temp</td><td><span class="w magenta">analog</span></td><td>Bosch 0 281 006 102. Pressure through an INA592; temperature a bare NTC with a 2.49k pull-up. Return 34 via splice V3</td></tr>
+        <tr><td class="pin">33</td><td class="k">Coolant temperature</td><td><span class="w magenta">analog</span></td><td>Bosch 0 281 002 209, bare NTC, 2.49k pull-up, Bosch's table · ground to V3 → 34</td></tr>
+        <tr><td class="pin">32 / 35 / 08</td><td class="k">Rail pressure</td><td><span class="w magenta">analog</span></td><td>Bosch 0 281 006 425, 0–1800 bar ratiometric · dedicated sensor ground</td></tr>
+        <tr><td class="pin">39 / 80</td><td class="k">Oil pressure</td><td><span class="w magenta">analog</span></td><td>Honeywell PX3AN2BF010BSDAX, 0–10 bar · ground (twisted with 39) via V4 → 36</td></tr>
+        <tr><td class="pin">15 / 37 / 36</td><td class="k">EGR position</td><td><span class="w magenta">analog</span></td><td>Potentiometer: 100k / 160k divider, no pull-up · ground via V4</td></tr>
+        <tr><td class="pin">52 / 74 / 30</td><td class="k">Crankshaft speed</td><td><span class="w cyan">frequency</span></td><td>Bosch DG-6-K 0 281 002 214, variable reluctance, differential, twisted</td></tr>
+        <tr><td class="pin">45 / 46 / 44</td><td class="k">Camshaft (segment)</td><td><span class="w cyan">frequency</span></td><td>Bosch Hall 0 281 002 667, open collector, twisted · the decoder learns the wheel</td></tr>
+        <tr><td class="pin">21</td><td class="k">I_S_WFLS, water in fuel</td><td><span class="w red">switched batt</span></td><td>Bosch F 002 H23 583, active high (sensor pin 3 to 2 when wet)</td></tr>
+        <tr><td class="pin">43 / 23</td><td class="k">Coolant level · droop</td><td><span class="w cyan">digital</span></td><td>Switch to terminal 31. Pin 43 closed = level OK</td></tr>
+        <tr><td class="pin">20 / 24</td><td class="k">Audio abort · override</td><td><span class="w red">switched batt</span></td><td>Active high, GCU relay contacts</td></tr>
+        <tr><td class="pin">14 / 25</td><td class="k">Diagnosis request · stop switch</td><td><span class="w cyan">digital</span></td><td>Active low, GCU relay contacts to terminal 31</td></tr>
+        <tr><td class="pin">09</td><td class="k">I_A_SYNC</td><td><span class="w magenta">analog</span></td><td>Synchronisation input, direct from the GCU</td></tr>
+        <tr><td class="pin">88</td><td class="k">Fuel metering unit</td><td><span class="w black">PWM low side</span></td><td>Bosch CB18 0 928 400 820, normally open. Valve pin 2 on the main-relay line. Current-controlled</td></tr>
+        <tr><td class="pin">59 / 81</td><td class="k">EGR motor + / −</td><td><span class="w magenta">PWM</span></td><td>H-bridge, position feedback on pin 37</td></tr>
         <tr><td class="pin">03</td><td class="k">Injector high side — bank A</td><td><span class="w red">high side</span></td><td>Cylinders <strong>1 and 3</strong>, joined at splice V5</td></tr>
         <tr><td class="pin">05</td><td class="k">Injector high side — bank B</td><td><span class="w red">high side</span></td><td>Cylinder 2</td></tr>
-        <tr><td class="pin">73 / 07 / 29</td><td class="k">Injector low side — cyl 1 / 3 / 2</td><td><span class="w black">low side</span></td><td>Current-controlled peak-and-hold</td></tr>
-        <tr><td class="pin">50 / 69</td><td class="k">Main relay · buzzer relay</td><td><span class="w black">low side</span></td><td>N-FET + flyback diode</td></tr>
-        <tr><td class="pin">55 / 77</td><td class="k">CAN channel 1</td><td><span class="w yellow">CAN H</span> <span class="w green">CAN L</span></td><td>To the KG640C</td></tr>
-        <tr><td class="pin">87 / 86</td><td class="k">CAN channel 2</td><td><span class="w yellow">CAN H</span> <span class="w green">CAN L</span></td><td>Also wired in the OEM system</td></tr>
+        <tr><td class="pin">73 / 07 / 29</td><td class="k">Injector low side — cyl 1 / 3 / 2</td><td><span class="w black">low side</span></td><td>Bosch CRI-2-16 0 445 B76 1X3; 18 A peak, 9–11 A hold · leads ≤ 1.5 m</td></tr>
+        <tr><td class="pin">87 / 86</td><td class="k">CAN 1, application line</td><td><span class="w yellow">CAN H</span> <span class="w green">CAN L</span></td><td>1000 kbit/s: flashing and UDS</td></tr>
+        <tr><td class="pin">55 / 77</td><td class="k">CAN 2, PT line</td><td><span class="w yellow">CAN H</span> <span class="w green">CAN L</span></td><td>250 kbit/s: J1939 to the DSE4522, and OBD</td></tr>
       </tbody>
     </table>
   </div>
@@ -316,13 +320,15 @@ html{scroll-behavior:smooth}
 
   <h3>Signals that are not on this connector</h3>
   <div class="col">
-  <p>The fuel level sender and the water-in-fuel switch both appear in the wiring
-  diagram, and neither reaches the ECU — they route through the XC11/XC1 harness to the
-  panel. They belong to the GCU. Earlier design passes had built front-ends for both.</p>
-  <p>Also absent from the entire system: any magnetic pickup, any DEF or urea sensor, any
-  LIN bus, any SCR, and any separate overspeed switch. What the diagram labels
-  <span class="m">OVERSIDE SWITCH</span> on pin 24 traces to <span class="m">-S7 Override
-  SS SW</span> — one component, not two.</p>
+  <p>The fuel level sender goes to the panel, not the ECU. The water-in-fuel sensor
+  was drawn to the panel on the KOEL diagram, but Bosch's drawing puts it on ECU
+  pin 21, and the board follows Bosch.</p>
+  <p>Also absent: any intake throttle (Bosch gives it no pin; the governor holds
+  1500 rpm through fuel), any pre/post-heat output (the DSE switches it), any
+  magnetic pickup, DEF or urea sensor, LIN bus, or separate overspeed switch. Pin 24
+  is Bosch's <span class="m">I_S_OS</span>, the override switch. The boxed numbers 55
+  and 76 beside the oil sensor and splice V4 on Bosch's drawing are line references,
+  not ECU pins.</p>
   </div>
 </section>
 
@@ -1814,8 +1820,9 @@ z
   </div>
 
   <div class="blk">
-    <header><h3>Ratiometric sensor front-end</h3><span class="pins">pins 41, 35, 80, 37</span></header>
+    <header><h3>Ratiometric sensor front-end</h3><span class="pins">pin 35 (41 and 80 through an INA592)</span></header>
     <div class="body">
+<div class="note"><span class="lbl">Updated 23 Nov 2026</span><p>Rail pressure (35) uses this divider directly. Boost pressure (41) and oil pressure (80) sit on shared returns, so an INA592 difference amplifier comes first. The EGR pot (37) and the two bare NTCs (33, 79) use a lighter 100k / 160k divider (decisions log §33, §36).</p></div>
       <figure class="sch"><svg xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 376.713 176" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -2592,6 +2599,7 @@ z
   <div class="blk">
     <header><h3>Transient clamp</h3><span class="pins">battery input · ISO 7637-2 pulse 2a</span></header>
     <div class="body">
+<div class="note"><span class="lbl">Updated 23 Nov 2026</span><p>The figure labels the supply “pin 21”, from the KOEL diagram. Under Bosch’s pinout, which the board follows, the supply enters on <b>pins 04 / 06</b> from the main relay’s contact, and pin 21 is the water-in-fuel input (decisions log §18). The clamp itself is unchanged.</p></div>
       <figure class="sch"><svg xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 389.325016 195.078884" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -4920,6 +4928,7 @@ z
   <div class="blk">
     <header><h3>Relay driver</h3><span class="pins">pins 50, 69</span></header>
     <div class="body">
+<div class="note"><span class="lbl">Updated 23 Nov 2026</span><p>Under Bosch’s wiring the main relay’s coil sits on terminal 30, always live, so a flyback diode to the board’s supply on <b>pin 50</b> would power the board through the coil with the relay open. Pin 50 therefore has <b>no flyback diode: a TVS to ground</b> (SMAJ48CA) takes the turn-off, and Bosch requires the suppressor inside the relay. The fitted relay (4H.865.27.0.00) has a resistor across its coil; the drain stays at 44–54 V (decisions log §18, §37). <b>Pin 69</b> keeps its diode (D811): the buzzer coil is fed from the main-relay line, so there is no sneak path.</p></div>
       <figure class="sch"><svg xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 257.74775 212.2" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -6074,16 +6083,16 @@ z
       <tbody>
         <tr><td class="pin">U12</td><td class="k">Does the fuel relay remove power, or only signal?</td><td><b>CLOSED 18 Sep 2026 — it only signals.</b> §04's safety gate, resolved against us</td><td>Closed by measurement. The trip module becomes the only ECU-independent shutdown.</td></tr>
         <tr><td class="pin">U4</td><td class="k">Exact J1939 PGN set</td><td>CAN firmware</td><td>Mostly answered — addresses 234 / 44, and the controller wants oil pressure, coolant temp, coolant level and speed from us. Log the bus for the rest.</td></tr>
-        <tr><td class="pin">U2</td><td class="k">Boost air temp — NTC or ratiometric?</td><td>One sensor front-end</td><td>One resistance reading across the sensor, engine cold</td></tr>
-        <tr><td class="pin">U5</td><td class="k">Injector part number</td><td>Boost rail target, not the driver itself</td><td>Read the injector body</td></tr>
-        <tr><td class="pin">U6</td><td class="k">What pin 09 "synchronization ground" does</td><td>Ground plan</td><td>Continuity, battery disconnected</td></tr>
-        <tr><td class="pin">U7</td><td class="k">Are pins 04/06 sense-only or load feeds?</td><td>No longer blocking: the board now uses them as load feeds (POWER-PATH, 8 Oct 2026)</td><td>Measure current at the fuse</td></tr>
-        <tr><td class="pin">U8</td><td class="k">Is the 6-pin intake throttle on the ECU?</td><td>Whether a throttle driver is in scope</td><td>Follow the cable by hand</td></tr>
+        <tr><td class="pin">U2</td><td class="k">Boost air temp — NTC or ratiometric?</td><td colspan="2"><b>Closed.</b> A bare NTC inside Bosch 0 281 006 102 (22 Nov 2026): 2.49k pull-up on pin 79, sent as SPN 105 (decisions log §33).</td></tr>
+        <tr><td class="pin">U5</td><td class="k">Injector part number</td><td colspan="2"><b>Closed.</b> Bosch CRI-2-16, 0 445 B76 1X3 (10 Nov 2026). Coil rated 0.2–2.0 Ω at 20 °C; the reading itself is still wanted (§38).</td></tr>
+        <tr><td class="pin">U6</td><td class="k">What pin 09 does</td><td colspan="2"><b>Closed.</b> Bosch's drawing: I_A_SYNC, an analog synchronisation input wired direct from the GCU. Read by the board; its function is configured later.</td></tr>
+        <tr><td class="pin">U7</td><td class="k">Are pins 04/06 sense-only or load feeds?</td><td colspan="2"><b>Closed.</b> Load feeds, and the board's only supply: both come from the main relay's contact (Bosch, §18).</td></tr>
+        <tr><td class="pin">U8</td><td class="k">Is the intake throttle on the ECU?</td><td colspan="2"><b>Closed.</b> No: Bosch's drawing gives it no pin (10 Nov 2026). The governor holds 1500 rpm through fuel.</td></tr>
         <tr><td class="pin">U9</td><td class="k">Where the catalyst temp sensor goes</td><td>Whether an EGT front-end is needed</td><td>Trace on the engine</td></tr>
         <tr><td class="pin">U10</td><td class="k">Which signal uses SENT</td><td>Possible digital sensor front-end</td><td>Inspect the harness</td></tr>
-        <tr><td class="pin">U14</td><td class="k">Pre-heat / post-heat — controller or ECU?</td><td>Whether a heater output is in scope. We have none.</td><td>Trace the heater supply. The controller config enables both at 50 °C.</td></tr>
+        <tr><td class="pin">U14</td><td class="k">Pre-heat / post-heat — controller or ECU?</td><td colspan="2"><b>Closed.</b> The controller: Bosch's drawing has no heater pin, and the DSE4522 switches it (10 Nov 2026).</td></tr>
         <tr><td class="pin">U15</td><td class="k">What "CRS-878" denotes</td><td>Possibly bears on the injector</td><td>Ask KOEL, or find DSE's engine-profile list</td></tr>
-        <tr><td class="pin">—</td><td class="k">Are pins 01/02 switch returns or power grounds?</td><td>Ground plan</td><td>Continuity to battery negative</td></tr>
+        <tr><td class="pin">—</td><td class="k">Are pins 01/02 switch returns or power grounds?</td><td colspan="2"><b>Closed.</b> Power grounds, G_G_BAT1/2, via splice V2 (Bosch, 8 Nov 2026).</td></tr>
       </tbody>
     </table>
   </div>
