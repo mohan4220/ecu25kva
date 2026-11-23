@@ -1,8 +1,9 @@
 # Build Status — What Is Done and What Is Not
 
-**As of 20 September 2026, end of session.** Counts in this document are generated from the repository,
-not maintained by hand: the block results come from `sim/run_sim.py`, the unknowns from
-the specification's own register.
+**As of 24 November 2026.** The current state is this section and §9 ("Resume
+here"); every change since September is in `docs/decisions-log.md` (§1–40).
+Sections 1–8 below are the record as it was built, kept with dated updates
+rather than rewritten, so the history of each finding stays readable.
 
 ---
 
@@ -10,30 +11,22 @@ the specification's own register.
 
 | | Count |
 |---|---|
-| Circuit blocks simulated | **24** |
-| Blocks passing every check | **24** |
-| Blocks failing a check | **0** |
-| Research memos | **12** |
-| Documents in the bible | **18** |
-| Unknowns closed | **4** |
-| Unknowns partly answered | **4** |
-| Unknowns still open | **9** |
-| Phase | **2** — schematic capture **complete**: 10 sheets, root wired, project netlist checked |
+| Circuit blocks simulated (`sim/run_sim.py`) | **28**, all passing |
+| Engine scenarios (`firmware/sim/run_sil.py`) | **19**, passing on the hand-written and the model-generated build |
+| Simulink component models (`model/model_list.m`) | **21**, each proven bit-exact against the C (b2b) |
+| Simulink closed loop (`sim_ecu25kva`) | **29 checks**, two runs (start / load / stop; protection) |
+| Prototype board tests (`test_prototype`) | **26**, passing; fab files in `prototype/fab/` |
+| ECU pins used (Bosch 0 462 YU4 15D) | **46**, all checked against the board on 23 Nov 2026 |
+| Research memos | **13** |
+| Documents in the bible (`docs/pdf/ECU-Bible.pdf`) | **27**, 477 pages |
+| Unknowns closed / partly / open | **12 / 1 / 3** (§5) |
+| Phase | Prototype ready to order and bring up; production board waits on the housing (owner, 10 Nov) |
 
-**All 24 blocks pass.** On 19 September it was 16, after a temperature-corner pass found
-six blocks that fail cold or hot and turned prose caveats into enforced checks. All six
-are now answered, and the answers are part specifications rather than widened checks —
-every one of them is written up in `docs/bom_requirements.md` with the block that demands
-it, and every failing corner is kept as pinned evidence of *why* the requirement exists.
+**The flashed build is the model-generated one** (`app_model`). The control,
+the sensors, the protection and the J1939 data are generated from the Simulink
+models; what stays hand-written C is listed in decisions log §40.
 
-**One of the six was not a part-selection problem at all.** The metering unit's coil is
-copper, copper moves 0.39 %/°C, and no better resistor exists to buy. It needed closed-loop
-current control, which put a 50 mΩ shunt and a sense amplifier on ECU pin 88's return —
-new schematic content, not a BOM line. See §1.7.
-
-**Schematic complete; the PCB is prepared for hand routing, with the housing and connector as placeholders (14 October). Firmware runs on the PC against a simulated engine.** The
-KiCad project is in `hw/`, with all ten hierarchical sheets created and the first —
-`power_input` — drawn and netlist-checked. See §7.
+**What still needs the engine or the owner:** the list in §9.
 
 ---
 
@@ -178,7 +171,7 @@ These have no netlist, no schematic and no checks. They are the real gaps.
 
 | Missing circuit | Pins | Why it is not built |
 |---|---|---|
-| **Negative-input protection for the buck** | pin 21 chain | **Found 19 Sep.** The LM5164's VIN is rated −0.3 V to 100 V; the negative limit is not a mirror of the positive one and nothing was sized against it. The TVS clamps correctly to −38 V, which is still two orders of magnitude outside what the buck tolerates. A missing component, not a mis-sized one |
+| ~~Negative-input protection for the buck~~ | pin 04 chain (pin 21 before Bosch) | **Built 22 Sep 2026.** Q2, a negative clamp driven by a TLV3201-Q1 comparator into a UCC27517A-Q1 driver (`hw/gen_sheet_power_input.py`, `negative_pulses`) |
 | ~~Intake throttle driver~~ | — | **Closed 10 Nov 2026 (U8).** The owner's "throttle" is fuelling to reach and hold 1500 rpm: the firmware's speed governor (`govern.c`), through the injectors and the metering unit. Bosch's drawing gives a throttle valve no pin, so the ECU drives none |
 | ~~Pre/post-heat output~~ | — | **Closed 10 Nov 2026 (U14), by the owner's rule: follow Bosch.** The MD1CS162 terminal diagram has no heater pin, so the ECU has no heater output. The DSE4522 switches pre/post-heat itself (enabled at 50 °C) |
 
@@ -194,7 +187,7 @@ stimuli named. These are the gaps in the *verification*, not in the circuits.
 | ~~No temperature corner anywhere~~ | **Done 19 Sep**, −40/+125 °C across all blocks. Six fail at a corner — `emi_filter` and `can_termination` from *ordinary specified* component behaviour, not stacked worst cases. Being converted from prose into enforced checks |
 | ~~ISO 7637-2 negative pulses unsimulated~~ | **Done 19 Sep.** The TVS is now modelled as the bidirectional part it is, which is what made the question answerable. Result: the buck's VIN sees −40.7 V against a sourced −0.3 V absolute maximum — see the new gap below |
 | **Common-mode EMI unmodelled** | `emi_filter` covers differential mode only. Most real automotive failures are common mode, and modelling it honestly needs a layout to give the return path |
-| **Reverse-battery transient — now load-bearing** | The switch model turns off instantly, so it always looks perfect. That was a caveat; since `negative_pulses` it is a design dependency. If the controller opens fast enough the buck is isolated; if not it sees the full clamped negative voltage. No controller part is chosen and no turn-off delay is sourced, so both bookends are simulated and neither is claimed |
+| ~~Reverse-battery transient~~ | **Settled 22 Sep 2026:** Q1 became a P-FET with a passive gate (47k to ground, zener gate–source), so there is no controller whose delay matters; the negative pulses are taken by Q2's clamp |
 | **Watchdog fault-detection time** | `supervisor` bounds only what happens *after* reset asserts, not how long detection takes |
 
 ---
@@ -218,31 +211,35 @@ produced them is the record of how the error happened.
 
 ## 5. Unknowns
 
-### Closed — 4
+### Closed — 12
 
 | # | Question | Answer |
 |---|---|---|
 | U11 | Engine identity | `3GK550ETA 4SR1`, app code `GK3.8703`, CPCB IV+ under certificate `P25/2825/24` |
 | U1 | ECU connector | Bosch `1 928 405 192` / `194`, **code C** keying |
+| U3 | Does the controller have a speed pickup? | No |
 | U13 | Which controller is fitted | **DSE4522 MKII AMF**, not the KG640C the diagram shows |
 | U12 | Does the fuel relay remove power? | **No — it only signals** |
+| U16 | Alternator rectifier suppressed? | Designed for the suppressed load dump (9 Oct) |
+| U2 | Charge-air temperature sensor | A bare NTC inside Bosch 0 281 006 102 (22 Nov, §33) |
+| U5 | Injector | Bosch 0 445 B76 1X3, CRI-2-16; coil rated 0.2–2.0 Ω at 20 °C, the reading itself wanted (§38) |
+| U6 | Pin 09 | Bosch `I_A_SYNC`, an analog input from the GCU |
+| U7 | Pins 04/06 | The board's only supply, from the main relay (§18) |
+| U8 | Intake throttle | Not on Bosch's drawing; the governor holds speed through fuel (10 Nov) |
+| U14 | Pre/post-heat | The DSE switches it; no ECU pin (10 Nov) |
 
-**Three of these four closed against what this project had reasoned.** That is the
+**Three of the first four closed against what this project had reasoned.** That is the
 single most useful thing to know about the desk work: it is productive, and it is not
 reliable without the machine.
 
-### Partly answered — 4
+### Partly answered — 1
 
-**U4** CAN expectations (addresses 234 and 44 confirmed) · **U5** injector drive profile
-(part confirmed 10 Nov: Bosch 0 445 B76 1X3, CRI-2-16; its electrical data is unpublished, so the drive's numbers are confirmed on the bench) · ~~U8~~ throttle (closed 10 Nov: the governor) ·
-~~U14~~ pre/post-heat (closed 10 Nov: not on Bosch's drawing; the DSE switches it)
+**U4** CAN expectations: addresses 234 and 44 confirmed; a running-engine J1939 trace still wanted.
 
-### Open — 8
+### Open — 3
 
-**U2** charge-air sensor topology · **U6** pin 09 function · **U7** pins 04/06 sense or
-feed (no longer blocking: the board uses them as load feeds since 8 Oct) · **U9** catalyst sensor routing · **U10** SENT signal identity · **U15** what
-`CRS-878` denotes · **U16** alternator rectifier suppressed or not · plus U12's
-contact-type confirmation, which gates nothing
+**U9** catalyst sensor routing · **U10** SENT signal identity · **U15** what `CRS-878` denotes.
+None blocks the prototype.
 
 ---
 
@@ -254,10 +251,10 @@ contact-type confirmation, which gates nothing
 | ~~Passive pulldown vs active clamp~~ | — | **DECIDED 19 Sep 2026, memo 12.** Active clamp, built discretely, at every gate. The integrated route relocates this problem rather than removing it |
 | **MC33816 last-time-buy 06/08/2027** | Fallback path only | Needs a distributor conversation, not another search |
 | ~~L9781 datasheet unretrievable~~ | — | **CLOSED 8 Oct 2026.** The owner supplied ST's data brief DB3720: `VTank` up to 80 V, a pre-driver for 11 external FETs. The runner-up is confirmed out against the 100 V rail (memo 12 §2.4) |
-| **Ideal-diode controller for Q1** | `power_input` sheet, `reverse_battery`, `negative_pulses` | Its turn-off time is load-bearing and unsourced. `VBAT_REV_GATE` is undriven on the sheet until a part is chosen |
-| **Negative-clamp comparator for Q2** | `power_input` sheet, `negative_pulses` | Its propagation delay is the last unmodelled term in the negative-pulse chain. `NCLAMP_GATE` is undriven until a part is chosen |
+| ~~Ideal-diode controller for Q1~~ | — | **DECIDED 22 Sep 2026:** none needed. Q1 is a P-FET with a passive gate |
+| ~~Negative-clamp comparator for Q2~~ | — | **DECIDED 22 Sep 2026:** TLV3201-Q1 into a UCC27517A-Q1 driver |
 | **Air-intake shutoff** | Nothing electrical | Owners' decision. Nothing in this design can stop an oil-fuelled runaway |
-| **Trip-module pickup target** | Module ordering | Whether it shares our flywheel target. Sharing is cheaper; separate preserves the independence that is the reason for fitting it |
+| **Trip-module pickup target, and wiring the trip** | Running the engine | The DSE's overspeed reads the speed this ECU sends, so an independent trip must be fitted before engine runs. It opens the main relay's coil feed (spec §3 item 7); not yet wired |
 
 ---
 
@@ -270,7 +267,7 @@ contact-type confirmation, which gates nothing
 | 1.5 | Block-level simulation | **Done — 28 blocks, 28 passing** (stop_kill 10 Nov, boost_ovp 12 Nov 2026) |
 | **2** | **KiCad hierarchical schematic capture** | **Complete — 380 components, 378 with footprints; connectivity OK with 2 named open items (power-ground pin, trip-loop pin)** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | **Prepared for hand routing (14 Oct)**: board with all 379 parts placed by block, classes and rules set, DRC clean, 499 connections to route (decisions log §13). Housing and J1001 are placeholders until measured (brief Group 6) |
-| 4 | Firmware skeleton | **Core done on the PC, with production logging — 16/16 engine scenarios, 101 unit tests; calibrated from the old ECU's recording (§14). Service link (20 Oct): bootloader, end-of-line record, underspeed warning, laptop tool over USB and CAN — 7 bootloader tests, the tool tested end to end** (decisions log §11, §12, §16). **Simulator (20 Oct): `ecusim`, one program for Windows, macOS and Linux, runs the firmware live or from scripts in a browser; all 16 scenarios pass as scripts** (§17). Next: S32K148 dev kit and the chip layers |
+| 4 | Firmware | **Updated 24 Nov 2026: 19 engine scenarios on both builds; the STM32G474 chip layer done; the flashed build is the model-generated one (21 Simulink models, decisions log §40).** As first recorded: **Core done on the PC, with production logging — 16/16 engine scenarios, 101 unit tests; calibrated from the old ECU's recording (§14). Service link (20 Oct): bootloader, end-of-line record, underspeed warning, laptop tool over USB and CAN — 7 bootloader tests, the tool tested end to end** (decisions log §11, §12, §16). **Simulator (20 Oct): `ecusim`, one program for Windows, macOS and Linux, runs the firmware live or from scripts in a browser; all 16 scenarios pass as scripts** (§17). Next: S32K148 dev kit and the chip layers |
 
 ### Phase 2 — what exists
 

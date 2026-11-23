@@ -28,7 +28,7 @@ SVG = HERE.parent / "docs" / "handbook" / "circuits"
 BLOCKS = {
     "power": ("01", "Power chain", "From the battery terminal to the MCU rail. Six stages, each one a "
               "different failure it has to survive.", [
-        ("emi_filter", "EMI input filter", "pin 21",
+        ("emi_filter", "EMI input filter", "pin 04 (pin 21 before Bosch)",
          "Two LC stages between the battery and everything else, measured 50 ohm to 50 ohm the way a "
          "LISN would see it.",
          "One stage is not enough, and the reason is the capacitor: C1's own lead inductance puts its "
@@ -46,7 +46,7 @@ BLOCKS = {
          "Steady state only. A real controller takes about a microsecond to turn the FET off, and current "
          "flows backwards through the body diode during that window. The switch model here turns off "
          "instantly, so it will always look perfect in reverse — that number is a datasheet question."),
-        ("transient_clamp", "Transient clamp", "pin 21",
+        ("transient_clamp", "Transient clamp", "pin 04 (pin 21 before Bosch)",
          "A bidirectional TVS behind a 5 A fuse, against ISO 7637-2 pulse 2a: +112 V through 2 ohms for "
          "50 us. Second and third stages of spec sec.4's pin 21 order — EMI filter, then fuse, then this "
          "TVS, then the reverse-battery FET.",
@@ -57,7 +57,7 @@ BLOCKS = {
          "fuse (dashed in the schematic) is not modelled either — this netlist folds all series impedance "
          "into Rsrc — and its survival under pulse 2a's repeated ~38 A instantaneous stress has not been "
          "tested, unlike load_dump, which did check this for its own pulse."),
-        ("load_dump", "Load dump", "pin 21",
+        ("load_dump", "Load dump", "pin 04 (pin 21 before Bosch)",
          "The same TVS and capacitor as transient_clamp, against ISO 7637-2 pulse 5b: a suppressed load "
          "dump, 40 V through 0.5 ohms for 400 ms — four orders of magnitude longer than pulse 2a.",
          "Clamps to 38 V, comfortably inside every voltage rating in the chain — the same story as pulse "
@@ -80,7 +80,7 @@ BLOCKS = {
          "in the right direction), and the TVS's actual junction thermal transient. The 5 A fuse (dashed "
          "in the schematic, not a netlist element) does not rescue this failing case either: the fault "
          "current is 3.04 A, 0.6x the fuse's rating, and it will not clear in 400 ms."),
-        ("negative_pulses", "Negative transients", "pin 21",
+        ("negative_pulses", "Negative transients", "pin 04 (pin 21 before Bosch)",
          "The same TVS and bulk capacitor as transient_clamp/load_dump, against ISO 7637-2's two worst "
          "NEGATIVE pulses: pulse 1 (−150 V through 10 Ω for 2 ms, a supply disconnection from an inductive "
          "load) and pulse 3a (−220 V through 50 Ω for 0.1 ms, simulated as a 5-pulse burst at the "
@@ -154,6 +154,47 @@ BLOCKS = {
          "Lumped: no planes, no via inductance, no spreading inductance, so it is optimistic above about "
          "100 MHz — which is exactly where the sweep stops. An earlier version swept to 1 GHz and "
          "obediently reported ESL times omega at the last point as a 'peak'."),
+        ("power_path", "Power path: pins 04 and 06", "pins 04, 06",
+         "The two feeds from the main relay's contact, each with its own TVS, reverse-battery P-FET "
+         "(SQM120P10, -100 V, passive gate: 47k to ground, 12 V zener gate-to-source) and Schottky "
+         "backstop. Pin 06 feeds the EGR bridge; pin 04 the injectors' hold switches and the boost "
+         "converter, and since Bosch's pinout (8 Nov 2026) the electronics chain too, behind its own "
+         "protection.",
+         "Two feeds, not one paralleled: two fuses in parallel never share, so one clears first and "
+         "hands the whole load to the other. At the EGR's 6.4 A stall the FET drops 0.13 V and its "
+         "junction reaches 139 C on a 105 C board, 36 C under its limit; while cranking (Vgs -4.5 V) "
+         "155 C, still 20 C under. The injector feed carries 3.8 A RMS. Reversed, both feeds block "
+         "-14 V with 0.014 mV of leak.",
+         "The switch model carries the FET's 175 C resistance throughout, which over-states every drop "
+         "and every watt -- the safe direction. The cranking figure is INFERRED: the datasheet gives "
+         "-4.5 V only at 25 C, scaled here by the -10 V curve's own hot/cold ratio. The netlist's "
+         "header still describes the pre-Bosch arrangement in which pin 21 kept the buck."),
+        ("feed_emi", "Feed filters: pins 04 and 06", "pins 04, 06",
+         "A filter on each feed after the reverse FET: 2 x 2.2 uF, 10 uH (XAL1510-103), 2 x 82 uF "
+         "and two dampers of 0.68 ohm in series with 82 uF. Measured CISPR 25's way, through a "
+         "5 uH / 50 ohm LISN and 200 mm of harness.",
+         "Unfiltered, the injector feed was 33 dB and the EGR feed 48 dB over the Class 5 limit: "
+         "these currents no longer pass through the electronics' own filter. Filtered, 17.7 dB and "
+         "9.3 dB under, and 12.2 dB under with the bulk capacitors at end of life. The dampers matter "
+         "because the boost converter and the hold loop regulate power, so they look like a negative "
+         "resistance (about 0.94 ohm at 9 V): the filter's output impedance peaks at 0.64 ohm, 1.47x "
+         "under it. The damping is a resistor, not a wet capacitor's ESR, which rises 8x at -40 C, "
+         "exactly when cranking needs it.",
+         "Differential mode only, like emi_filter. The margins hold with the injector chopping and the "
+         "EGR PWM at or below 25 kHz (at 50 kHz the EGR feed is 1 dB over): a firmware requirement "
+         "this filter depends on."),
+        ("stop_kill", "Stop switch kill path", "pin 25",
+         "Pin 25, the engine-compartment stop / emergency button (Bosch I_S_STST, to terminal 31 when "
+         "pressed), stops the engine in hardware: the input stage raises SW_STOP, Q302 pulls Q301's "
+         "gate down, and Q301 letting go raises GATE_KILL, which drops every injector, metering and "
+         "EGR gate.",
+         "It has to work when the firmware is the thing misbehaving, so no code is in the path. "
+         "Pressed, GATE_KILL reaches 11.9 V within 0.9 ms; a worn contact of 1 kohm still kills, "
+         "47 kohm of harness leakage does not (the trip sits at 10.8 kohm). Q301's gate comes from "
+         "~RESET through 100k, so ~RESET stays at 3.0 V: the MCU runs on, logs the stop and latches "
+         "SHUTDOWN.",
+         "The FETs are modelled at their worst-high threshold (2.1 V), the hardest case for Q302 to "
+         "turn on. The input stage is discrete_io's, drawn here as a box."),
         ("supervisor", "Supervisor / fail-safe kill path", "—",
          "A TPS3850-class windowed supervisor watching 3V3_MCU — the same rail mcu_pdn.cir characterizes "
          "— whose RESET drives, through one inverting stage, a kill FET at every protected driver gate "
@@ -264,7 +305,10 @@ BLOCKS = {
          "Bosch's drawing marks pin 50 'not equipped with freewheeling diode' -- the diode belongs in the "
          "relay. The board now clamps the drain with an SMAJ48CA to ground: 1.6 uA leakage with the relay "
          "off, and a 53-59 V turn-off peak against the FET's 100 V. Its 48 V standoff clears the 40 V "
-         "clamped load dump, so it never conducts in service."),
+         "clamped load dump, so it never conducts in service. The fitted relay (KOEL 4H.865.27.0.00, "
+         "the owner's drawing, 23 Nov 2026) has a resistor across its coil: checked at 330 ohm and "
+         "2.2 kohm, the drain peaks at 43.8 V and 53.7 V and pin 50 carries at most 133 mA "
+         "(decisions log 37)."),
         ("vr_conditioner", "Crank speed conditioner", "pins 52, 74, 30",
          "A variable-reluctance sensor into a zero-crossing comparator, run at both running speed and "
          "cranking speed.",
@@ -332,6 +376,17 @@ BLOCKS = {
          "artifact, not a FET's real slew rate. Also not modelled: diode reverse recovery (Qrr), the "
          "diode's thermal transient, and — inherited from injector_boost.cir — magnetic saturation and "
          "needle motion."),
+        ("boost_ovp", "Boost overvoltage cutoff", "BOOST_100V",
+         "A 110 V zener (BZG03C110) from the boost rail into the TPS40210's DIS/EN through 470 / 470 "
+         "ohm, with a 5.1 V clamp on EN; the MCU can pull EN up too (BOOST_DIS, through 100 ohm and a "
+         "BAT54Q).",
+         "The rail is set by FB through two 499k resistors; if either opens, FB reads 0 V and the "
+         "controller runs flat out. Nothing stopped that short of a 150 V part failing. Now the "
+         "earliest trip is 105 V (above the 101.7 V high corner) and the latest 119.3 V, leaving the "
+         "150 V parts 1.2x. With FB open and 50 mA into the 41 uF reservoir, the rail is held at "
+         "119.3 V, the converter cycling on DIS/EN. EN stays under its 10 V maximum even at 160 V.",
+         "The controller is a current source into the reservoir, cycled by EN at its 1.3 V maximum "
+         "threshold with the hysteresis left out: a pessimistic stand-in for the real controller."),
         ("boost_converter", "Boost rail reservoir", "pins 03, 05",
          "The reservoir capacitor under a real injection event, with and without the hold phase drawn "
          "from the same rail.",
@@ -359,8 +414,10 @@ BLOCKS = {
          "manufacturer data tied to a part number — the same gap as U5, in a smaller form. Keeping the "
          "frequency a firmware constant rather than a hardware one means it can be tuned on the machine. "
          "Coil inductance is also not constant: it falls as the armature moves and as the core saturates."),
-        ("relay_driver", "Relay driver", "pins 50, 69",
-         "A low-side FET switching a relay coil, run with and without the flyback diode.",
+        ("relay_driver", "Relay driver", "pin 69",
+         "A low-side FET switching a relay coil, run with and without the flyback diode. Pin 69, the "
+         "buzzer relay, keeps the diode: its coil is fed from the main-relay line, so there is no sneak "
+         "path. Pin 50 does not (see the main relay below).",
          "With the diode the drain stays at 14.3 V on turn-off. Without it the coil's stored energy has "
          "nowhere to go except through the FET.",
          "The simulated peak without the diode is hundreds of kilovolts, which is the ideal-switch model "

@@ -15,6 +15,7 @@ import re
 
 import schemdraw
 import schemdraw.elements as elm
+import schemdraw.dsp as dsp
 
 OUT = pathlib.Path(__file__).resolve().parent.parent / "docs" / "handbook" / "circuits"
 OUT.mkdir(parents=True, exist_ok=True)
@@ -363,7 +364,8 @@ def injector_turnoff(d):
 
 
 def relay_driver(d):
-    """ECU pins 50/69 -- low-side FET with flyback diode."""
+    """ECU pin 69, the buzzer relay -- low-side FET with flyback diode.
+    Pin 50 (the main relay) has a TVS instead: see main_relay."""
     d += elm.Dot(open=True).label("BATT +  13.5 V", "top")
     d += elm.Line().right().length(0.6)
     d += (top := elm.Dot())
@@ -383,8 +385,8 @@ def relay_driver(d):
     # Low-side switch below the coil, gate out to the right
     d += (q := elm.NFet(bulk=False).at(drain.center).anchor("drain"))
     d += elm.Ground().at(q.source)
-    d += elm.Line().right().at(q.gate).length(0.7).label("MCU pin 50 / 69", loc="right")
-    return "Relay driver -- pins 50 / 69"
+    d += elm.Line().right().at(q.gate).length(0.7).label("MCU, pin 69\n(pin 50: see main_relay)", loc="right")
+    return "Relay driver -- pin 69 (buzzer relay)"
 
 
 def egr_hbridge(d):
@@ -990,6 +992,113 @@ def supervisor(d):
     return "Supervisor -- fail-safe kill path, watches 3V3_MCU"
 
 
+def power_path(d):
+    """Pins 04 / 06 -- power_path.cir. Each feed its own: TVS, then a
+    reverse-battery P-FET with a passive gate (47k to ground, 12 V zener
+    gate-to-source), then a Schottky backstop. Drawn once: pin 06 into
+    VBAT_EGR; pin 04 into VBAT_INJ is the same chain."""
+    d += elm.Dot(open=True).at((0, 0)).label("pin 06\nV_V_BAT_2R\n(10 A fuse)", "left")
+    d += elm.Line().right().length(1.0)
+    d += (n1 := elm.Dot())
+    d += elm.Zener().down().at(n1.center).label("TVS", loc="bottom")
+    d += elm.Ground()
+    d += elm.Line().right().at(n1.center).length(0.8)
+    d += (q := dsp.Box(w=4.2, h=1.8).anchor("W").label(
+        "reverse-battery P-FET\nSQM120P10, -100 V\ngate: 47k to GND,\n12 V zener gate-source"))
+    d += elm.Line().right().at(q.E).length(0.8)
+    d += (n3 := elm.Dot())
+    d += elm.Schottky().down().at(n3.center).reverse().label("Schottky\nbackstop", loc="bottom")
+    d += elm.Ground()
+    d += elm.Line().right().at(n3.center).length(1.2)
+    d += elm.Dot(open=True).label("VBAT_EGR\n(EGR bridge,\n6.4 A stall)", "right")
+    d += elm.Label().at((q.center[0], q.center[1] - 4.6)).label(
+        "pin 04 -> VBAT_INJ: the same chain (injector hold + boost input)")
+    return "Power path -- pins 04 and 06, each its own reverse FET"
+
+
+def feed_emi(d):
+    """VBAT_INJ / VBAT_EGR input filter -- feed_emi.cir: 2 x 2.2 uF, 10 uH
+    (XAL1510-103), 2 x 82 uF HXC, and two dampers (0.68 ohm + 82 uF) so
+    the negative resistance of the constant-power loads cannot ring it."""
+    d += elm.Dot(open=True).label("from the\nreverse FET", "left")
+    d += elm.Line().right().length(0.6)
+    d += (a := elm.Dot())
+    d += elm.Capacitor().down().at(a.center).label("2 x 2.2 uF", loc="bottom")
+    d += elm.Ground()
+    d += elm.Inductor2().right().at(a.center).label("10 uH\nXAL1510-103", loc="top")
+    d += (b := elm.Dot())
+    d += elm.Capacitor().down().at(b.center).label("2 x 82 uF\nHXC 80 V", loc="bottom")
+    d += elm.Ground()
+    d += elm.Line().right().at(b.center).length(2.2)
+    d += (c := elm.Dot())
+    d += elm.Resistor().down().at(c.center).label("0.68R", loc="right")
+    d += elm.Capacitor().down().label("82 uF", loc="right")
+    d += elm.Ground()
+    d += elm.Line().right().at(c.center).length(2.2)
+    d += (e := elm.Dot())
+    d += elm.Resistor().down().at(e.center).label("0.68R", loc="right")
+    d += elm.Capacitor().down().label("82 uF", loc="right")
+    d += elm.Ground()
+    d += elm.Line().right().at(e.center).length(1.0)
+    d += elm.Dot(open=True).label("VBAT_INJ /\nVBAT_EGR", "right")
+    return "Feed filters -- CISPR 25 Class 5 on pins 04 and 06"
+
+
+def boost_ovp(d):
+    """Boost overvoltage cutoff -- boost_ovp.cir. If FB's divider opens
+    the controller runs flat out; a 110 V zener into DIS/EN through
+    470 / 470 shuts it down. The MCU can shut it too (BOOST_DIS)."""
+    d += elm.Dot(open=True).label("BOOST_100V", "left")
+    d += elm.Line().right().length(0.6)
+    d += elm.Zener().right().reverse().label("110 V\nBZG03C110", loc="top")
+    d += elm.Resistor().right().label("470", loc="top")
+    d += (en := elm.Dot())
+    d += elm.Resistor().down().at(en.center).label("470", loc="top")
+    d += elm.Ground()
+    d += elm.Line().right().at(en.center).length(1.4)
+    d += (z := elm.Dot())
+    d += elm.Zener().down().at(z.center).reverse().label("5.1 V", loc="right")
+    d += elm.Ground()
+    d += elm.Line().right().at(z.center).length(1.4)
+    d += elm.Dot(open=True).label("TPS40210 DIS/EN\n(0.7-1.3 V: off)", "right")
+    d += elm.Line().up().at(en.center).length(1.4)
+    d += elm.Schottky().left().reverse().label("BAT54Q", loc="top")
+    d += elm.Resistor().left().label("100", loc="top")
+    d += elm.Dot(open=True).label("MCU\nBOOST_DIS", "left")
+    return "Boost overvoltage cutoff -- the rail cannot run away"
+
+
+def stop_kill(d):
+    """Pin 25, the stop / emergency button, in hardware -- stop_kill.cir.
+    Pressed, it grounds the input stage, SW_STOP goes high, Q302 pulls
+    Q301's gate down, and Q301 letting go raises GATE_KILL: every
+    injector, metering and EGR gate drops. ~RESET stays up."""
+    d += elm.Dot(open=True).at((0, 0)).label("pin 25\n(to term. 31\nwhen pressed)", "left")
+    d += elm.Line().right().length(0.8)
+    d += (bx := dsp.Box(w=3.6, h=1.8).anchor("W").label("input stage\nR825-R828, C808\nQ808, inverting"))
+    d += elm.Line().right().at(bx.E).length(1.6).label("SW_STOP", loc="top")
+    d += (q2 := elm.NFet(bulk=False).reverse().anchor("gate").label("Q302", loc="right", ofst=0.2))
+    d += elm.Ground().at(q2.source)
+    d += elm.Line().up().at(q2.drain).length(1.2)
+    d += (kr := elm.Dot())
+    d += elm.Resistor().up().at(kr.center).label("R307\n100k", loc="bottom")
+    d += elm.Dot(open=True).label("~RESET\n(10k to 3V3)", "top")
+    d += elm.Line().right().at(kr.center).length(2.6)
+    d += (q1 := elm.NFet(bulk=False).reverse().anchor("gate").label("Q301", loc="right", ofst=0.2))
+    d += elm.Ground().at(q1.source)
+    d += elm.Line().up().at(q1.drain).length(1.2)
+    d += (gk := elm.Dot())
+    d += elm.Resistor().up().at(gk.center).label("R305\n47k", loc="bottom")
+    d += elm.Dot(open=True).label("VBAT_PROT", "top")
+    d += elm.Line().right().at(gk.center).length(2.0)
+    d += (o := elm.Dot())
+    d += elm.Zener().down().at(o.center).reverse().label("D301\n12 V", loc="bottom")
+    d += elm.Ground()
+    d += elm.Line().right().at(o.center).length(1.4)
+    d += elm.Dot(open=True).label("GATE_KILL\n(high: every\ngate off)", "right")
+    return "Stop kill -- pin 25 stops the engine without the firmware"
+
+
 BLOCKS = {
     "battery_sense": battery_sense,
     "discrete_input": discrete_input,
@@ -1015,6 +1124,10 @@ BLOCKS = {
     "metering_unit_pwm": metering_unit_pwm,
     "can_termination": can_termination,
     "supervisor": supervisor,
+    "power_path": power_path,
+    "feed_emi": feed_emi,
+    "boost_ovp": boost_ovp,
+    "stop_kill": stop_kill,
 }
 
 # schemdraw writes literal black; swap for currentColor so the drawing
