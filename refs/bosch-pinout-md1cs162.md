@@ -59,7 +59,7 @@ supplies the metering unit, the water-in-fuel switch and the buzzer relay coil.
 | 32 | `O_V_5VRAILPS` | Rail pressure (0 281 006 425) | 3 |
 | 35 | `I_A_RAILPS` | | 2 |
 | 08 | `G_R_RAILPS` | | 1, dedicated |
-| 45 | `O_V_5VCAS` | Cam (segment) speed, Hall (0 281 002 667) | 3 |
+| 45 | `O_V_5VCAS` | Cam (segment) speed, Hall (0 281 002 667). The three wires twisted (owner's crop, 23 Nov 2026) | 3 |
 | 46 | `I_F_CAS` | | 2 |
 | 44 | `G_R_CAS` | | 1 |
 | 74 | `I_F_CRSNEG` | Crank speed, inductive DG6 (0 281 002 214) | 1 |

@@ -2116,6 +2116,14 @@ during a fault only. The nominal rail is 5.0 V.
 wheel with several segments, typically one per cylinder plus a marker.
 That changes the decoder, not the circuit.
 
+**23 Nov (owner's crop of the drawing):** pins 3/2/1 to ECU 45/46/44,
+the three wires twisted, as the circuit assumed. The crop doesn't give
+the segment count, so the question stays open. It matters at the first
+start: with several segments per cycle the decoder sees a cam pulse in
+every revolution, never phases, and the engine cranks without
+injecting. Bring-up: count pin 46's pulses over two crank revolutions
+(scope, or the service tool) before the first start.
+
 
 ## 30. The rail pressure sensor: Bosch 0 281 006 425 (22 November)
 
