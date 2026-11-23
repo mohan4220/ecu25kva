@@ -2408,6 +2408,33 @@ stops. The firmware assumes 0.5–4.5 V for 0–100 %.
 
 ---
 
+## 37. The main relay's own drawing: a resistor across the coil (23 November)
+
+The owner sent the relay's symbol (4H.865.27.0.00, main and buzzer
+relay): **contact 30–87 normally open, coil 85–86, a resistor in parallel
+with the coil.** No diode.
+
+What it means for pins 50 and 69:
+- **Wiring is unchanged and polarity-free.** Bosch's drawing (86 to
+  Term. 30, 85 to pin 50) fits it; with no diode inside, swapping 85/86
+  would also work.
+- **Turn-off is softer, not harder.** The resistor carries the coil's
+  current at release, so the drain sees 14.4 V + I × R. Pin 50's
+  SMAJ48CA caps the rest (§18 already said the TVS works with or without
+  a suppressor in the relay). Simulated corners: 330 Ω peaks at 43.8 V
+  and the TVS never conducts; 2.2 kΩ peaks at 53.7 V in the TVS.
+- **The driver carries a little more.** Coil plus resistor: 133 mA
+  at 14.4 V with a 160 Ω coil and 330 Ω resistor. PMV280ENEA is rated
+  1 A. That is 8 mW in the FET.
+- **No sneak path.** Relay off, the TVS blocks; the resistor doesn't feed
+  the board.
+
+`main_relay.cir` part D and `check_main_relay` now check both corners.
+No change to either board.
+
+---
+
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a

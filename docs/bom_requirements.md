@@ -366,6 +366,25 @@ the buzzer relay (pin 69) are both on it, as PCB relays.
 are lighter than the 160 Ω assumed, so pins 50 and 69 have more margin,
 not less. No change on the board.
 
+**The relay's own drawing, 23 Nov 2026 (owner; decisions log §37):**
+a normally open contact 30–87, the coil on 85–86, and **a resistor across
+the coil** (no diode). That matches Bosch's wiring and changes nothing on
+the board:
+- **No polarity.** With a resistor, not a diode, 85 and 86 can go either
+  way round. Bosch's wiring stays: 86 to Term. 30, 85 to pin 50.
+- **Turn-off.** The resistor takes the coil's energy; the drain peaks at
+  14.4 V + I × R, and pin 50's TVS caps whatever is left (43.8 V with 330 Ω,
+  53.7 V with 2.2 kΩ; the FET is 100 V).
+- **On-current.** Pin 50 carries the coil and the resistor: 133 mA at
+  14.4 V in the worst corner (160 Ω coil, 330 Ω resistor), against
+  PMV280ENEA's 1 A. Pin 69 is the same.
+- **No sneak path.** With the relay off, the TVS blocks; the resistor adds
+  no path into the board's supply.
+
+Checked in `main_relay.cir` part D. The resistor's value isn't marked; a
+meter across 85–86 with the relay out reads coil ∥ resistor, which is all
+the board needs.
+
 ### `NTC-PULLUP` — pins 33 and 79, the bare NTCs, and `SGND-TIE`
 
 **22 Nov 2026, decisions log §33.** Coolant (Bosch 0 281 002 209, pin 33)

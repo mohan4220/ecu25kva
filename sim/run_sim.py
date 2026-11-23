@@ -1090,7 +1090,8 @@ def check_main_relay():
         "main_relay_wake.dat": ["vt15", "vg", "it15"],
         "main_relay_sneak_old.dat": ["vbat", "i_old", "v_prot"],
         "main_relay_sneak_new.dat": ["vbat", "i_new", "v_p50"],
-        "main_relay_clamp.dat": ["time", "d_min", "d_max", "i_coil"]})
+        "main_relay_clamp.dat": ["time", "d_min", "d_max", "i_coil"],
+        "main_relay_resistor.dat": ["time", "d_330", "d_2k2", "i_330", "i_2k2"]})
     w = r["main_relay_wake.dat"]
     vt, vg, it = w["vt15"], w["vg"], -w["it15"]
 
@@ -1144,6 +1145,20 @@ def check_main_relay():
     e = 0.5 * 1.2 * (14.4 / 160.0) ** 2
     c.that("  coil energy per release, into the TVS (400 W SMA)", e * 1e3,
            10.0, tol=None, ok=e < 10e-3, unit="mJ")
+
+    # The relay as fitted (owner's drawing, 23 Nov 2026): a resistor
+    # across the coil, value unmarked. Corners 330 R and 2.2k. The
+    # resistor takes the turn-off energy (peak Vb + I*R), the TVS caps
+    # what it can't; pin 50 carries the coil plus the resistor.
+    q = r["main_relay_resistor.dat"]
+    on = (q["time"] > 39e-3) & (q["time"] < 40.9e-3)
+    for tag, rp in (("330", 330.0), ("2k2", 2200.0)):
+        pk = float(q["d_" + tag].max())
+        c.that("relay with %s across the coil: drain peak, under the TVS-min clamp" % tag,
+               pk, min(14.4 + 14.4 / 160.0 * rp, 60.0), tol=None, ok=pk < 62.0, unit="V")
+        ion = float(-q["i_" + tag][on].mean())
+        c.that("  ... pin 50 on-current (coil + resistor)", ion * 1e3,
+               (14.4 / 160.0 + 14.4 / rp) * 1e3, tol=3.0, unit="mA")
 
     # THE CONTACTS (owner's relay, 21 Nov 2026: 5-10 A at 250 VAC / 30 VDC;
     # decisions log 26). Relay 87 feeds pins 04 and 06, each behind a 10 A

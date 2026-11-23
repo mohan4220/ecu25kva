@@ -76,6 +76,24 @@ R4   c2 d4 160
 S4   d4 0  gc 0 NSW
 D4   0  d4 TVSMAX
 
+* ---- D. the relay as fitted: a resistor across the coil (owner's
+* drawing of 4H.865.27.0.00, 23 Nov 2026; value unmarked). Turn-off
+* peak = Vb + I_coil * R, capped by the TVS. Corners 330 R (most
+* driver current) and 2.2k (least suppression), at 14.4 V, TVS min.
+Vgd  gd 0 PWL(0 0  0.999m 0  1m 5  41m 5  41.0001m 0  50m 0)
+Vb5  b5 0 DC 14.4
+L5   b5 c5 1.2
+R5   c5 d5 160
+Rp5  b5 d5 330
+S5   d5 0  gd 0 NSW
+D5   0  d5 TVSMIN
+Vb6  b6 0 DC 14.4
+L6   b6 c6 1.2
+R6   c6 d6 160
+Rp6  b6 d6 2.2k
+S6   d6 0  gd 0 NSW
+D6   0  d6 TVSMIN
+
 .control
 dc Vt15 -24 73.3 0.1
 wrdata main_relay_wake.dat v(g) i(Vt15)
@@ -83,8 +101,9 @@ dc Vb1 6 16 0.5
 wrdata main_relay_sneak_old.dat i(Vb1) v(prot)
 dc Vb2 6 16 0.5
 wrdata main_relay_sneak_new.dat i(Vb2) v(p50n)
-tran 1u 12m uic
+tran 1u 50m uic
 wrdata main_relay_clamp.dat v(d3) v(d4) i(Vb3)
+wrdata main_relay_resistor.dat v(d5) v(d6) i(Vb5) i(Vb6)
 .endc
 
 .end
