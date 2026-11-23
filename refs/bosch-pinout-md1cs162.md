@@ -81,7 +81,7 @@ references** that tie the oil ground into V4. They are not ECU pins.
 | 73 | `O_P_INJVL1` | Injector low side, cyl 1 |
 | 07 | `O_P_INJVL2` | Injector low side, cyl 3 |
 | 29 | `O_P_INJVL3` | Injector low side, cyl 2 |
-| 88 | `O_T_MEU` | Fuel metering unit CB18 (0 928 400 820). Its other pin is on the main-relay line |
+| 88 | `O_T_MEU` | Fuel metering unit CB18 (0 928 400 820). **Its pin 1 to ECU 88, its pin 2 to the main-relay line**, the two as a twisted pair. A proportional solenoid, no diode inside (owner's crop and the 400 dpi drawing, 23 Nov 2026) |
 | 59 | `O_T_EGRPOS` | EGR actuator H-bridge, + |
 | 81 | `O_T_EGRNEG` | EGR actuator H-bridge, − |
 | 69 | `O_T_BUZZ` | Buzzer relay coil. The coil's other side is on the main-relay line |

@@ -278,6 +278,14 @@ not the 10 Ω assumed above. The corners are now 1.85 Ω (2.5 Ω at −40 °C) a
 so current control matters more. Closed loop still holds 0.675 A at every
 corner, and the hot corner's ceiling is 1.95 A (setpoint at 35 %).
 
+**The valve's wiring, from Bosch's drawing (23 Nov 2026):** its pin 1 goes
+to ECU pin 88 and its pin 2 to the main-relay line, as a twisted pair. The
+symbol is a proportional solenoid with **no diode inside**, so D501, the
+board's freewheel diode on pin 88, is required: without it, switching the
+coil off would put its stored energy across Q501. On the bench, wire the
+valve the same way: pin 2 to the supply, pin 1 to the board's pin-88
+terminal.
+
 **New requirement from the measured coil: R501 must be rated at least
 0.5 W** (a 1206 current-sense part, not a general-purpose 1206 at
 0.25 W). The firmware falls back to feedforward when the current reads open

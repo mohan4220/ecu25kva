@@ -111,6 +111,28 @@ With firmware firing one injection at 1 ms:
 - After turn-off, the current should fall in about **36 µs** (`injector_turnoff.cir`).
 - **BOOST_100V** should be back at its setpoint before the next cylinder, 26.67 ms later.
 
+### 4b. The metering valve (pin 88)
+
+Wire it as Bosch does: **valve pin 2 to the supply** (on the engine, the
+main-relay line) and **valve pin 1 to the board's pin-88 terminal**, as a
+twisted pair. The valve is a proportional solenoid with **no diode inside**;
+D501 on the board is its freewheel path, so never run it from a bare FET.
+
+1. With the ignition on and the engine stopped, the firmware holds the
+   valve "closed": the current loop drives the coil to **1.8 A**
+   (`MU_I_FULL`). On TP17 (ISNS_MU, 1 V/A, sampled mid on-time) that reads
+   about **1.8 V**. The duty depends on the coil and the battery: about
+   0.48 for a 3.75 Ω coil on 14 V.
+2. **The bench measurement still wanted** (decisions log 27): raise the
+   current on a lab supply until the valve stops flowing, if you have the
+   fuel rig. That gives this valve's own closing current in place of the
+   family's 1.8 A. Also read the coil's inductance with an LCR meter at
+   1 kHz.
+3. Pull the valve's connector while it is driven. Within about 0.5 s DM1
+   carries **1347/5** (open load). The firmware drops to feedforward on
+   the coil resistance it has learned (decisions log 34), so it does not
+   wind the duty up.
+
 ## 5. The watchdog-kill test
 
 1. With pins 04 and 06 powered and the firmware driving the outputs, **stop kicking `WDT_KICK`**.
