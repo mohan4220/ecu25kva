@@ -164,6 +164,17 @@ class Sim:
                 self.next_ms += 1000
         return self
 
+    def steady(self, after_s=4.25, span_s=2.0):
+        """Run on to `after_s + span_s` past the moment the engine reached
+        RUN, and return the trace of the last `span_s`. Anchored to RUN, not
+        to the clock, so a slower start (the cam decoder learning the wheel,
+        decisions log 39) does not move the window into the start's own
+        transient. With RUN at 1.75 s this is the old 6-8 s window."""
+        t_run = next(t for t, st, r in self.states if st == RUN)
+        end = t_run + int((after_s + span_s) * S)
+        self.run(max(end, self.t) / S)
+        return [x for x in self.trace if end - int(span_s * S) <= x[0] < end]
+
     def start(self, settle_s=8.0):
         """Crank until RUN, then run on to settle_s."""
         self.eng.starter = True
@@ -377,10 +388,11 @@ def rail():
     c = Checks("10 rail pressure within 5 % in steady running")
     sim = Sim().start(8.0)
     # against the firmware's own setpoint, which follows fuel
-    lo0 = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if 6 * S <= t < 8 * S]
+    lo0 = [(p, ps) for t, r, st, p, d, ps, w in sim.steady()]
     sim.eng.load_kw = 20
-    sim.run(16.0)
-    lo20 = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if 14 * S <= t < 16 * S]
+    t_load = sim.t
+    sim.run(t_load / S + 8.0)
+    lo20 = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if t_load + 6 * S <= t < t_load + 8 * S]
     for name, xs in (("0 kW", lo0), ("20 kW", lo20)):
         worst = max(abs(p / ps - 1) for p, ps in xs)
         c.that(f"{name}: worst deviation, fraction", worst, 0.05, ok=worst <= 0.05)
@@ -509,12 +521,13 @@ def hot_coil():
     sim.eng.r_coil, sim.eng.vbat = 6.91, 13.5
     sim._volts()
     sim.start(8.0)
-    xs = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if 6 * S <= t < 8 * S]
+    xs = [(p, ps) for t, r, st, p, d, ps, w in sim.steady()]
     worst0 = max(abs(p / ps - 1) for p, ps in xs)
     c.that("13.5 V, no load: worst deviation, fraction", worst0, 0.05, ok=worst0 <= 0.05)
     sim.eng.load_kw = 20
-    sim.run(16.0)
-    xs = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if 14 * S <= t < 16 * S]
+    t_load = sim.t
+    sim.run(t_load / S + 8.0)
+    xs = [(p, ps) for t, r, st, p, d, ps, w in sim.trace if t_load + 6 * S <= t < t_load + 8 * S]
     worst = max(abs(p / ps - 1) for p, ps in xs)
     c.that("13.5 V, 20 kW: worst deviation, fraction", worst, 0.05, ok=worst <= 0.05)
     duty = sim.io.meter_duty

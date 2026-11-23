@@ -13,6 +13,87 @@ static void lose(crank_t *c, uint8_t why)
     c->nper = 0;                     /* the window holds the bad edge: rpm restarts fresh */
 }
 
+static int near_tooth(uint8_t a, uint8_t b)
+{
+    return (a > b ? a - b : b - a) <= CRANK_CAM_TOL;
+}
+
+static int sig_match(crank_sig a, crank_sig b)
+{
+    return a.n == b.n && (a.n == 0 || (near_tooth(a.first, b.first) && near_tooth(a.last, b.last)));
+}
+
+/* Which of two different signatures is the marker: more edges; then the
+ * earlier first edge; then the earlier last edge. 1 = a, 0 = b, -1 = they
+ * are too alike to tell apart. */
+static int sig_marker(crank_sig a, crank_sig b)
+{
+    if (a.n != b.n)
+        return a.n > b.n;
+    if (a.n == 0)
+        return -1;
+    if (!near_tooth(a.first, b.first))
+        return a.first < b.first;
+    if (!near_tooth(a.last, b.last))
+        return a.last < b.last;
+    return -1;
+}
+
+/* At a gap: the revolution that just ended (c->cur) decides what the next
+ * one is. `whole` = it ran gap to gap with every tooth seen. */
+static void cam_at_gap(crank_t *c, int whole)
+{
+    int next = -1;                   /* the coming revolution's number, if known */
+    int missed = 0;
+    if (!whole) {
+        c->prev_ok = 0;
+        c->rev ^= 1;
+        return;                      /* lose() has already dropped the phase */
+    }
+    if (c->learned) {
+        if (sig_match(c->cur, c->mark))
+            next = 0;
+        else if (sig_match(c->cur, c->other))
+            next = 1;
+        if (next < 0) {
+            missed = 1;
+            c->clean = 0;
+            /* a wheel never confirmed by a clean cycle may have been learned
+             * from noise: forget it at once. A confirmed one rides out a
+             * stray edge, and is forgotten only if the misses go on. */
+            if (!c->proven || ++c->miss >= CRANK_CAM_MISS)
+                c->learned = 0;
+        } else if (++c->clean >= 2) {
+            c->clean = 2;
+            c->proven = 1;
+            c->miss = 0;
+        }
+    }
+    if (!c->learned && c->prev_ok && !missed) {
+        int m = sig_marker(c->cur, c->prev);
+        if (m >= 0) {
+            c->mark = m ? c->cur : c->prev;
+            c->other = m ? c->prev : c->cur;
+            c->learned = 1;
+            c->proven = c->miss = c->clean = 0;
+            next = m ? 0 : 1;
+        }
+    }
+    if (next < 0) {
+        c->phased = 0;
+        c->rev ^= 1;
+    } else {
+        /* the revolution that ended should have been the other one: if the
+         * count disagrees, either it or the phase is wrong -- stop
+         * injecting until the cam agrees */
+        int agrees = !c->phased || c->rev == (uint8_t)(next ^ 1);
+        c->rev = (uint8_t)next;
+        c->phased = (uint8_t)(c->synced && agrees);
+    }
+    c->prev = c->cur;
+    c->prev_ok = (uint8_t)!missed;   /* never learn from a revolution that missed */
+}
+
 void crank_edge(crank_t *c, uint32_t t_us)
 {
     if (!c->have) {
@@ -50,16 +131,8 @@ void crank_edge(crank_t *c, uint32_t t_us)
             c->synced = 1;
         c->gap_seen = 1;
         c->count = 0;
-        if (c->cam_pending) {
-            /* the cam belongs in rev 1; seen in rev 0 while phased, either
-             * it or the phase is wrong: stop injecting until a cam agrees */
-            int agrees = !c->phased || c->rev == 1;
-            c->rev = 0;
-            c->cam_pending = 0;
-            c->phased = (uint8_t)(c->synced && agrees);
-        } else {
-            c->rev ^= 1;
-        }
+        cam_at_gap(c, in_place);
+        c->cur.n = c->cur.first = c->cur.last = 0;
     } else if (++c->count >= EDGES) {         /* the gap should have come */
         lose(c, CRANK_F_GAP);
         c->gap_seen = 0;
@@ -72,7 +145,11 @@ void crank_edge(crank_t *c, uint32_t t_us)
 void crank_cam(crank_t *c, uint32_t t_us)
 {
     (void)t_us;
-    c->cam_pending = 1;
+    if (c->cur.n == 0)
+        c->cur.first = c->count;
+    c->cur.last = c->count;
+    if (c->cur.n < 255)
+        c->cur.n++;
 }
 
 void crank_poll(crank_t *c, uint32_t t_us)

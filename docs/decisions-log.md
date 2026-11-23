@@ -2123,7 +2123,8 @@ start: with several segments per cycle the decoder sees a cam pulse in
 every revolution: `crank.c` resets the revolution count at every gap and
 its phase flag flips on and off each turn, so it never holds a phase it can
 inject on reliably. Bring-up: count pin 46's pulses over two crank revolutions
-(scope, or the service tool) before the first start.
+(scope, or the service tool) before the first start. **Answered by §39:** the decoder now learns the wheel; the count is still
+wanted for the TDC check.
 
 
 ## 30. The rail pressure sensor: Bosch 0 281 006 425 (22 November)
@@ -2486,7 +2487,63 @@ gives the peak and hold currents directly, which is what the firmware
 
 ---
 
+## 39. The cam decoder learns the cam wheel (23 November)
 
+The cam wheel's segment count is still unknown (§29). The decoder
+expected one cam edge per cycle. A "segment" wheel with several
+segments (one per cylinder plus a marker is common) would have put a
+cam edge in every revolution: the decoder would reset its revolution
+count at every gap and never hold a phase. The owner asked for what is
+best for the ECU, so the decoder no longer assumes a wheel.
+
+**How it works** (`crank.c`, `crank.h`):
+- each crank revolution's cam edges become a signature: how many, and
+  the crank tooth of the first and of the last;
+- two whole revolutions with different signatures teach it the wheel.
+  The **marker** revolution has more cam edges; with equal counts, the
+  earlier first edge, then the earlier last edge (2 teeth tolerance).
+  The revolution after the marker is rev 0;
+- on the one-segment wheel that is exactly the old rule, so
+  `CRANK_TDC1_DEG` (90°) is unchanged for it;
+- every revolution is then checked against the learned pair. A miss
+  drops the phase. A wheel not yet confirmed by a clean cycle is
+  forgotten at its first miss (it may have been learned from noise); a
+  confirmed one rides out one stray edge and is forgotten after two
+  misses with no clean cycle between. A missed revolution is never
+  learned from;
+- a wheel whose two revolutions look alike never phases. Not injecting
+  is safer than injecting 360° out.
+
+**The cost:** one more crank revolution before the first injection when
+the cam edge falls in the first whole revolution (0.2–0.3 s at 200–300 rpm
+cranking). The decoder must see two whole revolutions.
+
+In the engine scenarios RUN came at 2.29 s instead of 1.75 s, and
+scenarios 10 and 17 failed: their fixed 6–8 s "steady" window now held
+the tail of the start's rail transient (7.4 % at 6.0 s). The window is
+now anchored to RUN (`Sim.steady()`: RUN + 4.25 s to RUN + 6.25 s, which
+is the old 6–8 s with the old decoder) and the load step's window to the
+load step. Same limit (5 %); worst now 2.4 % (old decoder in the same
+window: 2.3 %).
+
+**Rejected: assume one segment until shown otherwise.** It gives back the
+old start time, but on a multi-segment wheel it injects one revolution
+360° out at every start before the miss corrects it.
+
+**Tests:** the existing crank tests get the extra revolution. New:
+3 + 1 segments (phased at edge 174, the same angle for four cycles), 2 + 2
+segments told apart by the last edge, a wheel with alike revolutions
+(never phases), and a stray edge while learning (at most one wrong gap,
+then correct).
+
+**Bring-up:** on a wheel other than one segment, `CRANK_TDC1_DEG` is set
+against this rule: check cylinder 1's firing TDC with the engine turning
+(timing light on the flywheel mark, or the old ECU's recording) before
+the first start. If it is out by 360°, add 360.
+
+---
+
+## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a
 part number was chosen and its datasheet was checked against what the

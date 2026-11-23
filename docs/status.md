@@ -972,13 +972,23 @@ Everything left changes a value or closes a register entry.
 
 ## 9. Resume here — next session
 
-Updated 22 November 2026, after the owner's measured values (decisions log §24–26). `./verify.sh --boards` passes every stage:
+Updated 23 November 2026, after the owner's part numbers and drawing crops (decisions log §24–39). `./verify.sh --boards --matlab` passes every stage:
 - the circuit simulations, the production netlist, the symbol library, the prototype schematic and its MCU pins
-- the firmware unit tests (hand-written and model-generated builds), the bootloader tests, the models against the hand-written C (b2b), and **18/18 engine scenarios** on both builds
+- the firmware unit tests (hand-written and model-generated builds), the bootloader tests, the models against the hand-written C (b2b), and **19/19 engine scenarios** on both builds
 - the service tool, the STM32G474 chip layer
 - the production board check and all 26 prototype tests
 
-**Since 8 November:**
+**23 November:**
+- **25 kVA settings replace the 20 kVA sheet's** (§35): battery 15.0/9.5 V, ECU coolant protection 100/104 °C (Protect), pin 43 coolant level, ABI 6.
+- **Metering valve** (§34, wiring 96137da): an impossible current reading is distrusted in 10 ms, open load judged by expected current, fallback on the learned coil (scenario 19).
+- **EGR position is a potentiometer** (§36): pin 37 off the INA592 onto 100k/160k; INA592 ×2. Prototype migrated, 26/26.
+- **Main relay's drawing** (§37): resistor across the coil, no diode. Pin 50 checked at 330 Ω and 2.2 kΩ; no change.
+- **Injector's drawing and coil** (§38): bare two-pin solenoid, twisted. The 10 A hold holds a coil up to 0.70 Ω (12 V); owner estimates 0.2–2 Ω, so the reading decides it.
+- **Cam decoder learns the wheel** (§39): any segment count whose two revolutions differ; one extra revolution to the first injection.
+- **Bosch drawing, full copy:** all 46 pins checked against the connector sheet; boxed 55/76 are line references, not pins; harness notes (twisted pairs, lengths, connector set) in `refs/bosch-pinout-md1cs162.md`.
+- **Still wanted from the engine:** injector coil resistance (or a clamp-probe peak/hold), the cam wheel's segment count (now for the TDC check, §39), EGR pot voltage at its stops, terminal 87 current and the relay's 85–86 resistance, the metering valve's closing current.
+
+**8–22 November:**
 - **Diagnoses from the 20 kVA set's DSM sheet** (§24, `docs/research/13-dsm-20kva.md`): 11 amber faults (EGR open/stuck, metering valve open/over current, rail deviation, speed high/erratic, oil at rest, battery high/low) with debounce and heal, as Simulink chart `ecu_deb`.
 - **Measured values from the engine, applied as they arrive** (memory: one push after the last one):
   - metering valve coil, pin 88: 2.5–5 Ω (§25). Still needed: its closing current and inductance;

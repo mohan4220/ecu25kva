@@ -40,10 +40,25 @@ static int next_edge(float rpm, uint32_t *t, int *tooth)
     return *tooth == 58 + 50;
 }
 
+/* A cam wheel other than the one-segment default: the teeth (0..115 of
+ * the 116-edge cycle) whose edge a cam edge comes just before. */
+static const int *wheel;
+static int wheel_n;
+static int wheel_cam(int tooth)
+{
+    for (int i = 0; i < wheel_n; i++)
+        if (wheel[i] == tooth)
+            return 1;
+    return 0;
+}
+
 static void spin(crank_t *c, float rpm, int edges, uint32_t *t, int *tooth)
 {
     for (int i = 0; i < edges; i++) {
-        if (next_edge(rpm, t, tooth))
+        int cam = next_edge(rpm, t, tooth);
+        if (wheel)
+            cam = wheel_cam(*tooth);
+        if (cam)
             crank_cam(c, *t - 10);
         crank_edge(c, *t);
     }
@@ -78,7 +93,7 @@ static void test_crank_phase(void)
     crank_t c; crank_reset(&c);
     uint32_t t = 0; int tooth = 0;
     spin(&c, 600, 116, &t, &tooth);          /* synced; cam seen at tooth 108 */
-    while (tooth != 0) spin(&c, 600, 1, &t, &tooth);
+    spin(&c, 600, 116, &t, &tooth);          /* a second whole rev teaches the wheel */
     CHECK(crank_phased(&c));
     CHECK(crank_angle(&c) == 0.0f);
     spin(&c, 600, 15, &t, &tooth);
@@ -290,8 +305,7 @@ static void test_inject_once_per_cycle(void)
     crank_t c; crank_reset(&c);
     ecu_inj inj[ECU_NCYL]; memset(inj, 0, sizeof inj);
     uint32_t t = 0, t84 = 0; int tooth = 0, checked = 0;
-    spin(&c, 1500, 116, &t, &tooth);
-    while (tooth != 0) spin(&c, 1500, 1, &t, &tooth);
+    spin(&c, 1500, 232, &t, &tooth);         /* two whole revs teach the wheel */
     CHECK(crank_phased(&c));
     for (int i = 0; i < 232; i++) {
         inject_edge(&c, 20, 1000, inj);
@@ -1003,7 +1017,7 @@ static void test_ecu_start(void)
     ecu_up(&io);
     ticks(&io, 1, 1);
     CHECK(io.state == ECU_WAIT);
-    ecu_spin(&io, 300, 174, &t, &tooth, 1);
+    ecu_spin(&io, 300, 232, &t, &tooth, 1);  /* the cam wheel is learned at edge 174 */
     CHECK(io.state == ECU_CRANK);
     CHECK(io.synced);
     CHECK(io.inj[0].seq + io.inj[1].seq + io.inj[2].seq > 0);
@@ -1200,7 +1214,8 @@ static void test_crank_stray_cam(void)                /* I1 */
 {
     crank_t c; crank_reset(&c);
     uint32_t t = 0; int tooth = 0;
-    spin(&c, 600, 116, &t, &tooth);
+    spin(&c, 600, 232, &t, &tooth);
+    spin(&c, 600, 232, &t, &tooth);                    /* a clean cycle confirms the wheel */
     while (tooth != 20) spin(&c, 600, 1, &t, &tooth);  /* rev 0, edge 20 */
     CHECK(crank_phased(&c));
     crank_cam(&c, t + 5);                              /* noise */
@@ -1208,6 +1223,87 @@ static void test_crank_stray_cam(void)                /* I1 */
     CHECK(!crank_phased(&c));
     while (tooth != 0) spin(&c, 600, 1, &t, &tooth);   /* real cam, then gap */
     CHECK(crank_phased(&c) && crank_angle(&c) == 0.0f);
+}
+
+/* The cam wheel is learned, whatever its segments (decisions log 39). */
+static int phase_wheel(const int *w, int n, int revs, crank_t *c, uint32_t *t, int *tooth)
+{
+    crank_reset(c);
+    *t = 0; *tooth = 0;
+    wheel = w; wheel_n = n;
+    int at = -1;
+    for (int i = 0; i < revs * 58; i++) {
+        spin(c, 600, 1, t, tooth);
+        if (at < 0 && crank_phased(c))
+            at = i + 1;
+    }
+    return at;
+}
+
+static void test_cam_three_plus_one(void)
+{
+    /* three segments in one revolution, one in the other: the marker is the
+     * three, so the revolution after it (from tooth 58) is rev 0 */
+    static const int w[] = {10, 50, 55, 90};
+    crank_t c; uint32_t t; int tooth;
+    int at = phase_wheel(w, 4, 3, &c, &t, &tooth);
+    CHECK(at == 174);                         /* G1 partial, two whole revs, decided */
+    for (int k = 0; k < 4 * 116; k++) {       /* four cycles: always phased, same angle */
+        spin(&c, 600, 1, &t, &tooth);
+        if (tooth == 58) CHECK(crank_phased(&c) && crank_angle(&c) == 0.0f);
+        if (tooth == 0)  CHECK(crank_phased(&c) && crank_angle(&c) == 360.0f);
+    }
+    wheel = 0;
+}
+
+static void test_cam_two_two(void)
+{
+    /* two and two: the first edges sit 2 teeth apart (alike), the last ones
+     * far apart, so the earlier last edge marks the revolution */
+    static const int w[] = {10, 15, 70, 108};
+    crank_t c; uint32_t t; int tooth;
+    int at = phase_wheel(w, 4, 4, &c, &t, &tooth);
+    CHECK(at > 0 && at <= 232);
+    for (int k = 0; k < 4 * 116; k++) {
+        spin(&c, 600, 1, &t, &tooth);
+        if (tooth == 58) CHECK(crank_phased(&c) && crank_angle(&c) == 0.0f);
+    }
+    wheel = 0;
+}
+
+static void test_cam_alike_never_phases(void)
+{
+    /* the same edge in both revolutions: no way to tell them apart, so no
+     * phase -- not injecting beats injecting 360 deg out */
+    static const int w[] = {20, 78};
+    crank_t c; uint32_t t; int tooth;
+    CHECK(phase_wheel(w, 2, 12, &c, &t, &tooth) < 0);
+    CHECK(crank_synced(&c));
+    wheel = 0;
+}
+
+static void test_cam_noise_while_learning(void)
+{
+    /* one-segment wheel; a stray cam edge in the first revolution it learns
+     * from makes it learn the wrong revolution. The first miss forgets it
+     * (never confirmed), and it relearns from clean revolutions. */
+    crank_t c; crank_reset(&c);
+    uint32_t t = 0; int tooth = 0;
+    spin(&c, 600, 116, &t, &tooth);           /* G2: one whole rev, real cam in it */
+    while (tooth != 20) spin(&c, 600, 1, &t, &tooth);
+    crank_cam(&c, t + 5);                     /* noise in the next one */
+    int wrong = 0;
+    for (int k = 0; k < 8 * 58; k++) {
+        spin(&c, 600, 1, &t, &tooth);
+        if (tooth == 0 && crank_phased(&c) && crank_angle(&c) != 0.0f)
+            wrong++;
+    }
+    CHECK(wrong <= 1);                        /* at most one wrong gap, then dropped */
+    CHECK(crank_phased(&c));
+    for (int k = 0; k < 2 * 116; k++) {
+        spin(&c, 600, 1, &t, &tooth);
+        if (tooth == 0) CHECK(crank_phased(&c) && crank_angle(&c) == 0.0f);
+    }
 }
 
 static void test_sens_hold_while_bad(void)            /* I2 */
@@ -2381,6 +2477,10 @@ int main(void)
     test_inject_cancel_visible();
     test_crank_poll_before_last();
     test_crank_stray_cam();
+    test_cam_three_plus_one();
+    test_cam_two_two();
+    test_cam_alike_never_phases();
+    test_cam_noise_while_learning();
     test_sens_hold_while_bad();
     test_crank_glitch();
     test_gov_ramp();
