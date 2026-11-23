@@ -2120,8 +2120,9 @@ That changes the decoder, not the circuit.
 the three wires twisted, as the circuit assumed. The crop doesn't give
 the segment count, so the question stays open. It matters at the first
 start: with several segments per cycle the decoder sees a cam pulse in
-every revolution, never phases, and the engine cranks without
-injecting. Bring-up: count pin 46's pulses over two crank revolutions
+every revolution: `crank.c` resets the revolution count at every gap and
+its phase flag flips on and off each turn, so it never holds a phase it can
+inject on reliably. Bring-up: count pin 46's pulses over two crank revolutions
 (scope, or the service tool) before the first start.
 
 
