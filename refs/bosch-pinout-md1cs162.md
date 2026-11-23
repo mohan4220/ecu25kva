@@ -87,9 +87,12 @@ references** that tie the oil ground into V4. They are not ECU pins.
 | 69 | `O_T_BUZZ` | Buzzer relay coil. The coil's other side is on the main-relay line |
 
 Injectors CRI-2-16 (0 445 B76 1X3), firing order 1-2-3, ECU control order
-Inj1, Inj3, Inj2. Injector leads ≤ 1.5 m. Pins 50 and 69 are marked "ECU pin
-not equipped with freewheeling diode", so **the relay must contain the diode**,
-not the harness.
+Inj1, Inj3, Inj2. Injector leads ≤ 1.5 m. **Each injector is a bare
+solenoid on two pins, no diode inside, its two wires twisted** (owner's
+crop, 23 Nov 2026). Pins 50 and 69 are marked "ECU pin not equipped with
+freewheeling diode", so **the relay carries the suppressor**, not the
+harness. The fitted relay (4H.865.27.0.00) has a resistor across its coil,
+not a diode (decisions log §37).
 
 ## CAN
 
