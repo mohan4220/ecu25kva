@@ -265,7 +265,7 @@ committed unless it ends with **ALL PASS**.
 
 | Command (Git Bash, project folder) | Checks | Time |
 | --- | --- | --- |
-| `./verify.sh` | circuits, schematics, MCU pins, both firmware builds, the models against the C, 17 engine scenarios on both builds, service tool, STM32 build | about 10 min |
+| `./verify.sh` | circuits, schematics, MCU pins, both firmware builds, the models against the C, 19 engine scenarios on both builds, service tool, STM32 build | about 10 min |
 | `./verify.sh --boards` | the above + production and prototype board checks | + about 10 min |
 | `./verify.sh --matlab` | the above + the Simulink closed loop (20 checks) | + about 5 min |
 

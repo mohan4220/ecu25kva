@@ -172,7 +172,7 @@ placed by block, every rule set, with the housing and J1001 as
 placeholders until the old ECU is measured (brief Group 6).
 The firmware core runs on the PC against a simulated engine, with
 production logging (fault memory, events, counters, trip recorder) and
-all 16 scenarios passing (`firmware/`, decisions log §11–12). Since 20
+all scenarios passing (19 as of 23 Nov; `firmware/`, decisions log §11–12). Since 20
 October it also has a service link (decisions log §16, firmware guide
 §16): a bootloader, the end-of-line record with analog trims, an
 underspeed warning, and a laptop tool over USB or CAN channel 2. Since

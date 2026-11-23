@@ -983,10 +983,10 @@ Updated 23 November 2026, after the owner's part numbers and drawing crops (deci
 - **Metering valve** (§34, wiring 96137da): an impossible current reading is distrusted in 10 ms, open load judged by expected current, fallback on the learned coil (scenario 19).
 - **EGR position is a potentiometer** (§36): pin 37 off the INA592 onto 100k/160k; INA592 ×2. Prototype migrated, 26/26.
 - **Main relay's drawing** (§37): resistor across the coil, no diode. Pin 50 checked at 330 Ω and 2.2 kΩ; no change.
-- **Injector's drawing and coil** (§38): bare two-pin solenoid, twisted. The 10 A hold holds a coil up to 0.70 Ω (12 V); owner estimates 0.2–2 Ω, so the reading decides it.
+- **Injector's drawing and coil** (§38): bare two-pin solenoid, twisted. Rated 0.2–2.0 Ω at 20 °C (owner; a tester's pass band). The peak works across it; the battery hold holds a coil up to 0.79 Ω (13.5 V) / 0.68 Ω (12 V) at 20 °C. The stage now counts holds it cannot reach (`n_hold_short`); bring-up step 4 measures the coil first.
 - **Cam decoder learns the wheel** (§39): any segment count whose two revolutions differ; one extra revolution to the first injection.
 - **Bosch drawing, full copy:** all 46 pins checked against the connector sheet; boxed 55/76 are line references, not pins; harness notes (twisted pairs, lengths, connector set) in `refs/bosch-pinout-md1cs162.md`.
-- **Still wanted from the engine:** injector coil resistance (or a clamp-probe peak/hold), the cam wheel's segment count (now for the TDC check, §39), EGR pot voltage at its stops, terminal 87 current and the relay's 85–86 resistance, the metering valve's closing current.
+- **Still wanted from the engine:** injector coil resistance at 20 °C (or a clamp-probe peak/hold), the TDC check with a timing light (the segment count helps, §39), the metering valve's closing current, EGR pot voltage at its stops, the EGR valve's travel time, terminal 87 current and the relay's 85–86 resistance, the 25 kVA's own coolant limits, a running J1939 trace (U4).
 
 **8–22 November:**
 - **Diagnoses from the 20 kVA set's DSM sheet** (§24, `docs/research/13-dsm-20kva.md`): 11 amber faults (EGR open/stuck, metering valve open/over current, rail deviation, speed high/erratic, oil at rest, battery high/low) with debounce and heal, as Simulink chart `ecu_deb`.
@@ -995,12 +995,12 @@ Updated 23 November 2026, after the owner's part numbers and drawing crops (deci
   - water-in-fuel sensor, pin 21: 20–50 mA, 1–4.7 kΩ (§26). R818 3.3k/1210, R819 1.5k; the reading is to be confirmed from the sensor's label;
   - metering valve part 0 928 400 820: closing current 1.8 A from Bosch's family data (§27); a hot coil below 12.4 V cannot close it (157/7, amber)
   - main and buzzer relays: both on KOEL relay board 4H.865.27.0.00, 5–10 A at 250 VAC/30 VDC (§26). Kept (the Bosch ECU runs with it). The block bounds (9.3 A running, 14.2 A EGR stall) are pessimistic: **clamp terminal 87 on the running set** to settle it
-  - injector 0 445 B76 1X3: no public coil data, unchanged; coil resistance wanted
+  - injector 0 445 B76 1X3: no public coil data; rated 0.2–2.0 Ω at 20 °C (23 Nov, §38), the reading itself wanted
   - boost sensor Bosch 0 281 006 102 (§33): **U2 answered (bare NTC on pin 79). Found: the sensor grounds SGND_34/36 went nowhere, and the NTC pins had no pull-up.** Fixed on both boards; charge-air temperature read (SPN 105, IC1), ABI 5
   - coolant sensor Bosch 0 281 002 209 (§32): **the beta law read 2.8 °C high at 100 °C**; now Bosch's NTC table
   - oil pressure sensor Honeywell PX3AN2BF010BSDAX (§31): 0–10 bar, 0.5–4.5 V, diagnostics rails caught as 100/3, /4; as the firmware scales it
   - rail pressure sensor Bosch 0 281 006 425 (§30): 1800 bar, as the firmware scales it; check ~0.5 V at pin 35 (to 08) with the engine stopped
-  - cam sensor Bosch Hall 0 281 002 667 (§29): 5 V, open collector, as designed; the cam wheel's segment count is still open
+  - cam sensor Bosch Hall 0 281 002 667 (§29): 5 V, open collector, as designed; the decoder now learns the wheel (§39)
   - crank sensor Bosch DG-6-K 0 281 002 214 (§28): 860 Ω, 370 mH; up to 45 V at 1500 rpm, 0.51 V cranking. The front end passes every corner, no change
 - **Not pushed:** the commits since a7afe1b stay local until all the values are in.
 

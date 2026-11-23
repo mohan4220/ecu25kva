@@ -184,7 +184,7 @@
 ### Sensors (`sensors_analog`, centre right)
 
 **The circuit:**
-- Divider, ratiometric, differential (INA592, U601–U605) and NTC front ends.
+- Divider, ratiometric, differential (INA592, U601 and U604) and NTC front ends. U602, U603 and U605 were removed (decisions log §33, §36); the NTC pins 33/79 and the EGR pot on 37 use plain dividers.
 - Each ends in a 22 nF filter and a 3.3 V clamp at the MCU pin.
 - U606 is the barometric pressure sensor (MPXHZ6115A).
 

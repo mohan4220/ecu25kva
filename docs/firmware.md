@@ -35,7 +35,7 @@ Because of that, the same files run in three places:
 
 | Where | Who calls the firmware | State |
 |---|---|---|
-| A PC | `firmware/sim/run_sil.py`, through a Python model of the engine, generator and fuel rail | **Working: 15 scenarios pass** |
+| A PC | `firmware/sim/run_sil.py`, through a Python model of the engine, generator and fuel rail | **Working: 19 scenarios pass** |
 | NXP S32K148 evaluation board | interrupts and a main loop on the chip, with an Arduino faking the engine signals | Next: the dev-kit spec |
 | Our own ECU board | the same, on our PCB | After layout |
 
@@ -75,7 +75,7 @@ nothing inside the core changes.
 | `sim/test_boot.c` | 7 bootloader tests against a simulated flash |
 | `sim/ecu.py` | Python wrapper around the compiled core; `Unit`, a simulated board for the tool |
 | `sim/engine.py` | The engine model |
-| `sim/run_sil.py` | The 16 scenarios |
+| `sim/run_sil.py` | The 19 scenarios |
 | `sim/test_service.py` | The service tool end to end against `Unit` |
 
 All of the core's state lives in `static` variables inside `ecu.c` and `mode.c`.
@@ -159,11 +159,17 @@ every 0.67 ms.
    Two gaps exactly 58 teeth apart mean **synchronised**. Once
    synchronised, a gap in the wrong place, or no gap where one belongs,
    is **sync loss**.
-3. **Phase.** The crank turns twice per engine cycle, and the cam pulse
-   says which turn has cylinder 1 firing. Until a cam pulse has been
-   seen, no fuel is injected. A cam pulse in the wrong turn stops
-   injection until the next one agrees. It does not shut the engine
-   down, because one noise spike shouldn't stop a genset.
+3. **Phase.** The crank turns twice per engine cycle, and the cam
+   says which turn has cylinder 1 firing. The cam wheel's segment count
+   is not assumed: the decoder notes each turn's cam edges (how many,
+   the tooth of the first and the last) and learns the wheel from two
+   whole turns that differ. The turn with more edges (or, with equal
+   counts, the earlier ones) is the marker; the turn after it is rev 0.
+   Until then no fuel is injected, and a wheel whose two turns look
+   alike is never phased (decisions log §39). A turn that matches
+   neither learned pattern stops injection until the next one agrees.
+   It does not shut the engine down, because one noise spike shouldn't
+   stop a genset; repeated misses make it learn the wheel again.
 4. **Speed.** rpm comes from the last 6 tooth periods, with the gap
    counted as its true 18°.
 5. **Safety, on this very tooth.** If speed is above **1650 rpm**, the
@@ -462,7 +468,7 @@ scenarios, and they say at once whether the control still holds.
 
 ```
 make -C firmware/sim test                       # 101 unit tests and 7 bootloader tests, a few s
-.venv/bin/python firmware/sim/run_sil.py        # 16 scenarios, about 2-3 min
+.venv/bin/python firmware/sim/run_sil.py        # 19 scenarios, about 3-4 min
 .venv/bin/python firmware/sim/run_sil.py rail   # scenarios whose name contains "rail"
 .venv/bin/python firmware/sim/test_service.py   # the service tool end to end, about 10 s
 ```

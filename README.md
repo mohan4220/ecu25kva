@@ -112,7 +112,7 @@ python3 -m venv .venv && .venv/bin/pip install PySpice numpy schemdraw markdown 
 
 ```bash
 make -C firmware/sim test                    # unit tests of the C core and the bootloader
-.venv/bin/python firmware/sim/run_sil.py     # the 16 engine scenarios
+.venv/bin/python firmware/sim/run_sil.py     # the 19 engine scenarios
 .venv/bin/python firmware/sim/run_sil.py runaway   # scenarios matching "runaway"
 .venv/bin/python firmware/sim/test_service.py      # the service tool end to end
 ```
