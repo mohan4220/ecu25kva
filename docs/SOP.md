@@ -226,17 +226,21 @@ component models; the buttons turn your edit into a board you can flash.
 | `ecu_boostg`, `ecu_boostm` | Stateflow | 100 V boost rail: trip and warnings |
 | `ecu_egrg`, `ecu_wifg`, `ecu_underg`, `ecu_relay` | Stateflow | EGR stall, water in fuel, underspeed, main relay |
 | `ecu_j1939` | Simulink | J1939 message data to the DSE4522 |
-| `ecu_deb` | Stateflow | the amber diagnoses (EGR, metering valve, rail, speed, oil, battery, coolant level): debounce and heal |
+| `ecu_diag` | Simulink | the 14 diagnosis conditions and the coolant protection (100 °C warning, 104 °C stop with Protect), battery 15.0 / 9.5 V, coolant level |
+| `ecu_deb` | Stateflow | each diagnosis's debounce and healing (one chart, 14 instances) |
 
-Twenty models in all; `model/model_list.m` is the list the build and the
+Twenty-one models in all; `model/model_list.m` is the list the build and the
 back-to-back test use. The cam decoder (`crank.c`) and the injector stage
-(`firmware/stm32/inj_logic.c`) are hand-written C only.
+(`firmware/stm32/inj_logic.c`) are hand-written C only, as are the metering
+valve's coil learning and fallback (`actuate.c`), the fault memory and which
+faults light Protect (`ecu.c` `lamps()`).
 
 **Change something**
 
 1. Double-click the Model block, edit the component, **save it**.
-2. **Simulate**: 20 checks run (start, 20 kW step, stop switch, sensors,
-   injection, J1939, cascades); the plot is saved as
+2. **Simulate**: 29 checks in two runs (start, 20 kW step, stop switch, sensors,
+   injection, J1939, cascades; then battery low, coolant level, coolant
+   100 / 104 °C and the DSE shutdown on Protect); the plot is saved as
    `model/test/ecu25kva_sim.png`.
 3. **Generate code**: C for every component goes to `firmware/gen/`.
 4. **Build firmware**: compiles and checks the images
@@ -275,7 +279,7 @@ committed unless it ends with **ALL PASS**.
 | --- | --- | --- |
 | `./verify.sh` | circuits, schematics, MCU pins, both firmware builds, the models against the C, 19 engine scenarios on both builds, service tool, STM32 build | about 10 min |
 | `./verify.sh --boards` | the above + production and prototype board checks | + about 10 min |
-| `./verify.sh --matlab` | the above + the Simulink closed loop (20 checks) | + about 5 min |
+| `./verify.sh --matlab` | the above + the Simulink closed loop (29 checks, two runs) | + about 7 min |
 
 Use `--boards` after any schematic or board change, `--matlab` after any
 model change.

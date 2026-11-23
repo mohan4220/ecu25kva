@@ -35,6 +35,8 @@
 #include "ecu_j1939.h"
 #include "actuate.h"
 #include "ecu_spdst.h"
+#include "diag.h"
+#include "ecu_diag.h"
 #include <string.h>
 
 /* ---- governor: model/ecu_gov.slx ----
@@ -422,6 +424,21 @@ uint8_t deb_step(deb_t *d, uint8_t cond, uint16_t deb_ms, uint16_t heal_ms)
 {
     ecu_deb_step(&d->m, cond, deb_ms, heal_ms, &d->act);
     return d->act;
+}
+
+/* ---- the diagnoses and coolant protection: model/ecu_diag.slx ----
+ * Pure, so one shared instance; the C body in diag.c is the reference
+ * build. The debounce of each is ecu_deb above. */
+static RT_MODEL_ecu_diag_T diag_m;
+void diag_cond(const diag_in_t *in, uint8_t cond[DG_N])
+{
+    ecu_diag_step(&diag_m, in->running, in->ign_on, in->stopped, in->rpm, in->v_bat,
+                  in->egr_duty, in->i_egr_f, in->egr_pos, in->egr_pos_ok, in->egr_off,
+                  in->mu_duty, in->i_mu, in->i_mu_valid,
+                  in->rail_set, in->rail_bar, in->rail_ok,
+                  in->oil_kpa, in->oil_ok, in->bat_high_act, in->bat_low_act,
+                  in->clt_c, in->clt_ok, in->clt_low, in->clt_warn_act, in->clt_stop_act,
+                  cond);
 }
 
 #endif

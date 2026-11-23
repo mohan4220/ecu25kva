@@ -15,7 +15,12 @@ function mdl_ecu25kva(P)
 %             constants of firmware/sim/engine.py), the fuel rail, and
 %             the sensor voltages they produce.
 %   SCENARIO  ignition at 0.5 s, the starter until RUN, 20 kW at 8 s, the
-%             stop switch (pin 25) at 16 s.
+%             stop switch (pin 25) at 16 s. The battery voltage, the
+%             coolant temperature and the coolant level switch (pin 43)
+%             are profiles, flat by default (13.5 V, 85 degC, level OK);
+%             sim_ecu25kva's second run changes them to drive the
+%             protection. "DSE" stands in for the panel: its Protect lamp
+%             input drops the ignition, as the DSE4522 shuts the set down.
 %
 %   Edit the component models (ecu_*.slx) directly; press Generate code,
 %   then Build. This script only lays the top level out from scratch.
@@ -66,7 +71,26 @@ mb.k(m, 'v_boost_rail', 99.7, S);
 mb.k(m, 'i_egr', 1.5, S);
 mb.k(m, 'wif', 0, U8);
 mb.k(m, 'droop', 0, U8);
-mb.k(m, 'v_bat', 13.5, S);
+% profiles against time (clipped at the ends); flat unless a run sets them
+add_block('simulink/Sources/Digital Clock', [m '/clock'], 'SampleTime', '0.001');
+add_block('simulink/Lookup Tables/1-D Lookup Table', [m '/v_bat'], ...
+    'BreakpointsForDimension1', '[0 100]', 'Table', '[13.5 13.5]', 'ExtrapMethod', 'Clip', 'OutDataTypeStr', S);
+add_block('simulink/Lookup Tables/1-D Lookup Table', [m '/clt_degc'], ...
+    'BreakpointsForDimension1', '[0 100]', 'Table', '[85 85]', 'ExtrapMethod', 'Clip', 'OutDataTypeStr', S);
+mb.l(m, 'clock/1', 'v_bat/1', 'clt_degc/1');
+add_block('simulink/Sources/Step', [m '/clt_low'], 'Time', '1e6', 'Before', '0', 'After', '1', 'SampleTime', '0.001');
+mb.b(m, 'clt_low_u8', 'simulink/Signal Attributes/Data Type Conversion', 'OutDataTypeStr', U8);
+mb.l(m, 'clt_low/1', 'clt_low_u8/1');
+% DSE: the Protect lamp drops the ignition the next millisecond
+mb.b(m, 'protect_z', 'simulink/Discrete/Unit Delay', 'InitialCondition', '0', 'SampleTime', '0.001');
+mb.b(m, 'protect_b', 'simulink/Signal Attributes/Data Type Conversion', 'OutDataTypeStr', 'boolean');
+mb.b(m, 'ign_b', 'simulink/Signal Attributes/Data Type Conversion', 'OutDataTypeStr', 'boolean');
+mb.b(m, 'DSE_no_protect', 'simulink/Logic and Bit Operations/Logical Operator', 'Operator', 'NOT', 'OutDataTypeStr', 'boolean');
+mb.b(m, 'DSE_ignition', 'simulink/Logic and Bit Operations/Logical Operator', 'Operator', 'AND', 'Inputs', '2', 'OutDataTypeStr', 'boolean');
+mb.b(m, 'ign_dse', 'simulink/Signal Attributes/Data Type Conversion', 'OutDataTypeStr', U8);
+mb.l(m, 'protect_z/1', 'protect_b/1'); mb.l(m, 'protect_b/1', 'DSE_no_protect/1');
+mb.l(m, 'ign_u8/1', 'ign_b/1'); mb.l(m, 'ign_b/1', 'DSE_ignition/1'); mb.l(m, 'DSE_no_protect/1', 'DSE_ignition/2');
+mb.l(m, 'DSE_ignition/1', 'ign_dse/1');
 
 % ======================================================= TRIGGERS
 ch = sfb_scheduler(m);  %#ok<NASGU>
@@ -87,7 +111,10 @@ mb.l(m, po('PLANT', 'cyl_edge'), 'TRIGGERS/1');
 mb.l(m, po('PLANT', 'v_sens'), pi_('MODEL', 'v_sens'));
 mb.l(m, po('PLANT', 'v_5v'), pi_('MODEL', 'v_5v'));
 mb.l(m, po('PLANT', 'rpm'), pi_('MODEL', 'rpm'));
-mb.l(m, 'ign_u8/1', pi_('MODEL', 'ignition')); mb.l(m, 'stop_u8/1', pi_('MODEL', 'stop_sw'));
+mb.l(m, 'ign_dse/1', pi_('MODEL', 'ignition')); mb.l(m, 'stop_u8/1', pi_('MODEL', 'stop_sw'));
+mb.l(m, 'clt_low_u8/1', pi_('MODEL', 'clt_low'));
+mb.l(m, po('MODEL', 'protect'), 'protect_z/1');
+mb.l(m, 'v_bat/1', pi_('PLANT', 'v_bat')); mb.l(m, 'clt_degc/1', pi_('PLANT', 'clt_degc'));
 mb.l(m, 'droop/1', pi_('MODEL', 'droop')); mb.l(m, 'v_boost_rail/1', pi_('MODEL', 'v_boost_rail'));
 mb.l(m, 'i_egr/1', pi_('MODEL', 'i_egr')); mb.l(m, 'wif/1', pi_('MODEL', 'wif'));
 mb.l(m, 'v_bat/1', pi_('MODEL', 'v_bat')); mb.l(m, po('PLANT', 'i_mu'), pi_('MODEL', 'i_mu'));
@@ -100,7 +127,7 @@ mb.l(m, po('MODEL', 'duty'), pi_('PLANT', 'duty'));
 logs = {'rpm', po('PLANT', 'rpm'); 'rail_bar', po('PLANT', 'rail_bar'); 'i_mu', po('PLANT', 'i_mu')};
 for n = {'mode', 'fuel_mg', 'duty', 'set_bar', 'gov_set', 'relay', 'afterrun', 'boost_dis', ...
          'egr_off', 'clt_c', 'oil_kpa', 'soi_deg', 'dur_us', 'eec1', 'et1_tx', 'eflp1_tx', 'hours_tx', ...
-         'spd_state', 'egr_duty'}
+         'spd_state', 'egr_duty', 'dg_act', 'protect'}
     logs(end + 1, :) = {n{1}, po('MODEL', n{1})}; %#ok<AGROW>
 end
 logs{strcmp(logs(:, 1), 'rail_bar'), 1} = 'rail_true';      % the plant's; the ECU's is measured
@@ -184,10 +211,10 @@ T = fcs(M, 'one_ms_task');
 inp(T, 'v_sens', S, 5); inp(T, 'v_5v', S); inp(T, 'gain', S, 6); inp(T, 'offset', S, 6);
 inp(T, 'rpm', S); inp(T, 'ignition', U8); inp(T, 'stop_sw', U8); inp(T, 'droop', U8);
 inp(T, 'v_boost_rail', S); inp(T, 'i_egr', S); inp(T, 'wif', U8);
-inp(T, 'i_mu', S); inp(T, 'v_bat', S);
+inp(T, 'i_mu', S); inp(T, 'v_bat', S); inp(T, 'clt_low', U8);
 outs = {'mode', U8; 'fuel_mg', S; 'duty', S; 'starter', U8; 'rail_bar', S; 'clt_c', S; ...
         'oil_kpa', S; 'fmi', U8; 'gov_set', S; 'relay', U8; 'afterrun', U8; 'boost_dis', U8; ...
-        'egr_off', U8; 'set_bar', S; 'spd_state', U8; 'egr_duty', S};
+        'egr_off', U8; 'set_bar', S; 'spd_state', U8; 'egr_duty', S; 'dg_act', U8; 'protect', U8};
 for i = 1:size(outs, 1), mb.out(T, outs{i, 1}, outs{i, 2}); end
 ref(T, 'sensors', 'ecu_sensors');
 for b = {'mode_m', 'ecu_mode'; 'safety', 'ecu_safety'; 'gov', 'ecu_gov'; 'railset', 'ecu_railset'; ...
@@ -316,6 +343,55 @@ for i = 1:size(term, 1)
     mb.l(T, sprintf('%s/%d', term{i, 1}, term{i, 2}), [t '/1']);
 end
 
+% the diagnoses and the coolant protection, as ecu.c's diagnose(): the
+% 14 conditions of ecu_diag, each debounced and healed by its own ecu_deb
+% on diag.c's times; the active states come back the next tick (the
+% return levels of the battery and coolant). These are the models the
+% flashed code is generated from. Fault 13 (110/0, coolant over 104 degC)
+% is the Protect lamp, on which the DSE shuts the set down.
+ref(T, 'diag', 'ecu_diag');
+mb.b(T, 'fmi_sens', 'simulink/Signal Routing/Demux', 'Outputs', '5');
+mb.l(T, 'sensors/2', 'fmi_sens/1');
+for k = [1 2 3 5]                                  % coolant, oil, rail, EGR position: sensor good
+    nm = sprintf('sens_ok%d', k);
+    mb.b(T, nm, 'simulink/Logic and Bit Operations/Compare To Constant', 'const', '0', 'relop', '==', 'OutDataTypeStr', U8);
+    mb.l(T, sprintf('fmi_sens/%d', k), [nm '/1']);
+end
+add_block('simulink/Sinks/Terminator', [T '/t_fmi_sens4']); mb.l(T, 'fmi_sens/4', 't_fmi_sens4/1');
+mb.b(T, 'ign_on', 'simulink/Logic and Bit Operations/Compare To Constant', 'const', '0', 'relop', '~=', 'OutDataTypeStr', U8);
+mb.l(T, 'mode_m/1', 'ign_on/1');
+mb.b(T, 'act_z', 'simulink/Discrete/Unit Delay', 'InitialCondition', 'zeros(14,1)', 'SampleTime', '-1');
+mb.b(T, 'act_fb', 'simulink/Signal Routing/Demux', 'Outputs', '14');
+mb.l(T, 'act_z/1', 'act_fb/1');
+% ecu_diag's inputs, in diag_in_t's order (i_egr: the plant's is steady, so
+% it stands for ecu.c's filtered current; i_mu: always measured here)
+dsrc = {'is_run/1', 'ign_on/1', 'stopped/1', 'rpm/1', 'v_bat/1', ...
+        'egrpos/1', 'i_egr/1', 'val_ch/5', 'sens_ok5/1', 'egrg/1', ...
+        'mucur/1', 'i_mu/1', 'i_valid/1', 'railset/1', 'val_ch/3', 'sens_ok3/1', ...
+        'val_ch/2', 'sens_ok2/1', 'act_fb/10', 'act_fb/11', ...
+        'val_ch/1', 'sens_ok1/1', 'clt_low/1', 'act_fb/12', 'act_fb/13'};
+for k = 1:numel(dsrc), mb.l(T, dsrc{k}, sprintf('diag/%d', k)); end
+for k = [1:9 14]
+    add_block('simulink/Sinks/Terminator', sprintf('%s/t_act%d', T, k));
+    mb.l(T, sprintf('act_fb/%d', k), sprintf('t_act%d/1', k));
+end
+mb.b(T, 'cond_ch', 'simulink/Signal Routing/Demux', 'Outputs', '14');
+mb.l(T, 'diag/1', 'cond_ch/1');
+mb.b(T, 'act_mux', 'simulink/Signal Routing/Mux', 'Inputs', '14');
+for k = 1:14
+    d = sprintf('deb_%s', lower(strrep(P.dg_names{k}, 'DG_', '')));
+    ref(T, d, 'ecu_deb');
+    mb.k(T, [d '_ms'], P.dg_deb(k), 'uint16');
+    mb.k(T, [d '_heal'], P.dg_heal(k), 'uint16');
+    mb.l(T, sprintf('cond_ch/%d', k), [d '/1']);
+    mb.l(T, [d '_ms/1'], [d '/2']); mb.l(T, [d '_heal/1'], [d '/3']);
+    mb.l(T, [d '/1'], sprintf('act_mux/%d', k));
+end
+assert(isequal(P.dg_names(10:14), {'DG_BAT_HIGH', 'DG_BAT_LOW', 'DG_CLT_WARN', 'DG_CLT_STOP', 'DG_CLT_LEVEL'}), ...
+    'mdl_ecu25kva: diag.h order changed: the feedback and Protect wiring above assume it');
+mb.l(T, 'act_mux/1', 'act_z/1', 'dg_act/1');
+mb.l(T, 'deb_clt_stop/1', 'protect/1');
+
 % ---------- cyl_event_isr: the injection for the cylinder coming up
 C = fcs(M, 'cyl_event_isr');
 inp(C, 'fuel_mg', S); inp(C, 'rail_bar', S);
@@ -368,7 +444,8 @@ for i = 1:numel(trig)
     add_line(M, [trig{i} '_in/1'], [trig{i} '/Trigger'], 'autorouting', 'smart');
 end
 mins = {'v_sens', S, 5; 'v_5v', S, 1; 'rpm', S, 1; 'ignition', U8, 1; 'stop_sw', U8, 1; ...
-        'droop', U8, 1; 'v_boost_rail', S, 1; 'i_egr', S, 1; 'wif', U8, 1; 'i_mu', S, 1; 'v_bat', S, 1};
+        'droop', U8, 1; 'v_boost_rail', S, 1; 'i_egr', S, 1; 'wif', U8, 1; 'i_mu', S, 1; 'v_bat', S, 1; ...
+        'clt_low', U8, 1};
 for i = 1:size(mins, 1)
     h = add_block('built-in/Inport', [M '/' mins{i, 1}]);
     set_param(h, 'OutDataTypeStr', mins{i, 2}, 'PortDimensions', num2str(mins{i, 3}));
@@ -379,6 +456,7 @@ mb.l(M, 'rpm/1', 'one_ms_task/5', 'twenty_ms_task/1'); mb.l(M, 'ignition/1', 'on
 mb.l(M, 'stop_sw/1', 'one_ms_task/7'); mb.l(M, 'droop/1', 'one_ms_task/8');
 mb.l(M, 'v_boost_rail/1', 'one_ms_task/9'); mb.l(M, 'i_egr/1', 'one_ms_task/10'); mb.l(M, 'wif/1', 'one_ms_task/11');
 mb.l(M, 'i_mu/1', 'one_ms_task/12'); mb.l(M, 'v_bat/1', 'one_ms_task/13');
+mb.l(M, 'clt_low/1', 'one_ms_task/14');
 % task outputs, by name
 o = @(t, n) [t '/' get_param([M '/' t '/' n], 'Port')];
 mb.l(M, o('one_ms_task', 'fuel_mg'), 'cyl_event_isr/1');
@@ -392,7 +470,8 @@ mb.l(M, o('twenty_ms_task', 'eflp1'), 'five_hundred_ms_task/1');
 mb.l(M, o('twenty_ms_task', 'et1'), 'one_sec_task/1');
 mb.l(M, o('twenty_ms_task', 'hours'), 'ten_sec_task/1');
 mouts = {'one_ms_task', {'mode', 'fuel_mg', 'duty', 'starter', 'rail_bar', 'set_bar', 'gov_set', ...
-         'relay', 'afterrun', 'boost_dis', 'egr_off', 'clt_c', 'oil_kpa', 'fmi', 'spd_state', 'egr_duty'}; ...
+         'relay', 'afterrun', 'boost_dis', 'egr_off', 'clt_c', 'oil_kpa', 'fmi', 'spd_state', 'egr_duty', ...
+         'dg_act', 'protect'}; ...
          'cyl_event_isr', {'soi_deg', 'dur_us'}; 'twenty_ms_task', {'eec1'}; ...
          'five_hundred_ms_task', {'eflp1_tx'}; 'one_sec_task', {'et1_tx'}; 'ten_sec_task', {'hours_tx'}};
 for i = 1:size(mouts, 1)
@@ -411,6 +490,7 @@ S = 'single'; U8 = 'uint8';
 PL = [m '/PLANT'];
 add_block('built-in/SubSystem', PL, 'BackgroundColor', 'lightBlue');
 inp(PL, 'fuel_mg', S); inp(PL, 'load_kw', 'double'); inp(PL, 'starter', U8); inp(PL, 'duty', S);
+inp(PL, 'v_bat', S); inp(PL, 'clt_degc', S);
 mb.out(PL, 'rpm', S); mb.out(PL, 'v_sens', S); mb.out(PL, 'v_5v', S); mb.out(PL, 'cyl_edge', U8);
 mb.out(PL, 'rail_bar', S); mb.out(PL, 'i_mu', S);
 eng = sprintf([ ...
@@ -453,27 +533,29 @@ mb.l(PL, 'Engine/1', 'omega_i/1'); mb.l(PL, 'Engine/2', 'p_i/1');
 mb.l(PL, 'omega_i/1', 'Engine/1', 'rpm_g/1'); mb.l(PL, 'p_i/1', 'Engine/2', 'rail_bar/1');
 mb.l(PL, 'fuel_lag/1', 'Engine/3'); mb.l(PL, 'load_s/1', 'Engine/4');
 mb.l(PL, 'starter/1', 'Engine/5');
-% the metering valve's coil: 13.5 V into the measured coil's nominal 3.75 ohm
-% (2.5-5 measured, decisions log 25), tau 3 ms; the current, as
+% the metering valve's coil: the battery into the measured coil's nominal
+% 3.75 ohm (2.5-5 measured, decisions log 25), tau 3 ms; the current, as
 % a fraction of full, is what closes the valve (the engine's 'duty')
 coil = sprintf([ ...
- 'function [i_n, frac] = coil(duty, i)\n' ...
+ 'function [i_n, frac] = coil(duty, i, v_bat)\n' ...
  '%%#codegen\n' ...
- 'i_n = i + (duty * single(13.5) / single(3.75) - i) * single(%s);\n' ...
+ 'i_n = i + (duty * v_bat / single(3.75) - i) * single(%s);\n' ...
  'frac = min(single(1), i_n / single(1.8));\n'], mb.num(1 - exp(-1/3)));
-mfun(PL, 'Coil', coil, containers.Map({'duty', 'i', 'i_n', 'frac'}, {S, S, S, S}));
+mfun(PL, 'Coil', coil, containers.Map({'duty', 'i', 'v_bat', 'i_n', 'frac'}, {S, S, S, S, S}));
 mb.b(PL, 'coil_z', 'simulink/Discrete/Unit Delay', 'InitialCondition', '0', 'SampleTime', '0.001');
-mb.l(PL, 'duty/1', 'Coil/1'); mb.l(PL, 'coil_z/1', 'Coil/2');
+mb.l(PL, 'duty/1', 'Coil/1'); mb.l(PL, 'coil_z/1', 'Coil/2'); mb.l(PL, 'v_bat/1', 'Coil/3');
 mb.l(PL, 'Coil/1', 'coil_z/1'); mb.l(PL, 'Coil/2', 'Engine/6');
 % the ADC reads the current already flowing, not the one this tick's duty will make
 mb.l(PL, 'coil_z/1', 'i_mu/1');
 mb.l(PL, 'rpm_g/1', 'rpm/1');
 % what the sensors read: the inverse of each transfer function, 5 V supply
 sv = sprintf([ ...
- 'function [v, v5] = volts(rpm, p, load_kw)\n' ...
+ 'function [v, v5] = volts(rpm, p, load_kw, clt)\n' ...
  '%%#codegen\n' ...
- '%% coolant at 85 degC through the NTC and its pull-up\n' ...
- 'r = single(%s);                  %% Bosch NTC at 85 degC, in parallel with NTC_LOAD\n' ...
+ '%% coolant through Bosch''s NTC table (in ln R) and its pull-up\n' ...
+ 'NT = %s; NR = %s;\n' ...
+ 'rn = exp(interp1(NT, log(NR), double(clt)));\n' ...
+ 'r = single(1 / (1 / rn + 1 / %s));          %% in parallel with NTC_LOAD\n' ...
  'v = zeros(5, 1, ''single'');\n' ...
  'v(1) = single(5) * r / (r + single(%s));\n' ...
  'lin = @(x, lo, hi) single(0.5) + single(4) * (x - lo) / (hi - lo);\n' ...
@@ -482,11 +564,12 @@ sv = sprintf([ ...
  'v(4) = lin(single(100) + single(100) * load_kw / single(25), single(%s), single(%s));  %% boost\n' ...
  'v(5) = single(0.5);                                                    %% EGR shut\n' ...
  'v5 = single(5);\n'], ...
- mb.num(1 / (1 / exp(interp1(P.ntc_t, log(P.ntc_r), 85)) + 1 / P.NTC_LOAD)), mb.num(P.NTC_PULLUP), ...
+ mb.num(double(P.ntc_t)), mb.num(double(P.ntc_r)), mb.num(P.NTC_LOAD), mb.num(P.NTC_PULLUP), ...
  mb.num(P.span_lo(2)), mb.num(P.span_hi(2)), mb.num(P.span_lo(3)), mb.num(P.span_hi(3)), ...
  mb.num(P.span_lo(4)), mb.num(P.span_hi(4)));
-mfun(PL, 'Sensors', sv, containers.Map({'rpm', 'p', 'load_kw', 'v', 'v5'}, {S, S, S, S, S}));
+mfun(PL, 'Sensors', sv, containers.Map({'rpm', 'p', 'load_kw', 'clt', 'v', 'v5'}, {S, S, S, S, S, S}));
 mb.l(PL, 'rpm_g/1', 'Sensors/1'); mb.l(PL, 'p_i/1', 'Sensors/2'); mb.l(PL, 'load_s/1', 'Sensors/3');
+mb.l(PL, 'clt_degc/1', 'Sensors/4');
 mb.l(PL, 'Sensors/1', 'v_sens/1'); mb.l(PL, 'Sensors/2', 'v_5v/1');
 % one event per cylinder: the crank angle crossing each 240 degrees
 ce = sprintf([ ...

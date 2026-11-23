@@ -47,6 +47,39 @@ check('EGR bridge coasts: no target yet (duty)', at(g('egr_duty'), 13) == 0, at(
 check('metering current = duty x 13.5 V / 3.75 ohm, the measured coil (A)', abs(at(g('i_mu'), 13) - at(g('duty'), 13) * 13.5 / 3.75) < 0.02, at(g('i_mu'), 13));
 t = at(g('et1_tx'), 13);
 check('J1939 ET1 carries the coolant (degC)', abs(double(t(1)) - 40 - 85) <= 1, double(t(1)) - 40);
+act = g('dg_act');
+check('no diagnosis in a normal start, load and stop (faults seen)', ~any(act.Data(:)), nnz(any(act.Data, 1)));
+
+% ---- second run: the protection (decisions log 35). No stop switch.
+% Battery 9.2 V from 4 s (running: 168/18 after 10 s); coolant level
+% switch open from 5 s (111/18 after 5 s); coolant 85 degC until 9 s, then
+% up 3.5 degC/s to 106 (110/16 2 s past 100 degC; 110/0 2 s past 104,
+% Protect, and the DSE drops the ignition). Each fault's time is
+% diag.c's, through the generated ecu_diag and ecu_deb.
+in2 = Simulink.SimulationInput('ecu25kva');
+in2 = in2.setModelParameter('StopTime', '25');
+in2 = in2.setBlockParameter('ecu25kva/stop_sw', 'Time', '1e6');
+in2 = in2.setBlockParameter('ecu25kva/v_bat', 'BreakpointsForDimension1', '[0 4 4.001 100]', ...
+                             'ecu25kva/v_bat', 'Table', '[13.5 13.5 9.2 9.2]');
+in2 = in2.setBlockParameter('ecu25kva/clt_low', 'Time', '5');
+in2 = in2.setBlockParameter('ecu25kva/clt_degc', 'BreakpointsForDimension1', '[0 9 15 100]', ...
+                             'ecu25kva/clt_degc', 'Table', '[85 85 106 106]');
+out2 = sim(in2);
+g2 = @(n) out2.get(n);
+act2 = g2('dg_act'); clt2 = g2('clt_c'); mode2 = g2('mode'); P = ecu_params();
+first = @(k) act2.Time(find(act2.Data(:, k) ~= 0, 1));
+over = @(c) clt2.Time(find(clt2.Data > c, 1));           % the ECU's own reading crosses c
+t_lvl = first(14); t_low = first(11); t_warn = first(12); t_stop = first(13);
+check('111/18 coolant level, 5 s after the switch opens (s)', abs(t_lvl - (5 + P.dg_deb(14) / 1000)) < 0.005, t_lvl);
+check('168/18 battery low, 10 s after 9.2 V while running (s)', abs(t_low - (4 + P.dg_deb(11) / 1000)) < 0.005, t_low);
+check('110/16 coolant warning, 2 s past 100 degC read (s)', abs(t_warn - (over(100) + P.dg_deb(12) / 1000)) < 0.005, t_warn);
+check('110/0 coolant stop, 2 s past 104 degC read (s)', abs(t_stop - (over(104) + P.dg_deb(13) / 1000)) < 0.005, t_stop);
+check('amber faults: still RUN just before the coolant stop', at(mode2, t_stop - 0.01) == 3, at(mode2, t_stop - 0.01));
+check('Protect lit with the coolant stop', at(g2('protect'), t_stop) == 1, at(g2('protect'), t_stop));
+t_shut = mode2.Time(find(mode2.Time >= t_stop & mode2.Data == 4, 1));
+check('the DSE drops the ignition: SHUTDOWN within 5 ms of Protect (s)', ~isempty(t_shut) && t_shut - t_stop < 0.005, t_shut - t_stop);
+others = setdiff(1:14, [11 12 13 14]);
+check('no other diagnosis in the protection run (faults seen)', ~any(any(act2.Data(:, others))), nnz(any(act2.Data(:, others), 1)));
 f = figure('Visible', 'off', 'Position', [0 0 1000 800]);
 subplot(4, 1, 1); plot(rpm.Time, rpm.Data); ylabel('rpm'); grid on;
 title('ecu25kva: start, 20 kW at 8 s, stop switch at 16 s');

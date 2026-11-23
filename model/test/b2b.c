@@ -32,6 +32,9 @@
 #include "ecu_egrpos.h"
 #include "ecu_spdst.h"
 #include "ecu_deb.h"
+#include "diag.h"
+#include "ecu_diag.h"
+#include <math.h>
 #include <string.h>
 
 /* A random input that holds for a random while: the guards count time,
@@ -51,6 +54,25 @@ static void report(const char *what, double worst, double tol)
     fails += !ok;
     printf("%-34s largest difference %-12.6g %s\n", what, worst, ok ? "ok" : "FAIL");
 }
+
+static const float dg_edge[] = { DG_BAT_MEASURED_V, DG_BAT_EGR_LO, DG_BAT_EGR_HI, DG_EGR_DRIVE,
+    -DG_EGR_DRIVE, DG_EGR_OPEN_A, DG_EGR_COAST, -DG_EGR_COAST, DG_EGR_HARD, DG_EGR_POS_PCT,
+    DG_MU_OPEN_A, DG_MU_MAX_A, DG_RAIL_DEV_BAR, DG_SPD_HIGH_RPM, DG_OIL_RUN_KPA, DG_OIL_STOP_KPA,
+    DG_BAT_HIGH_V, DG_BAT_HIGH_RET_V, DG_BAT_LOW_V, DG_BAT_LOW_RET_V,
+    DG_CLT_WARN_C, DG_CLT_WARN_RET_C, DG_CLT_STOP_C, DG_CLT_STOP_RET_C, 0.0f };
+static float dg_pick(float lo, float hi)
+{
+    int r = rand() % 2000;
+    if (r == 0)
+        return NAN;
+    if (r % 3 == 0) {
+        float e = dg_edge[rand() % (int)(sizeof dg_edge / sizeof dg_edge[0])];
+        int w = rand() % 3;
+        return w == 0 ? e : nextafterf(e, w == 1 ? 1e9f : -1e9f);
+    }
+    return rnd(lo, hi);
+}
+static uint8_t dg_bit(void) { return (uint8_t)(rand() & 1); }
 
 int main(void)
 {
@@ -331,5 +353,38 @@ int main(void)
       }
       report("fault debounce chart x4 (mismatched)", (double)bad, 0);
       printf("   ticks active: %ld\n", n1); }
+    /* the diagnoses and coolant protection (ecu_diag, decisions log 24, 35):
+     * every input random over its range or, a third of the time, exactly on
+     * one of diag.h's thresholds or one float step either side, and now and
+     * then NaN. All 14 conditions must agree on every tick, and each must
+     * have fired, or a match proves nothing. */
+    { RT_MODEL_ecu_diag_T m; uint8_t cm[DG_N], cr[DG_N];
+      long hit[DG_N] = {0}; bad = 0;
+      for (int i = 0; i < N; i++) {
+          diag_in_t in = {
+              .running = dg_bit(), .ign_on = dg_bit(), .stopped = dg_bit(),
+              .rpm = dg_pick(0, 1800), .v_bat = dg_pick(0, 17),
+              .egr_duty = dg_pick(-1, 1), .i_egr_f = dg_pick(0, 2), .egr_pos = dg_pick(0, 100),
+              .egr_pos_ok = dg_bit(), .egr_off = dg_bit(),
+              .mu_duty = dg_pick(0, 1), .i_mu = dg_pick(0, 3.5f), .i_mu_valid = dg_bit(),
+              .rail_set = dg_pick(0, 1800), .rail_bar = dg_pick(0, 1800), .rail_ok = dg_bit(),
+              .oil_kpa = dg_pick(0, 1000), .oil_ok = dg_bit(),
+              .bat_high_act = dg_bit(), .bat_low_act = dg_bit(),
+              .clt_c = dg_pick(-40, 140), .clt_ok = dg_bit(), .clt_low = dg_bit(),
+              .clt_warn_act = dg_bit(), .clt_stop_act = dg_bit(),
+          };
+          diag_cond(&in, cr);
+          ecu_diag_step(&m, in.running, in.ign_on, in.stopped, in.rpm, in.v_bat,
+                        in.egr_duty, in.i_egr_f, in.egr_pos, in.egr_pos_ok, in.egr_off,
+                        in.mu_duty, in.i_mu, in.i_mu_valid, in.rail_set, in.rail_bar, in.rail_ok,
+                        in.oil_kpa, in.oil_ok, in.bat_high_act, in.bat_low_act,
+                        in.clt_c, in.clt_ok, in.clt_low, in.clt_warn_act, in.clt_stop_act, cm);
+          for (int k = 0; k < DG_N; k++) { bad += cm[k] != cr[k]; hit[k] += cr[k]; }
+      }
+      report("diagnoses and coolant protection, 14 conditions (mismatched)", (double)bad, 0);
+      long least = hit[0]; int kl = 0;
+      for (int k = 1; k < DG_N; k++) if (hit[k] < least) { least = hit[k]; kl = k; }
+      printf("   every condition fired; the least, #%d, %ld times\n", kl + 1, least);
+      if (least < 1000) { printf("   FAIL: condition #%d barely exercised\n", kl + 1); fails++; } }
     return fails != 0;
 }

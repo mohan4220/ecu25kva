@@ -1,5 +1,7 @@
 /* Engine-side fault diagnosis: the conditions (diag.h). Pure: no state,
- * no time; ecu.c debounces each one with deb_step. */
+ * no time; ecu.c debounces each one with deb_step. With ECU_MODEL the
+ * conditions come from model/ecu_diag.slx (model_glue.c); this body is the
+ * reference the back-to-back test holds it to. The table stays here. */
 #include "diag.h"
 
 /* spn, fmi, debounce ms, healing ms. Sheet: the 20 kVA DSM sheet's own
@@ -21,6 +23,7 @@ const diag_def_t diag_def[DG_N] = {
     [DG_CLT_LEVEL]      = { 111, 18, 5000, 1000 },  /* here: 5 s, past sloshing */
 };
 
+#ifndef ECU_MODEL    /* else generated: model/ecu_diag.slx, via model_glue.c */
 static float absf(float x) { return x < 0 ? -x : x; }
 
 void diag_cond(const diag_in_t *in, uint8_t c[DG_N])
@@ -64,3 +67,4 @@ void diag_cond(const diag_in_t *in, uint8_t c[DG_N])
                      && in->clt_c > (in->clt_stop_act ? DG_CLT_STOP_RET_C : DG_CLT_STOP_C);
     c[DG_CLT_LEVEL] = in->ign_on && in->clt_low;
 }
+#endif

@@ -2563,6 +2563,54 @@ the first start. If it is out by 360°, add 360.
 
 ---
 
+## 40. The protection runs on model-generated code (24 November)
+
+The owner: "our ECU runs with the Simulink model generated code, so please
+be sure". The flashed image is `app_model`: the code generated from the
+component models, plus the hand-written core that calls them. Until now
+the diagnosis and protection conditions (`diag.c`: coolant 100 / 104 °C,
+battery 15.0 / 9.5 V, coolant level, EGR, metering valve, rail, speed,
+oil) were hand-written C in both builds, and the top model `ecu25kva.slx`
+did not show them at all.
+
+**Now:**
+- **`ecu_diag`**, a new component model (the 21st), holds the 14
+  conditions. Every threshold is `diag.h`'s, read by `ecu_params`. With
+  `ECU_MODEL`, `diag_cond` is its generated code (`model_glue.c`); the C
+  body in `diag.c` stays as the reference build.
+- **Proven equal** by the back-to-back test: millions of ticks, a third
+  of the inputs exactly on a threshold or one float step either side, and
+  NaN now and then. 0 mismatches on all 14; every condition fired at least
+  4,824 times. The test was itself checked: changing the 104 °C
+  comparison from `>` to `>=` in a copy of `diag.c` gives 3,413
+  mismatches and FAIL.
+- **The top model** now carries the chain the firmware runs: `ecu_diag`
+  into 14 `ecu_deb` instances on `diag.c`'s own debounce and healing
+  times (read from its table), the active states fed back one tick later
+  for the return levels. Fault 13 (110/0) is the Protect lamp; a "DSE"
+  block stands in for the panel and drops the ignition on it. The battery
+  voltage, the coolant temperature (through Bosch's NTC table) and the
+  coolant level switch are profiles, flat by default; the plant's
+  metering coil now runs from the battery profile.
+- **Simulate** runs twice, 29 checks. The first run is unchanged and adds
+  "no diagnosis in a normal start, load and stop". The second drives the
+  protection: battery 9.2 V from 4 s gives 168/18 at 14.0 s; the level
+  switch open at 5 s gives 111/18 at 9.999 s; the coolant ramp gives
+  110/16 2 s past 100 °C (15.29 s) and 110/0 2 s past 104 °C (16.43 s),
+  the engine running through the amber ones; Protect lights with 110/0
+  and the engine is in SHUTDOWN 1 ms later.
+
+**Still hand-written C in the flashed image** (said plainly, since the
+owner relies on the model): the cam/crank decoder and per-tooth injection
+timing, the injector stage (`firmware/stm32/inj_logic.c`), the metering
+valve's coil learning and fallback (`actuate.c`, §34), the fault memory,
+DM1 transport and which faults light Protect (`ecu.c` `lamps()`), UDS and
+the bootloader. Each is covered by the unit tests and engine scenarios on
+the model build. Moving any of them into a model is the same recipe as
+`ecu_diag`.
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a
