@@ -426,6 +426,35 @@ def main(root=ROOT, expected_open=None, boundary_open=None,
               len(fets) == 2 and len(wake) == 1,
               f"FETs on pin 50 {fets}, gated from pin 71 {wake}")
 
+    # SENSOR INPUTS (22 Nov 2026, decisions log 33). Both faults found then
+    # had passed every simulation, because the blocks model a correct
+    # ground: here the netlist itself is asked.
+    def ohms_to(net, other):
+        """Resistors from `net` to `other`, as (ref, ohms)."""
+        out = []
+        for r, k in pins_of.get(net, []):
+            if r.startswith("R"):
+                far = net_of.get((r, "2" if k == "1" else "1"))
+                if far == other or (callable(other) and far and other(far)):
+                    out.append((r, pr_ohms(comps.get(r, ""))))
+        return out
+    for net, pin, who in (("/SGND_34", "34", "boost P&T, coolant"),
+                          ("/SGND_36", "36", "oil, EGR position")):
+        ties = [t for t in ohms_to(net, "GND") if t[1] is not None and t[1] <= 10]
+        check(f"sensor ground pin {pin} ({who}) reaches GND, so the sensors' "
+              "supply current has a return", net not in pins_of or bool(ties),
+              f"{net}: ties {ties}, parts {pins_of.get(net, [])}")
+    ina = {r for r, v in comps.items() if v.startswith("INA592")}
+    for net, pin, who in (("/COOLANT_T_IN", "33", "coolant"),
+                          ("/BOOST_T_IN", "79", "charge-air")):
+        if net not in pins_of:
+            continue
+        pull = ohms_to(net, lambda n: "5V_SENSOR" in n)
+        amp = [r for r, k in pins_of[net] if r in ina]
+        check(f"pin {pin} ({who}) is a bare NTC: a pull-up to 5V_SENSOR, "
+              "and no INA592 (its 18k +/-20 % load hides an open sensor)",
+              len(pull) == 1 and not amp, f"{net}: pull-ups {pull}, INA592 {amp}")
+
     # Every chip R and C is packaged by assign_passives.py. One without a
     # footprint is a part added or re-valued since the map was built.
     fp_of = dict(re.findall(r'\(comp\s+\(ref "([^"]+)"\)\s*\n\s*\(value '
