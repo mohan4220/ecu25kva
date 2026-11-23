@@ -378,6 +378,7 @@ and charge-air temperature (the NTC inside the boost sensor, Bosch 0 281
 | R626, R630 | **100k 0.1 %** | With 160k: a 260k load the firmware takes out exactly (`NTC_LOAD`) |
 | R627, R631 | **160k 0.1 %** | 16/26, as the ratiometric channels |
 | R633, R634 | **0 Ω** | SGND_34 and SGND_36 to GND: the sensors' ground return |
+| R635, R636 | **100k / 160k 0.1 %** | Pin 37, the EGR position **potentiometer**'s wiper (§36): the same light divider, no pull-up. Error under 0.3 % of full scale for a 5 kΩ track, against 4 % ±1.3 % on the INA592 |
 
 Why 260k: an open sensor reads 4.95 V, the coldest real one (−40 °C,
 45.3 kΩ +6 %) 4.71 V, and the common 4.8 V open limit lies between them.
@@ -631,7 +632,7 @@ not constraints.
 | Supervisor | **TPS3850G33DRCT** | ±4% window variant, so its undervoltage trip clears the MCU's own LVD by 143 mV rather than 44 mV. |
 | Injector boost controller | **TPS40210QDGQRQ1** | Chosen on its **200 ns maximum off-time** — the one spec that makes 94% duty reachable at the 6 V cranking corner. See below. |
 | Gate drivers, all eight gates | **AUIRS2181STR** ×5 | **No cross-conduction interlock** — the injector's high and low switches are in series with the coil and must both be on. See below. |
-| Difference amplifiers | **INA592IDR** ×3 (boost pressure, EGR position, oil; the two NTC pins left them 22 Nov, decisions log §33) | Native G = ½, 88 dB CMRR min against a 60 dB floor the discrete network could not reach. **Not AEC-Q100** — see below. |
+| Difference amplifiers | **INA592IDR** ×2 (boost pressure, oil). The two NTC pins left them on 22 Nov (§33), EGR position on 23 Nov (§36) | Native G = ½, 88 dB CMRR min against a 60 dB floor the discrete network could not reach. **Not AEC-Q100** — see below. |
 | Barometric sensor | **MPXHZ6115A6T1** | Spec §7 deviation 2, on-PCB behind a vented port. AEC-Q100 **not stated** in its datasheet — see below. |
 | EGR bridge drivers | **AUIRS2184STR** ×2 | One input per leg: each leg's high and low exclusive by construction. See `EGR-DRIVER`. |
 | Negative-clamp control | **TLV3201AQDCKRQ1** + **UCC27517AQDBVRQ1** | A low-side ideal diode: engage below −100 mV, release above −6.8 mV. See `NEG-CLAMP`. |
@@ -967,7 +968,7 @@ keeps the relay off while the GPIO is Hi-Z from reset. The existing
 ### `INA592IDR` — the difference amplifiers, and a stronger argument
 
 **TI SBOS914F**, October 2018, revised April 2021. Retrieved and
-text-extracted. Three since 22 Nov 2026, one per differential channel on `sensors_analog` (pins 41, 37, 80). Pins 33 and 79 are bare NTCs and have their own front end: see `NTC-PULLUP`.
+text-extracted. Two since 23 Nov 2026, one per differential channel on `sensors_analog` (pins 41 and 80). Pins 33 and 79 are bare NTCs and have their own front end: see `NTC-PULLUP`.
 
 **Its input is not high impedance:** +IN is 12k into the op amp's + terminal, which has 6k to REF, so 18k to ground, and the data sheet gives the resistors **±20 % absolute**. For a sensor that drives its output that is nothing; for an NTC with a pull-up it is a parallel resistor nobody knows to better than 20 %.
 

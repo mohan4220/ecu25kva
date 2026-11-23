@@ -244,7 +244,7 @@ NTC_PULLUP_NOTE = ("Bosch NTC on a shared sensor ground (refs/bosch-pinout-"
                    "measurement.")
 
 
-def ntc_channel(sh, x0, y, in_net, out_net, label):
+def ntc_channel(sh, x0, y, in_net, out_net, label, pullup=True):
     """A bare NTC: pull-up, then a light divider into the ADC tail.
 
     The divider is 100k/160k, the same 16/26 ratio as the ratiometric
@@ -260,17 +260,20 @@ def ntc_channel(sh, x0, y, in_net, out_net, label):
     chain = Rail(sh, y)
     chain.to(x0)
     px = x0 + 14.0
-    sh.place("Device:R", "R", px, y - 12.0, "2.49k",
-             fields={"Tag": "NTC-PULLUP", "Tolerance": "0.1%",
-                     "Source": "sensors.c NTC_PULLUP; decisions log 33",
-                     "Note": NTC_PULLUP_NOTE})
-    a = pin_xy(*PINS["Device:R"]["1"], px, y - 12.0, 0)
-    b = pin_xy(*PINS["Device:R"]["2"], px, y - 12.0, 0)
-    top, bot = (a, b) if a[1] < b[1] else (b, a)
-    cx, cy = chain.to(px, tap=True)
-    sh.wire(cx, cy, bot[0], bot[1])
-    sh.wire(top[0], top[1], top[0], top[1] - 4.0)
-    sh.hlabel("5V_SENSOR_A", top[0], top[1] - 4.0, shape="input", rot=90)
+    if not pullup:            # a potentiometer's wiper drives it: no pull-up
+        px = None
+    if px is not None:
+      sh.place("Device:R", "R", px, y - 12.0, "2.49k",
+               fields={"Tag": "NTC-PULLUP", "Tolerance": "0.1%",
+                       "Source": "sensors.c NTC_PULLUP; decisions log 33",
+                       "Note": NTC_PULLUP_NOTE})
+      a = pin_xy(*PINS["Device:R"]["1"], px, y - 12.0, 0)
+      b = pin_xy(*PINS["Device:R"]["2"], px, y - 12.0, 0)
+      top, bot = (a, b) if a[1] < b[1] else (b, a)
+      cx, cy = chain.to(px, tap=True)
+      sh.wire(cx, cy, bot[0], bot[1])
+      sh.wire(top[0], top[1], top[0], top[1] - 4.0)
+      sh.hlabel("5V_SENSOR_A", top[0], top[1] - 4.0, shape="input", rot=90)
     sx = x0 + 30.0
     sh.place("Device:R", "R", sx, y, "100k", rot=90,
              fields={"Tolerance": "0.1%", "Source": "decisions log 33",
@@ -496,7 +499,7 @@ def build():
          "the input leg; that is a populate change, not a redesign."),
     ]
     for x0, y, sig, gnd, out, label, note in diffs:
-        if sig in ("COOLANT_T_IN", "BOOST_T_IN"):    # bare NTCs: see ntc_channel
+        if sig in ("COOLANT_T_IN", "BOOST_T_IN", "EGR_POS_IN"):   # NTCs, a pot: see ntc_channel
             ghost(sh, differential_channel, x0, y, sig, gnd, out, label, note)
         else:
             differential_channel(sh, x0, y, sig, gnd, out, label, note)
@@ -527,6 +530,13 @@ def build():
                 "0 281 006 102 (DS-S3-TF), return pin 34 -> PTA3")
     sgnd_tie(sh, 480.0, 300.0, "SGND_34", 34, "boost P&T, coolant")
     sgnd_tie(sh, 480.0, 340.0, "SGND_36", 36, "oil, EGR position")
+    # Pin 37, the EGR position sensor: a POTENTIOMETER (Bosch's drawing,
+    # pins 3/5/4 of the Padmini actuator; owner's crop 23 Nov 2026,
+    # decisions log 36). Its wiper must not see the INA592's 18k +/-20 %:
+    # the same light 100k/160k, no pull-up. An open wiper reads 0 V (FMI 4).
+    ntc_channel(sh, 330.0, 175.0, "EGR_POS_IN", "EGR_POS",
+                "ECU pin 37 -- EGR position, a potentiometer (Padmini), wiper "
+                "-> PTA15; supply pin 15, return pin 36", pullup=False)
     notes(sh)
     # The sheet's one HIERARCHICAL 3V3_MCU, for the BAV199-Q clamps --
     # every clamp names the rail with a local label, which alone would

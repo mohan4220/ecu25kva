@@ -87,6 +87,7 @@ NET_V = {
     "/SW_DROOP_C": HARNESS, "/EGR_HIGH_59": BAT, "/EGR_LOW_81": BAT,
     "/RAIL_P_IN": HARNESS, "/CAM_FREQ_46": HARNESS,
     "/COOLANT_T_IN": HARNESS, "/BOOST_T_IN": HARNESS,   # bare NTCs (decisions log 33)
+    "/EGR_POS_IN": HARNESS,                               # the EGR pot (decisions log 36)
     "/SGND_34": HARNESS, "/SGND_36": HARNESS,
     "/rails/SW": BAT,
     "/power_input/VBAT_EMI1": BAT,    # between L1 and the ferrite

@@ -478,8 +478,13 @@ WIF_MIGRATE = dict(renames={}, drop=(), refit=("R818", "R819"))
 NTC_MIGRATE = dict(renames={}, drop=("U602", "U605", "D605", "D608", "R612", "R613",
                                      "R618", "R619", "C606", "C607", "C612", "C613"),
                    refit=())
+# EGR-POT (23 Nov 2026, decisions log 36): pin 37 is a potentiometer wiper;
+# its INA592 channel goes (U603 and its tail) for a 100k/160k one.
+EGR_POT_MIGRATE = dict(renames={}, drop=("U603", "D606", "R614", "R615", "C608", "C609"),
+                       refit=())
 MIGRATIONS = {"bosch": BOSCH_MIGRATE, "stop_kill": STOP_KILL_MIGRATE,
-              "boost_ovp": BOOST_OVP_MIGRATE, "wif": WIF_MIGRATE, "ntc": NTC_MIGRATE}
+              "boost_ovp": BOOST_OVP_MIGRATE, "wif": WIF_MIGRATE, "ntc": NTC_MIGRATE,
+              "egr_pot": EGR_POT_MIGRATE}
 
 
 def migrate_inputs(renames):

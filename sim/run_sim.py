@@ -2721,6 +2721,20 @@ def check_ntc_frontend():
            tol=0.05, unit="mW")
     c.that("resolution at 100 C, at the pin", (v(187) - v(144)) / 10 * 1e3, 7.4, tol=0.3,
            unit="mV/C")
+
+    # PIN 37, the EGR position POTENTIOMETER (Bosch's drawing, decisions
+    # log 36): the wiper's source resistance is at most a quarter of the
+    # track, at mid travel. The worst error that load makes, as a fraction
+    # of the full 5 V, for a 5 kohm track (unknown: 1-5 kohm is the class).
+    def pot_err(track, load):
+        rs = track / 4                       # mid travel
+        return (2.5 - 2.5 * load / (load + rs)) / 5 * 100
+    c.that("EGR pot (5 kohm track) into 100k/160k: worst error", pot_err(5e3, load), 0.24,
+           tol=0.02, unit="% FS")
+    c.that("WAS: into the INA592's 18k, at -20 % (14.4k)", pot_err(5e3, 14.4e3), 4.0, tol=0.2,
+           unit="% FS")
+    c.that("  ... and at +20 % (21.6k): the spread nobody could calibrate out",
+           pot_err(5e3, 14.4e3) - pot_err(5e3, 21.6e3), 1.3, tol=0.1, unit="% FS")
     return c
 
 

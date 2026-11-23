@@ -454,6 +454,12 @@ def main(root=ROOT, expected_open=None, boundary_open=None,
         check(f"pin {pin} ({who}) is a bare NTC: a pull-up to 5V_SENSOR, "
               "and no INA592 (its 18k +/-20 % load hides an open sensor)",
               len(pull) == 1 and not amp, f"{net}: pull-ups {pull}, INA592 {amp}")
+    if "/EGR_POS_IN" in pins_of:      # a potentiometer's wiper (decisions log 36)
+        amp = [r for r, k in pins_of["/EGR_POS_IN"] if r in ina]
+        pull = ohms_to("/EGR_POS_IN", lambda n: "5V" in n)
+        check("pin 37 (EGR position) is a potentiometer wiper: no INA592 "
+              "(18k +/-20 % bends it) and no pull-up", not amp and not pull,
+              f"INA592 {amp}, pull-ups {pull}")
 
     # Every chip R and C is packaged by assign_passives.py. One without a
     # footprint is a part added or re-valued since the map was built.

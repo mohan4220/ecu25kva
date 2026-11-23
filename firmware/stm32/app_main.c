@@ -40,7 +40,7 @@ static void read_inputs(void)
     io.v_oil = adc_pin_v(AN_OIL) / G_DIFF;
     io.v_rail = adc_pin_v(AN_RAIL) / G_RATIO;
     io.v_boost = adc_pin_v(AN_BOOST) / G_DIFF;
-    io.v_egr = adc_pin_v(AN_EGR_POS) / G_DIFF;
+    io.v_egr = adc_pin_v(AN_EGR_POS) / G_RATIO;      /* the pot's 100k/160k (decisions log 36) */
     io.v_bts = adc_pin_v(AN_BOOST_T) / G_RATIO;
     io.v_5v = adc3_pin_v(AN_5V) / G_5V_MON;
     io.v_bat = adc_pin_v(AN_VBAT) / G_VBAT;

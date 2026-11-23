@@ -2369,6 +2369,43 @@ The input was built but never read.
   rig now reads.
 - Scenario 18 loses charging at 9.3 V instead of 11.0 V.
 
+
+## 36. The metering valve's and the EGR actuator's wiring, from Bosch's drawing (23 November)
+
+The owner sent two crops of Bosch's terminal diagram. Each was read again on
+the drawing itself, rendered at 6×.
+
+**Metering valve (0 928 400 820):**
+- its pin 1 goes to ECU 88 and its pin 2 to the main-relay line, as a
+  twisted pair;
+- it is a proportional solenoid with no diode inside, so D501, the board's
+  freewheel diode, is required. It is there.
+
+No change, beyond the pinout reference, the BOM note and bring-up step 4b.
+
+**EGR actuator (Padmini):**
+- pins 1 and 2 (the motor) go to 59 and 81, twisted;
+- pin 3 goes to 15 (5 V), **pin 5, the wiper of a potentiometer, to 37**,
+  and pin 4 to 36 (ground, via V4).
+
+That answers §34's open question: the position sensor is a bare
+potentiometer. On the INA592 its wiper saw 18k to ground, ±20 % absolute.
+For a 5 kΩ track that is up to 4 % of full scale at mid travel, with a
+±1.3 % spread from board to board that no calibration could take out.
+
+**Pin 37 now gets the NTC pins' light divider, 100k/160k, with no
+pull-up:**
+- under 0.3 % of full scale for a 5 kΩ track (`check_ntc_frontend`);
+- an open wiper reads 0 V, which is FMI 4.
+
+U603 and its tail go (INA592 ×3 → ×2). R635, R636, R637, C619 and D612 are
+placed last, so nothing renumbers. The prototype took migration `egr_pot`.
+The chip layer reads pin 37 at 16/26. The netlist gate now fails if pin 37
+meets an INA592 or a pull-up.
+
+**Still to calibrate on the bench:** the pot's voltage at the valve's two
+stops. The firmware assumes 0.5–4.5 V for 0–100 %.
+
 ---
 
 ## Where these came from
