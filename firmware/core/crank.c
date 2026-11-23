@@ -5,6 +5,7 @@
 
 void crank_reset(crank_t *c) { memset(c, 0, sizeof *c); }
 
+#ifndef ECU_MODEL    /* else generated: model/ecu_crank.slx, ecu_crankrd.slx, via model_glue.c */
 static void lose(crank_t *c, uint8_t why)
 {
     if (c->synced)
@@ -159,11 +160,14 @@ void crank_poll(crank_t *c, uint32_t t_us)
         lose(c, CRANK_F_TIMEOUT);
 }
 
+#endif
+
 int crank_synced(const crank_t *c) { return c->synced; }
 int crank_phased(const crank_t *c) { return c->phased; }
 uint8_t crank_fault(const crank_t *c) { return c->fault; }
 uint32_t crank_last_us(const crank_t *c) { return c->last_us; }
 
+#ifndef ECU_MODEL
 float crank_rpm(const crank_t *c)
 {
     if (c->nper < CRANK_WIN)
@@ -188,3 +192,4 @@ float crank_us_per_deg(const crank_t *c)
     float rpm = crank_rpm(c);
     return rpm > 0 ? 1e6f / (rpm * 6.0f) : 0;
 }
+#endif

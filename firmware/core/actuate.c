@@ -1,4 +1,6 @@
 #include "actuate.h"
+#include "diag.h"
+#include "rail.h"
 #include "table.h"
 
 /* EGR target by fuel: zero everywhere until calibrated (actuate.h) */
@@ -32,6 +34,36 @@ float mu_fallback_cmd(float cmd, float r)
     r = r < MU_R_LO ? MU_R_LO : r > MU_R_HI ? MU_R_HI : r;
     return cmd * (r / MU_R_NOM);
 }
+
+void mu_sup_reset(mu_sup_t *s)
+{
+    s->r = MU_R_NOM;
+    s->bad_ms = 0;
+}
+
+#ifndef ECU_MODEL    /* else generated: model/ecu_musup.slx, ecu_muclose.slx, via model_glue.c */
+float mu_sup_step(mu_sup_t *s, float cmd, float duty_prev, float v_bat, float i_mu,
+                  uint8_t i_valid, uint8_t act_open, uint8_t act_over, uint8_t *meas)
+{
+    /* an impossible reading stops being trusted after MU_DISTRUST_MS, not
+     * after the DTC's 500 ms: in scenario 19 (23 Nov) a reading lost at
+     * 20 kW wound the integral up for those 500 ms and drew 3.7 A from a
+     * cold coil */
+    uint8_t odd = i_valid && ((DG_MU_DRIVEN(duty_prev, v_bat) && i_mu < DG_MU_OPEN_A)
+                              || i_mu > DG_MU_MAX_A);
+    s->bad_ms = odd ? (s->bad_ms < 0xFFFFu ? (uint16_t)(s->bad_ms + 1) : s->bad_ms) : 0;
+    uint8_t m = i_valid && s->bad_ms < MU_DISTRUST_MS && !act_open && !act_over;
+    if (m)
+        s->r = mu_r_learn(s->r, duty_prev, v_bat, i_mu);
+    *meas = m;
+    return m ? cmd : mu_fallback_cmd(cmd, s->r);
+}
+
+float mu_close_duty(float r, float v_bat)
+{
+    return mu_ff(mu_fallback_cmd(METER_CLOSED, r), v_bat);
+}
+#endif
 
 #ifndef ECU_MODEL    /* else generated: model/ecu_mucur.slx, ecu_egrpos.slx, via model_glue.c */
 static float clampf(float x, float lo, float hi) { return x < lo ? lo : x > hi ? hi : x; }

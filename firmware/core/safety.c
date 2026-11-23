@@ -1,4 +1,5 @@
 #include "safety.h"
+#include "j1939.h"
 
 #ifndef ECU_MODEL    /* else generated: model/ecu_safety.slx */
 int safety_check(float rpm, uint8_t crank_fault, uint8_t ignition, int running)
@@ -10,6 +11,19 @@ int safety_check(float rpm, uint8_t crank_fault, uint8_t ignition, int running)
     if (!ignition)
         return TRIP_IGN;
     return TRIP_NONE;
+}
+
+uint8_t fault_lamps(const faults_t *t)
+{
+    uint8_t l = 0;
+    for (int i = 0; i < t->n; i++)
+        l |= ((t->f[i].spn == SPN_SPEED && t->f[i].fmi == 0)
+              || t->f[i].spn == SPN_POS
+              || (t->f[i].spn == SPN_BOOST_RAIL && t->f[i].fmi == FMI_HIGH_SEVERE)
+              || (t->f[i].spn == SPN_CLT && t->f[i].fmi == 0))   /* coolant: log 35 */
+             ? LAMP_RED | LAMP_PROTECT        /* shutdown: the DSE stops only on Protect */
+             : LAMP_AMBER;
+    return l;
 }
 #endif
 

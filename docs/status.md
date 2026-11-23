@@ -13,7 +13,7 @@ rather than rewritten, so the history of each finding stays readable.
 |---|---|
 | Circuit blocks simulated (`sim/run_sim.py`) | **28**, all passing |
 | Engine scenarios (`firmware/sim/run_sil.py`) | **19**, passing on the hand-written and the model-generated build |
-| Simulink component models (`model/model_list.m`) | **21**, each proven bit-exact against the C (b2b) |
+| Simulink component models (`model/model_list.m`) | **26**, each proven bit-exact against the C (b2b) |
 | Simulink closed loop (`sim_ecu25kva`) | **29 checks**, two runs (start / load / stop; protection) |
 | Prototype board tests (`test_prototype`) | **26**, passing; fab files in `prototype/fab/` |
 | ECU pins used (Bosch 0 462 YU4 15D) | **46**, all checked against the board on 23 Nov 2026 |
@@ -24,7 +24,8 @@ rather than rewritten, so the history of each finding stays readable.
 
 **The flashed build is the model-generated one** (`app_model`). The control,
 the sensors, the protection and the J1939 data are generated from the Simulink
-models; what stays hand-written C is listed in decisions log §40.
+models, the crank decoder and the Protect decision included; what stays
+hand-written C, and why, is in decisions log §41.
 
 **What still needs the engine or the owner:** the list in §9.
 
@@ -267,7 +268,7 @@ None blocks the prototype.
 | 1.5 | Block-level simulation | **Done — 28 blocks, 28 passing** (stop_kill 10 Nov, boost_ovp 12 Nov 2026) |
 | **2** | **KiCad hierarchical schematic capture** | **Complete — 380 components, 378 with footprints; connectivity OK with 2 named open items (power-ground pin, trip-loop pin)** |
 | 3 | 4-layer PCB layout, DRC, fab outputs | **Prepared for hand routing (14 Oct)**: board with all 379 parts placed by block, classes and rules set, DRC clean, 499 connections to route (decisions log §13). Housing and J1001 are placeholders until measured (brief Group 6) |
-| 4 | Firmware | **Updated 24 Nov 2026: 19 engine scenarios on both builds; the STM32G474 chip layer done; the flashed build is the model-generated one (21 Simulink models, decisions log §40).** As first recorded: **Core done on the PC, with production logging — 16/16 engine scenarios, 101 unit tests; calibrated from the old ECU's recording (§14). Service link (20 Oct): bootloader, end-of-line record, underspeed warning, laptop tool over USB and CAN — 7 bootloader tests, the tool tested end to end** (decisions log §11, §12, §16). **Simulator (20 Oct): `ecusim`, one program for Windows, macOS and Linux, runs the firmware live or from scripts in a browser; all 16 scenarios pass as scripts** (§17). Next: S32K148 dev kit and the chip layers |
+| 4 | Firmware | **Updated 24 Nov 2026: 19 engine scenarios on both builds; the STM32G474 chip layer done; the flashed build is the model-generated one (26 Simulink models, decisions log §40-41).** As first recorded: **Core done on the PC, with production logging — 16/16 engine scenarios, 101 unit tests; calibrated from the old ECU's recording (§14). Service link (20 Oct): bootloader, end-of-line record, underspeed warning, laptop tool over USB and CAN — 7 bootloader tests, the tool tested end to end** (decisions log §11, §12, §16). **Simulator (20 Oct): `ecusim`, one program for Windows, macOS and Linux, runs the firmware live or from scripts in a browser; all 16 scenarios pass as scripts** (§17). Next: S32K148 dev kit and the chip layers |
 
 ### Phase 2 — what exists
 

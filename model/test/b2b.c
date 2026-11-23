@@ -34,6 +34,13 @@
 #include "ecu_deb.h"
 #include "diag.h"
 #include "ecu_diag.h"
+#include "ecu_musup.h"
+#include "ecu_muclose.h"
+#include "ecu_lamps.h"
+#include "crank.h"
+#include "ecu_crank.h"
+#include "ecu_crankrd.h"
+#include "j1939.h"
 #include <math.h>
 #include <string.h>
 
@@ -73,6 +80,19 @@ static float dg_pick(float lo, float hi)
     return rnd(lo, hi);
 }
 static uint8_t dg_bit(void) { return (uint8_t)(rand() & 1); }
+static int feq(float a, float b) { return a == b || (a != a && b != b); }   /* equal, or both NaN */
+
+/* crank_t packed as ecu_crank's two vectors (mdl_ecu_crank.m's layout) */
+static void ck_pack(const crank_t *c, uint32_t a[8], uint8_t b[33])
+{
+    a[0] = c->last_us; a[1] = c->prev_period;
+    for (int i = 0; i < CRANK_WIN; i++) { a[2 + i] = c->per[i]; b[i] = c->deg[i]; }
+    b[6] = c->nper; b[7] = c->head; b[8] = c->have; b[9] = c->count; b[10] = c->gap_seen;
+    b[11] = c->synced; b[12] = c->phased; b[13] = c->rev; b[14] = c->fault; b[15] = c->prev_gap;
+    const crank_sig *g[4] = { &c->cur, &c->prev, &c->mark, &c->other };
+    for (int k = 0; k < 4; k++) { b[16 + 3 * k] = g[k]->n; b[17 + 3 * k] = g[k]->first; b[18 + 3 * k] = g[k]->last; }
+    b[28] = c->prev_ok; b[29] = c->learned; b[30] = c->proven; b[31] = c->miss; b[32] = c->clean;
+}
 
 int main(void)
 {
@@ -386,5 +406,126 @@ int main(void)
       for (int k = 1; k < DG_N; k++) if (hit[k] < least) { least = hit[k]; kl = k; }
       printf("   every condition fired; the least, #%d, %ld times\n", kl + 1, least);
       if (least < 1000) { printf("   FAIL: condition #%d barely exercised\n", kl + 1); fails++; } }
+    /* the metering valve's supervision (ecu_musup, decisions log 34, 41):
+     * both run side by side, each with its own state, inputs held for
+     * random stretches so the distrust count reaches MU_DISTRUST_MS and the
+     * coil is learned; every output and both states compared every tick */
+    { RT_MODEL_ecu_musup_T m; mu_sup_t ref, mod;
+      hold_t hc = {0}, hd = {0}, hv = {0}, hi = {0}, hk = {0}, ho = {0}, hq = {0};
+      long nd = 0, nl = 0, nf = 0; bad = 0;
+      mu_sup_reset(&ref); mu_sup_reset(&mod);
+      for (int i = 0; i < N; i++) {
+          if (rand() % 400000 == 0) { mu_sup_reset(&ref); mu_sup_reset(&mod); }
+          float cmd = held(&hc, -0.2f, 1.2f, 800);
+          float dp = rand() % 50 == 0 ? dg_pick(0, 1) : held(&hd, 0, 1, 300);
+          float vb = rand() % 50 == 0 ? dg_pick(5, 19) : held(&hv, 5, 19, 3000);
+          float k = held(&hk, 0, 1, 2000);                 /* how the current relates to the duty */
+          float im = k < 0.15f ? held(&hi, 0, 0.06f, 200)  /* reads open */
+                   : k < 0.25f ? held(&hi, 2.9f, 3.4f, 200) /* reads over */
+                   : dp * vb / held(&ho, 1.5f, 7.5f, 5000); /* a coil, somewhere in its range */
+          uint8_t iv = held(&hq, 0, 1, 4000) > 0.1f;
+          uint8_t ao = rand() % 3000 == 0, ac = rand() % 3000 == 0;
+          uint8_t mr, mm; float cr, cm, rr2; uint16_t bb;
+          cr = mu_sup_step(&ref, cmd, dp, vb, im, iv, ao, ac, &mr);
+          ecu_musup_step(&m, cmd, dp, vb, im, iv, ao, ac, mod.r, mod.bad_ms, &cm, &mm, &rr2, &bb);
+          mod.r = rr2; mod.bad_ms = bb;
+          bad += mr != mm || !feq(cr, cm) || !feq(ref.r, mod.r) || ref.bad_ms != mod.bad_ms;
+          nd += ref.bad_ms >= MU_DISTRUST_MS; nl += mr && ref.r != MU_R_NOM; nf += !mr;
+      }
+      report("metering supervision: trust, learning, fallback (mismatched)", (double)bad, 0);
+      printf("   ticks distrusted %ld, learned-coil %ld, on the fallback %ld\n", nd, nl, nf);
+      if (nd < 1000 || nl < 1000 || nf < 1000) { printf("   FAIL: a branch barely exercised\n"); fails++; } }
+    /* the closed-valve duty on the learned coil (ecu_muclose) */
+    { RT_MODEL_ecu_muclose_T m; bad = 0;
+      static const float re[] = { MU_R_LO, MU_R_HI, MU_R_NOM, MU_VBAT_MIN, MU_VBAT_MAX, 0.0f };
+      for (int i = 0; i < N; i++) {
+          float r = rand() % 3 == 0 ? nextafterf(re[rand() % 6], (rand() & 1) ? 1e9f : -1e9f) : rnd(0, 9);
+          float vb = rand() % 3 == 0 ? nextafterf(re[rand() % 6], (rand() & 1) ? 1e9f : -1e9f) : dg_pick(0, 20);
+          float d;
+          ecu_muclose_step(&m, r, vb, &d);
+          float e = mu_close_duty(r, vb);
+          bad += !feq(d, e);
+      }
+      report("closed-valve duty on the learned coil (mismatched)", (double)bad, 0); }
+    /* DM1's lamps (ecu_lamps): random fault tables mixing the shutdown
+     * faults, their near misses (110/16, 520192/16, 190/16) and anything */
+    { RT_MODEL_ecu_lamps_T m; long nred = 0, namb = 0, n0 = 0; bad = 0;
+      static const uint32_t sp[] = { SPN_SPEED, SPN_POS, SPN_BOOST_RAIL, SPN_CLT, 111, 168, 2791, 1347, 157, 97 };
+      static const uint8_t fm[] = { 0, 0, 16, 18, 3, 4, 7, 31 };
+      for (int i = 0; i < N; i++) {
+          faults_t t; memset(&t, 0, sizeof t);
+          t.n = (uint8_t)(rand() % (FAULTS_MAX + 1));
+          for (int k = 0; k < FAULTS_MAX; k++) {      /* the unused rows too: only n may be read */
+              t.f[k].spn = rand() % 4 == 0 ? (uint32_t)rand() : sp[rand() % 10];
+              t.f[k].fmi = rand() % 4 == 0 ? (uint8_t)(rand() & 31) : fm[rand() % 8];
+          }
+          uint32_t spn[FAULTS_MAX]; uint8_t fmi[FAULTS_MAX], lm;
+          for (int k = 0; k < FAULTS_MAX; k++) { spn[k] = t.f[k].spn; fmi[k] = t.f[k].fmi; }
+          ecu_lamps_step(&m, spn, fmi, t.n, &lm);
+          uint8_t lr = fault_lamps(&t);
+          bad += lm != lr; nred += (lr & LAMP_PROTECT) != 0; namb += (lr & LAMP_AMBER) != 0; n0 += lr == 0;
+      }
+      report("DM1 lamps: which faults light Protect (mismatched)", (double)bad, 0);
+      printf("   tables with Protect %ld, amber %ld, none %ld\n", nred, namb, n0); }
+    /* the crank decoder and the cam-wheel learning (ecu_crank, ecu_crankrd,
+     * decisions log 39, 41). A 60-2 wheel at 30-2500 rpm, swinging; a cam
+     * wheel chosen now and then (one segment, 3+1, 2+2, two alike, random);
+     * missing teeth, noise edges, stalls past the timeout, polls stamped
+     * before the last edge, and the microsecond clock wrapping. The whole
+     * state and the four read values must match after every event. */
+    { RT_MODEL_ecu_crank_T m; RT_MODEL_ecu_crankrd_T mr;
+      crank_t ref; uint32_t a[8], an[8]; uint8_t b[33], bn[33];
+      static const int wheels[5][4] = { {108, -1, -1, -1}, {10, 50, 55, 90}, {10, 15, 70, 108},
+                                        {20, 78, -1, -1}, {-1, -1, -1, -1} };
+      int wsel = 0, tooth = 0; double t = 4294000000.0, rpm = 300;   /* starts just before the wrap */
+      long nsync = 0, nphase = 0, nlearn = 0, nfault = 0; bad = 0;
+      crank_reset(&ref); memset(a, 0, sizeof a); memset(b, 0, sizeof b);
+      for (int i = 0; i < N; i++) {
+          int r = rand() % 1000;
+          if (r == 0) {                                  /* now and then: start over, a new wheel */
+              crank_reset(&ref); memset(a, 0, sizeof a); memset(b, 0, sizeof b);
+              wsel = rand() % 5;
+          }
+          rpm += (rnd(-1, 1)) * 3;
+          if (rpm < 30) rpm = 30;
+          if (rpm > 2500) rpm = 2500;
+          uint8_t ev; uint32_t tu;
+          if (r < 20) {                                  /* a poll, sometimes just before the last edge */
+              ev = 2; tu = (uint32_t)((uint64_t)(t + rnd(-200, 60000)) & 0xFFFFFFFFu);
+          } else {
+              double slot = 1e6 / (rpm * 6);
+              tooth = (tooth + 1) % 116;
+              double dt = (tooth % 58 == 0) ? 3 * slot : slot;
+              if (r < 25) dt *= rnd(0.05f, 0.4f);        /* noise */
+              else if (r < 28) dt *= 2;                  /* a missing tooth */
+              else if (r < 29) dt += 60000;              /* a stall past the timeout */
+              t += dt;
+              tu = (uint32_t)((uint64_t)t & 0xFFFFFFFFu);
+              int cam = 0;
+              for (int k = 0; k < 4; k++) cam |= wheels[wsel][k] == tooth;
+              if (wsel == 4) cam = rand() % 40 == 0;
+              if (cam) {                                 /* the cam edge just before its tooth */
+                  uint32_t tc = tu - 10;
+                  crank_cam(&ref, tc);
+                  ecu_crank_step(&m, 1, tc, a, b, an, bn);
+                  memcpy(a, an, sizeof a); memcpy(b, bn, sizeof b);
+              }
+              ev = 0;
+          }
+          if (ev == 0) crank_edge(&ref, tu); else crank_poll(&ref, tu);
+          ecu_crank_step(&m, ev, tu, a, b, an, bn);
+          memcpy(a, an, sizeof a); memcpy(b, bn, sizeof b);
+          uint32_t ra[8]; uint8_t rb[33];
+          ck_pack(&ref, ra, rb);
+          float o[4];
+          ecu_crankrd_step(&mr, a, b, &o[0], &o[1], &o[2], &o[3]);
+          bad += memcmp(ra, a, sizeof a) != 0 || memcmp(rb, b, sizeof b) != 0
+                 || !feq(o[0], crank_rpm(&ref)) || !feq(o[1], crank_angle(&ref))
+                 || !feq(o[2], crank_next_angle(&ref)) || !feq(o[3], crank_us_per_deg(&ref));
+          nsync += ref.synced; nphase += ref.phased; nlearn += ref.learned; nfault += ref.fault != 0;
+      }
+      report("crank decoder and cam-wheel learning, state + reads (mismatched)", (double)bad, 0);
+      printf("   events synced %ld, phased %ld, wheel learned %ld, with a fault %ld\n", nsync, nphase, nlearn, nfault);
+      if (nphase < 10000 || nfault < 10000) { printf("   FAIL: barely exercised\n"); fails++; } }
     return fails != 0;
 }

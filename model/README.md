@@ -78,13 +78,19 @@ go to the command window and to a dialog.
 | `ecu_spdst` | Stateflow | speed states: OFF, IDLE, OPERATING, STEADY; the governor's idle input (`spdst_step`) |
 | `ecu_sensaux` | Simulink | pin 79, charge-air temperature: the coolant's NTC table and front end, its own range fault (`sens_aux_step_1ms`, decisions log 33/34) |
 | `ecu_deb` | Stateflow | a fault's debounce and healing, one chart with an instance per diagnosis: the 14 of `diag.h` (`deb_step`) |
+| `ecu_musup` | Simulink | the metering valve's supervision: trust, coil learning, fallback (`mu_sup_step`, decisions log 34/41) |
+| `ecu_muclose` | Simulink | the closed-valve duty on the learned coil (`mu_close_duty`) |
+| `ecu_lamps` | Simulink | which faults light Protect (`fault_lamps`) |
+| `ecu_crank` | Simulink | the 60-2 crank decoder and the cam-wheel learning (`crank_edge`, `crank_cam`, `crank_poll`, decisions log 39/41) |
+| `ecu_crankrd` | Simulink | rpm, angle, next angle and us per degree from the decoder's state |
 | `ecu_diag` | Simulink | the 14 diagnosis conditions and the coolant protection: EGR, metering valve, rail, speed, oil, battery 15.0 / 9.5 V, coolant 100 / 104 °C, coolant level (`diag_cond`, decisions log 40) |
 
 They have no rate of their own (sample-time independent). They take the
 rate of whatever task calls them.
 
 **What stays hand-written C, on purpose:** the parts that are driven by
-events or bytes: crank-tooth decoding and per-tooth injection timing,
+bytes or by microsecond interrupts: the injector stage's peak-and-hold
+(`firmware/stm32/inj_logic.c`, decisions log 41),
 the fault memory and event log, the DM1/DM2/DM4 transport and requests,
 UDS, ISO-TP, the bootloader, flash storage, and the chip drivers
 (`firmware/stm32`). They are already tested; a model would add nothing.

@@ -92,6 +92,23 @@ float mu_ff(float cmd, float v_bat);
 float mu_r_learn(float r, float duty, float v_bat, float i_meas);
 float mu_fallback_cmd(float cmd, float r);
 
+/* THE METERING SUPERVISION, one tick (decisions log 34, 41). Whether the
+ * current reading is trusted -- valid, not impossible (open load or over
+ * current, as diag.h judges them) for MU_DISTRUST_MS, and neither DTC
+ * active -- and, while it is, the coil's resistance learned from it; when
+ * it is not, the command scaled to the learned coil. duty_prev is last
+ * tick's duty, the one that made this current. Returns the command for
+ * mu_step; *meas is mu_step's valid. The state is the caller's: with
+ * ECU_MODEL the step is model/ecu_musup.slx, which takes and returns it. */
+typedef struct { float r; uint16_t bad_ms; } mu_sup_t;
+void  mu_sup_reset(mu_sup_t *s);                 /* r = MU_R_NOM, nothing distrusted */
+float mu_sup_step(mu_sup_t *s, float cmd, float duty_prev, float v_bat, float i_mu,
+                  uint8_t i_valid, uint8_t act_open, uint8_t act_over, uint8_t *meas);
+/* The duty that holds the valve closed on the learned coil, for the trip
+ * and the reset: mu_ff(mu_fallback_cmd(METER_CLOSED, r), v_bat). With
+ * ECU_MODEL, model/ecu_muclose.slx. */
+float mu_close_duty(float r, float v_bat);
+
 void  mu_reset(mu_t *m);
 /* cmd: the rail PI's output, current in units of MU_I_FULL. Returns the duty. */
 float mu_step(mu_t *m, float cmd, float i_meas, uint8_t valid, float v_bat, float dt_s);

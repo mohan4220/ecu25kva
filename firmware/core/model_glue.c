@@ -37,6 +37,12 @@
 #include "ecu_spdst.h"
 #include "diag.h"
 #include "ecu_diag.h"
+#include "ecu_musup.h"
+#include "ecu_muclose.h"
+#include "ecu_lamps.h"
+#include "crank.h"
+#include "ecu_crank.h"
+#include "ecu_crankrd.h"
 #include <string.h>
 
 /* ---- governor: model/ecu_gov.slx ----
@@ -440,5 +446,95 @@ void diag_cond(const diag_in_t *in, uint8_t cond[DG_N])
                   in->clt_c, in->clt_ok, in->clt_low, in->clt_warn_act, in->clt_stop_act,
                   cond);
 }
+
+/* ---- the metering valve's supervision and closed-valve duty:
+ * model/ecu_musup.slx, ecu_muclose.slx. Both pure; the learned ohms and
+ * the distrust count are the caller's (mu_sup_t), in and out. ---- */
+static RT_MODEL_ecu_musup_T musup_m;
+float mu_sup_step(mu_sup_t *s, float cmd, float duty_prev, float v_bat, float i_mu,
+                  uint8_t i_valid, uint8_t act_open, uint8_t act_over, uint8_t *meas)
+{
+    float out, r;
+    uint16_t bad;
+    ecu_musup_step(&musup_m, cmd, duty_prev, v_bat, i_mu, i_valid, act_open, act_over,
+                   s->r, s->bad_ms, &out, meas, &r, &bad);
+    s->r = r;
+    s->bad_ms = bad;
+    return out;
+}
+
+static RT_MODEL_ecu_muclose_T muclose_m;
+float mu_close_duty(float r, float v_bat)
+{
+    float d;
+    ecu_muclose_step(&muclose_m, r, v_bat, &d);
+    return d;
+}
+
+/* ---- DM1's lamps, which faults light Protect: model/ecu_lamps.slx ---- */
+static RT_MODEL_ecu_lamps_T lamps_m;
+uint8_t fault_lamps(const faults_t *t)
+{
+    uint32_t spn[FAULTS_MAX];
+    uint8_t fmi[FAULTS_MAX], l;
+    for (int i = 0; i < FAULTS_MAX; i++) {
+        spn[i] = t->f[i].spn;
+        fmi[i] = t->f[i].fmi;
+    }
+    ecu_lamps_step(&lamps_m, spn, fmi, t->n, &l);
+    return l;
+}
+
+/* ---- the crank decoder: model/ecu_crank.slx (updates), ecu_crankrd.slx
+ * (what is read). Both pure: crank_t is packed into the model's two
+ * vectors and back, so it is the same struct in both builds. The layout
+ * is mdl_ecu_crank.m's. ---- */
+static void crank_pack(const crank_t *c, uint32_t a[8], uint8_t b[33])
+{
+    a[0] = c->last_us; a[1] = c->prev_period;
+    for (int i = 0; i < CRANK_WIN; i++) { a[2 + i] = c->per[i]; b[i] = c->deg[i]; }
+    b[6] = c->nper; b[7] = c->head; b[8] = c->have; b[9] = c->count; b[10] = c->gap_seen;
+    b[11] = c->synced; b[12] = c->phased; b[13] = c->rev; b[14] = c->fault; b[15] = c->prev_gap;
+    const crank_sig *g[4] = { &c->cur, &c->prev, &c->mark, &c->other };
+    for (int k = 0; k < 4; k++) { b[16 + 3 * k] = g[k]->n; b[17 + 3 * k] = g[k]->first; b[18 + 3 * k] = g[k]->last; }
+    b[28] = c->prev_ok; b[29] = c->learned; b[30] = c->proven; b[31] = c->miss; b[32] = c->clean;
+}
+
+static void crank_unpack(crank_t *c, const uint32_t a[8], const uint8_t b[33])
+{
+    c->last_us = a[0]; c->prev_period = a[1];
+    for (int i = 0; i < CRANK_WIN; i++) { c->per[i] = a[2 + i]; c->deg[i] = b[i]; }
+    c->nper = b[6]; c->head = b[7]; c->have = b[8]; c->count = b[9]; c->gap_seen = b[10];
+    c->synced = b[11]; c->phased = b[12]; c->rev = b[13]; c->fault = b[14]; c->prev_gap = b[15];
+    crank_sig *g[4] = { &c->cur, &c->prev, &c->mark, &c->other };
+    for (int k = 0; k < 4; k++) { g[k]->n = b[16 + 3 * k]; g[k]->first = b[17 + 3 * k]; g[k]->last = b[18 + 3 * k]; }
+    c->prev_ok = b[28]; c->learned = b[29]; c->proven = b[30]; c->miss = b[31]; c->clean = b[32];
+}
+
+static RT_MODEL_ecu_crank_T crank_m;
+static void crank_event(crank_t *c, uint8_t ev, uint32_t t_us)
+{
+    uint32_t a[8], an[8];
+    uint8_t b[33], bn[33];
+    crank_pack(c, a, b);
+    ecu_crank_step(&crank_m, ev, t_us, a, b, an, bn);
+    crank_unpack(c, an, bn);
+}
+void crank_edge(crank_t *c, uint32_t t_us) { crank_event(c, 0, t_us); }
+void crank_cam(crank_t *c, uint32_t t_us) { crank_event(c, 1, t_us); }
+void crank_poll(crank_t *c, uint32_t t_us) { crank_event(c, 2, t_us); }
+
+static RT_MODEL_ecu_crankrd_T crankrd_m;
+static void crank_read(const crank_t *c, float out[4])
+{
+    uint32_t a[8];
+    uint8_t b[33];
+    crank_pack(c, a, b);
+    ecu_crankrd_step(&crankrd_m, a, b, &out[0], &out[1], &out[2], &out[3]);
+}
+float crank_rpm(const crank_t *c) { float o[4]; crank_read(c, o); return o[0]; }
+float crank_angle(const crank_t *c) { float o[4]; crank_read(c, o); return o[1]; }
+float crank_next_angle(const crank_t *c) { float o[4]; crank_read(c, o); return o[2]; }
+float crank_us_per_deg(const crank_t *c) { float o[4]; crank_read(c, o); return o[3]; }
 
 #endif

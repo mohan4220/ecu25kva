@@ -2611,6 +2611,51 @@ the model build. Moving any of them into a model is the same recipe as
 
 ---
 
+## 41. More of the flashed code from the models (24 November)
+
+Continuing §40 at the owner's word ("go ahead with all of them"). Five more
+component models, 26 in all. Each keeps the hand-written body as the
+reference build and is proven against it by the back-to-back test, and
+each test was itself shown to fail on a deliberately broken copy.
+
+| Model | Replaces | Back-to-back | Broken copy caught |
+|---|---|---|---|
+| `ecu_musup` | the metering valve's supervision: trust, coil learning, fallback (§34), lifted out of `ecu.c` into `mu_sup_step` | 0 mismatches; 683k distrusted, 2.0M learning, 968k fallback ticks | distrust limit `<` to `<=`: 2.7M |
+| `ecu_muclose` | the closed-valve duty on the learned coil (start-up and trip) | 0, thresholds and NaN included | — |
+| `ecu_lamps` | which faults light Protect (`fault_lamps`, was `lamps()` in `ecu.c`) | 0 over random fault tables with the near misses | 110/0 removed from Protect: 121k |
+| `ecu_crank` | the crank decoder and cam-wheel learning (§39): tooth, cam and timeout events | 0 over a hostile wheel: 30-2500 rpm, five cam wheels, noise, missing teeth, stalls, the clock wrapping; 746k phased, 2.4M faulted events | cam tolerance `<=` to `<`: 9.0k; glitch filter `<` to `<=`: 85k |
+| `ecu_crankrd` | what is read from it: rpm, angle, next angle, us per degree | compared after every event, with the above | — |
+
+The models are pure: state comes in and goes out (the learned coil and the
+distrust count; the crank state packed as 8 + 33 values), so `mu_sup_t`
+and `crank_t` are the same structs in both builds. The C's unsigned
+wraparound, truncating division and uint8 roll-over are written out in
+the crank model; a first version used 64-bit arithmetic, which Embedded
+Coder emulates on this target with "multiword" helpers, and was rewritten
+in 32 bits for the tooth interrupt. The lamp bits are read from `j1939.h`
+(hexadecimal) and the crank fault codes from `crank.h`'s enum, both
+checked by `ecu_params`.
+
+**Cost, measured on the Cortex-M4 code (`-Os`, the build's flags):** the
+crank path is now the glue (68 instructions) and the generated step (390)
+against the hand-written 239: a few microseconds per tooth, under 1 % of
+the 667 us tooth period at 1500 rpm, about 0.03 deg of injection timing.
+
+**Not moved: the injector stage** (`firmware/stm32/inj_logic.c`). Its
+crossing handler runs in the ADC-watchdog interrupt that ends the 18 A
+peak while the current rises about 0.5 A/us. The hand-written handler is
+50 instructions; a model call with the state packed and unpacked would
+add roughly 150-250, 1-1.5 us at 170 MHz: 0.5-0.75 A more overshoot on
+every injection. The coil-model test (`test_inj.c`) reacts instantly, so
+it could not show that. A timing-critical safety stage is not worth
+degrading for a source format; it stays C, tested against the coil model.
+
+**Also staying C, by kind:** the fault memory and event log, the DM1/DM2
+transport, UDS, ISO-TP, the bootloader and flash storage. They move
+bytes, not control; the unit tests and the bootloader tests cover them.
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a

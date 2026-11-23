@@ -228,12 +228,14 @@ component models; the buttons turn your edit into a board you can flash.
 | `ecu_j1939` | Simulink | J1939 message data to the DSE4522 |
 | `ecu_diag` | Simulink | the 14 diagnosis conditions and the coolant protection (100 °C warning, 104 °C stop with Protect), battery 15.0 / 9.5 V, coolant level |
 | `ecu_deb` | Stateflow | each diagnosis's debounce and healing (one chart, 14 instances) |
+| `ecu_musup`, `ecu_muclose` | Simulink | the metering valve's supervision (trust, coil learning, fallback) and closed-valve duty |
+| `ecu_lamps` | Simulink | which faults light Protect (the DSE shuts down on it) |
+| `ecu_crank`, `ecu_crankrd` | Simulink | the crank decoder and cam-wheel learning; rpm and angle from it |
 
-Twenty-one models in all; `model/model_list.m` is the list the build and the
-back-to-back test use. The cam decoder (`crank.c`) and the injector stage
-(`firmware/stm32/inj_logic.c`) are hand-written C only, as are the metering
-valve's coil learning and fallback (`actuate.c`), the fault memory and which
-faults light Protect (`ecu.c` `lamps()`).
+Twenty-six models in all; `model/model_list.m` is the list the build and the
+back-to-back test use. Hand-written C only: the injector stage
+(`firmware/stm32/inj_logic.c`, interrupt timing: decisions log §41), the
+fault memory and event log, the DM1 transport, UDS, ISO-TP and the bootloader.
 
 **Change something**
 

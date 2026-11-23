@@ -37,6 +37,19 @@ for f = {'sensors.c', 'sensors.h', 'j1939.h'}
         P.(tok{k}{1}) = str2double(tok{k}{2});
     end
 end
+% The crank decoder's fault codes, an enum in crank.h: checked, not assumed
+txt = fileread(fullfile(core, 'crank.h'));
+assert(~isempty(regexp(txt, 'enum\s*\{\s*CRANK_F_NONE\s*,\s*CRANK_F_GAP\s*,\s*CRANK_F_TIMEOUT\s*\}', 'once')), ...
+    'ecu_params: crank.h fault enum changed');
+P.CRANK_F_GAP = 1; P.CRANK_F_TIMEOUT = 2;
+% Hexadecimal #defines (the DM1 lamp bits in j1939.h)
+for f = {'j1939.h', 'safety.h'}
+    txt = fileread(fullfile(core, f{1}));
+    tok = regexp(txt, '#define\s+([A-Z][A-Z0-9_]*)\s+0[xX]([0-9A-Fa-f]+)[uU]*(?=\s|$)', 'tokens', 'lineanchors');
+    for k = 1:numel(tok)
+        P.(tok{k}{1}) = hex2dec(tok{k}{2});
+    end
+end
 % The diagnoses' debounce and healing times: diag.c's table, in diag.h's
 % enum order (the order ecu_diag's 14 conditions come out in).
 txt = fileread(fullfile(core, 'diag.h'));
@@ -70,7 +83,11 @@ need = {'GOV_RPM_SET', 'GOV_DROOP', 'FUEL_MAX_MG', 'FUEL_RATED_MG', 'GOV_KP', ..
         'DG_BAT_EGR_LO', 'DG_BAT_EGR_HI', 'DG_MU_EXPECT_A', 'DG_MU_R_HI', 'DG_MU_OPEN_A', 'DG_MU_MAX_A', ...
         'DG_RAIL_DEV_BAR', 'DG_RAIL_DEV_FRAC', 'DG_SPD_HIGH_RPM', 'DG_OIL_RUN_KPA', 'DG_OIL_STOP_KPA', ...
         'DG_BAT_HIGH_V', 'DG_BAT_HIGH_RET_V', 'DG_BAT_LOW_V', 'DG_BAT_LOW_RET_V', 'DG_BAT_MEASURED_V', ...
-        'DG_CLT_WARN_C', 'DG_CLT_WARN_RET_C', 'DG_CLT_STOP_C', 'DG_CLT_STOP_RET_C'};
+        'DG_CLT_WARN_C', 'DG_CLT_WARN_RET_C', 'DG_CLT_STOP_C', 'DG_CLT_STOP_RET_C', ...
+        'MU_R_LO', 'MU_R_HI', 'MU_R_LEARN_A', 'MU_R_ALPHA', 'MU_DISTRUST_MS', ...
+        'LAMP_RED', 'LAMP_AMBER', 'LAMP_PROTECT', 'SPN_SPEED', 'SPN_POS', 'SPN_CLT', ...
+        'SPN_BOOST_RAIL', 'FMI_HIGH_SEVERE', 'FAULTS_MAX', ...
+        'CRANK_TEETH', 'CRANK_WIN', 'CRANK_TIMEOUT_US', 'CRANK_CAM_TOL', 'CRANK_CAM_MISS'};
 miss = need(~isfield(P, need));
 assert(isempty(miss), 'ecu_params: not found in the C: %s', strjoin(miss, ', '));
 end
