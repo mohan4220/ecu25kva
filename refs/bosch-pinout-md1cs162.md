@@ -55,7 +55,7 @@ supplies the metering unit, the water-in-fuel switch and the buzzer relay coil.
 | 34 | `G_R_BPS` | | 1, via splice V3 (shared with the coolant sensor) |
 | 33 | `I_A_CTS` | Coolant temperature (0 281 002 209) | 1. Pin 2 `G_R_CTS` → V3 → 34 |
 | 39 | `O_V_5VOPS` | Oil pressure, Honeywell PX3AN2BF010BSDAX | B |
-| 80 | `I_A_OPS` | | C. `G_R_OPS` (A) goes to line ref 76 = V4 → 36 |
+| 80 | `I_A_OPS` | | C. `G_R_OPS` (A) goes to line ref 76 = V4 → 36. **A is twisted with B (pin 39)**: the owner's "76 twisted with 39", 23 Nov 2026 |
 | 32 | `O_V_5VRAILPS` | Rail pressure (0 281 006 425) | 3 |
 | 35 | `I_A_RAILPS` | | 2 |
 | 08 | `G_R_RAILPS` | | 1, dedicated |
@@ -70,7 +70,7 @@ supplies the metering unit, the water-in-fuel switch and the buzzer relay coil.
 | 36 | `G_R_EGR` | | 4, via splice V4 (shared with the oil sensor) |
 
 The boxed numbers 55 and 76 near V4 and the oil sensor are **drawing line
-references** that tie the oil ground into V4. They are not ECU pins.
+references** that tie the oil ground into V4. They are not ECU pins. The drawing's legend says so: a boxed number is a "line no. reference for pin sharing (not the ECU pin no.)". They are column numbers on the sheet's 0–102 ruler: the "76" box sits at column 55, by the oil sensor, and the "55" box at column 76, by V4. Each box points at the other.
 
 ## Outputs
 
