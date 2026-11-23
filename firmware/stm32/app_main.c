@@ -35,6 +35,7 @@ static void read_inputs(void)
     io.stop_sw = (uint8_t)pin_get(P_STOP);         /* contact to ground: closed = pad high */
     io.diag_sw = (uint8_t)pin_get(P_DIAG);
     io.droop_sw = (uint8_t)pin_get(P_DROOP);
+    io.clt_low = (uint8_t)!pin_get(P_COOLANT_SW);   /* closed = level OK = pad high (log 35) */
     io.v_clt = adc_pin_v(AN_CLT) / G_RATIO;          /* NTC channel, 100k/160k (decisions log 33) */
     io.v_oil = adc_pin_v(AN_OIL) / G_DIFF;
     io.v_rail = adc_pin_v(AN_RAIL) / G_RATIO;

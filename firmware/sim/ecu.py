@@ -61,6 +61,8 @@ class IO(C.Structure):
         ("egr_duty", C.c_float), ("spd_state", C.c_uint8),
         # charge-air temperature, ABI 5 (22 Nov 2026, decisions log 33)
         ("v_bts", C.c_float), ("bts_c", C.c_float),
+        # pin 43, coolant level, ABI 6 (23 Nov 2026, decisions log 35)
+        ("clt_low", C.c_uint8),
     ]
 
 

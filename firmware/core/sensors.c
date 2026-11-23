@@ -36,7 +36,8 @@ void sens_trim(const float gain[S_N + 1], const float offset[S_N + 1])
  * 2.5 kohm NTC family (NTC M12-H), -40..150 degC. Interpolated in ln(R),
  * which is close to how an NTC behaves between points. The beta law used
  * until 22 Nov (beta 3450) read 2.8 degC high at 100 degC and 3.9 at 110:
- * the DSE warns at 100 and stops at 104 on the temperature this sends. */
+ * the 20 kVA sheet's limits are 100 and 104 (on the 25 kVA set the DSE's
+ * are 150 / 200, so the ECU's own reading is what protects it: log 35). */
 static const float ntc_t[NTC_N] = { -40, -30, -20, -10, 0, 10, 20, 30, 40, 50,
                                     60, 70, 80, 90, 100, 110, 120, 130, 140, 150 };
 static const float ntc_r[NTC_N] = { 45313, 26114, 15462, 9397, 5896, 3792, 2500, 1707, 1175, 834,

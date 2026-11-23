@@ -382,6 +382,9 @@ static void diagnose(ecu_io *io, float rail_set)
         .mu_duty = io->meter_duty, .i_mu = io->i_mu, .i_mu_valid = io->i_mu_valid,
         .rail_set = rail_set, .rail_bar = sens.val[S_RAIL], .rail_ok = !sens.fmi[S_RAIL],
         .oil_kpa = sens.val[S_OIL], .oil_ok = !sens.fmi[S_OIL],
+        .bat_high_act = dg[DG_BAT_HIGH].act, .bat_low_act = dg[DG_BAT_LOW].act,
+        .clt_c = sens.val[S_CLT], .clt_ok = !sens.fmi[S_CLT], .clt_low = io->clt_low,
+        .clt_warn_act = dg[DG_CLT_WARN].act, .clt_stop_act = dg[DG_CLT_STOP].act,
     };
     uint8_t c[DG_N];
     diag_cond(&in, c);
@@ -400,7 +403,8 @@ static uint8_t lamps(void)
     for (int i = 0; i < faults.n; i++)
         l |= ((faults.f[i].spn == SPN_SPEED && faults.f[i].fmi == 0)
               || faults.f[i].spn == SPN_POS
-              || (faults.f[i].spn == SPN_BOOST_RAIL && faults.f[i].fmi == FMI_HIGH_SEVERE))
+              || (faults.f[i].spn == SPN_BOOST_RAIL && faults.f[i].fmi == FMI_HIGH_SEVERE)
+              || (faults.f[i].spn == SPN_CLT && faults.f[i].fmi == 0))   /* coolant: log 35 */
              ? LAMP_RED | LAMP_PROTECT        /* shutdown: the DSE stops only on Protect */
              : LAMP_AMBER;
     return l;
@@ -434,6 +438,7 @@ static void send_can(ecu_io *io)
     }
     if (ms % 500 == 0) {
         j1939_eflp1(&f, sens.val[S_OIL], !sens.fmi[S_OIL]);
+        f.data[7] = io->clt_low ? 0 : 250;   /* SPN 111 coolant level, 0.4 %/bit: pin 43 (log 35) */
         queue(io, &f);
     }
     if (ms % 1000 == 0) {

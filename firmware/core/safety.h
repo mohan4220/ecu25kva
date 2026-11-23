@@ -7,6 +7,7 @@
 #define OVERSPEED_RPM 1650.0f        /* below the DSE4522's 1680 / 1710 rpm trips */
 #define SPN_SPEED 190u
 #define SPN_POS 636u
+#define SPN_CLT 110u                 /* coolant temperature: 110/0 shuts the set down (log 35) */
 
 /* Underspeed: a warning in DM1 (amber), never a shutdown; the DSE's own
  * under-frequency settings decide. 1350 is 90 % of 1500 and the load-step

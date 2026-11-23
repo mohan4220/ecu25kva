@@ -458,6 +458,7 @@ static void ticks(ecu_io *io, int n, int drain)
 static uint8_t spin_lamps;
 static uint32_t spin_spn;            /* the last DM1 seen while spinning: its first DTC */
 static uint8_t spin_fmi;
+static uint8_t spin_bam_lamps;      /* the lamp byte of the last multi-frame DM1 */
 static void ecu_spin(ecu_io *io, float rpm, int edges, uint32_t *t, int *tooth, int with_ticks)
 {
     for (int i = 0; i < edges; i++) {
@@ -471,7 +472,8 @@ static void ecu_spin(ecu_io *io, float rpm, int edges, uint32_t *t, int *tooth, 
                     spin_lamps = d[0];
                     spin_spn = d[2] | d[3] << 8 | (uint32_t)(d[4] & 0xE0) << 11;
                     spin_fmi = d[4] & 0x1F;
-                }
+                } else if ((io->can[k].id & 0x00FFFF00u) == 0x00EBFF00u && io->can[k].data[0] == 1)
+                    spin_bam_lamps = io->can[k].data[1];   /* a BAM DM1's first packet */
             io->can_n = 0;
         }
         if (cam) ecu_cam_edge(io, *t - 10);
@@ -1935,9 +1937,17 @@ static void test_diag_cond(void)
     in.oil_kpa = 300; in.oil_ok = 0; CHECK(!dg1(in, DG_SPD_ERRATIC));
     in.oil_ok = 1; in.stopped = 0;   CHECK(!dg1(in, DG_SPD_ERRATIC));   /* teeth: turning */
 
-    in = dg_base(); in.v_bat = 15.0f; CHECK(dg1(in, DG_BAT_HIGH));
-    in.v_bat = 14.6f;    CHECK(!dg1(in, DG_BAT_HIGH));   /* this set's own charging voltage */
-    in.v_bat = 11.0f;    CHECK(dg1(in, DG_BAT_LOW));
+    /* the 25 kVA set's DSE levels (decisions log 35), with their returns */
+    in = dg_base(); in.v_bat = 15.1f; CHECK(dg1(in, DG_BAT_HIGH));
+    in.v_bat = 14.8f;    CHECK(!dg1(in, DG_BAT_HIGH));   /* 20 kVA's limit: not here */
+    in.bat_high_act = 1; CHECK(dg1(in, DG_BAT_HIGH));    /* active: holds until 14.5 */
+    in.v_bat = 14.4f;    CHECK(!dg1(in, DG_BAT_HIGH));
+    in = dg_base(); in.v_bat = 11.0f; CHECK(!dg1(in, DG_BAT_LOW));   /* 20 kVA's 11.9: not here */
+    in.v_bat = 9.3f;     CHECK(dg1(in, DG_BAT_LOW));
+    in.v_bat = 9.8f;     CHECK(!dg1(in, DG_BAT_LOW));
+    in.bat_low_act = 1;  CHECK(dg1(in, DG_BAT_LOW));     /* active: holds until 10.0 */
+    in.v_bat = 10.1f;    CHECK(!dg1(in, DG_BAT_LOW));
+    in.bat_low_act = 0; in.v_bat = 9.3f;
     in.running = 0;      CHECK(!dg1(in, DG_BAT_LOW));    /* cranking dips are not a fault */
     in.running = 1; in.v_bat = 0; CHECK(!dg1(in, DG_BAT_LOW));   /* not measured */
 }
@@ -1977,16 +1987,64 @@ static void test_diag_speed_high(void)
     CHECK(spin_spn == SPN_SPEED && spin_fmi == 16 && spin_lamps == LAMP_AMBER);
 }
 
+/* Coolant volts at the pin for t degC (90..110), Bosch's table in ln(R) */
+static float clt_v(float t)
+{
+    float f = (t - 90.0f) / 10.0f, lo = 243.0f, hi = 187.0f;
+    if (t >= 100.0f) { f = (t - 100.0f) / 10.0f; lo = 187.0f; hi = 144.0f; }
+    float r = expf(logf(lo) + f * (logf(hi) - logf(lo)));
+    return NTC_V(r);
+}
+
+/* Coolant on the 25 kVA set (decisions log 35): the DSE never acts on it,
+ * so the ECU warns above 100 degC and asks the DSE to stop above 104 (red +
+ * Protect), each back 2 degC lower; pin 43's level switch warns. */
+static void test_diag_coolant(void)
+{
+    ecu_io io; uint32_t t; int tooth;
+    ecu_running(&io, &t, &tooth);
+    io.v_clt = clt_v(101.0f);
+    ecu_hold(&io, 1500, 2100, &t, &tooth);
+    CHECK(dtc_active(SPN_CLT, 16) && !dtc_active(SPN_CLT, 0));
+    ecu_hold(&io, 1500, 1000, &t, &tooth);
+    CHECK(spin_lamps == LAMP_AMBER);
+    io.v_clt = clt_v(105.0f);
+    ecu_hold(&io, 1500, 2100, &t, &tooth);
+    CHECK(dtc_active(SPN_CLT, 0) && io.state == ECU_RUN);       /* the DSE stops it, not us */
+    ecu_hold(&io, 1500, 1000, &t, &tooth);
+    CHECK((spin_bam_lamps & (LAMP_RED | LAMP_PROTECT)) == (LAMP_RED | LAMP_PROTECT));   /* two DTCs: a BAM */
+    io.v_clt = clt_v(103.0f);                                  /* above the stop's 102 return */
+    ecu_hold(&io, 1500, 100, &t, &tooth);
+    CHECK(dtc_active(SPN_CLT, 0));
+    io.v_clt = clt_v(99.0f);                                   /* stop back; warning holds to 98 */
+    ecu_hold(&io, 1500, 100, &t, &tooth);
+    CHECK(!dtc_active(SPN_CLT, 0) && dtc_active(SPN_CLT, 16));
+    io.v_clt = clt_v(97.0f);
+    ecu_hold(&io, 1500, 100, &t, &tooth);
+    CHECK(!dtc_active(SPN_CLT, 16));
+    io.clt_low = 1;                                            /* the level switch opens */
+    ecu_hold(&io, 1500, 4900, &t, &tooth);
+    CHECK(!dtc_active(111, 18));
+    ecu_hold(&io, 1500, 200, &t, &tooth);
+    CHECK(dtc_active(111, 18) && io.state == ECU_RUN);
+    io.clt_low = 0;
+    ecu_hold(&io, 1500, 1100, &t, &tooth);
+    CHECK(!dtc_active(111, 18));
+}
+
 static void test_diag_battery_low(void)
 {
     ecu_io io; uint32_t t; int tooth;
     ecu_running(&io, &t, &tooth);
     ecu_hold(&io, 1500, 3000, &t, &tooth);
-    io.v_bat = 11.0f;                                   /* charging lost */
-    ecu_hold(&io, 1500, 4900, &t, &tooth);
+    io.v_bat = 9.3f;                                    /* charging lost long ago */
+    ecu_hold(&io, 1500, 9900, &t, &tooth);
     CHECK(io.fault_n == 0);
     ecu_hold(&io, 1500, 200, &t, &tooth);
     CHECK(io.fault_n == 1 && dtc_active(168, 18) && io.state == ECU_RUN);
+    io.v_bat = 9.8f;                                    /* under the 10.0 V return: still on */
+    ecu_hold(&io, 1500, 10, &t, &tooth);
+    CHECK(io.fault_n == 1);
     io.v_bat = 13.8f;
     ecu_hold(&io, 1500, 10, &t, &tooth);
     CHECK(io.fault_n == 0);                             /* heals at once */
@@ -2378,6 +2436,7 @@ int main(void)
     test_diag_egr_stuck_open();
     test_diag_speed_high();
     test_diag_battery_low();
+    test_diag_coolant();
     test_diag_oil_at_rest();
     test_isotp_roundtrip();
     test_isotp_lost_cf();

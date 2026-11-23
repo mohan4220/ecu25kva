@@ -555,9 +555,9 @@ def diagnoses():
     if got:
         lamp = next(d for t, p, d in sim.can if p == DM1 and t == got)[0]
         c.that("amber lamp only, not Protect", hex(lamp), 0, ok=lamp == 0x04)
-    sim.eng.vbat = 11.0                        # the alternator has stopped charging
+    sim.eng.vbat = 9.3                         # charging lost: under the 25 kVA DSE's 9.5 V
     sim._volts()
-    sim.run(17.0)
+    sim.run(21.0)                              # its 10 s delay (decisions log 35)
     st = sim.stored()
     c.that("battery low stored and active (168/18)", "yes" if st.get((168, 18)) else "no", 0,
            ok=bool(st.get((168, 18))))

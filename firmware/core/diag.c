@@ -14,8 +14,11 @@ const diag_def_t diag_def[DG_N] = {
     [DG_SPD_HIGH]       = { 190, 16, 2000, 1000 },  /* here: the sheet gives no warning delay */
     [DG_SPD_ERRATIC]    = { 190, 8, 2000, 0 },      /* here */
     [DG_OIL_PLAUS]      = { 100, 2, 2000, 0 },      /* sheet 500 ms before cranking; here 2 s */
-    [DG_BAT_HIGH]       = { 168, 16, 5000, 0 },     /* sheet: highBatt_delay 5000 */
-    [DG_BAT_LOW]        = { 168, 18, 5000, 0 },     /* sheet: lowBatt_delay 5000 */
+    [DG_BAT_HIGH]       = { 168, 16, 10000, 0 },    /* 25 kVA DSE: 10 s (the sheet's was 5 s) */
+    [DG_BAT_LOW]        = { 168, 18, 10000, 0 },    /* 25 kVA DSE: 10 s */
+    [DG_CLT_WARN]       = { 110, 16, 2000, 0 },     /* sheet: 602/16, 2 s */
+    [DG_CLT_STOP]       = { 110, 0, 2000, 0 },      /* sheet: 110/0, 2 s */
+    [DG_CLT_LEVEL]      = { 111, 18, 5000, 1000 },  /* here: 5 s, past sloshing */
 };
 
 static float absf(float x) { return x < 0 ? -x : x; }
@@ -49,7 +52,15 @@ void diag_cond(const diag_in_t *in, uint8_t c[DG_N])
     c[DG_OIL_PLAUS] = in->ign_on && in->stopped && in->oil_ok && in->oil_kpa > DG_OIL_STOP_KPA
                       && in->oil_kpa <= DG_OIL_RUN_KPA;
 
-    c[DG_BAT_HIGH] = in->ign_on && bat_known && in->v_bat > DG_BAT_HIGH_V;
+    c[DG_BAT_HIGH] = in->ign_on && bat_known
+                     && in->v_bat > (in->bat_high_act ? DG_BAT_HIGH_RET_V : DG_BAT_HIGH_V);
     /* running only: cranking pulls any battery below 10 V */
-    c[DG_BAT_LOW] = in->running && bat_known && in->v_bat < DG_BAT_LOW_V;
+    c[DG_BAT_LOW] = in->running && bat_known
+                    && in->v_bat < (in->bat_low_act ? DG_BAT_LOW_RET_V : DG_BAT_LOW_V);
+    /* coolant: only from a good sensor (a faulted one reads its default) */
+    c[DG_CLT_WARN] = in->ign_on && in->clt_ok
+                     && in->clt_c > (in->clt_warn_act ? DG_CLT_WARN_RET_C : DG_CLT_WARN_C);
+    c[DG_CLT_STOP] = in->ign_on && in->clt_ok
+                     && in->clt_c > (in->clt_stop_act ? DG_CLT_STOP_RET_C : DG_CLT_STOP_C);
+    c[DG_CLT_LEVEL] = in->ign_on && in->clt_low;
 }

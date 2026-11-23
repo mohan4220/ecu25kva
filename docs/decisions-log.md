@@ -2182,9 +2182,12 @@ M12-H), −40 to 150 °C, ±1.4 °C at 25 °C and ±0.8 °C at 100 °C.
 |---|---|---|---|---|---|
 | Read with β 3450 | 60.7 | 81.7 | **102.8** | **113.9** | 135.9 |
 
-This matters because the ECU sends the temperature to the DSE in ET1, and
-the DSE warns at 100 °C and stops at 104 °C. **A real 101 °C coolant would
-have stopped the set.**
+This matters because the ECU sends the temperature to the DSE in ET1. With
+the 20 kVA sheet's limits, 100 °C warning and 104 °C stop, **a real 101 °C
+coolant would have stopped the set.** *Corrected in §35:* those are the
+20 kVA set's limits. The 25 kVA set's DSE is set at 150 / 200 °C, so on this
+set the ECU's own reading is what protects the engine. That makes an
+accurate hot end matter more, not less.
 
 **Fixed:**
 - Bosch's 20-point table is in `sensors.c` (`ntc_t`, `ntc_r`), interpolated in ln(R).
@@ -2315,6 +2318,56 @@ b2b, both FMIs included.
 
 The INA592's AEC-Q100 status is a production question, deferred with the
 production board (owner, 23 Nov: the prototype first).
+
+
+## 35. The 25 kVA set's own settings replace the 20 kVA sheet's (23 November)
+
+The owner: "everything we build now is for 25 kVA, but some data was given
+for 20 kVA; make changes according to that."
+
+**What came from the 20 kVA set:**
+- **§23:** the cascade's structure only. Every gain, limit and coil value
+  was derived for this engine, so nothing there changes.
+- **§24:** the DSM sheet's thresholds. The 25 kVA set's own figures are in
+  its DSE4522 configuration (`refs/GP3.314.01.0.PR-DSE4522-config.pdf`,
+  20 kW rating). Compared:
+
+| | 20 kVA sheet | 25 kVA set's DSE | Now |
+|---|---|---|---|
+| Battery high | 14.8 V, 5 s | 15.0 V, back 14.5 V, 10 s | **the 25 kVA's**, with the return |
+| Battery low | 11.9 V running, 5 s | 9.5 V, back 10.0 V, 10 s | **the 25 kVA's**, running only |
+| Underspeed | 1300 rpm stop | 1310 rpm stop; 45 Hz pre-alarm | 190/18 at 1350 rpm (= 45 Hz) already matched |
+| Overspeed | 1650 rpm | 1710 rpm; 55/56 Hz | 1650 rpm trip (55 Hz), already under both |
+| Speed high warning | 1590 rpm | none | 190/16 at 1590 kept: no 25 kVA figure, harmless |
+| Low oil | 200 kPa, the DSE's | 99 kPa, the DSE's | the DSE's job, unchanged. 190/8's "oil above 200 kPa = turning" stays conservative |
+| Coolant | 100 °C warn, 104 °C stop | **150 °C / 200 °C**: never acts | **the ECU protects**, see below |
+| ECU lamps | | Protect → shutdown; red, amber → warning | as before |
+
+**Coolant is the one that matters.** On this set the DSE's coolant alarms
+never act, so the engine relies on the ECU's Protect lamp. The firmware had
+no coolant protection. The §24 note "the DSE keeps coolant" was true of the
+20 kVA set, not this one. The owner chose:
+- **110/16 above 100 °C** (amber), back below 98 °C;
+- **110/0 above 104 °C** (red + Protect, so the DSE shuts down), back below 102 °C;
+- 2 s each, and only from a good sensor.
+
+These are KOEL's limits from the 20 kVA sheet, kept until the 25 kVA's own
+are known. §32's Bosch table makes the hot end accurate to 0.1 °C. **§32
+was corrected:** it had called 100/104 °C "the DSE's".
+
+**Pin 43, coolant level** (Bosch `I_S_CLS`; the owner: closed = level OK).
+The input was built but never read.
+- ABI 6 adds `clt_low`.
+- An open switch for 5 s raises 111/18 (amber).
+- EFL/P1 now carries SPN 111 (100 % or 0 %), which the 25 kVA DSE is set
+  to read from the ECU. Its level alarm is configured with action "None".
+
+**Tests:**
+- battery levels with their returns (`test_diag_cond`, `test_diag_battery_low`);
+- coolant warn, stop and returns, and the level switch (`test_diag_coolant`).
+  The red + Protect lamp is checked in the multi-frame DM1, which the test
+  rig now reads.
+- Scenario 18 loses charging at 9.3 V instead of 11.0 V.
 
 ---
 

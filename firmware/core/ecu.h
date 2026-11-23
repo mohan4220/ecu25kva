@@ -45,7 +45,7 @@
 #define ECU_USB_IN 64
 #define ECU_USB_OUT 512
 #ifndef ECU_ABI_VERSION
-#define ECU_ABI_VERSION 5u           /* bump whenever ecu_io or an entry point changes */
+#define ECU_ABI_VERSION 6u           /* bump whenever ecu_io or an entry point changes */
 #endif
 
 /* Exported from a Windows DLL (the simulator's loadable firmware) */
@@ -120,6 +120,8 @@ typedef struct {
     /* ABI 5: charge-air temperature, pin 79 (22 Nov 2026, decisions log 33) */
     float v_bts;                     /* input: pin 79 volts, the boost sensor's NTC */
     float bts_c;                     /* status: charge-air degC (40 while faulted) */
+    /* ABI 6: pin 43, the coolant level switch (23 Nov 2026, decisions log 35) */
+    uint8_t clt_low;                 /* input: 1 = coolant level low (the switch is open) */
 } ecu_io;
 
 ECU_API void ecu_init(ecu_io *io);

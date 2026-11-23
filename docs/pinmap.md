@@ -137,7 +137,7 @@ connector pins is accounted for, not silently dropped.
 
 | ECU pin | Signal | Front-end | `PTxx` | Peripheral | Reset pull | Note |
 |---|---|---|---|---|---|---|
-| 43 | Coolant switch | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD5` | GPIO input | Hi-Z, no pull | Pad LOW = contact OPEN. See discrete_input.cir |
+| 43 | **Coolant level switch** (Bosch `I_S_CLS`) | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD5` | GPIO input | Hi-Z, no pull | Pad LOW = contact OPEN = **level low** (owner, 23 Nov 2026: closed = OK). 111/18 and EFL/P1 SPN 111 (decisions log §35) |
 | 23 | Droop switch | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD7` | GPIO input | Hi-Z, no pull | Pad LOW = contact OPEN |
 | 21 | **BOSCH:** water in fuel, active high | Same NPN buffer, **inverted**, no pull-up (open = no water) | `PTD6` | GPIO input | Hi-Z, no pull | From the main-relay line through the sensor's switch |
 | 14 | **BOSCH:** diagnosis request, contact to ground | 10k pull-up to 5 V + NPN buffer, **inverted** | `PTD8` | GPIO input | Hi-Z, no pull | GCU relay contact |

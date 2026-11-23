@@ -34,13 +34,16 @@ enum {
     DG_OIL_PLAUS,       /* 100/2    oil pressure with the engine stopped */
     DG_BAT_HIGH,        /* 168/16   battery high */
     DG_BAT_LOW,         /* 168/18   battery low while running: charging lost */
+    DG_CLT_WARN,        /* 110/16   coolant hot: warning (decisions log 35) */
+    DG_CLT_STOP,        /* 110/0    coolant too hot: red + Protect, the DSE shuts down */
+    DG_CLT_LEVEL,       /* 111/18   coolant level low (pin 43) */
     DG_N
 };
 
 typedef struct { uint32_t spn; uint8_t fmi; uint16_t deb_ms, heal_ms; } diag_def_t;
 extern const diag_def_t diag_def[DG_N];
 
-/* thresholds (20 kVA sheet unless marked "here") */
+/* thresholds (20 kVA sheet unless marked "here" or "25 kVA"; decisions log 35) */
 #define DG_EGR_DRIVE 0.20f           /* |duty| above: driven (CAL_EGR_Open_PWM_Th 20 %) */
 #define DG_EGR_OPEN_A 0.10f          /* filtered current at or below: open (0.1 A) */
 #define DG_EGR_I_ALPHA 0.05f         /* here: current filter per 1 ms, tau 20 ms over the PWM */
@@ -66,9 +69,25 @@ extern const diag_def_t diag_def[DG_N];
 #define DG_SPD_HIGH_RPM 1590.0f      /* high_speed_warning_limit 1590 */
 #define DG_OIL_RUN_KPA 200.0f        /* LOP_lower_limit 200: an engine turning makes this */
 #define DG_OIL_STOP_KPA 100.0f       /* preCrankLOP_lim 100 */
-#define DG_BAT_HIGH_V 14.8f          /* highBattV_warning_lim */
-#define DG_BAT_LOW_V 11.9f           /* lowBattV_warning_lim */
+/* Battery: THE 25 kVA SET'S OWN DSE4522 settings (refs/GP3.314.01.0.PR-
+ * DSE4522-config.pdf, "Plant Battery"; decisions log 35), which replace
+ * the 20 kVA sheet's 14.8 / 11.9 V: warning above 15.0 V, back below
+ * 14.5; warning below 9.5 V, back above 10.0; 10 s delay each. */
+#define DG_BAT_HIGH_V 15.0f
+#define DG_BAT_HIGH_RET_V 14.5f
+#define DG_BAT_LOW_V 9.5f
+#define DG_BAT_LOW_RET_V 10.0f
 #define DG_BAT_MEASURED_V 1.0f       /* here: v_bat below this is "not measured" */
+/* Coolant (decisions log 35). The 25 kVA set's DSE has its coolant alarms
+ * at 150 / 200 degC, so it never acts: the engine relies on the ECU's
+ * Protect lamp, on which the DSE shuts down. Limits: KOEL's, from the 20
+ * kVA sheet (602/16 100 degC, 110/0 104 degC), chosen by the owner for
+ * the 25 kVA on 23 Nov 2026 until its own are known. Returns 2 degC
+ * below, so a reading on the line does not chatter. */
+#define DG_CLT_WARN_C 100.0f
+#define DG_CLT_WARN_RET_C 98.0f
+#define DG_CLT_STOP_C 104.0f
+#define DG_CLT_STOP_RET_C 102.0f
 
 typedef struct {
     uint8_t running;                 /* state RUN */
@@ -86,6 +105,11 @@ typedef struct {
     /* oil */
     float oil_kpa;
     uint8_t oil_ok;
+    /* battery faults already active: their return levels apply */
+    uint8_t bat_high_act, bat_low_act;
+    /* coolant: temperature (pin 33) and the level switch (pin 43) */
+    float clt_c;
+    uint8_t clt_ok, clt_low, clt_warn_act, clt_stop_act;
 } diag_in_t;
 
 void diag_cond(const diag_in_t *in, uint8_t cond[DG_N]);

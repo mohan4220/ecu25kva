@@ -298,25 +298,32 @@ on DM1, so a unit that skipped the line says so on the DSE's screen.
   a hot engine must not be mistaken for a shorted sensor.
 
 **Engine-side diagnoses** (`core/diag.h`, decisions log 24, from the 20 kVA
-set's DSM sheet). All of them are **amber**, the engine keeps running, and
-each has its own debounce and healing time:
+set's DSM sheet, and since §35 from the 25 kVA set's own DSE settings where
+it has them). All are **amber**, and the engine keeps running, except 110/0:
+red and Protect, on which the DSE shuts the set down. Each has its own
+debounce and healing time:
 
 | Code | Fault | Condition | Set / clear |
 |---|---|---|---|
 | 2791/5 | EGR open load | \|duty\| > 20 %, filtered current ≤ 0.1 A, running, 10–15 V | 200 / 130 ms |
 | 2791/0 | EGR stuck open | duty below 5 %, position above 35 % | 1 s / 200 ms |
 | 2791/7 | EGR stuck shut | duty ≥ 90 %, position below 35 % | 1 s / 200 ms |
-| 1347/5 | Metering valve open load | duty > 20 %, coil current < 0.05 A (only with ISNS_MU) | 500 ms / at once |
+| 1347/5 | Metering valve open load | driven so even a 6.91 Ω coil would carry > 0.25 A, reading < 0.05 A (only with ISNS_MU; §34) | 500 ms / at once |
 | 1347/6 | Metering valve over current | coil current > 3.0 A | 500 ms / at once |
 | 157/7 | Rail pressure off target | running, off by > 150 bar and > 25 % | 2 s / 1 s |
 | 190/16 | Speed high (warning) | running, above 1590 rpm | 2 s / 1 s |
 | 190/8 | Speed sensor | oil above 200 kPa, no crank tooth for 1 s | 2 s / at once |
 | 100/2 | Oil pressure at rest | engine stopped, 100–200 kPa | 2 s / at once |
-| 168/16 | Battery high | above 14.8 V | 5 s / at once |
-| 168/18 | Battery low | running, below 11.9 V | 5 s / at once |
+| 168/16 | Battery high | above 15.0 V, back below 14.5 V (25 kVA DSE) | 10 s / at once |
+| 168/18 | Battery low | running, below 9.5 V, back above 10.0 V (25 kVA DSE) | 10 s / at once |
+| 110/16 | Coolant hot (warning) | above 100 °C, back below 98 °C | 2 s / at once |
+| 110/0 | Coolant too hot: **red + Protect, the DSE stops the set** | above 104 °C, back below 102 °C | 2 s / at once |
+| 111/18 | Coolant level low | pin 43's switch open (closed = level OK) | 5 s / 1 s |
 
-Every threshold is calibration, from the 20 kVA set or chosen here. None is
-confirmed on this engine yet.
+Every threshold is calibration: the 25 kVA set's DSE where it has one
+(battery), KOEL's 20 kVA sheet where it does not (coolant, chosen by the
+owner for this set on 23 Nov), or chosen here. Coolant level also goes to
+the DSE as SPN 111 in EFL/P1.
 
 When 1347/5 or 1347/6 is active, the metering loop stops trusting ISNS_MU
 and runs on feedforward alone (decisions log 25).

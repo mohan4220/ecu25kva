@@ -10,6 +10,12 @@ engine.** What the firmware took is in `firmware/core/diag.h` and decisions
 log §24. Each value there is marked as either "sheet" or "here" (chosen for
 this set).
 
+**Superseded in part, 23 Nov 2026 (decisions log §35):** where the 25 kVA
+set's own DSE configuration has a figure, it replaces the sheet's. That
+covers battery high and low (15.0 / 9.5 V, 10 s). And on the 25 kVA set the
+DSE's coolant alarms never act (150 / 200 °C), so **"DSE" below is wrong for
+coolant**: the ECU now raises 110/16 and 110/0 itself.
+
 ## The first thing: it is a different fuel system
 
 The sheet's "Actuator" rows are for a fuel rack moved by an electronic
