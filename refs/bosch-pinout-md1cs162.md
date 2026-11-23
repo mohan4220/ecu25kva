@@ -103,6 +103,33 @@ not a diode (decisions log §37).
 | 55 | `B_D_CANH2` | CAN 2, "PT CAN line", **250 kbit/s**, inter-ECU (J1939) and OBD |
 | 77 | `B_D_CANL2` | |
 
+## The drawing's own notes (owner's copy, 23 Nov 2026)
+
+- **Connector set** 0 462 YU3 1SZ. **Harness guidelines** RBEI/EEH52,
+  0 281 Y03 Y40.
+- "For the function of the ECU the vehicle configuration according to
+  terminal diagram is **mandatory**." "Fuse arrangement is only a
+  proposal. Electrical system is in customer responsibility."
+- **Twisted pairs:** recommended, "also recommended for all actuators".
+  Drawn twisted: both CAN pairs (87/86, 55/77), each injector pair, the
+  metering unit (88 + main-relay line), the cam sensor's three wires, the
+  oil sensor's 5 V with its ground. By the note: also the EGR actuator
+  (59/81) and the relay coils (50, 69).
+- **Pins marked A** (50, 69): "ECU pin not equipped with freewheeling
+  diode. Freewheeling diode should be equipped inside the actuator's
+  relay – **not allowed in the wire harness**." The fitted relay uses a
+  resistor across its coil instead (decisions log §37).
+- **Lengths:** 04/06 and the injector leads ≤ 1.5 m; the ground pair
+  01/02 to V2 ≤ 1.0 m.
+- **Removed in the second edition:** pins 26, 42, 67, 91. The board
+  leaves them unconnected.
+- **Main and buzzer relays:** 4H.865.27.0.00 (BGR 210 / OEN), supplied by
+  the engine maker. `xA` fuses are the customer's.
+
+Checked against the board on 23 Nov 2026: all 46 pins on the drawing are
+on `hw/gen_sheet_connector.py` with the drawing's function, and nothing
+else is connected.
+
 ## Where this differs from the KOEL harness diagram
 
 | Pin | KOEL GP3.8703.C4 | Bosch |
