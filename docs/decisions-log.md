@@ -2449,8 +2449,10 @@ No change to either board.
 The owner's crop of Bosch's drawing shows each injector as **a bare
 solenoid on two pins, no diode, with its two wires twisted.** That is
 what the injector stage assumes:
-- the stage takes the coil's turn-off energy itself (boost recovery and
-  the clamp); a diode in the injector would have slowed the closing;
+- the stage takes the coil's turn-off energy itself: a diode from each
+  low side returns it to the 100 V boost reservoir (`injector_turnoff.cir`).
+  A diode inside the injector would have freewheeled it slowly and
+  delayed the closing;
 - the coil has no polarity, so which injector pin takes the high side
   changes nothing electrically. The ECU side is fixed by Bosch: high
   sides 03 (cyl 1 + 3) and 05 (cyl 2), low sides 73, 07, 29.
