@@ -76,6 +76,7 @@ mb.k(m, 'v_boost_rail', 99.7, S);
 mb.k(m, 'i_egr', 1.5, S);
 mb.k(m, 'wif', 0, U8);
 mb.k(m, 'droop', 0, U8);
+mb.k(m, 'r_coil', 3.75, S);                     % the metering coil the plant has (ohm)
 % profiles against time (clipped at the ends); flat unless a run sets them
 add_block('simulink/Sources/Digital Clock', [m '/clock'], 'SampleTime', '0.001');
 add_block('simulink/Lookup Tables/1-D Lookup Table', [m '/v_bat'], ...
@@ -115,11 +116,12 @@ pi_ = po;
 mb.l(m, po('PLANT', 'cyl_edge'), 'TRIGGERS/1');
 mb.l(m, po('PLANT', 'v_sens'), pi_('MODEL', 'v_sens'));
 mb.l(m, po('PLANT', 'v_5v'), pi_('MODEL', 'v_5v'));
+mb.l(m, po('PLANT', 'v_bts'), pi_('MODEL', 'v_bts'));
 mb.l(m, po('PLANT', 'rpm'), pi_('MODEL', 'rpm'));
 mb.l(m, 'ign_dse/1', pi_('MODEL', 'ignition')); mb.l(m, 'stop_u8/1', pi_('MODEL', 'stop_sw'));
 mb.l(m, 'clt_low_u8/1', pi_('MODEL', 'clt_low'));
 mb.l(m, po('MODEL', 'protect'), 'protect_z/1');
-mb.l(m, 'v_bat/1', pi_('PLANT', 'v_bat')); mb.l(m, 'clt_degc/1', pi_('PLANT', 'clt_degc'));
+mb.l(m, 'v_bat/1', pi_('PLANT', 'v_bat')); mb.l(m, 'r_coil/1', pi_('PLANT', 'r_coil')); mb.l(m, 'clt_degc/1', pi_('PLANT', 'clt_degc'));
 mb.l(m, 'droop/1', pi_('MODEL', 'droop')); mb.l(m, 'v_boost_rail/1', pi_('MODEL', 'v_boost_rail'));
 mb.l(m, 'i_egr/1', pi_('MODEL', 'i_egr')); mb.l(m, 'wif/1', pi_('MODEL', 'wif'));
 mb.l(m, 'v_bat/1', pi_('MODEL', 'v_bat')); mb.l(m, po('PLANT', 'i_mu'), pi_('MODEL', 'i_mu'));
@@ -132,7 +134,7 @@ mb.l(m, po('MODEL', 'duty'), pi_('PLANT', 'duty'));
 logs = {'rpm', po('PLANT', 'rpm'); 'rail_bar', po('PLANT', 'rail_bar'); 'i_mu', po('PLANT', 'i_mu')};
 for n = {'mode', 'fuel_mg', 'duty', 'set_bar', 'gov_set', 'relay', 'afterrun', 'boost_dis', ...
          'egr_off', 'clt_c', 'oil_kpa', 'soi_deg', 'dur_us', 'eec1', 'et1_tx', 'eflp1_tx', 'hours_tx', ...
-         'spd_state', 'egr_duty', 'dg_act', 'protect'}
+         'spd_state', 'egr_duty', 'dg_act', 'protect', 'lamps', 'mu_r', 'bts_c', 'ic1'}
     logs(end + 1, :) = {n{1}, po('MODEL', n{1})}; %#ok<AGROW>
 end
 logs{strcmp(logs(:, 1), 'rail_bar'), 1} = 'rail_true';      % the plant's; the ECU's is measured
@@ -216,16 +218,18 @@ T = fcs(M, 'one_ms_task');
 inp(T, 'v_sens', S, 5); inp(T, 'v_5v', S); inp(T, 'gain', S, 6); inp(T, 'offset', S, 6);
 inp(T, 'rpm', S); inp(T, 'ignition', U8); inp(T, 'stop_sw', U8); inp(T, 'droop', U8);
 inp(T, 'v_boost_rail', S); inp(T, 'i_egr', S); inp(T, 'wif', U8);
-inp(T, 'i_mu', S); inp(T, 'v_bat', S); inp(T, 'clt_low', U8);
+inp(T, 'i_mu', S); inp(T, 'v_bat', S); inp(T, 'clt_low', U8); inp(T, 'v_bts', S);
 outs = {'mode', U8; 'fuel_mg', S; 'duty', S; 'starter', U8; 'rail_bar', S; 'clt_c', S; ...
         'oil_kpa', S; 'fmi', U8; 'gov_set', S; 'relay', U8; 'afterrun', U8; 'boost_dis', U8; ...
-        'egr_off', U8; 'set_bar', S; 'spd_state', U8; 'egr_duty', S; 'dg_act', U8; 'protect', U8};
+        'egr_off', U8; 'set_bar', S; 'spd_state', U8; 'egr_duty', S; 'dg_act', U8; 'protect', U8; ...
+        'lamps', U8; 'mu_r', S; 'bts_c', S; 'bts_fmi', U8};
 for i = 1:size(outs, 1), mb.out(T, outs{i, 1}, outs{i, 2}); end
 ref(T, 'sensors', 'ecu_sensors');
 for b = {'mode_m', 'ecu_mode'; 'safety', 'ecu_safety'; 'gov', 'ecu_gov'; 'railset', 'ecu_railset'; ...
          'rail', 'ecu_rail'; 'boostg', 'ecu_boostg'; 'boostm', 'ecu_boostm'; 'egrg', 'ecu_egrg'; ...
          'wifg', 'ecu_wifg'; 'underg', 'ecu_underg'; 'relay_m', 'ecu_relay'; ...
-         'spdst', 'ecu_spdst'; 'mucur', 'ecu_mucur'; 'egrpos', 'ecu_egrpos'}'
+         'spdst', 'ecu_spdst'; 'mucur', 'ecu_mucur'; 'egrpos', 'ecu_egrpos'; ...
+         'musup', 'ecu_musup'; 'sensaux', 'ecu_sensaux'; 'lamps_m', 'ecu_lamps'}'
     ref(T, b{1}, b{2});
 end
 mb.l(T, 'v_sens/1', 'sensors/1'); mb.l(T, 'v_5v/1', 'sensors/2');
@@ -304,10 +308,23 @@ mb.l(T, 'ge_crank/1', 'fuelling/1'); mb.l(T, 'le_run/1', 'fuelling/2');
 mb.k(T, 'CLOSED', P.METER_CLOSED, S);
 mb.b(T, 'duty_sw', 'simulink/Signal Routing/Switch', 'Criteria', 'u2 ~= 0');
 mb.l(T, 'rail/1', 'duty_sw/1'); mb.l(T, 'fuelling/1', 'duty_sw/2'); mb.l(T, 'CLOSED/1', 'duty_sw/3');
-% the metering cascade's inner loop: the command is a current
+% the metering cascade's inner loop: the command is a current. Ahead of it,
+% the supervision (ecu_musup), as ecu.c: trust the reading, learn the coil,
+% or fall back on it. Last tick's duty made this tick's current; the two
+% diagnoses' active states are last tick's too (act_fb, below).
 mb.k(T, 'i_valid', 1, U8);
-mb.l(T, 'duty_sw/1', 'mucur/1'); mb.l(T, 'i_mu/1', 'mucur/2'); mb.l(T, 'i_valid/1', 'mucur/3');
-mb.l(T, 'v_bat/1', 'mucur/4'); mb.l(T, 'mucur/1', 'duty/1');
+mb.b(T, 'duty_z', 'simulink/Discrete/Unit Delay', 'InitialCondition', '0', 'SampleTime', '-1');
+mb.b(T, 'mu_r_z', 'simulink/Discrete/Unit Delay', 'InitialCondition', mb.num(P.MU_R_NOM), 'SampleTime', '-1');
+mb.b(T, 'mu_bad_z', 'simulink/Discrete/Unit Delay', 'InitialCondition', '0', 'SampleTime', '-1');
+mb.l(T, 'duty_sw/1', 'musup/1'); mb.l(T, 'duty_z/1', 'musup/2'); mb.l(T, 'v_bat/1', 'musup/3');
+mb.l(T, 'i_mu/1', 'musup/4'); mb.l(T, 'i_valid/1', 'musup/5');
+mb.l(T, 'mu_r_z/1', 'musup/8'); mb.l(T, 'mu_bad_z/1', 'musup/9');
+mb.l(T, 'musup/3', 'mu_r_z/1', 'mu_r/1'); mb.l(T, 'musup/4', 'mu_bad_z/1');
+mb.l(T, 'musup/1', 'mucur/1'); mb.l(T, 'i_mu/1', 'mucur/2'); mb.l(T, 'musup/2', 'mucur/3');
+mb.l(T, 'v_bat/1', 'mucur/4'); mb.l(T, 'mucur/1', 'duty/1', 'duty_z/1');
+% pin 79, charge-air temperature (ecu_sensaux): IC1's SPN 105
+mb.l(T, 'v_bts/1', 'sensaux/1'); mb.l(T, 'v_5v/1', 'sensaux/2');
+mb.l(T, 'sensaux/1', 'bts_c/1'); mb.l(T, 'sensaux/2', 'bts_fmi/1');
 % the guards
 mb.b(T, 'shut', 'simulink/Logic and Bit Operations/Compare To Constant', 'const', '4', 'relop', '==', 'OutDataTypeStr', U8);
 mb.l(T, 'mode_z/1', 'shut/1');
@@ -376,7 +393,8 @@ dsrc = {'is_run/1', 'ign_on/1', 'stopped/1', 'rpm/1', 'v_bat/1', ...
         'val_ch/2', 'sens_ok2/1', 'act_fb/10', 'act_fb/11', ...
         'val_ch/1', 'sens_ok1/1', 'clt_low/1', 'act_fb/12', 'act_fb/13'};
 for k = 1:numel(dsrc), mb.l(T, dsrc{k}, sprintf('diag/%d', k)); end
-for k = [1:9 14]
+mb.l(T, 'act_fb/4', 'musup/6'); mb.l(T, 'act_fb/5', 'musup/7');   % 1347/5, 1347/6
+for k = [1:3 6:9 14]
     add_block('simulink/Sinks/Terminator', sprintf('%s/t_act%d', T, k));
     mb.l(T, sprintf('act_fb/%d', k), sprintf('t_act%d/1', k));
 end
@@ -395,7 +413,29 @@ end
 assert(isequal(P.dg_names(10:14), {'DG_BAT_HIGH', 'DG_BAT_LOW', 'DG_CLT_WARN', 'DG_CLT_STOP', 'DG_CLT_LEVEL'}), ...
     'mdl_ecu25kva: diag.h order changed: the feedback and Protect wiring above assume it');
 mb.l(T, 'act_mux/1', 'act_z/1', 'dg_act/1');
-mb.l(T, 'deb_clt_stop/1', 'protect/1');
+% the active faults as DM1's table (in the firmware, ecu.c's fault_raise),
+% and the lamps from it (ecu_lamps): Protect is what the DSE shuts down on
+assert(isequal(P.dg_names{4}, 'DG_MU_OPEN') && isequal(P.dg_names{5}, 'DG_MU_OVERCUR'), ...
+    'mdl_ecu25kva: diag.h order changed: the supervision wiring above assumes it');
+ft = sprintf([ ...
+ 'function [spn, fmi, n] = table(act)\n' ...
+ '%%#codegen\n' ...
+ 'SPN = uint32(%s); FMI = uint8(%s);\n' ...
+ 'spn = zeros(%d, 1, ''uint32''); fmi = zeros(%d, 1, ''uint8''); n = uint8(0);\n' ...
+ 'for k = int32(1):int32(14)\n' ...
+ '    if act(k) ~= 0 && n < uint8(%d)\n' ...
+ '        n = n + uint8(1);\n' ...
+ '        spn(n) = SPN(k); fmi(n) = FMI(k);\n' ...
+ '    end\n' ...
+ 'end\n'], mb.num(P.dg_spn), mb.num(P.dg_fmi), P.FAULTS_MAX, P.FAULTS_MAX, P.FAULTS_MAX);
+mfun(T, 'fault_table', ft, containers.Map({'act', 'spn', 'fmi', 'n'}, {U8, 'uint32', U8, U8}));
+mb.l(T, 'act_mux/1', 'fault_table/1');
+mb.l(T, 'fault_table/1', 'lamps_m/1'); mb.l(T, 'fault_table/2', 'lamps_m/2'); mb.l(T, 'fault_table/3', 'lamps_m/3');
+mb.b(T, 'protect_bit', 'simulink/Logic and Bit Operations/Bitwise Operator', 'logicop', 'AND', ...
+    'UseBitMask', 'on', 'BitMask', num2str(P.LAMP_PROTECT), 'NumInputPorts', '1');
+mb.b(T, 'protect_on', 'simulink/Logic and Bit Operations/Compare To Constant', 'const', '0', 'relop', '~=', 'OutDataTypeStr', U8);
+mb.l(T, 'lamps_m/1', 'lamps/1', 'protect_bit/1'); mb.l(T, 'protect_bit/1', 'protect_on/1');
+mb.l(T, 'protect_on/1', 'protect/1');
 
 % ---------- cyl_event_isr: the injection for the cylinder coming up
 C = fcs(M, 'cyl_event_isr');
@@ -408,7 +448,8 @@ mb.l(C, 'soi/1', 'soi_deg/1'); mb.l(C, 'injdur/1', 'dur_us/1');
 % ---------- twenty_ms_task: Set PGNs (all of them), send EEC1
 J = fcs(M, 'twenty_ms_task');
 inp(J, 'rpm', S); inp(J, 'clt_c', S); inp(J, 'oil_kpa', S); inp(J, 'fmi', U8, 5); inp(J, 'engine_s', 'uint32');
-for o = {'eec1', 'et1', 'eflp1', 'hours'}, mb.out(J, o{1}, U8); end
+inp(J, 'clt_low', U8); inp(J, 'bts_c', S); inp(J, 'bts_fmi', U8);
+for o = {'eec1', 'et1', 'eflp1', 'hours', 'ic1'}, mb.out(J, o{1}, U8); end
 ref(J, 'Set_PGNs', 'ecu_j1939');
 mb.b(J, 'fmi_ch', 'simulink/Signal Routing/Demux', 'Outputs', '5');
 mb.l(J, 'fmi/1', 'fmi_ch/1');
@@ -421,8 +462,11 @@ for i = 3:5
 end
 mb.l(J, 'rpm/1', 'Set_PGNs/1'); mb.l(J, 'clt_c/1', 'Set_PGNs/2'); mb.l(J, 'clt_ok/1', 'Set_PGNs/3');
 mb.l(J, 'oil_kpa/1', 'Set_PGNs/4'); mb.l(J, 'oil_ok/1', 'Set_PGNs/5'); mb.l(J, 'engine_s/1', 'Set_PGNs/6');
-pg = {'eec1', 'et1', 'eflp1', 'hours'};
-for i = 1:4, mb.l(J, sprintf('Set_PGNs/%d', i), [pg{i} '/1']); end
+mb.b(J, 'bts_ok', 'simulink/Logic and Bit Operations/Compare To Constant', 'const', '0', 'relop', '==', 'OutDataTypeStr', U8);
+mb.l(J, 'bts_fmi/1', 'bts_ok/1');
+mb.l(J, 'clt_low/1', 'Set_PGNs/7'); mb.l(J, 'bts_c/1', 'Set_PGNs/8'); mb.l(J, 'bts_ok/1', 'Set_PGNs/9');
+pg = {'eec1', 'et1', 'eflp1', 'hours', 'ic1'};
+for i = 1:5, mb.l(J, sprintf('Set_PGNs/%d', i), [pg{i} '/1']); end
 
 % ---------- SEND all PGNs: each at its own rate (500 ms EFL/P1, 1 s ET1, 10 s HOURS; EEC1 above)
 send = {'five_hundred_ms_task', 'eflp1_tx'; 'one_sec_task', 'et1_tx'; 'ten_sec_task', 'hours_tx'};
@@ -450,7 +494,7 @@ for i = 1:numel(trig)
 end
 mins = {'v_sens', S, 5; 'v_5v', S, 1; 'rpm', S, 1; 'ignition', U8, 1; 'stop_sw', U8, 1; ...
         'droop', U8, 1; 'v_boost_rail', S, 1; 'i_egr', S, 1; 'wif', U8, 1; 'i_mu', S, 1; 'v_bat', S, 1; ...
-        'clt_low', U8, 1};
+        'clt_low', U8, 1; 'v_bts', S, 1};
 for i = 1:size(mins, 1)
     h = add_block('built-in/Inport', [M '/' mins{i, 1}]);
     set_param(h, 'OutDataTypeStr', mins{i, 2}, 'PortDimensions', num2str(mins{i, 3}));
@@ -461,7 +505,7 @@ mb.l(M, 'rpm/1', 'one_ms_task/5', 'twenty_ms_task/1'); mb.l(M, 'ignition/1', 'on
 mb.l(M, 'stop_sw/1', 'one_ms_task/7'); mb.l(M, 'droop/1', 'one_ms_task/8');
 mb.l(M, 'v_boost_rail/1', 'one_ms_task/9'); mb.l(M, 'i_egr/1', 'one_ms_task/10'); mb.l(M, 'wif/1', 'one_ms_task/11');
 mb.l(M, 'i_mu/1', 'one_ms_task/12'); mb.l(M, 'v_bat/1', 'one_ms_task/13');
-mb.l(M, 'clt_low/1', 'one_ms_task/14');
+mb.l(M, 'clt_low/1', 'one_ms_task/14', 'twenty_ms_task/6'); mb.l(M, 'v_bts/1', 'one_ms_task/15');
 % task outputs, by name
 o = @(t, n) [t '/' get_param([M '/' t '/' n], 'Port')];
 mb.l(M, o('one_ms_task', 'fuel_mg'), 'cyl_event_isr/1');
@@ -469,6 +513,8 @@ mb.l(M, o('one_ms_task', 'rail_bar'), 'cyl_event_isr/2');
 mb.l(M, o('one_ms_task', 'clt_c'), 'twenty_ms_task/2');
 mb.l(M, o('one_ms_task', 'oil_kpa'), 'twenty_ms_task/3');
 mb.l(M, o('one_ms_task', 'fmi'), 'twenty_ms_task/4');
+mb.l(M, o('one_ms_task', 'bts_c'), 'twenty_ms_task/7');
+mb.l(M, o('one_ms_task', 'bts_fmi'), 'twenty_ms_task/8');
 mb.l(M, o('one_ms_task', 'mode'), 'one_sec_task/2');
 mb.l(M, o('one_sec_task', 'engine_s'), 'twenty_ms_task/5');
 mb.l(M, o('twenty_ms_task', 'eflp1'), 'five_hundred_ms_task/1');
@@ -476,8 +522,8 @@ mb.l(M, o('twenty_ms_task', 'et1'), 'one_sec_task/1');
 mb.l(M, o('twenty_ms_task', 'hours'), 'ten_sec_task/1');
 mouts = {'one_ms_task', {'mode', 'fuel_mg', 'duty', 'starter', 'rail_bar', 'set_bar', 'gov_set', ...
          'relay', 'afterrun', 'boost_dis', 'egr_off', 'clt_c', 'oil_kpa', 'fmi', 'spd_state', 'egr_duty', ...
-         'dg_act', 'protect'}; ...
-         'cyl_event_isr', {'soi_deg', 'dur_us'}; 'twenty_ms_task', {'eec1'}; ...
+         'dg_act', 'protect', 'lamps', 'mu_r', 'bts_c'}; ...
+         'cyl_event_isr', {'soi_deg', 'dur_us'}; 'twenty_ms_task', {'eec1', 'ic1'}; ...
          'five_hundred_ms_task', {'eflp1_tx'}; 'one_sec_task', {'et1_tx'}; 'ten_sec_task', {'hours_tx'}};
 for i = 1:size(mouts, 1)
     for j = 1:numel(mouts{i, 2})
@@ -495,9 +541,9 @@ S = 'single'; U8 = 'uint8';
 PL = [m '/PLANT'];
 add_block('built-in/SubSystem', PL, 'BackgroundColor', 'lightBlue');
 inp(PL, 'fuel_mg', S); inp(PL, 'load_kw', 'double'); inp(PL, 'starter', U8); inp(PL, 'duty', S);
-inp(PL, 'v_bat', S); inp(PL, 'clt_degc', S);
+inp(PL, 'v_bat', S); inp(PL, 'clt_degc', S); inp(PL, 'r_coil', S);
 mb.out(PL, 'rpm', S); mb.out(PL, 'v_sens', S); mb.out(PL, 'v_5v', S); mb.out(PL, 'cyl_edge', U8);
-mb.out(PL, 'rail_bar', S); mb.out(PL, 'i_mu', S);
+mb.out(PL, 'rail_bar', S); mb.out(PL, 'i_mu', S); mb.out(PL, 'v_bts', S);
 eng = sprintf([ ...
  'function [domega, dp] = engine(omega, p, fuel_mg, load_kw, starter, duty)\n' ...
  '%%#codegen\n' ...
@@ -542,25 +588,30 @@ mb.l(PL, 'starter/1', 'Engine/5');
 % 3.75 ohm (2.5-5 measured, decisions log 25), tau 3 ms; the current, as
 % a fraction of full, is what closes the valve (the engine's 'duty')
 coil = sprintf([ ...
- 'function [i_n, frac] = coil(duty, i, v_bat)\n' ...
+ 'function [i_n, frac] = coil(duty, i, v_bat, r_coil)\n' ...
  '%%#codegen\n' ...
- 'i_n = i + (duty * v_bat / single(3.75) - i) * single(%s);\n' ...
+ 'i_n = i + (duty * v_bat / r_coil - i) * single(%s);\n' ...
  'frac = min(single(1), i_n / single(1.8));\n'], mb.num(1 - exp(-1/3)));
-mfun(PL, 'Coil', coil, containers.Map({'duty', 'i', 'v_bat', 'i_n', 'frac'}, {S, S, S, S, S}));
+mfun(PL, 'Coil', coil, containers.Map({'duty', 'i', 'v_bat', 'r_coil', 'i_n', 'frac'}, {S, S, S, S, S, S}));
 mb.b(PL, 'coil_z', 'simulink/Discrete/Unit Delay', 'InitialCondition', '0', 'SampleTime', '0.001');
 mb.l(PL, 'duty/1', 'Coil/1'); mb.l(PL, 'coil_z/1', 'Coil/2'); mb.l(PL, 'v_bat/1', 'Coil/3');
+mb.l(PL, 'r_coil/1', 'Coil/4');
 mb.l(PL, 'Coil/1', 'coil_z/1'); mb.l(PL, 'Coil/2', 'Engine/6');
 % the ADC reads the current already flowing, not the one this tick's duty will make
 mb.l(PL, 'coil_z/1', 'i_mu/1');
 mb.l(PL, 'rpm_g/1', 'rpm/1');
 % what the sensors read: the inverse of each transfer function, 5 V supply
 sv = sprintf([ ...
- 'function [v, v5] = volts(rpm, p, load_kw, clt)\n' ...
+ 'function [v, v5, vb] = volts(rpm, p, load_kw, clt)\n' ...
  '%%#codegen\n' ...
  '%% coolant through Bosch''s NTC table (in ln R) and its pull-up\n' ...
  'NT = %s; NR = %s;\n' ...
  'rn = exp(interp1(NT, log(NR), double(clt)));\n' ...
  'r = single(1 / (1 / rn + 1 / %s));          %% in parallel with NTC_LOAD\n' ...
+ '%% pin 79, the charge air: the same NTC and front end; 30 degC plus 0.6 per kW\n' ...
+ 'rb = exp(interp1(NT, log(NR), 30 + 0.6 * double(load_kw)));\n' ...
+ 'rb = single(1 / (1 / rb + 1 / ' mb.num(P.NTC_LOAD) '));\n' ...
+ 'vb = single(5) * rb / (rb + single(' mb.num(P.NTC_PULLUP) '));\n' ...
  'v = zeros(5, 1, ''single'');\n' ...
  'v(1) = single(5) * r / (r + single(%s));\n' ...
  'lin = @(x, lo, hi) single(0.5) + single(4) * (x - lo) / (hi - lo);\n' ...
@@ -572,10 +623,10 @@ sv = sprintf([ ...
  mb.num(double(P.ntc_t)), mb.num(double(P.ntc_r)), mb.num(P.NTC_LOAD), mb.num(P.NTC_PULLUP), ...
  mb.num(P.span_lo(2)), mb.num(P.span_hi(2)), mb.num(P.span_lo(3)), mb.num(P.span_hi(3)), ...
  mb.num(P.span_lo(4)), mb.num(P.span_hi(4)));
-mfun(PL, 'Sensors', sv, containers.Map({'rpm', 'p', 'load_kw', 'clt', 'v', 'v5'}, {S, S, S, S, S, S}));
+mfun(PL, 'Sensors', sv, containers.Map({'rpm', 'p', 'load_kw', 'clt', 'v', 'v5', 'vb'}, {S, S, S, S, S, S, S}));
 mb.l(PL, 'rpm_g/1', 'Sensors/1'); mb.l(PL, 'p_i/1', 'Sensors/2'); mb.l(PL, 'load_s/1', 'Sensors/3');
 mb.l(PL, 'clt_degc/1', 'Sensors/4');
-mb.l(PL, 'Sensors/1', 'v_sens/1'); mb.l(PL, 'Sensors/2', 'v_5v/1');
+mb.l(PL, 'Sensors/1', 'v_sens/1'); mb.l(PL, 'Sensors/2', 'v_5v/1'); mb.l(PL, 'Sensors/3', 'v_bts/1');
 % one event per cylinder: the crank angle crossing each 240 degrees
 ce = sprintf([ ...
  'function [edge, ang_n] = cyl(rpm, ang)\n' ...

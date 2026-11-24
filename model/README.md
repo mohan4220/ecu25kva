@@ -51,7 +51,7 @@ and Embedded Coder licence and run `./verify.sh --matlab` again.
 | Flash (ST-LINK) / (J-Link) | flash `app_model_signed.hex`, the code from these models |
 | Clean project | delete the build folders (the committed `firmware/gen` stays) |
 | Run all checks | `./verify.sh` |
-| Simulate | `sim_ecu25kva`: run it closed loop and check it (29 checks, two runs) |
+| Simulate | `sim_ecu25kva`: run it closed loop and check it (36 checks, two runs) |
 | Select_PCB | prototype STM32G474 (builds) or production S32K148 (no chip layer yet) |
 
 Errors from code generation, the compiler, the image checks or the probe

@@ -9,7 +9,7 @@
  *
  * Model version                  : 1.1
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Mon Nov 16 14:16:17 2026
+ * C/C++ source code generated on : Tue Nov 24 14:24:19 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: ARM Compatible->ARM Cortex-M
@@ -46,14 +46,18 @@ struct tag_RTM_ecu_j1939_T {
 extern void ecu_j1939_initialize(RT_MODEL_ecu_j1939_T *const ecu_j1939_M,
   real32_T *ecu_j1939_U_rpm, real32_T *ecu_j1939_U_clt_c, uint8_T
   *ecu_j1939_U_clt_ok, real32_T *ecu_j1939_U_oil_kpa, uint8_T
-  *ecu_j1939_U_oil_ok, uint32_T *ecu_j1939_U_engine_s, uint8_T ecu_j1939_Y_eec1
-  [8], uint8_T ecu_j1939_Y_et1[8], uint8_T ecu_j1939_Y_eflp1[8], uint8_T
-  ecu_j1939_Y_hours[8]);
+  *ecu_j1939_U_oil_ok, uint32_T *ecu_j1939_U_engine_s, uint8_T
+  *ecu_j1939_U_clt_low, real32_T *ecu_j1939_U_intake_c, uint8_T
+  *ecu_j1939_U_intake_ok, uint8_T ecu_j1939_Y_eec1[8], uint8_T ecu_j1939_Y_et1[8],
+  uint8_T ecu_j1939_Y_eflp1[8], uint8_T ecu_j1939_Y_hours[8], uint8_T
+  ecu_j1939_Y_ic1[8]);
 extern void ecu_j1939_step(RT_MODEL_ecu_j1939_T *const ecu_j1939_M, real32_T
   ecu_j1939_U_rpm, real32_T ecu_j1939_U_clt_c, uint8_T ecu_j1939_U_clt_ok,
   real32_T ecu_j1939_U_oil_kpa, uint8_T ecu_j1939_U_oil_ok, uint32_T
-  ecu_j1939_U_engine_s, uint8_T ecu_j1939_Y_eec1[8], uint8_T ecu_j1939_Y_et1[8],
-  uint8_T ecu_j1939_Y_eflp1[8], uint8_T ecu_j1939_Y_hours[8]);
+  ecu_j1939_U_engine_s, uint8_T ecu_j1939_U_clt_low, real32_T
+  ecu_j1939_U_intake_c, uint8_T ecu_j1939_U_intake_ok, uint8_T ecu_j1939_Y_eec1
+  [8], uint8_T ecu_j1939_Y_et1[8], uint8_T ecu_j1939_Y_eflp1[8], uint8_T
+  ecu_j1939_Y_hours[8], uint8_T ecu_j1939_Y_ic1[8]);
 
 /*-
  * The generated code includes comments that allow you to trace directly

@@ -333,19 +333,24 @@ void sens_aux_step_1ms(sens_aux_t *a, float v, float v_5v)
 static RT_MODEL_ecu_j1939_T j1939_m;
 
 static void pgns(ecu_can *f, int which, uint8_t prio, uint32_t pgn, float rpm, float clt, uint8_t clt_ok,
-                 float oil, uint8_t oil_ok, uint32_t engine_s)
+                 float oil, uint8_t oil_ok, uint32_t engine_s, uint8_t clt_low, float intake, uint8_t intake_ok)
 {
-    uint8_t y[4][8];
-    ecu_j1939_step(&j1939_m, rpm, clt, clt_ok, oil, oil_ok, engine_s, y[0], y[1], y[2], y[3]);
+    uint8_t y[5][8];
+    ecu_j1939_step(&j1939_m, rpm, clt, clt_ok, oil, oil_ok, engine_s, clt_low, intake, intake_ok,
+                   y[0], y[1], y[2], y[3], y[4]);
     f->id = j1939_id(prio, pgn, J1939_SA);
     f->len = 8;
     memcpy(f->data, y[which], 8);
 }
 
-void j1939_eec1(ecu_can *f, float rpm) { pgns(f, 0, 3, 61444, rpm, 0, 0, 0, 0, 0); }
-void j1939_et1(ecu_can *f, float clt_c, int valid) { pgns(f, 1, 6, 65262, 0, clt_c, (uint8_t)(valid != 0), 0, 0, 0); }
-void j1939_eflp1(ecu_can *f, float oil_kpa, int valid) { pgns(f, 2, 6, 65263, 0, 0, 0, oil_kpa, (uint8_t)(valid != 0), 0); }
-void j1939_hours(ecu_can *f, uint32_t engine_s) { pgns(f, 3, 6, PGN_HOURS, 0, 0, 0, 0, 0, engine_s); }
+void j1939_eec1(ecu_can *f, float rpm) { pgns(f, 0, 3, 61444, rpm, 0, 0, 0, 0, 0, 0, 0, 0); }
+void j1939_et1(ecu_can *f, float clt_c, int valid) { pgns(f, 1, 6, 65262, 0, clt_c, (uint8_t)(valid != 0), 0, 0, 0, 0, 0, 0); }
+void j1939_eflp1(ecu_can *f, float oil_kpa, int valid, int clt_low)
+{
+    pgns(f, 2, 6, 65263, 0, 0, 0, oil_kpa, (uint8_t)(valid != 0), 0, (uint8_t)(clt_low != 0), 0, 0);
+}
+void j1939_hours(ecu_can *f, uint32_t engine_s) { pgns(f, 3, 6, PGN_HOURS, 0, 0, 0, 0, 0, engine_s, 0, 0, 0); }
+void j1939_ic1(ecu_can *f, float intake_c, int valid) { pgns(f, 4, 6, 65270, 0, 0, 0, 0, 0, 0, 0, intake_c, (uint8_t)(valid != 0)); }
 
 /* ---- the cascades' inner loops: model/ecu_mucur.slx, ecu_egrpos.slx ----
  * State in the caller's struct, as the governor's; integ etc. mirrored

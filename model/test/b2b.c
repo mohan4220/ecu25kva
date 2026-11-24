@@ -286,17 +286,18 @@ int main(void)
       report("charge-air temperature: FMIs (mismatched)", (double)bad, 0);
       printf("   ticks at FMI 3 / FMI 4: %ld %ld\n", n1, n2); }
     /* J1939 PGN data: every byte, from inside and outside every range */
-    { RT_MODEL_ecu_j1939_T m; uint8_t y[4][8]; ecu_can f;
+    { RT_MODEL_ecu_j1939_T m; uint8_t y[5][8]; ecu_can f;
       bad = 0;
       for (int i = 0; i < N; i++) {
-          float rpm = rnd(-200, 9000), clt = rnd(-80, 260), oil = rnd(-20, 1100);
-          uint8_t co = rand() & 1, oo = rand() & 1;
+          float rpm = rnd(-200, 9000), clt = rnd(-80, 260), oil = rnd(-20, 1100), ia = rnd(-80, 260);
+          uint8_t co = rand() & 1, oo = rand() & 1, cl = rand() & 1, io = rand() & 1;
           uint32_t es = (uint32_t)rand() * 65599u + (uint32_t)rand();
-          ecu_j1939_step(&m, rpm, clt, co, oil, oo, es, y[0], y[1], y[2], y[3]);
+          ecu_j1939_step(&m, rpm, clt, co, oil, oo, es, cl, ia, io, y[0], y[1], y[2], y[3], y[4]);
           j1939_eec1(&f, rpm); bad += memcmp(f.data, y[0], 8) != 0;
           j1939_et1(&f, clt, co); bad += memcmp(f.data, y[1], 8) != 0;
-          j1939_eflp1(&f, oil, oo); bad += memcmp(f.data, y[2], 8) != 0;
+          j1939_eflp1(&f, oil, oo, cl); bad += memcmp(f.data, y[2], 8) != 0;
           j1939_hours(&f, es); bad += memcmp(f.data, y[3], 8) != 0;
+          j1939_ic1(&f, ia, io); bad += memcmp(f.data, y[4], 8) != 0;
       }
       report("J1939 PGN bytes (mismatched frames)", (double)bad, 0); }
     /* the metering valve's current loop: commands, measurements and battery

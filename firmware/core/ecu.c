@@ -419,8 +419,7 @@ static void send_can(ecu_io *io)
         queue(io, &f);
     }
     if (ms % 500 == 0) {
-        j1939_eflp1(&f, sens.val[S_OIL], !sens.fmi[S_OIL]);
-        f.data[7] = io->clt_low ? 0 : 250;   /* SPN 111 coolant level, 0.4 %/bit: pin 43 (log 35) */
+        j1939_eflp1(&f, sens.val[S_OIL], !sens.fmi[S_OIL], io->clt_low);
         queue(io, &f);
     }
     if (ms % 1000 == 0) {

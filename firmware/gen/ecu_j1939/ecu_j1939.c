@@ -9,7 +9,7 @@
  *
  * Model version                  : 1.1
  * Simulink Coder version         : 26.1 (R2026a) 20-Nov-2025
- * C/C++ source code generated on : Mon Nov 16 14:16:17 2026
+ * C/C++ source code generated on : Tue Nov 24 14:24:19 2026
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: ARM Compatible->ARM Cortex-M
@@ -27,8 +27,10 @@ void ecu_j1939_step(RT_MODEL_ecu_j1939_T *const ecu_j1939_M, real32_T
                     ecu_j1939_U_rpm, real32_T ecu_j1939_U_clt_c, uint8_T
                     ecu_j1939_U_clt_ok, real32_T ecu_j1939_U_oil_kpa, uint8_T
                     ecu_j1939_U_oil_ok, uint32_T ecu_j1939_U_engine_s, uint8_T
-                    ecu_j1939_Y_eec1[8], uint8_T ecu_j1939_Y_et1[8], uint8_T
-                    ecu_j1939_Y_eflp1[8], uint8_T ecu_j1939_Y_hours[8])
+                    ecu_j1939_U_clt_low, real32_T ecu_j1939_U_intake_c, uint8_T
+                    ecu_j1939_U_intake_ok, uint8_T ecu_j1939_Y_eec1[8], uint8_T
+                    ecu_j1939_Y_et1[8], uint8_T ecu_j1939_Y_eflp1[8], uint8_T
+                    ecu_j1939_Y_hours[8], uint8_T ecu_j1939_Y_ic1[8])
 {
   int32_T i;
   real32_T x;
@@ -54,12 +56,20 @@ void ecu_j1939_step(RT_MODEL_ecu_j1939_T *const ecu_j1939_M, real32_T
      *  MATLAB Function: '<Root>/set_pgns'
      */
     ecu_j1939_Y_hours[i] = MAX_uint8_T;
+
+    /* Outport: '<Root>/ic1' incorporates:
+     *  MATLAB Function: '<Root>/set_pgns'
+     */
+    ecu_j1939_Y_ic1[i] = MAX_uint8_T;
   }
 
   /* MATLAB Function: '<Root>/set_pgns' incorporates:
    *  Inport: '<Root>/clt_c'
+   *  Inport: '<Root>/clt_low'
    *  Inport: '<Root>/clt_ok'
    *  Inport: '<Root>/engine_s'
+   *  Inport: '<Root>/intake_c'
+   *  Inport: '<Root>/intake_ok'
    *  Inport: '<Root>/oil_kpa'
    *  Inport: '<Root>/oil_ok'
    *  Inport: '<Root>/rpm'
@@ -67,6 +77,7 @@ void ecu_j1939_step(RT_MODEL_ecu_j1939_T *const ecu_j1939_M, real32_T
    *  Outport: '<Root>/eflp1'
    *  Outport: '<Root>/et1'
    *  Outport: '<Root>/hours'
+   *  Outport: '<Root>/ic1'
    */
   x = ecu_j1939_U_rpm;
   if (ecu_j1939_U_rpm < 0.0F) {
@@ -123,6 +134,31 @@ void ecu_j1939_step(RT_MODEL_ecu_j1939_T *const ecu_j1939_M, real32_T
     }
   }
 
+  if (ecu_j1939_U_clt_low != 0) {
+    ecu_j1939_Y_eflp1[7] = 0U;
+  } else {
+    ecu_j1939_Y_eflp1[7] = 250U;
+  }
+
+  if (ecu_j1939_U_intake_ok != 0) {
+    if (ecu_j1939_U_intake_c + 40.0F < 0.0F) {
+      ecu_j1939_Y_ic1[2] = 0U;
+    } else if (ecu_j1939_U_intake_c + 40.0F > 250.0F) {
+      ecu_j1939_Y_ic1[2] = 250U;
+    } else {
+      x = floorf((ecu_j1939_U_intake_c + 40.0F) + 0.5F);
+      if (x < 256.0F) {
+        if (x >= 0.0F) {
+          ecu_j1939_Y_ic1[2] = (uint8_T)x;
+        } else {
+          ecu_j1939_Y_ic1[2] = 0U;
+        }
+      } else {
+        ecu_j1939_Y_ic1[2] = MAX_uint8_T;
+      }
+    }
+  }
+
   h = ecu_j1939_U_engine_s / 180U;
   ecu_j1939_Y_hours[0] = (uint8_T)(h & 255U);
   ecu_j1939_Y_hours[1] = (uint8_T)(h >> 8 & 255U);
@@ -135,8 +171,10 @@ void ecu_j1939_step(RT_MODEL_ecu_j1939_T *const ecu_j1939_M, real32_T
 void ecu_j1939_initialize(RT_MODEL_ecu_j1939_T *const ecu_j1939_M, real32_T
   *ecu_j1939_U_rpm, real32_T *ecu_j1939_U_clt_c, uint8_T *ecu_j1939_U_clt_ok,
   real32_T *ecu_j1939_U_oil_kpa, uint8_T *ecu_j1939_U_oil_ok, uint32_T
-  *ecu_j1939_U_engine_s, uint8_T ecu_j1939_Y_eec1[8], uint8_T ecu_j1939_Y_et1[8],
-  uint8_T ecu_j1939_Y_eflp1[8], uint8_T ecu_j1939_Y_hours[8])
+  *ecu_j1939_U_engine_s, uint8_T *ecu_j1939_U_clt_low, real32_T
+  *ecu_j1939_U_intake_c, uint8_T *ecu_j1939_U_intake_ok, uint8_T
+  ecu_j1939_Y_eec1[8], uint8_T ecu_j1939_Y_et1[8], uint8_T ecu_j1939_Y_eflp1[8],
+  uint8_T ecu_j1939_Y_hours[8], uint8_T ecu_j1939_Y_ic1[8])
 {
   /* Registration code */
 
@@ -150,12 +188,16 @@ void ecu_j1939_initialize(RT_MODEL_ecu_j1939_T *const ecu_j1939_M, real32_T
   *ecu_j1939_U_oil_kpa = 0.0F;
   *ecu_j1939_U_oil_ok = 0U;
   *ecu_j1939_U_engine_s = 0U;
+  *ecu_j1939_U_clt_low = 0U;
+  *ecu_j1939_U_intake_c = 0.0F;
+  *ecu_j1939_U_intake_ok = 0U;
 
   /* external outputs */
   (void)memset(&ecu_j1939_Y_eec1[0], 0, sizeof(uint8_T) << 3U);
   (void)memset(&ecu_j1939_Y_et1[0], 0, sizeof(uint8_T) << 3U);
   (void)memset(&ecu_j1939_Y_eflp1[0], 0, sizeof(uint8_T) << 3U);
   (void)memset(&ecu_j1939_Y_hours[0], 0, sizeof(uint8_T) << 3U);
+  (void)memset(&ecu_j1939_Y_ic1[0], 0, sizeof(uint8_T) << 3U);
   UNUSED_PARAMETER(ecu_j1939_M);
 }
 

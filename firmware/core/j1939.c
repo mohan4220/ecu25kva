@@ -32,23 +32,23 @@ void j1939_et1(ecu_can *f, float clt_c, int valid)
         f->data[0] = byte_clamp(clt_c + 40);
 }
 
-void j1939_eflp1(ecu_can *f, float oil_kpa, int valid)
+void j1939_eflp1(ecu_can *f, float oil_kpa, int valid, int clt_low)
 {
     blank(f, 6, 65263);
     if (valid)
         f->data[3] = byte_clamp(oil_kpa / 4);
+    f->data[7] = clt_low ? 0 : 250;      /* SPN 111, 0.4 %/bit: pin 43 (log 35) */
 }
-#endif
+
 /* IC1: byte 3 is SPN 105, intake manifold 1 temperature, 1 degC/bit,
  * offset -40. The rest stays "not available". */
 void j1939_ic1(ecu_can *f, float intake_c, int valid)
 {
     blank(f, 6, 65270);
-    if (valid) {
-        float x = intake_c + 40.0f;            /* byte_clamp is the model's in ECU_MODEL builds */
-        f->data[2] = x < 0 ? 0 : x > 250 ? 250 : (uint8_t)(x + 0.5f);
-    }
+    if (valid)
+        f->data[2] = byte_clamp(intake_c + 40);
 }
+#endif
 
 int j1939_tp(ecu_can *out, int max, uint8_t prio, uint32_t pgn, const uint8_t *buf, int n)
 {

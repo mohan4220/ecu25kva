@@ -2656,6 +2656,57 @@ bytes, not control; the unit tests and the bootloader tests cover them.
 
 ---
 
+## 42. The models checked for errors, and the simulation completed (24 November)
+
+The owner: "I think there are many bugs in the Simulink models", then "I am
+getting errors". Two passes.
+
+**Searched for errors.** Every model compiled with Simulink's strict
+diagnostics on (unconnected ports and lines, integer overflow and
+saturation, array bounds, signal range, algebraic loops, precision); both
+closed-loop runs with the run-time checks on (`model/test/sweep_models.m`,
+`sweep_sim_diags.m`). Result: no logic or arithmetic fault. All 26 models'
+C regenerated from scratch is identical to the committed code, apart from
+the date stamps. What a user does see, and is now fixed:
+
+- **Yellow warnings on every Simulate**: "parameter precision loss" for
+  constants such as 0.04, held as the nearest single-precision float.
+  Single precision is the design and the C holds the same floats, so the
+  notice is off in every model's settings (`lib/mb.m`).
+- **"Undefined function" from the buttons** when `ecu25kva.slx` is opened
+  outside `model/` (a double-click in Explorer): the top model now puts
+  its folders on the path as it loads. Tested from another folder.
+- **One intermittent FAIL of the Simulink step in `verify.sh`**: MATLAB
+  started while another session was still closing. The step now retries
+  once, only if MATLAB stopped before any check ran.
+
+**Completed what the simulation and the J1939 model left out.**
+- **EFL/P1 byte 8 (coolant level, SPN 111) and IC1 (charge-air
+  temperature, SPN 105)** were filled in by hand-written C in both builds.
+  Both are now in `ecu_j1939` (five PGNs, three more inputs);
+  `j1939_eflp1` takes the coolant level, and `ecu.c` no longer patches
+  byte 8. b2b: 0 mismatched frames; the level byte inverted in a copy
+  fails every frame.
+- **The top model now runs** `ecu_musup` ahead of the current loop (the
+  coil learned, or the fallback), `ecu_sensaux` on a pin-79 voltage from
+  the plant (charge air 30 °C + 0.6 °C/kW), and `ecu_lamps` on the active
+  fault table: Protect, and so the DSE's shutdown, is now decided by the
+  lamps model, as on the board. The plant's metering coil is a scenario
+  input (3.75 ohm; 4.5 ohm in run 2).
+- **Simulate: 36 checks.** New: no lamp in a normal run; the coil stays at
+  3.75 ohm on a 3.75 ohm plant, and **learns a 4.5 ohm coil from the
+  nominal 3.75 by 13 s** (a check that would pass without learning would
+  prove nothing); IC1 carries 42 °C at 20 kW; EFL/P1 byte 8 reads 250 with
+  the level switch closed and 0 with it open; amber, without Protect,
+  after the level fault.
+
+**Still outside the simulation, by nature:** the crank decoder. The top
+model steps every 1 ms and a tooth comes every 0.67 ms at 1500 rpm; it is
+proven by b2b, the unit tests and the 19 engine scenarios, which do
+generate teeth.
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a

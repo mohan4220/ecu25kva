@@ -49,6 +49,12 @@ t = at(g('et1_tx'), 13);
 check('J1939 ET1 carries the coolant (degC)', abs(double(t(1)) - 40 - 85) <= 1, double(t(1)) - 40);
 act = g('dg_act');
 check('no diagnosis in a normal start, load and stop (faults seen)', ~any(act.Data(:)), nnz(any(act.Data, 1)));
+check('no lamp lit in a normal run (ecu_lamps)', ~any(g('lamps').Data(:)), double(max(g('lamps').Data(:))));
+check('metering coil at 13 s: the plant''s nominal 3.75 ohm, not drifted (ohm)', abs(at(g('mu_r'), 13) - 3.75) < 0.19, at(g('mu_r'), 13));
+ic = at(g('ic1'), 13);
+check('J1939 IC1 carries the charge air, 30 + 0.6 x 20 kW (degC)', abs(double(ic(3)) - 40 - 42) <= 1, double(ic(3)) - 40);
+ef = at(g('eflp1_tx'), 13);
+check('J1939 EFL/P1 byte 8: coolant level OK, 100 % (raw)', ef(8) == 250, double(ef(8)));
 
 % ---- second run: the protection (decisions log 35). No stop switch.
 % Battery 9.2 V from 4 s (running: 168/18 after 10 s); coolant level
@@ -62,6 +68,7 @@ in2 = in2.setBlockParameter('ecu25kva/stop_sw', 'Time', '1e6');
 in2 = in2.setBlockParameter('ecu25kva/v_bat', 'BreakpointsForDimension1', '[0 4 4.001 100]', ...
                              'ecu25kva/v_bat', 'Table', '[13.5 13.5 9.2 9.2]');
 in2 = in2.setBlockParameter('ecu25kva/clt_low', 'Time', '5');
+in2 = in2.setBlockParameter('ecu25kva/r_coil', 'Value', '4.5');   % not the nominal 3.75: it must be learned
 in2 = in2.setBlockParameter('ecu25kva/clt_degc', 'BreakpointsForDimension1', '[0 9 15 100]', ...
                              'ecu25kva/clt_degc', 'Table', '[85 85 106 106]');
 out2 = sim(in2);
@@ -80,6 +87,11 @@ check('amber faults: still RUN just before the coolant stop', at(mode2, t_stop -
 check('Protect lit with the coolant stop', at(g2('protect'), t_stop) == 1, at(g2('protect'), t_stop));
 t_shut = mode2.Time(find(mode2.Time >= t_stop & mode2.Data == 4, 1));
 check('the DSE drops the ignition: SHUTDOWN within 5 ms of Protect (s)', ~isempty(t_shut) && t_shut - t_stop < 0.005, t_shut - t_stop);
+check('a 4.5 ohm coil learned by 13 s, from the nominal 3.75 (ohm)', abs(at(g2('mu_r'), 13) - 4.5) < 0.225, at(g2('mu_r'), 13));
+ef2 = at(g2('eflp1_tx'), 7);
+check('J1939 EFL/P1 byte 8: the level switch open, 0 % (raw)', ef2(8) == 0, double(ef2(8)));
+l2 = at(g2('lamps'), t_lvl + 0.01);
+check('amber after the level fault, without Protect (lamps byte)', bitand(l2, P.LAMP_AMBER) ~= 0 && bitand(l2, P.LAMP_PROTECT) == 0, double(l2));
 others = setdiff(1:14, [11 12 13 14]);
 check('no other diagnosis in the protection run (faults seen)', ~any(any(act2.Data(:, others))), nnz(any(act2.Data(:, others), 1)));
 f = figure('Visible', 'off', 'Position', [0 0 1000 800]);

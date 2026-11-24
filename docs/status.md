@@ -14,7 +14,7 @@ rather than rewritten, so the history of each finding stays readable.
 | Circuit blocks simulated (`sim/run_sim.py`) | **28**, all passing |
 | Engine scenarios (`firmware/sim/run_sil.py`) | **19**, passing on the hand-written and the model-generated build |
 | Simulink component models (`model/model_list.m`) | **26**, each proven bit-exact against the C (b2b) |
-| Simulink closed loop (`sim_ecu25kva`) | **29 checks**, two runs (start / load / stop; protection) |
+| Simulink closed loop (`sim_ecu25kva`) | **36 checks**, two runs (start / load / stop; protection) |
 | Prototype board tests (`test_prototype`) | **26**, passing; fab files in `prototype/fab/` |
 | ECU pins used (Bosch 0 462 YU4 15D) | **46**, all checked against the board on 23 Nov 2026 |
 | Research memos | **13** |

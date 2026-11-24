@@ -67,7 +67,7 @@ things keep that honest:
 | PLANT (light blue) | the engine and generator, the fuel rail, the metering coil, the sensor voltages: simulation only |
 | SCENARIO | ignition, the 20 kW step, the stop switch, and the profiles: battery, coolant temperature, coolant level |
 
-**Do:** double-click **Simulate**. It runs twice and prints 29 checks:
+**Do:** double-click **Simulate**. It runs twice and prints 36 checks:
 
 - run 1: start, 1500 rpm, 20 kW at 8 s, stop switch at 16 s;
 - run 2: battery 9.2 V, the coolant-level switch open, the coolant rising
@@ -258,7 +258,7 @@ commits alongside.
 | `model/build_all.m`, `gen_code.m`, `ecu_project.m` | build, generate, the buttons |
 | `model/lib/` | `mb` (model building), `mfun` (MATLAB Function blocks), `sfb` (Stateflow) |
 | `model/test/b2b.c`, `run_b2b.sh` | the back-to-back proof |
-| `model/test/sim_ecu25kva.m` | the two closed-loop runs and their 29 checks |
+| `model/test/sim_ecu25kva.m` | the two closed-loop runs and their 36 checks |
 | `firmware/gen/` | the generated C (committed; never edit) |
 | `firmware/core/model_glue.c` | the models behind the firmware's API |
 | `docs/decisions-log.md` §40, §41 | why each part is a model, or is not |

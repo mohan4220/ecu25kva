@@ -379,8 +379,10 @@ static void test_et1(void)
     CHECK(f.id == 0x18FEEEEAu && f.data[0] == 130);
     j1939_et1(&f, 90, 0);
     CHECK(f.data[0] == 0xFF);
-    j1939_eflp1(&f, 400, 1);
-    CHECK(f.id == 0x18FEEFEAu && f.data[3] == 100 && f.data[7] == 0xFF);
+    j1939_eflp1(&f, 400, 1, 0);                  /* level OK: SPN 111 at 100 % */
+    CHECK(f.id == 0x18FEEFEAu && f.data[3] == 100 && f.data[7] == 250);
+    j1939_eflp1(&f, 400, 1, 1);                  /* level low: 0 % */
+    CHECK(f.data[7] == 0);
 }
 
 static void test_dm1_single(void)

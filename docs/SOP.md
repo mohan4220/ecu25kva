@@ -243,7 +243,7 @@ fault memory and event log, the DM1 transport, UDS, ISO-TP and the bootloader.
 **Change something**
 
 1. Double-click the Model block, edit the component, **save it**.
-2. **Simulate**: 29 checks in two runs (start, 20 kW step, stop switch, sensors,
+2. **Simulate**: 36 checks in two runs (start, 20 kW step, stop switch, sensors,
    injection, J1939, cascades; then battery low, coolant level, coolant
    100 / 104 °C and the DSE shutdown on Protect); the plot is saved as
    `model/test/ecu25kva_sim.png`.
@@ -284,7 +284,7 @@ committed unless it ends with **ALL PASS**.
 | --- | --- | --- |
 | `./verify.sh` | circuits, schematics, MCU pins, both firmware builds, the models against the C, 19 engine scenarios on both builds, service tool, STM32 build | about 10 min |
 | `./verify.sh --boards` | the above + production and prototype board checks | + about 10 min |
-| `./verify.sh --matlab` | the above + the Simulink closed loop (29 checks, two runs) | + about 7 min |
+| `./verify.sh --matlab` | the above + the Simulink closed loop (36 checks, two runs) | + about 7 min |
 
 Use `--boards` after any schematic or board change, `--matlab` after any
 model change.

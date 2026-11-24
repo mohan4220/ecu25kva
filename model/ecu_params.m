@@ -60,9 +60,10 @@ txt = fileread(fullfile(core, 'diag.c'));
 tok = regexp(txt, '\[(DG_[A-Z_]+)\]\s*=\s*\{\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\}', 'tokens');
 assert(numel(dgn) == 14 && numel(tok) == 14, 'ecu_params: diag.h/diag.c: expected 14 diagnoses');
 P.dg_names = dgn;
-P.dg_deb = zeros(1, 14); P.dg_heal = zeros(1, 14);
+P.dg_deb = zeros(1, 14); P.dg_heal = zeros(1, 14); P.dg_spn = zeros(1, 14); P.dg_fmi = zeros(1, 14);
 for k = 1:14
     t = tok{strcmp(cellfun(@(c) c{1}, tok, 'UniformOutput', false), dgn{k})};
+    P.dg_spn(k) = str2double(t{2}); P.dg_fmi(k) = str2double(t{3});
     P.dg_deb(k) = str2double(t{4}); P.dg_heal(k) = str2double(t{5});
 end
 % Derived in C by expressions, not plain numbers.
