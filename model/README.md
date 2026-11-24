@@ -128,6 +128,12 @@ firmware builds without MATLAB.
 | `test/run_b2b.sh` | each generated model against its hand-written C, on millions of random inputs. The PI loops, injector law, trip decision, all six charts, the sensor conversion, the J1939 bytes, both cascade loops and the speed states agree **exactly**; the two tables within one or two units in the last place |
 | `test/sim_ecu25kva.m` | the whole model, closed loop, two runs: start, load, stop, the sensor chain, the injection, the J1939 frames; then the protection (battery low, coolant level, coolant 100 / 104 °C, Protect, the DSE's shutdown) |
 | `firmware/stm32/test_image.py` | the image built from this code is one the bootloader accepts |
+| `test/sweep_models.m`, `test/sweep_sim_diags.m` | a diagnostic sweep, run by hand: every model compiled with strict checks (unconnected ports, overflow, bounds, algebraic loops), and both closed-loop runs with run-time overflow, saturation, bounds and range checking; every warning listed by kind. 24 Nov 2026: all clean |
+
+**Precision notices are off on purpose** (`lib/mb.m`): single precision is the
+design, and a constant such as 0.04 is held as the nearest float, exactly as
+the C's 0.04f is. **The top model puts its folders on the path as it loads**,
+so it can be opened from anywhere.
 
 The tables differ in the last place because Simulink's interpolation
 orders its arithmetic differently from `table.h`. The back-to-back test

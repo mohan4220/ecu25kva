@@ -25,6 +25,10 @@ methods (Static)
             'TargetLangStandard', 'C99 (ISO)', ...
             'SaveFormat', 'Dataset', 'SignalLogging', 'on', ...
             'UtilityFuncGeneration', 'Shared location');
+        % Single precision is the design: a constant such as 0.04 is held
+        % as the nearest float, exactly as the hand-written C holds 0.04f.
+        % Simulink would warn on every such constant at every run.
+        set_param(m, 'ParameterPrecisionLossMsg', 'none');
     end
 
     function h = in(m, name, type)

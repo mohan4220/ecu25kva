@@ -27,6 +27,11 @@ function mdl_ecu25kva(P)
 m = 'ecu25kva';
 mb.new(m);
 set_param(m, 'StopTime', '20');
+% opened from anywhere (a double-click in Explorer), the buttons still find
+% ecu_project, the scripts and the tests: the model puts its folders on
+% the path as it loads
+set_param(m, 'PostLoadFcn', ['d = fileparts(get_param(''ecu25kva'', ''FileName'')); ' ...
+    'addpath(d, fullfile(d, ''lib''), fullfile(d, ''test''));']);
 S = 'single'; U8 = 'uint8';
 E = engine_constants();
 

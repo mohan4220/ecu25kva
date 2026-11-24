@@ -96,7 +96,15 @@ for n in names:
 print(len(names) - len(bad), '/', len(names)); sys.exit(1 if bad else 0)"); }
 stm32()      { "$PY" firmware/stm32/build.py --check && "$PY" firmware/stm32/test_image.py; }
 inj_seq()    { $CCMD $CF -I"$FW/stm32" -o "$OUT/t_inj$EXE" "$FW/stm32/test_inj.c" "$FW/stm32/inj_logic.c" && "$OUT/t_inj$EXE"; }
-simulink()   { (cd model && matlab -batch "addpath(pwd, fullfile(pwd,'lib'), fullfile(pwd,'test')); sim_ecu25kva"); }
+# The Simulink run. MATLAB started while another session is still closing
+# exits with a bare "MATLAB error" before any check runs (SOP troubleshooting);
+# only then is it retried once. A check that fails prints "sim_ecu25kva:" and
+# fails at once.
+simulink_once() { (cd model && matlab -batch "addpath(pwd, fullfile(pwd,'lib'), fullfile(pwd,'test')); sim_ecu25kva"); }
+simulink()   { local t; t=$(simulink_once 2>&1); local r=$?; echo "$t"
+               if [ $r -ne 0 ] && ! printf '%s' "$t" | grep -q "sim_ecu25kva:"; then
+                   echo "(MATLAB stopped before any check ran: retrying once in 30 s)"; sleep 30; simulink_once
+               else return $r; fi; }
 
 echo "== circuits and schematics"
 step "circuit blocks (run_sim)" circuits
