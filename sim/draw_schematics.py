@@ -845,7 +845,7 @@ def metering_unit_pwm(d):
     d += elm.Inductor().down()
     d += (drain := elm.Dot())
     d += elm.Label().at((top.center[0] + 1.15, top.center[1] - 1.5)).label(
-        "metering unit\n10R / 30 mH")
+        "metering unit\n3.75R nom., L unmeasured")
 
     d += elm.Line().left().at(top.center).length(1.8)
     d += elm.Diode().down().reverse().label("D1\nfreewheel", loc="left")

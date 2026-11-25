@@ -251,8 +251,10 @@ exhaust, for emissions.
 
 **How it works.**
 
-- **Metering (pin 88):** a low-side FET switches the valve coil (about
-  10 Ω, 30 mH) at 1 kHz, with a freewheel diode.
+- **Metering (pin 88):** a low-side FET switches the valve coil at
+  1 kHz, with a freewheel diode. The coil: 3.75 Ω nominal (2.5–5 Ω
+  measured, decisions log 25); its inductance is not measured yet (the
+  circuit simulation assumes 11.25 mH, for a 3 ms time constant).
 - A 50 mΩ shunt and an INA181 measure the coil current. It is sampled in
   the middle of each on-pulse.
 - The valve is normally open: more current means less fuel.
@@ -311,8 +313,10 @@ engine.
 
 **Proven by:** `vr_conditioner`, `cam_frontend`.
 
-**Model link:** `crank.c` (hand-written, because it is event-driven)
-turns the edges into rpm and phase. That rpm feeds `ecu_safety`,
+**Model link:** the crank decoder turns the edges into rpm and phase:
+`ecu_crank` (each edge) and `ecu_crankrd` (the readings), generated from
+the models and proven bit-exact against `crank.c` (decisions log 41); the
+cam learns which revolution is the marker (decisions log 39). That rpm feeds `ecu_safety`,
 `ecu_mode`, `ecu_gov`, `ecu_spdst` and `ecu_underg`. In `ecu25kva.slx`
 the plant's cylinder events stand in for it (`cyl_event_isr`).
 
@@ -364,7 +368,8 @@ from this bus, and its protections act on them.
 **Proven by:** `can_termination`.
 
 **Model link:** `ecu_j1939` builds the data of EEC1 (speed), ET1
-(coolant), EFL/P1 (oil) and HOURS. `j1939.c` sends them, with DM1 fault
+(coolant), EFL/P1 (oil, and the coolant level from pin 43 in byte 8), IC1
+(charge-air temperature, pin 79) and HOURS (decisions log 42). `j1939.c` sends them, with DM1 fault
 codes; the service link runs UDS in `service.c`.
 
 <!-- sheet prod 10 -->

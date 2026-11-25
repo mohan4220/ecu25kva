@@ -328,7 +328,7 @@ def metering_egr():
     # ---- metering valve, low-side PWM with current sense
     d += elm.Tag(width=tw("battery, via the main relay")).left().label("battery, via the main relay")
     d.here = (0, 0)
-    d += elm.Inductor2().down().label("metering valve\n≈ 10 Ω, 30 mH\n(off-board)", "top", ofst=0.2)
+    d += elm.Inductor2().down().label("metering valve\n3.75 Ω nominal\n(2.5–5 Ω measured)\n(off-board)", "top", ofst=0.2)
     d += (mr := elm.Dot().label("pin 88 MU_RETURN", "left"))
     d += (q := elm.NFet().theta(0).reverse().anchor("drain").label("Q501\nIPD90N10S4-06", "right", ofst=0.2))
     d += elm.Resistor().left().at(q.gate).length(2).label("R502 470 Ω\n(kill: Q502)", "bottom")

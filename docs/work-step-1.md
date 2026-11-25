@@ -241,7 +241,7 @@ the metering current loop.
 |---|---|---|---|
 | `fuel_mg` -> `soi_deg`, `dur_us` | Fuel, injection start and length | PLANT | Injector pins 03/05 + 73/29/07 |
 | `duty` | Metering valve PWM | PLANT | Pin 88 |
-| `starter` | Starter request | PLANT | Starter (through the DSE) |
+| `starter` | Starter request, **simulation only** (a sequencer in MODEL, so the plant can crank) | PLANT | None: the DSE4522 drives the starter; the ECU has no starter output |
 | `egr_duty`, `egr_off` | EGR bridge | Logged | Pins 59/81 |
 | `relay`, `afterrun` | Main relay | Logged | Pin 50 |
 | `boost_dis` | Stop the 100 V boost | Logged | Boost DIS/EN |
