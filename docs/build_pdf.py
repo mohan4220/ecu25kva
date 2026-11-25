@@ -71,6 +71,8 @@ BOOK = [
      "How to work: circuits, schematics and boards, the Simulink model, checks and release"),
     ("00c-simulink", "simulink-learning.md", "SOP: Learning the Simulink Model",
      "Eight lessons with exercises: the model, one signal end to end, the code, the proof, changing it"),
+    ("00d-step1", "work-step-1.md", "Work Step 1: How the ECU Works",
+     "The model's flow, the circuit's flow, controller and plant, and every equation with its diagnosis"),
     ("01-handbook", "handbook/index.html", "Field Handbook",
      "The machine, its interface, the circuits in narrative, and how to run it"),
     ("02-sensors", "handbook/sensors.html", "Sensor Reference",

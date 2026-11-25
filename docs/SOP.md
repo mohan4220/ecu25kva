@@ -188,7 +188,9 @@ step by step.
 ## 5. SOP 3 — The MATLAB Simulink model
 
 **Learning it for the first time:** `docs/simulink-learning.md`, eight lessons
-with exercises. This section is the day-to-day procedure.
+with exercises. **The whole ECU explained in one place** (the model's and
+the circuit's flow, controller and plant, every equation and fault):
+`docs/work-step-1.md`. This section is the day-to-day procedure.
 
 `model/ecu25kva.slx` is the whole ECU in one model, and its buttons do the
 rest: generate the C, build the firmware, flash the board. You edit the
