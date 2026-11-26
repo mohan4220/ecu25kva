@@ -51,7 +51,7 @@ and Embedded Coder licence and run `./verify.sh --matlab` again.
 | Flash (ST-LINK) / (J-Link) | flash `app_model_signed.hex`, the code from these models |
 | Clean project | delete the build folders (the committed `firmware/gen` stays) |
 | Run all checks | `./verify.sh` |
-| Simulate | `sim_ecu25kva`: run it closed loop and check it (36 checks, two runs) |
+| Simulate | `sim_ecu25kva`: run it closed loop and check it (44 checks, four runs) |
 | Select_PCB | prototype STM32G474 (builds) or production S32K148 (no chip layer yet) |
 
 Errors from code generation, the compiler, the image checks or the probe
@@ -86,6 +86,7 @@ go to the command window and to a dialog.
 | `ecu_lamps` | Simulink | which faults light Protect (`fault_lamps`) |
 | `ecu_crank` | Simulink | the 60-2 crank decoder and the cam-wheel learning (`crank_edge`, `crank_cam`, `crank_poll`, decisions log 39/41) |
 | `ecu_crankrd` | Simulink | rpm, angle, next angle and us per degree from the decoder's state |
+| `ecu_egrtgt` | Simulink | the EGR target position by fuel, from `actuate.c`'s table (zeros until the emissions calibration) |
 | `ecu_diag` | Simulink | the 14 diagnosis conditions and the coolant protection: EGR, metering valve, rail, speed, oil, battery 15.0 / 9.5 V, coolant 100 / 104 °C, coolant level (`diag_cond`, decisions log 40) |
 
 They have no rate of their own (sample-time independent). They take the

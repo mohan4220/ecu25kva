@@ -14,7 +14,7 @@ for f = {'govern.h', 'rail.h', 'inject.h', 'safety.h', 'ecu.h', 'crank.h', 'mode
         P.(tok{k}{1}) = str2double(tok{k}{2});
     end
 end
-for f = {'rail.c', 'inject.c'}
+for f = {'rail.c', 'inject.c', 'actuate.c'}
     txt = fileread(fullfile(core, f{1}));
     tok = regexp(txt, 'static const float\s+([A-Z_]+)\[\]\s*=\s*\{([^}]*)\}', 'tokens');
     for k = 1:numel(tok)
@@ -88,7 +88,7 @@ need = {'GOV_RPM_SET', 'GOV_DROOP', 'FUEL_MAX_MG', 'FUEL_RATED_MG', 'GOV_KP', ..
         'MU_R_LO', 'MU_R_HI', 'MU_R_LEARN_A', 'MU_R_ALPHA', 'MU_DISTRUST_MS', ...
         'LAMP_RED', 'LAMP_AMBER', 'LAMP_PROTECT', 'SPN_SPEED', 'SPN_POS', 'SPN_CLT', ...
         'SPN_BOOST_RAIL', 'FMI_HIGH_SEVERE', 'FAULTS_MAX', ...
-        'CRANK_TEETH', 'CRANK_WIN', 'CRANK_TIMEOUT_US', 'CRANK_CAM_TOL', 'CRANK_CAM_MISS'};
+        'EGR_Q', 'EGR_T', 'CRANK_TEETH', 'CRANK_WIN', 'CRANK_TIMEOUT_US', 'CRANK_CAM_TOL', 'CRANK_CAM_MISS'};
 miss = need(~isfield(P, need));
 assert(isempty(miss), 'ecu_params: not found in the C: %s', strjoin(miss, ', '));
 end

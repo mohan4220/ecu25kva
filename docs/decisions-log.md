@@ -2707,6 +2707,53 @@ generate teeth.
 
 ---
 
+## 43. Gaps closed without the engine (26 November)
+
+The owner: "Is there any gaps still in our ecu design please fix it".
+What could be closed without the engine's data:
+
+- **The EGR target lookup is generated** (`ecu_egrtgt`, the 27th model).
+  It was the last control table still hand-written in the flashed build.
+  The table stays in `actuate.c` (zeros until the emissions calibration)
+  and `ecu_params` reads it into the model. b2b: 0 difference over a
+  million fuel values. The top model now feeds it the governor's fuel
+  while running, as `ecu.c` does.
+- **Simulate: 44 checks in four runs** (was 36 in two). The top model's
+  stand-ins for what it cannot generate (`i_valid`, `crank_fault`) and the
+  100 V boost rail (now a profile) are driven by two new runs:
+  - run 3: the metering current reading lost from the start: the set
+    still holds 1500 rpm and its rail on the feedforward, nothing is
+    learned from a reading that is not there, and no metering diagnosis
+    is raised; the boost rail at 110 V from 10 s: SHUTDOWN 20 ms later
+    (`ecu_boostg`), the boost stopped;
+  - run 4: the crank signal lost while running: SHUTDOWN within 2 ms of
+    RUN, no fuel after it.
+- **13.5 V marked as an assumption** (owner: "I have mentioned you 12v
+  battery"). It is the usual charging voltage of a 12 V battery with the
+  set's alternator (owner's photo, 9 Oct) charging it; the ECU uses the
+  measured battery. Stated in Work Step 1 and the top model's notes; the
+  running reading replaces it.
+- **Documents corrected** (25 Nov): the metering coil (3.75 ohm nominal,
+  not 10 ohm), the crank decoder (generated), the CAN messages (IC1, the
+  coolant level byte), the starter (the DSE's, not the ECU's).
+
+**Still open, and why they cannot be closed here:**
+- The independent overspeed trip: needs the trip module and the main
+  relay's coil feed from the machine, and the owner's choice.
+- A smoke limit (fuel against boost pressure): needs the engine's own
+  limit; designing one without data would only guess it.
+- Calibration (gains, diagnosis thresholds, plant constants), the
+  metering valve's closing current and inductance, the injector coil
+  reading, the TDC check, the EGR pot at its stops, terminal 87 current,
+  the J1939 trace: all need the engine or the owner.
+- The S32K148 port: needs the evaluation board and a debugger.
+- Still hand-written C, by design (§41): the fault table and memory,
+  DM1/DM2 sending, the transport, UDS, the bootloader, the injector
+  current shape.
+- The Rust simulator: left alone until asked.
+
+---
+
 ## Where these came from
 
 Nothing here was found by reading the schematic. Each one surfaced when a

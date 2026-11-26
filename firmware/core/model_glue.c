@@ -17,6 +17,7 @@
 #include "inject.h"
 #include "safety.h"
 #include "ecu_railset.h"
+#include "ecu_egrtgt.h"
 #include "ecu_soi.h"
 #include "ecu_injdur.h"
 #include "ecu_safety.h"
@@ -94,6 +95,15 @@ float rail_set_bar(float fuel_mg)
 {
     float y;
     ecu_railset_step(&railset_m, fuel_mg, &y);
+    return y;
+}
+
+/* ---- EGR target: model/ecu_egrtgt.slx ---- */
+static RT_MODEL_ecu_egrtgt_T egrtgt_m;
+float egr_target_pct(float fuel_mg)
+{
+    float y;
+    ecu_egrtgt_step(&egrtgt_m, fuel_mg, &y);
     return y;
 }
 

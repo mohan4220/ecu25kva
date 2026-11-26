@@ -236,6 +236,7 @@ component models; the buttons turn your edit into a board you can flash.
 | `ecu_musup`, `ecu_muclose` | Simulink | the metering valve's supervision (trust, coil learning, fallback) and closed-valve duty |
 | `ecu_lamps` | Simulink | which faults light Protect (the DSE shuts down on it) |
 | `ecu_crank`, `ecu_crankrd` | Simulink | the crank decoder and cam-wheel learning; rpm and angle from it |
+| `ecu_egrtgt` | Simulink | the EGR target position by fuel (zeros until the emissions calibration) |
 
 Twenty-six models in all; `model/model_list.m` is the list the build and the
 back-to-back test use. Hand-written C only: the injector stage
@@ -245,9 +246,10 @@ fault memory and event log, the DM1 transport, UDS, ISO-TP and the bootloader.
 **Change something**
 
 1. Double-click the Model block, edit the component, **save it**.
-2. **Simulate**: 36 checks in two runs (start, 20 kW step, stop switch, sensors,
+2. **Simulate**: 44 checks in four runs (start, 20 kW step, stop switch, sensors,
    injection, J1939, cascades; then battery low, coolant level, coolant
-   100 / 104 °C and the DSE shutdown on Protect); the plot is saved as
+   100 / 104 °C and the DSE shutdown on Protect; then the metering current
+   reading lost and the boost rail overvoltage; then the crank signal lost); the plot is saved as
    `model/test/ecu25kva_sim.png`.
 3. **Generate code**: C for every component goes to `firmware/gen/`.
 4. **Build firmware**: compiles and checks the images
@@ -286,7 +288,7 @@ committed unless it ends with **ALL PASS**.
 | --- | --- | --- |
 | `./verify.sh` | circuits, schematics, MCU pins, both firmware builds, the models against the C, 19 engine scenarios on both builds, service tool, STM32 build | about 10 min |
 | `./verify.sh --boards` | the above + production and prototype board checks | + about 10 min |
-| `./verify.sh --matlab` | the above + the Simulink closed loop (36 checks, two runs) | + about 7 min |
+| `./verify.sh --matlab` | the above + the Simulink closed loop (44 checks, four runs) | + about 7 min |
 
 Use `--boards` after any schematic or board change, `--matlab` after any
 model change.

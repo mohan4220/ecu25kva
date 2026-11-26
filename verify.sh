@@ -131,7 +131,7 @@ if [ $BOARDS = 1 ]; then
 fi
 if [ $MATLAB = 1 ]; then
     echo "== Simulink"
-    step "ecu25kva closed loop (36 checks)" simulink
+    step "ecu25kva closed loop (44 checks)" simulink
 fi
 
 echo

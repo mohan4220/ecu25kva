@@ -65,13 +65,16 @@ things keep that honest:
 | TRIGGERS | a Stateflow chart firing the firmware's tasks: initialisation, the cylinder event, 1 ms, 20 ms, 500 ms, 1 s, 10 s |
 | MODEL (cyan) | the ECU: each task is a function-call subsystem holding the component models as Model blocks |
 | PLANT (light blue) | the engine and generator, the fuel rail, the metering coil, the sensor voltages: simulation only |
-| SCENARIO | ignition, the 20 kW step, the stop switch, and the profiles: battery, coolant temperature, coolant level |
+| SCENARIO | ignition, the 20 kW step, the stop switch, and the profiles: battery, coolant temperature, 100 V boost rail, coolant level |
 
-**Do:** double-click **Simulate**. It runs twice and prints 36 checks:
+**Do:** double-click **Simulate**. It runs four times and prints 44 checks:
 
 - run 1: start, 1500 rpm, 20 kW at 8 s, stop switch at 16 s;
 - run 2: battery 9.2 V, the coolant-level switch open, the coolant rising
-  past 100 °C and 104 °C until Protect shuts the set down.
+  past 100 °C and 104 °C until Protect shuts the set down;
+- run 3: the metering current reading lost (the set runs on the
+  feedforward) and the 100 V boost rail at 110 V (shutdown in 20 ms);
+- run 4: the crank signal lost while running (shutdown at once).
 
 Open `model/test/ecu25kva_sim.png`: speed, engine mode, fuel and rail.
 
@@ -252,13 +255,13 @@ commits alongside.
 | Path | What |
 |---|---|
 | `model/ecu25kva.slx`, `mdl_ecu25kva.m` | the top model and its script |
-| `model/ecu_*.slx`, `mdl_ecu_*.m` | the 26 component models and their scripts |
+| `model/ecu_*.slx`, `mdl_ecu_*.m` | the 27 component models and their scripts |
 | `model/model_list.m` | which models exist, in build order |
 | `model/ecu_params.m` | reads every constant from `firmware/core` |
 | `model/build_all.m`, `gen_code.m`, `ecu_project.m` | build, generate, the buttons |
 | `model/lib/` | `mb` (model building), `mfun` (MATLAB Function blocks), `sfb` (Stateflow) |
 | `model/test/b2b.c`, `run_b2b.sh` | the back-to-back proof |
-| `model/test/sim_ecu25kva.m` | the two closed-loop runs and their 36 checks |
+| `model/test/sim_ecu25kva.m` | the four closed-loop runs and their 44 checks |
 | `firmware/gen/` | the generated C (committed; never edit) |
 | `firmware/core/model_glue.c` | the models behind the firmware's API |
 | `docs/decisions-log.md` §40, §41 | why each part is a model, or is not |

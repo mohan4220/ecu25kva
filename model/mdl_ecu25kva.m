@@ -16,10 +16,12 @@ function mdl_ecu25kva(P)
 %             the sensor voltages they produce.
 %   SCENARIO  ignition at 0.5 s, the starter until RUN, 20 kW at 8 s, the
 %             stop switch (pin 25) at 16 s. The battery voltage, the
-%             coolant temperature and the coolant level switch (pin 43)
-%             are profiles, flat by default (13.5 V, 85 degC, level OK);
-%             sim_ecu25kva's second run changes them to drive the
-%             protection. "DSE" stands in for the panel: its Protect lamp
+%             coolant temperature, the 100 V boost rail and the coolant
+%             level switch (pin 43) are profiles, flat by default
+%             (13.5 V: an assumed charging voltage, not measured; 85 degC;
+%             99.7 V; level OK). sim_ecu25kva's later runs change them,
+%             and two of MODEL's stand-ins (i_valid, crank_fault), to
+%             drive the protection and the fallbacks. "DSE" stands in for the panel: its Protect lamp
 %             input drops the ignition, as the DSE4522 shuts the set down.
 %
 %   Edit the component models (ecu_*.slx) directly; press Generate code,
@@ -72,7 +74,6 @@ add_block('simulink/Sources/Step', [m '/stop_sw'], 'Time', '16', 'Before', '0', 
 mb.b(m, 'ign_u8', 'simulink/Signal Attributes/Data Type Conversion', 'OutDataTypeStr', U8);
 mb.b(m, 'stop_u8', 'simulink/Signal Attributes/Data Type Conversion', 'OutDataTypeStr', U8);
 mb.l(m, 'ignition/1', 'ign_u8/1'); mb.l(m, 'stop_sw/1', 'stop_u8/1');
-mb.k(m, 'v_boost_rail', 99.7, S);
 mb.k(m, 'i_egr', 1.5, S);
 mb.k(m, 'wif', 0, U8);
 mb.k(m, 'droop', 0, U8);
@@ -83,7 +84,9 @@ add_block('simulink/Lookup Tables/1-D Lookup Table', [m '/v_bat'], ...
     'BreakpointsForDimension1', '[0 100]', 'Table', '[13.5 13.5]', 'ExtrapMethod', 'Clip', 'OutDataTypeStr', S);
 add_block('simulink/Lookup Tables/1-D Lookup Table', [m '/clt_degc'], ...
     'BreakpointsForDimension1', '[0 100]', 'Table', '[85 85]', 'ExtrapMethod', 'Clip', 'OutDataTypeStr', S);
-mb.l(m, 'clock/1', 'v_bat/1', 'clt_degc/1');
+add_block('simulink/Lookup Tables/1-D Lookup Table', [m '/v_boost_rail'], ...
+    'BreakpointsForDimension1', '[0 100]', 'Table', '[99.7 99.7]', 'ExtrapMethod', 'Clip', 'OutDataTypeStr', S);
+mb.l(m, 'clock/1', 'v_bat/1', 'clt_degc/1', 'v_boost_rail/1');
 add_block('simulink/Sources/Step', [m '/clt_low'], 'Time', '1e6', 'Before', '0', 'After', '1', 'SampleTime', '0.001');
 mb.b(m, 'clt_low_u8', 'simulink/Signal Attributes/Data Type Conversion', 'OutDataTypeStr', U8);
 mb.l(m, 'clt_low/1', 'clt_low_u8/1');
@@ -229,7 +232,7 @@ for b = {'mode_m', 'ecu_mode'; 'safety', 'ecu_safety'; 'gov', 'ecu_gov'; 'railse
          'rail', 'ecu_rail'; 'boostg', 'ecu_boostg'; 'boostm', 'ecu_boostm'; 'egrg', 'ecu_egrg'; ...
          'wifg', 'ecu_wifg'; 'underg', 'ecu_underg'; 'relay_m', 'ecu_relay'; ...
          'spdst', 'ecu_spdst'; 'mucur', 'ecu_mucur'; 'egrpos', 'ecu_egrpos'; ...
-         'musup', 'ecu_musup'; 'sensaux', 'ecu_sensaux'; 'lamps_m', 'ecu_lamps'}'
+         'musup', 'ecu_musup'; 'sensaux', 'ecu_sensaux'; 'lamps_m', 'ecu_lamps'; 'egrtgt', 'ecu_egrtgt'}'
     ref(T, b{1}, b{2});
 end
 mb.l(T, 'v_sens/1', 'sensors/1'); mb.l(T, 'v_5v/1', 'sensors/2');
@@ -335,14 +338,17 @@ mb.l(T, 'fuelling/1', 'fuelling_u8/1');
 mb.l(T, 'v_boost_rail/1', 'boostm/1'); mb.l(T, 'fuelling_u8/1', 'boostm/2');
 mb.l(T, 'i_egr/1', 'egrg/1'); mb.l(T, 'egrg/1', 'egr_off/1');
 % EGR, the other cascade: target position -> position PID -> bridge duty.
-% The target table is zeros until the emissions calibration exists.
-mb.k(T, 'EGR_TARGET', 0, S);
+% The target, by fuel while running (ecu.c: RUN ? gov.fuel : 0), is
+% ecu_egrtgt: zeros until the emissions calibration exists.
+mb.b(T, 'egr_fuel', 'simulink/Signal Routing/Switch', 'Criteria', 'u2 ~= 0');
+mb.l(T, 'gov/1', 'egr_fuel/1'); mb.l(T, 'is_run/1', 'egr_fuel/2'); mb.l(T, 'NOFUEL/1', 'egr_fuel/3');
+mb.l(T, 'egr_fuel/1', 'egrtgt/1');
 mb.b(T, 'egr_ok', 'simulink/Logic and Bit Operations/Logical Operator', 'Operator', 'NOT', 'OutDataTypeStr', 'boolean');
 mb.b(T, 'egr_en_b', 'simulink/Logic and Bit Operations/Logical Operator', 'Operator', 'AND', 'Inputs', '2', 'OutDataTypeStr', 'boolean');
 mb.b(T, 'egr_en', 'simulink/Signal Attributes/Data Type Conversion', 'OutDataTypeStr', U8);
 mb.l(T, 'egrg/1', 'egr_ok/1'); mb.l(T, 'is_run/1', 'egr_en_b/1'); mb.l(T, 'egr_ok/1', 'egr_en_b/2');
 mb.l(T, 'egr_en_b/1', 'egr_en/1');
-mb.l(T, 'EGR_TARGET/1', 'egrpos/1'); mb.l(T, 'val_ch/5', 'egrpos/2'); mb.l(T, 'egr_en/1', 'egrpos/3');
+mb.l(T, 'egrtgt/1', 'egrpos/1'); mb.l(T, 'val_ch/5', 'egrpos/2'); mb.l(T, 'egr_en/1', 'egrpos/3');
 mb.l(T, 'egrpos/1', 'egr_duty/1');
 mb.l(T, 'wif/1', 'wifg/1');
 mb.b(T, 'armed', 'simulink/Logic and Bit Operations/Compare To Constant', 'const', '1499', 'relop', '>=', 'OutDataTypeStr', 'boolean');

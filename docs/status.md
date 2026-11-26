@@ -1,7 +1,7 @@
 # Build Status — What Is Done and What Is Not
 
-**As of 24 November 2026.** The current state is this section and §9 ("Resume
-here"); every change since September is in `docs/decisions-log.md` (§1–40).
+**As of 26 November 2026.** The current state is this section and §9 ("Resume
+here"); every change since September is in `docs/decisions-log.md` (§1–43).
 Sections 1–8 below are the record as it was built, kept with dated updates
 rather than rewritten, so the history of each finding stays readable.
 
@@ -13,12 +13,12 @@ rather than rewritten, so the history of each finding stays readable.
 |---|---|
 | Circuit blocks simulated (`sim/run_sim.py`) | **28**, all passing |
 | Engine scenarios (`firmware/sim/run_sil.py`) | **19**, passing on the hand-written and the model-generated build |
-| Simulink component models (`model/model_list.m`) | **26**, each proven bit-exact against the C (b2b) |
-| Simulink closed loop (`sim_ecu25kva`) | **36 checks**, two runs (start / load / stop; protection) |
+| Simulink component models (`model/model_list.m`) | **27**, each proven bit-exact against the C (b2b) |
+| Simulink closed loop (`sim_ecu25kva`) | **44 checks**, four runs (start / load / stop; protection; current reading lost and boost overvoltage; crank signal lost) |
 | Prototype board tests (`test_prototype`) | **26**, passing; fab files in `prototype/fab/` |
 | ECU pins used (Bosch 0 462 YU4 15D) | **46**, all checked against the board on 23 Nov 2026 |
 | Research memos | **13** |
-| Documents in the bible (`docs/pdf/ECU-Bible.pdf`) | **27**, 477 pages |
+| Documents in the bible (`docs/pdf/ECU-Bible.pdf`) | **29**, 510 pages (Work Step 1 added 25 Nov) |
 | Unknowns closed / partly / open | **12 / 1 / 3** (§5) |
 | Phase | Prototype ready to order and bring up; production board waits on the housing (owner, 10 Nov) |
 
@@ -1000,7 +1000,7 @@ Updated 23 November 2026, after the owner's part numbers and drawing crops (deci
   - rail pressure sensor Bosch 0 281 006 425 (§30): 1800 bar, as the firmware scales it; check ~0.5 V at pin 35 (to 08) with the engine stopped
   - cam sensor Bosch Hall 0 281 002 667 (§29): 5 V, open collector, as designed; the decoder now learns the wheel (§39)
   - crank sensor Bosch DG-6-K 0 281 002 214 (§28): 860 Ω, 370 mH; up to 45 V at 1500 rpm, 0.51 V cranking. The front end passes every corner, no change
-- **Not pushed:** the commits since a7afe1b stay local until all the values are in.
+- ~~**Not pushed:** the commits since a7afe1b stay local until all the values are in.~~ Pushed; since then each batch is pushed when the owner says "push".
 
 ### Where it stands
 - **Schematic:** complete, 405 parts, **on Bosch's pinout** since 8 Nov (decisions log §18). Regenerating it is deterministic.
@@ -1008,7 +1008,7 @@ Updated 23 November 2026, after the owner's part numbers and drawing crops (deci
 - **Prototype board (17 October; Bosch pinout 9 November):** routed and fab-ready in `prototype/`: the full production circuit with an STM32G474, screw terminals, 300 × 200 mm, 4 layers. 0 DRC errors, nothing unconnected, schematic parity clean. Gerbers, drill, positions and BOM in `prototype/fab/`; bring-up guide `prototype/docs/bring-up.md` (decisions log §15). **Reviewed 19 October:** the review found the watchdog kill path lost by the 15 October supervisor fix. D302 (BAT54Q) restores it, in production too. The 5 V buck's output and switch node now run on the outer layers, sized for its 1 A. The pour checks were made able to fail.
 - **Firmware:** runs on the PC, calibrated from the old ECU's own recording (§14). **Service link (20 October):** a bootloader with the image header written last, the end-of-line record with its analog trims, an underspeed warning (SPN 190 FMI 18, amber, no shutdown), and a laptop tool (`firmware/tools/ecu_service.py`) over USB or CAN channel 2, all proven on the PC (decisions log §16, firmware guide §16). The prototype's STM32G474 chip layer is written (14 Nov, `firmware/stm32/`, decisions log §21), checked on the PC, not yet on a board; the S32K148's is still to write.
 - **Simulator (20 October):** `simulator/`, mode 1 (firmware only). `ecusim` is a single Rust program. It runs the unchanged firmware against the engine model, live or from `.seq` scripts, at 1× to about 100×, and traces everything in a browser. Firmware builds load from the UI. The 16 SIL scenarios pass as scripts. Guide `simulator/README.md`; decisions log §17. Modes 2 (board fed over USB) and 3 (bench rig) are next.
-- **Safety change written up, not yet wired:** the overspeed trip opens the main relay's coil feed (spec §3 item 7, which supersedes item 6's pin 04).
+- **Safety change written up, not yet wired:** the overspeed trip opens the main relay's coil feed (spec §3 item 7, which supersedes item 6's pin 04). **Still open (26 Nov):** it needs the trip module and the relay's coil feed from the machine (Waiting on the machine, item 5) and the owner's choice of trip; nothing on the board is changed until then.
 - **Stale:** the Rust simulator lags the firmware ABI (left alone until asked).
 - **The prototype is on the Bosch pinout as of 9 Nov.** Placement and routing were updated in place; decisions log §18.
 

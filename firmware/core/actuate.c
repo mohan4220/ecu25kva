@@ -3,7 +3,9 @@
 #include "rail.h"
 #include "table.h"
 
-/* EGR target by fuel: zero everywhere until calibrated (actuate.h) */
+/* EGR target by fuel: zero everywhere until calibrated (actuate.h).
+ * The table stays here (ecu_params reads it into model/ecu_egrtgt.slx). */
+#ifndef ECU_MODEL    /* else generated: model/ecu_egrtgt.slx, via model_glue.c */
 static const float EGR_Q[] = { 0.0f, 45.0f };
 static const float EGR_T[] = { 0.0f, 0.0f };
 
@@ -11,6 +13,7 @@ float egr_target_pct(float fuel_mg)
 {
     return table_lookup(EGR_Q, EGR_T, (int)(sizeof EGR_Q / sizeof EGR_Q[0]), fuel_mg);
 }
+#endif
 
 float mu_ff(float cmd, float v_bat)
 {

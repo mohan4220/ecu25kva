@@ -12,6 +12,7 @@
 #include "ecu_gov.h"
 #include "ecu_rail.h"
 #include "ecu_railset.h"
+#include "ecu_egrtgt.h"
 #include "ecu_soi.h"
 #include "ecu_injdur.h"
 #include "ecu_safety.h"
@@ -146,6 +147,15 @@ int main(void)
         if (why != safety_check(sp, cf, ig, ru)) wf = 1;
     }
     report("rail setpoint table (bar)", wr, 2.5e-4);   /* 2 ulp at 1171 */
+    {   /* the EGR target table (zeros until calibrated), swept the same way */
+        RT_MODEL_ecu_egrtgt_T gm; double we = 0;
+        for (int i = 0; i <= 1000000; i++) {
+            float q = -5.0f + 55.0f * (float)i / 1000000.0f, y;
+            ecu_egrtgt_step(&gm, q, &y);
+            if (fabs(egr_target_pct(q) - y) > we) we = fabs(egr_target_pct(q) - y);
+        }
+        report("EGR target table (%)", we, 0);
+    }
     report("start-of-injection table (deg)", ws, 2e-6);  /* 2 ulp at 16 */
     report("injector law (us)", wi, 0);
     report("trip decision (mismatches)", wf, 0);

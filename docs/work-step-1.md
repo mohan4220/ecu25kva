@@ -33,7 +33,7 @@ four parts:
 | Block | What it is | Flashed? |
 |---|---|---|
 | **TRIGGERS** | The scheduler: plays the chip's timers and interrupts | No (the chip does this) |
-| **MODEL** | The ECU: the 26 component models (`ecu_*.slx`) | **Yes**, generated to C |
+| **MODEL** | The ECU: the 27 component models (`ecu_*.slx`) | **Yes**, generated to C |
 | **PLANT** | Engine, generator, fuel rail, metering coil, sensor voltages | No, simulation only |
 | **SCENARIO** | Ignition, load, stop switch, battery and coolant profiles; the DSE panel | No |
 
@@ -42,7 +42,7 @@ There are three loops, one inside the other.
 ### 1.1 The whole run: t = 0 s to t = 20 s
 
 ```
- t = 0     battery 13.5 V, coolant 85 degC, everything off
+ t = 0     battery 13.5 V (assumed), coolant 85 degC, everything off
  t = 0.5 s ignition ON
            starter turns until the ECU reports RUN (about 2 s)
  t = 8 s   20 kW load switched on
@@ -50,9 +50,20 @@ There are three loops, one inside the other.
  t = 20 s  simulation ends (engine coasting below 300 rpm)
 ```
 
-`model/test/sim_ecu25kva.m` also runs a second, 25 s run for the
+`model/test/sim_ecu25kva.m` also runs three more: a 25 s run for the
 protection (low battery, coolant level, overheating, Protect, the DSE
-dropping the ignition) and checks 36 results across both.
+dropping the ignition); a run with the metering current reading lost and
+the 100 V boost rail at 110 V; and a run with the crank signal lost. It
+checks 44 results across the four.
+
+**About 13.5 V.** The battery is a 12 V battery. 13.5 V is an assumption,
+not a measurement: the usual voltage of a 12 V lead-acid battery while
+the engine's charging alternator charges it. The ECU does not depend on
+it: it measures the battery on pin 04 and uses that. 13.5 V is used only
+as the simulation's battery and as the fallback when the reading is
+missing or implausible (`MU_V_NOM`). The injector hold limit is worked
+out at both 12 V and 13.5 V. The running voltage measured on the set
+will replace it.
 
 ### 1.2 Every millisecond: one loop around the four blocks
 
@@ -605,9 +616,10 @@ this set's DSE coolant alarms are at 150 / 200 degC (decisions log 35).
 | Governor, rail, metering and EGR gains | Starting values, to tune on the engine |
 | Diagnosis thresholds and times | KOEL 20 kVA sheet or chosen here; battery limits from this set's DSE; coolant limits chosen by the owner |
 | Plant constants | Estimates (`engine.py`), not measured on this engine |
-| EGR target table | Zeros: no emissions calibration yet |
+| Battery 13.5 V in the simulation | Assumed charging voltage; the running reading will replace it |
+| EGR target table | Generated (`ecu_egrtgt`, decisions log 43); zeros: no emissions calibration yet |
 | Fault table (`fault_raise` / `fault_drop`), fault memory, DM1/DM2 sending | Hand-written C (`ecu.c`, `j1939.c`) |
-| Crank decoder | Generated (`ecu_crank`), proven by b2b; not in the top model's simulation |
+| Crank decoder | Generated (`ecu_crank`), proven by b2b; not in the top model's simulation, whose run 4 checks the trip on its fault output |
 | Injector current shape | Hand-written C (`inj_logic.c`), kept in C for interrupt timing (decisions log 41) |
 
 **Next:** the owner's no-load PCAN recording checks the J1939 scaling

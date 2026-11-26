@@ -43,7 +43,7 @@ eec_rpm = (double(e(4)) + 256 * double(e(5))) * 0.125;
 check('J1939 EEC1 carries the speed (rpm)', abs(eec_rpm - at(rpm, 12.98)) < 20, eec_rpm);
 check('speed states: STEADY at 7.5 s', at(g('spd_state'), 7.5) == 3, at(g('spd_state'), 7.5));
 check('speed states: OPERATING again after the 20 kW step', any(g('spd_state').Data(g('spd_state').Time > 8 & g('spd_state').Time < 9) == 2), 2);
-check('EGR bridge coasts: no target yet (duty)', at(g('egr_duty'), 13) == 0, at(g('egr_duty'), 13));
+check('EGR bridge coasts: ecu_egrtgt gives no target yet (duty)', at(g('egr_duty'), 13) == 0, at(g('egr_duty'), 13));
 check('metering current = duty x 13.5 V / 3.75 ohm, the measured coil (A)', abs(at(g('i_mu'), 13) - at(g('duty'), 13) * 13.5 / 3.75) < 0.02, at(g('i_mu'), 13));
 t = at(g('et1_tx'), 13);
 check('J1939 ET1 carries the coolant (degC)', abs(double(t(1)) - 40 - 85) <= 1, double(t(1)) - 40);
@@ -94,6 +94,50 @@ l2 = at(g2('lamps'), t_lvl + 0.01);
 check('amber after the level fault, without Protect (lamps byte)', bitand(l2, P.LAMP_AMBER) ~= 0 && bitand(l2, P.LAMP_PROTECT) == 0, double(l2));
 others = setdiff(1:14, [11 12 13 14]);
 check('no other diagnosis in the protection run (faults seen)', ~any(any(act2.Data(:, others))), nnz(any(act2.Data(:, others), 1)));
+
+% ---- third run: the metering current reading lost from the start (the
+% ISNS_MU amplifier dead), and the 100 V boost rail at 110 V from 10 s.
+% Without a reading ecu_musup falls back on the coil it knows and
+% ecu_mucur on its feedforward: the set must still run, and nothing must
+% be learned from a reading that is not there. Over 106 V for 20 ms
+% (ecu_boostg) stops the boost and shuts the engine down.
+in3 = Simulink.SimulationInput('ecu25kva');
+in3 = in3.setModelParameter('StopTime', '11');
+in3 = in3.setBlockParameter('ecu25kva/stop_sw', 'Time', '1e6');
+in3 = in3.setBlockParameter('ecu25kva/MODEL/one_ms_task/i_valid', 'Value', '0');
+in3 = in3.setBlockParameter('ecu25kva/v_boost_rail', 'BreakpointsForDimension1', '[0 10 10.0005 100]', ...
+                             'ecu25kva/v_boost_rail', 'Table', '[99.7 99.7 110 110]');
+out3 = sim(in3);
+g3 = @(n) out3.get(n);
+check('no current reading: speed at 7.5 s on the feedforward, 1500 +/- 15 rpm', ...
+      abs(mean_in(g3('rpm'), 7.4, 7.5) - 1500) < 15, mean_in(g3('rpm'), 7.4, 7.5));
+check('no current reading: rail tracks its setpoint at 9.9 s (bar)', ...
+      abs(at(g3('rail_bar'), 9.9) - at(g3('set_bar'), 9.9)) < 50, at(g3('rail_bar'), 9.9));
+check('no current reading: the coil is not learned, stays 3.75 ohm', ...
+      abs(at(g3('mu_r'), 9.9) - P.MU_R_NOM) < 1e-4, at(g3('mu_r'), 9.9));
+act3 = g3('dg_act');
+check('no current reading: no metering diagnosis (1347/5, 1347/6)', ~any(any(act3.Data(:, [4 5]))), ...
+      nnz(any(act3.Data(:, [4 5]), 1)));
+mode3 = g3('mode');
+t_ov = mode3.Time(find(mode3.Time >= 10 & mode3.Data == 4, 1));
+check(sprintf('boost rail 110 V at 10 s: SHUTDOWN %g ms later (ecu_boostg) (s)', P.BOOST_OV_MS), ...
+      ~isempty(t_ov) && abs(t_ov - 10 - P.BOOST_OV_MS / 1000) < 0.003, t_ov - 10);
+check('boost rail overvoltage: the boost converter stopped', at(g3('boost_dis'), 10.5) == 1, at(g3('boost_dis'), 10.5));
+
+% ---- fourth run: the crank signal lost while running (crank_fault, the
+% decoder's own output, which the top model cannot generate: no teeth).
+% ecu_safety's sync trip: SHUTDOWN on the first running tick, no fuel.
+in4 = Simulink.SimulationInput('ecu25kva');
+in4 = in4.setModelParameter('StopTime', '4');
+in4 = in4.setBlockParameter('ecu25kva/MODEL/one_ms_task/crank_fault', 'Value', '1');
+out4 = sim(in4);
+mode4 = out4.get('mode'); fuel4 = out4.get('fuel_mg');
+t_run4 = mode4.Time(find(mode4.Data == 3, 1));
+t_sh4 = mode4.Time(find(mode4.Data == 4, 1));
+check('crank signal lost while running: SHUTDOWN within 2 ms of RUN (s)', ...
+      ~isempty(t_run4) && ~isempty(t_sh4) && t_sh4 - t_run4 <= 0.002, t_sh4 - t_run4);
+check('crank signal lost: no fuel after the shutdown (mg)', ...
+      ~isempty(t_sh4) && all(fuel4.Data(fuel4.Time >= t_sh4) == 0), max(double(fuel4.Data(fuel4.Time >= t_sh4))));
 f = figure('Visible', 'off', 'Position', [0 0 1000 800]);
 subplot(4, 1, 1); plot(rpm.Time, rpm.Data); ylabel('rpm'); grid on;
 title('ecu25kva: start, 20 kW at 8 s, stop switch at 16 s');
