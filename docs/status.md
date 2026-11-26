@@ -18,7 +18,7 @@ rather than rewritten, so the history of each finding stays readable.
 | Prototype board tests (`test_prototype`) | **26**, passing; fab files in `prototype/fab/` |
 | ECU pins used (Bosch 0 462 YU4 15D) | **46**, all checked against the board on 23 Nov 2026 |
 | Research memos | **13** |
-| Documents in the bible (`docs/pdf/ECU-Bible.pdf`) | **29**, 510 pages (Work Step 1 added 25 Nov) |
+| Documents in the bible (`docs/pdf/ECU-Bible.pdf`) | **29**, 511 pages (Work Step 1 added 25 Nov) |
 | Unknowns closed / partly / open | **12 / 1 / 3** (§5) |
 | Phase | Prototype ready to order and bring up; production board waits on the housing (owner, 10 Nov) |
 
